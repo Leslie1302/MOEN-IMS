@@ -1,0 +1,139 @@
+{% extends 'Inventory/base.html' %}
+{% block content %}
+
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 p-4">
+        <div class="card-body">
+            <h2 class="text-center fw-bold text-primary mb-3">📦 Receive Materials</h2>
+            <hr class="w-25 mx-auto border-primary mb-4">
+            
+            <form method="POST">
+                {% csrf_token %}
+                {{ formset.management_form }}
+                <div id="form-container">
+                    {% for form in formset %}
+                        <div class="card mb-3 shadow-sm p-3 material-form">
+                            <div class="row g-3 align-items-center">
+                                <!-- Select Material -->
+                                <div class="col-md-3">
+                                    <label class="fw-semibold">{{ form.name.label }}</label>
+                                    {{ form.name }}
+                                    {{ form.name.errors }}
+                                </div>
+
+                                <!-- Quantity -->
+                                <div class="col-md-2">
+                                    <label class="fw-semibold">{{ form.quantity.label }}</label>
+                                    {{ form.quantity }}
+                                    {{ form.quantity.errors }}
+                                </div>
+
+                                <!-- Display Category (Readonly) -->
+                                <div class="col-md-3">
+                                    <label class="fw-semibold">Category</label>
+                                    <input type="text" class="form-control category-field" readonly>
+                                </div>
+
+                                <!-- Display Code (Readonly) -->
+                                <div class="col-md-2">
+                                    <label class="fw-semibold">Code</label>
+                                    <input type="text" class="form-control material-code" readonly>
+                                </div>
+
+                                <!-- Display Unit (Readonly) -->
+                                <div class="col-md-1">
+                                    <label class="fw-semibold">Unit</label>
+                                    <input type="text" class="form-control unit-field" readonly>
+                                </div>
+
+                                <!-- Remove Button -->
+                                <div class="col-md-1 d-flex justify-content-center align-items-end">
+                                    <button type="button" class="btn btn-outline-danger remove-form">❌</button>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another</button>
+                    <button type="submit" class="btn btn-primary px-4">📥 Submit Receipt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Autofill and Dynamic Forms -->
+<script>
+    const inventoryItems = {{ inventory_items|safe }};
+
+    document.addEventListener("DOMContentLoaded", function () {
+        function autofillFields(selectElement) {
+            const selectedName = selectElement.value;
+            const formRow = selectElement.closest(".material-form");
+            const categoryInput = formRow.querySelector(".category-field");
+            const codeInput = formRow.querySelector(".material-code");
+            const unitInput = formRow.querySelector(".unit-field");
+
+            const item = inventoryItems.find(i => i.name === selectedName);
+            if (item) {
+                categoryInput.value = item.category__name || "";
+                codeInput.value = item.code || "";
+                unitInput.value = item.unit__name || "";
+            } else {
+                categoryInput.value = "";
+                codeInput.value = "";
+                unitInput.value = "";
+            }
+        }
+
+        document.querySelectorAll(".material-select").forEach(select => {
+            select.addEventListener("change", function () {
+                autofillFields(this);
+            });
+            if (select.value) autofillFields(select);
+        });
+
+        document.getElementById("add-form").addEventListener("click", function () {
+            const formContainer = document.getElementById("form-container");
+            const totalForms = document.querySelector("#id_form-TOTAL_FORMS");
+            const newFormIdx = parseInt(totalForms.value);
+            const newForm = formContainer.firstElementChild.cloneNode(true);
+
+            newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
+            const select = newForm.querySelector(".material-select");
+            select.selectedIndex = 0;
+            newForm.querySelector("[name$='quantity']").value = "";
+            newForm.querySelector(".category-field").value = "";
+            newForm.querySelector(".material-code").value = "";
+            newForm.querySelector(".unit-field").value = "";
+
+            select.addEventListener("change", function () {
+                autofillFields(this);
+            });
+
+            const removeBtn = newForm.querySelector(".remove-form");
+            removeBtn.style.display = "block";
+
+            formContainer.appendChild(newForm);
+            totalForms.value = newFormIdx + 1;
+        });
+
+        document.addEventListener("click", function (event) {
+            if (event.target.classList.contains("remove-form")) {
+                const formContainer = document.getElementById("form-container");
+                const totalForms = document.querySelector("#id_form-TOTAL_FORMS");
+                const formCount = formContainer.children.length;
+
+                if (formCount > 1) {
+                    event.target.closest(".material-form").remove();
+                    totalForms.value = formCount - 1;
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

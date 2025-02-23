@@ -1,0 +1,65 @@
+{% load static %}
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">📦 Inventory Manager</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+            <ul class="navbar-nav align-items-center">
+                {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'request_material' %}">📥 Request Material</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_orders' %}">📦 Material Orders</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_receipt' %}">📤 Receive Material</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center text-dark fw-semibold" href="#" 
+                           id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            {% if profile and profile.profile_picture %}
+                                <img src="{{ profile.profile_picture.url }}" 
+                                    class="rounded-circle img-fluid shadow-sm"
+                                    alt="User Profile Picture"
+                                    style="width: 35px; height: 35px; object-fit: cover;">
+                            {% else %}
+                                <img src="{% static 'images/default_profile.png' %}" 
+                                    class="rounded-circle img-fluid shadow-sm" 
+                                    alt="Default Profile Picture"
+                                    style="width: 35px; height: 35px; object-fit: cover;">
+                            {% endif %}
+                            <span class="ms-2">{{ user.username }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{% url 'profile' %}">👤 View Profile</a></li>
+                            <li>
+                                <form action="{% url 'logout' %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item text-danger">🚪 Sign Out</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'signin' %}">🔑 Sign In</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'signup' %}">📝 Sign Up</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

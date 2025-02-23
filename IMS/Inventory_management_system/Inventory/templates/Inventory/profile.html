@@ -1,0 +1,154 @@
+<!-- Inventory/profile.html -->
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <!-- Header -->
+            <div class="text-center mb-4">
+                <h1 class="fw-bold text-primary mb-1">Your Profile</h1>
+                <p class="text-muted">Manage your account settings</p>
+                <hr class="w-25 mx-auto border-primary">
+            </div>
+
+            <!-- Flash Messages -->
+            {% if messages %}
+                <div class="mb-4">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Profile Card -->
+            <div class="card shadow-lg border-0 p-4 mb-4">
+                <div class="card-body text-center">
+                    <!-- Profile Picture -->
+                    <div class="profile-pic-container mx-auto mb-3">
+                        {% if profile.profile_picture %}
+                            <img src="{{ profile.profile_picture.url }}?t={{ profile.profile_picture.name|default:'default' }}"
+                                 class="rounded-circle img-fluid shadow-sm" alt="Profile Picture">
+                        {% else %}
+                            <img src="{% static 'images/default_profile.png' %}"
+                                 class="rounded-circle img-fluid shadow-sm" alt="Default Profile Picture">
+                        {% endif %}
+                    </div>
+
+                    <!-- User Info -->
+                    <h4 class="fw-semibold text-dark">{{ user.username }}</h4>
+                    <p class="text-muted mb-3">{{ user.email }}</p>
+
+                    <!-- Toggle Buttons -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#updateForm">
+                            Update Profile <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#passwordForm">
+                            Change Password <i class="fas fa-key"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Update Form -->
+            <div id="updateForm" class="collapse mb-4">
+                <div class="card shadow-sm border-0 p-4">
+                    <h5 class="fw-bold text-center text-dark mb-3">Update Information</h5>
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ user_form.as_p }}
+                        </div>
+                        <div class="mb-3">
+                            {{ profile_form.as_p }}
+                        </div>
+                        <button type="submit" name="update_info" class="btn btn-primary w-100">
+                            Save Changes <i class="fas fa-save"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Password Change Form -->
+            <div id="passwordForm" class="collapse mb-4">
+                <div class="card shadow-sm border-0 p-4">
+                    <h5 class="fw-bold text-center text-dark mb-3">Change Password</h5>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ password_form.as_p }}
+                        </div>
+                        <button type="submit" name="change_password" class="btn btn-danger w-100">
+                            Update Password <i class="fas fa-lock"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Styles -->
+<style>
+    /* Profile Picture Styling */
+    .profile-pic-container {
+        width: 150px;
+        height: 150px;
+        overflow: hidden;
+        border-radius: 50%;
+    }
+    .profile-pic-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* Maintains aspect ratio, crops if needed */
+        border: 3px solid #007bff;
+        transition: transform 0.3s ease-in-out;
+    }
+    .profile-pic-container img:hover {
+        transform: scale(1.1);
+    }
+
+    /* Buttons */
+    .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+        transition: background-color 0.3s;
+    }
+    .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+    .btn-outline-danger {
+        transition: background-color 0.3s, color 0.3s;
+    }
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    /* Card Styling */
+    .card {
+        border-radius: 10px;
+        transition: box-shadow 0.3s;
+    }
+    .card:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    /* General Layout */
+    .container {
+        max-width: 800px;
+    }
+    hr {
+        border-width: 2px;
+    }
+</style>
+
+{% endblock %}

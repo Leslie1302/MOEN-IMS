@@ -1,0 +1,200 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center fw-bold text-primary">📦 My Material Requests</h2>
+    <p class="text-muted text-center">Track the status of your requested materials</p>
+    <hr class="w-50 mx-auto border-primary">
+
+    {% if messages %}
+        <div class="row">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="table table-hover table-striped text-center">
+            <thead>
+                <tr class="bg-light">
+                    <th scope="col">User</th>
+                    <th scope="col">Material</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Processed</th>
+                    <th scope="col">Remaining</th>
+                    <th scope="col">Notification Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Date Requested</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <tr id="order-{{ order.id }}">
+                        <td>{{ order.user.username }}</td>
+                        <td>{{ order.name }}</td>
+                        <td>{{ order.quantity }}</td>
+                        <td id="processed-{{ order.id }}">{{ order.processed_quantity }}</td>
+                        <td id="remaining-{{ order.id }}">{{ order.remaining_quantity }}</td>
+                        <td>{{ order.request_type }}</td>
+                        <td id="status-{{ order.id }}">
+                            {% if order.status == "Pending" %}
+                                ⏳ Pending
+                            {% elif order.status == "Seen" %}
+                                👀 Seen
+                            {% elif order.status == "Approved" %}
+                                🔄 Approved
+                            {% elif order.status == "Completed" %}
+                                ✅ Completed
+                            {% else %}
+                                🔄 {{ order.status }}
+                            {% endif %}
+                        </td>
+                        <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <div class="btn-group-vertical">
+                                <button id="seen-btn-{{ order.id }}" class="btn btn-warning btn-sm"
+                                        onclick="updateStatus({{ order.id }}, 'Seen')"
+                                        {% if order.status != 'Pending' and order.status != 'Approved' %}disabled{% endif %}>
+                                    👀 Seen
+                                </button>
+                                <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm mt-1"
+                                        onclick="togglePartialInput({{ order.id }})"
+                                        {% if order.status != 'Seen' %}disabled{% endif %}>
+                                    📏 Partial
+                                </button>
+                                <button id="full-btn-{{ order.id }}" class="btn btn-success btn-sm mt-1"
+                                        onclick="updateStatus({{ order.id }}, 'Full')"
+                                        {% if order.status != 'Seen' %}disabled{% endif %}>
+                                    ✅ Full
+                                </button>
+                            </div>
+                            <div id="partial-form-{{ order.id }}" class="mt-2 d-none">
+                                <input type="number" id="partial-input-{{ order.id }}" class="form-control d-inline-block"
+                                       min="1" max="{{ order.remaining_quantity }}" value="1"
+                                       oninput="validatePartialInput(this, {{ order.remaining_quantity }})"
+                                       style="width: 100px;" placeholder="Qty">
+                                <button id="submit-partial-{{ order.id }}" class="btn btn-primary btn-sm mt-1"
+                                        onclick="updateStatus({{ order.id }}, 'Partial', document.getElementById('partial-input-{{ order.id }}').value)">
+                                    ✔️ Submit
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-muted text-center">No material requests found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="{% url 'request_material' %}" class="btn btn-primary">➕ Request New Material</a>
+    </div>
+</div>
+
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<script>
+function getCSRFToken() {
+    let cookieValue = null;
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith("csrftoken=")) {
+            cookieValue = cookie.substring("csrftoken=".length);
+            break;
+        }
+    }
+    return cookieValue || document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
+function togglePartialInput(orderId) {
+    const partialForm = document.getElementById(`partial-form-${orderId}`);
+    partialForm.classList.toggle('d-none');
+}
+
+function validatePartialInput(input, max) {
+    const value = parseInt(input.value);
+    if (value < 1) input.value = 1;
+    if (value > max) input.value = max;
+}
+
+function updateStatus(orderId, newStatus, partialQuantity = null) {
+    if (newStatus === 'Partial') {
+        partialQuantity = parseInt(partialQuantity);
+        if (!partialQuantity || partialQuantity <= 0 || partialQuantity > parseInt(document.getElementById(`remaining-${orderId}`).innerText)) {
+            alert("Please enter a valid partial quantity between 1 and " + document.getElementById(`remaining-${orderId}`).innerText);
+            return;
+        }
+    }
+
+    const payload = newStatus === 'Partial' ? { is_partial: true, partial_quantity: partialQuantity } : { is_partial: false };
+    fetch(`/update_material_status/${orderId}/${newStatus}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCSRFToken(),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || `HTTP error! status: ${response.status}`); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            const statusCell = document.getElementById(`status-${orderId}`);
+            statusCell.innerText = data.new_status === 'Approved' ? '🔄 Approved' : 
+                                  data.new_status === 'Seen' ? '👀 Seen' : '✅ Completed';
+            document.getElementById(`processed-${orderId}`).innerText = data.processed_quantity;
+            document.getElementById(`remaining-${orderId}`).innerText = data.remaining_quantity;
+
+            const seenBtn = document.getElementById(`seen-btn-${orderId}`);
+            const partialBtn = document.getElementById(`partial-btn-${orderId}`);
+            const fullBtn = document.getElementById(`full-btn-${orderId}`);
+            const partialForm = document.getElementById(`partial-form-${orderId}`);
+            const submitPartialBtn = document.getElementById(`submit-partial-${orderId}`);
+            const partialInput = document.getElementById(`partial-input-${orderId}`);
+
+            if (data.new_status === "Seen") {
+                seenBtn.disabled = true;
+                partialBtn.disabled = false;
+                fullBtn.disabled = false;
+            } else if (data.new_status === "Approved") {
+                seenBtn.disabled = false;
+                partialBtn.disabled = true;
+                fullBtn.disabled = true;
+                partialForm.classList.add('d-none');
+            } else if (data.new_status === "Completed") {
+                seenBtn.disabled = true;
+                partialBtn.disabled = true;
+                fullBtn.disabled = true;
+                partialForm.classList.add('d-none');
+                submitPartialBtn.disabled = true;
+            }
+            // Update max value for partial input
+            partialInput.setAttribute('max', data.remaining_quantity);
+            console.log(`Order ${orderId} updated to ${data.new_status}, Remaining: ${data.remaining_quantity}`);
+        } else {
+            console.log(data.error);
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.log(error.message);
+        alert(`❌ Error: ${error.message}`);
+    });
+}
+</script>
+
+{% endblock %}

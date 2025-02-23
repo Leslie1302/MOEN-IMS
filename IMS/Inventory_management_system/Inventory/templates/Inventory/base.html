@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://bootswatch.com/5/lux/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/8/87/Warehouse_icon.png" type="image/png">
+    <title>{% block title %}WAREHOUSE MANAGEMENT TOOL{% endblock %}</title>
+    <style>
+        /* Make the body take full height */
+        html, body {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Make content expand to push footer down */
+        .content {
+            flex: 1;
+        }
+
+        /* Sticky footer */
+        footer {
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    {% include 'Inventory/navigation.html' %}
+
+    <div class="container mt-4 content">
+        {% block content %}
+        {% endblock content %}
+    </div>
+
+    <footer class="mt-auto">
+        <p>&copy; 2025 Warehouse Management Tool | All Rights Reserved</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" 
+            crossorigin="anonymous"></script>
+</body>
+</html>

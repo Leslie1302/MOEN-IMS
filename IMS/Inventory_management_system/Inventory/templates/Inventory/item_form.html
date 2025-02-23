@@ -1,0 +1,157 @@
+{% extends 'Inventory/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<a href="{% url 'dashboard' %}" class="btn btn-outline-primary my-3 mx-4">Go Back</a>
+
+<div class="row">
+    <div class="col-11 col-md-6 mx-auto mt-5">
+        <h1>{% if form.instance.pk %}Edit Inventory Item{% else %}Add Inventory Items{% endif %}</h1>
+
+        <form method="POST">
+            {% csrf_token %}
+            
+            {% if formset %}
+                <div id="formset">
+                    {{ formset.management_form }}
+
+                    {% for form in formset %}
+                        <div class="form-group form-row item-form card p-3 mb-3">
+                            <div class="form-header d-flex justify-content-between align-items-center">
+                                <h5 class="form-title">Item {{ forloop.counter }}</h5>
+                                <div>
+                                    <button type="button" class="btn btn-outline-info btn-sm toggle-form">Collapse</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-form d-none">Remove</button>
+                                </div>
+                            </div>
+                            <div class="form-summary d-none"></div> <!-- Summary placeholder -->
+                            <div class="form-body">
+                                {{ form|crispy }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-3 d-flex gap-2">
+                    <button type="button" id="add-form" class="btn btn-secondary">Add Another Item</button>
+                    <button type="submit" class="btn btn-primary">Add Items</button>
+                </div>
+            {% else %}
+                <div class="form-group form-row item-form card p-3 mb-3">
+                    <div class="form-header d-flex justify-content-between align-items-center">
+                        <h5 class="form-title">Edit Item</h5>
+                    </div>
+                    <div class="form-body">
+                        {{ form|crispy }}
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Item</button>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- JavaScript to Handle Dynamic Forms -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let formsetDiv = document.getElementById("formset");
+        let addFormBtn = document.getElementById("add-form");
+        let totalForms = document.querySelector("#id_form-TOTAL_FORMS");
+        let formNum = totalForms ? parseInt(totalForms.value) : 0;
+
+        // Helper: Update form summary (name + quantity)
+        function updateFormSummary(form) {
+            const nameInput = form.querySelector('input[name$="-name"]');
+            const quantityInput = form.querySelector('input[name$="-quantity"]');
+            const summary = form.querySelector(".form-summary");
+
+            summary.innerText = `${nameInput.value || 'Unnamed Item'} - ${quantityInput.value || '0'} units`;
+        }
+
+        // Add new form dynamically
+        if (addFormBtn) {
+            addFormBtn.addEventListener("click", function () {
+                let firstForm = document.querySelector(".item-form");
+                let newForm = firstForm.cloneNode(true);
+                let formRegex = new RegExp(`form-(\\d){1,2}-`, "g");
+                newForm.innerHTML = newForm.innerHTML.replace(formRegex, `form-${formNum}-`);
+
+                // Reset new form inputs
+                newForm.querySelectorAll("input, select").forEach(input => input.value = "");
+
+                // Ensure remove button is visible
+                newForm.querySelector(".remove-form").classList.remove("d-none");
+
+                formsetDiv.appendChild(newForm);
+                formNum++;
+                totalForms.value = formNum;
+
+                // Collapse the previous form and update its summary
+                collapseForm(firstForm);
+            });
+        }
+
+        // Collapse form and display summary
+        function collapseForm(form) {
+            form.classList.add("collapsed");
+            form.querySelector(".form-body").classList.add("d-none");
+            form.querySelector(".form-summary").classList.remove("d-none");
+            form.querySelector(".toggle-form").textContent = "Expand";
+
+            updateFormSummary(form); // Update the summary
+        }
+
+        // Expand/collapse form on button click
+        formsetDiv?.addEventListener("click", function (e) {
+            if (e.target.classList.contains("toggle-form")) {
+                let formContainer = e.target.closest(".item-form");
+                let formBody = formContainer.querySelector(".form-body");
+                let formSummary = formContainer.querySelector(".form-summary");
+
+                if (formContainer.classList.contains("collapsed")) {
+                    formContainer.classList.remove("collapsed");
+                    formBody.classList.remove("d-none");
+                    formSummary.classList.add("d-none");
+                    e.target.textContent = "Collapse";
+                } else {
+                    collapseForm(formContainer);
+                }
+            }
+
+            // Remove form
+            if (e.target.classList.contains("remove-form")) {
+                let formToRemove = e.target.closest(".item-form");
+                formToRemove.remove();
+                formNum--;
+                totalForms.value = formNum;
+            }
+        });
+
+        // Update the form summary when input values change
+        formsetDiv?.addEventListener("input", function (e) {
+            let formContainer = e.target.closest(".item-form");
+            if (formContainer) {
+                updateFormSummary(formContainer);
+            }
+        });
+    });
+</script>
+
+<style>
+    .collapsed {
+        background: #f8f9fa;
+        border: 1px solid #ccc;
+        padding: 10px;
+    }
+
+    .collapsed .form-title {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .form-summary {
+        font-weight: bold;
+    }
+</style>
+
+{% endblock %}

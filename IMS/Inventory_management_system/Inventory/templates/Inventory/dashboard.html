@@ -1,0 +1,91 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}  <!-- ✅ Load humanize for number formatting -->
+
+{% block content %}
+    {% if messages %}
+        <div class="row mt-3">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    {% if user.is_superuser %}
+        <div class="d-flex justify-content-end mb-3">
+            <a href="{% url 'upload_inventory' %}" class="btn btn-success">📂 Upload Excel</a>
+        </div>
+    {% endif %}
+
+    <!-- 🔥 Low Stock Alert -->
+    {% if low_inventory_items %}
+        <div class="alert alert-warning text-center">
+            ⚠️ 
+            {% if low_inventory_items|length <= 3 %}
+                The following materials are low in stock:  
+                <strong>{{ low_inventory_items|join:", " }}</strong>
+            {% else %}
+                {{ low_inventory_items|length }} materials are low in stock!
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-10 col-12 mx-auto mt-5">
+            <div class="d-flex justify-content-end">
+                <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
+            </div>
+
+            <table class="table table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Qty</th>
+                        <th scope="col">Unit</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Item Code</th>
+                        <th scope="col" colspan="2" class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if not items %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No items available</td>
+                        </tr>
+                    {% else %}
+                        {% for item in items %}
+                            <tr>
+                                <th scope="row">{{ item.id }}</th>
+                                <td>{{ item.name }}</td>
+
+                                <!-- ✅ Format number with commas -->
+                                <td class="{% if item.id in low_inventory_ids %} text-danger {% endif %}">
+                                    {{ item.quantity|intcomma }}
+                                </td>
+
+                                <td>{{ item.unit.name }}</td>
+                                <td>{{ item.category.name }}</td>
+                                <td>{{ item.code }}</td>
+
+                                <td class="text-center">
+                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary">Edit</a>
+                                </td>
+                                <td class="text-center">
+                                    <a href="{% url 'delete-item' item.id %}" class="btn btn-danger">Delete</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if user.is_superuser %}
+        <div class="d-flex justify-content-end mb-3">
+            <a href="{% url 'upload_categories_units' %}" class="btn btn-success">📂 Upload Categories & Units</a>
+        </div>
+    {% endif %}
+{% endblock content %}

@@ -1,0 +1,117 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container text-center mt-5">
+    <!-- Logo at the Top -->
+    <img src="https://i.postimg.cc/g2ntpZNy/Adobe-Express-file.png" 
+         alt="App Logo" class="img-fluid mb-4 logo" style="max-width: 200px;">
+
+    <!-- Centered Content -->
+    <div class="row justify-content-center fade-in">
+        <div class="col-md-6">
+            <h1 class="fw-light">Track and Manage Your Inventory</h1>
+            <p class="fw-light">Keep track of your inventory and receive quantity alerts for low stock.</p>
+            <a href="{% url 'dashboard' %}" class="btn btn-primary animated-btn">Get Started Now!</a>
+        </div>
+    </div>
+
+    <!-- About Section -->
+    <div class="row justify-content-center mt-5 fade-in">
+        <div class="col-md-8">
+            <h2>About the App</h2>
+            <p>
+                Our Inventory Management System is designed to help businesses efficiently track stock levels, 
+                manage material requests, and streamline procurement processes. With real-time updates and user-friendly features, 
+                you’ll always stay informed about your inventory status.
+            </p>
+            <p>
+                Whether you're handling warehouse supplies or office resources, our system ensures smooth and hassle-free inventory control.
+            </p>
+        </div>
+    </div>
+
+    <!-- Spacer to push Contact section lower -->
+    <div style="height: 150px;"></div>
+
+    <!-- Contact Information Section -->
+    <div class="row justify-content-center mt-5 fade-in">
+        <div class="col-md-6">
+            <h2>Contact Us</h2>
+            <p>
+                📧 Email: <a href="mailto:leslieniiadjetey@proton.me">leslieniiadjetey@proton.me</a><br>
+                📞 Phone: +233 55 251 8992<br>
+                📍 Location: Accra, Ghana
+            </p>
+            <p>
+                Have any questions or need support? Reach out to us anytime!
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Animations -->
+<script>
+    // Fade-in effect when scrolling
+    document.addEventListener("DOMContentLoaded", function() {
+        const fadeIns = document.querySelectorAll(".fade-in");
+        const options = { threshold: 0.3 };
+
+        let observer = new IntersectionObserver(function(entries, observer) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("visible");
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, options);
+
+        fadeIns.forEach(section => observer.observe(section));
+
+        // Logo bounce effect
+        setTimeout(() => {
+            document.querySelector(".logo").classList.add("bounce");
+        }, 500);
+    });
+
+    // Button hover effect
+    document.querySelector(".animated-btn").addEventListener("mouseover", function() {
+        this.style.backgroundColor = "#ffcc00";
+        this.style.color = "#000";
+    });
+
+    document.querySelector(".animated-btn").addEventListener("mouseleave", function() {
+        this.style.backgroundColor = "#007bff";
+        this.style.color = "#fff";
+    });
+</script>
+
+<!-- CSS Styles for Animations -->
+<style>
+    /* Fade-in effect */
+    .fade-in {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 1s ease-out, transform 1s ease-out;
+    }
+
+    .fade-in.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* Logo bounce animation */
+    .logo {
+        transition: transform 0.5s ease-in-out;
+    }
+
+    .logo.bounce {
+        transform: translateY(-10px);
+    }
+
+    /* Button hover animation */
+    .animated-btn {
+        transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+    }
+</style>
+{% endblock content %}

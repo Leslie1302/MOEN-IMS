@@ -1,0 +1,23 @@
+{% extends 'Inventory/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center">📂 Upload Inventory File</h2>
+    <p class="text-center text-muted">Upload an Excel file to update inventory.</p>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data" class="text-center">
+        {% csrf_token %}
+        <input type="file" name="file" required class="form-control mb-3">
+        <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+
+    <div class="mt-4">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}
