@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate, login, update_session_auth_hash
 from .forms import UserRegistration, AuthenticationForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm, UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.views import LogoutView as BaseLogoutView
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
 from Inventory_management_system.settings import LOW_QUANTITY
@@ -28,6 +28,9 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import numpy as np
+import logging
+
+
 
 class Index(TemplateView):
     template_name = 'Inventory/index.html'
@@ -627,3 +630,107 @@ class MaterialHeatmapView(LoginRequiredMixin, View):
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{report_type}_heatmap_{period}.pdf"'
         return response
+    
+class LowInventorySummaryView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    template_name = 'Inventory/low_inventory_summary.html'
+    context_object_name = 'low_items'
+    permission_required = 'Inventory.view_inventoryitem'
+
+    def get_queryset(self):
+        user = self.request.user
+        LOW_QUANTITY = 5  # Match the threshold used in Dashboard view
+        if user.is_superuser:
+            return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).order_by('name')
+        return InventoryItem.objects.filter(
+            group__in=user.groups.all(),
+            quantity__lte=LOW_QUANTITY
+        ).order_by('name')
+
+class BillOfQuantityView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    template_name = 'Inventory/bill_of_quantity.html'
+    context_object_name = 'boq_items'
+    permission_required = 'Inventory.view_billofquantity'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
+        return BillOfQuantity.objects.filter(
+            group__in=user.groups.all()
+        ).order_by('package_number', 'material_description')
+
+    
+logger = logging.getLogger(__name__)
+
+class UploadBillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request):
+        form = ExcelUploadForm()
+        return render(request, 'Inventory/upload_bill_of_quantity.html', {'form': form})
+
+    def post(self, request):
+        if not self.request.user.is_superuser:
+            return JsonResponse({'error': 'Unauthorized access'}, status=403)
+
+        form = ExcelUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            file = request.FILES['file']
+            try:
+                df = pd.read_excel(file, engine='openpyxl')
+                required_columns = [
+                    'region', 'district', 'community', 'consultant', 'contractor', 
+                    'package_number', 'material_description', 'item_code', 
+                    'contract_quantity', 'quantity_received'
+                ]
+                if not all(col in df.columns for col in required_columns):
+                    missing_cols = [col for col in required_columns if col not in df.columns]
+                    messages.error(request, f"Excel file is missing required columns: {', '.join(missing_cols)}")
+                    return redirect('bill_of_quantity')
+
+                for index, row in df.iterrows():
+                    try:
+                        # Handle NaN or empty values
+                        contract_qty = int(float(row['contract_quantity'])) if pd.notna(row['contract_quantity']) else 0
+                        qty_received = int(float(row['quantity_received'])) if pd.notna(row['quantity_received']) else 0
+                        item_code = str(row['item_code']) if pd.notna(row['item_code']) else f"Unknown-{index}"
+
+                        boq, created = BillOfQuantity.objects.get_or_create(
+                            item_code=item_code,
+                            package_number=row['package_number'],
+                            defaults={
+                                'region': row['region'],
+                                'district': row['district'],
+                                'community': row['community'] if pd.notna(row['community']) else None,
+                                'consultant': row['consultant'],
+                                'contractor': row['contractor'],
+                                'material_description': row['material_description'],
+                                'contract_quantity': contract_qty,
+                                'quantity_received': qty_received,
+                                'user': request.user,
+                            }
+                        )
+                        if not created:
+                            boq.region = row['region']
+                            boq.district = row['district']
+                            boq.community = row['community'] if pd.notna(row['community']) else None
+                            boq.consultant = row['consultant']
+                            boq.contractor = row['contractor']
+                            boq.material_description = row['material_description']
+                            boq.contract_quantity = contract_qty
+                            boq.quantity_received = qty_received
+                            boq.save()
+
+                    except Exception as e:
+                        logger.error(f"Error processing row {index}: {str(e)}")
+                        messages.error(request, f"Error at row {index + 2}: {str(e)}")
+                        continue  # Skip problematic rows but continue processing others
+
+                messages.success(request, "Bill of Quantity updated successfully!")
+            except Exception as e:
+                logger.error(f"Error processing Excel file: {str(e)}")
+                messages.error(request, f"Error processing file: {str(e)}")
+            return redirect('bill_of_quantity')
+
+        return render(request, 'Inventory/upload_bill_of_quantity.html', {'form': form})

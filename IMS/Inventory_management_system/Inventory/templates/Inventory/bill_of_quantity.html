@@ -1,0 +1,64 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}Bill of Quantity - Inventory Manager{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-12 col-12 mx-auto mt-5">
+            <h2 class="text-center mb-4">Bill of Quantity</h2>
+            {% if user.is_superuser %}
+                <div class="d-flex justify-content-end mb-3">
+                    <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
+                </div>
+            {% endif %}
+            {% if boq_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th scope="col">Region</th>
+                                <th scope="col">District</th>
+                                <th scope="col">Community</th>
+                                <th scope="col">Consultant</th>
+                                <th scope="col">Contractor</th>
+                                <th scope="col">Package Number</th>
+                                <th scope="col">Material Description</th>
+                                <th scope="col">Item Code</th>
+                                <th scope="col">Contract Quantity</th>
+                                <th scope="col">Quantity Received</th>
+                                <th scope="col">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in boq_items %}
+                                <tr>
+                                    <td>{{ item.region }}</td>
+                                    <td>{{ item.district }}</td>
+                                    <td>{{ item.community|default:"N/A" }}</td>
+                                    <td>{{ item.consultant }}</td>
+                                    <td>{{ item.contractor }}</td>
+                                    <td>{{ item.package_number }}</td>
+                                    <td>{{ item.material_description }}</td>
+                                    <td>{{ item.item_code }}</td>
+                                    <td>{{ item.contract_quantity|intcomma }}</td>
+                                    <td>{{ item.quantity_received|intcomma }}</td>
+                                    <td class="{% if item.balance < 0 %} text-danger {% endif %}">
+                                        {{ item.balance|intcomma }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center" role="alert">
+                    No Bill of Quantity data available.
+                </div>
+            {% endif %}
+            <div class="d-flex justify-content-center mt-4">
+                <a href="{% url 'dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

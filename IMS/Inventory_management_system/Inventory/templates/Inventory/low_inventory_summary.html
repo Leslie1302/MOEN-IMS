@@ -1,0 +1,49 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}Low Inventory Summary - Warehouse Management Tool{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-10 col-12 mx-auto mt-5">
+            <h2 class="text-center mb-4">Low Inventory Summary</h2>
+            {% if low_items %}
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Quantity</th>
+                            <th scope="col">Unit</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Item Code</th>
+                            <th scope="col" class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in low_items %}
+                            <tr>
+                                <th scope="row">{{ item.id }}</th>
+                                <td>{{ item.name }}</td>
+                                <td class="text-danger">{{ item.quantity|intcomma }}</td>
+                                <td>{{ item.unit.name }}</td>
+                                <td>{{ item.category.name }}</td>
+                                <td>{{ item.code }}</td>
+                                <td class="text-center">
+                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-primary btn-sm">Edit</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info text-center" role="alert">
+                    No items are currently low in inventory.
+                </div>
+            {% endif %}
+            <div class="d-flex justify-content-center mt-4">
+                <a href="{% url 'dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

@@ -90,3 +90,27 @@ class Profile(models.Model):
 
 
     
+class BillOfQuantity(models.Model):
+    region = models.CharField(max_length=100)
+    district = models.CharField(max_length=100)
+    community = models.CharField(max_length=100, null=True, blank=True)
+    consultant = models.CharField(max_length=200)
+    contractor = models.CharField(max_length=200)
+    package_number = models.CharField(max_length=50)
+    material_description = models.CharField(max_length=200)
+    item_code = models.CharField(max_length=200)
+    contract_quantity = models.FloatField()  # Changed to FloatField
+    quantity_received = models.FloatField(default=0.0)  # Changed to FloatField
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True)
+    date_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'bills of quantity'
+
+    def __str__(self):
+        return f"{self.material_description} - {self.package_number}"
+
+    @property
+    def balance(self):
+        return self.contract_quantity - self.quantity_received

@@ -1,5 +1,7 @@
 {% extends 'Inventory/base.html' %}
-{% load humanize %}  <!-- ✅ Load humanize for number formatting -->
+{% load humanize %}
+
+{% block title %}Dashboard - Warehouse Management Tool{% endblock %}
 
 {% block content %}
     {% if messages %}
@@ -18,27 +20,27 @@
         </div>
     {% endif %}
 
-    <!-- 🔥 Low Stock Alert -->
+    <!-- Interactive Low Stock Alert -->
     {% if low_inventory_items %}
-        <div class="alert alert-warning text-center">
-            ⚠️ 
+        <div class="alert alert-warning text-center" role="alert">
+            <strong>⚠️ Low Stock Alert:</strong>
             {% if low_inventory_items|length <= 3 %}
-                The following materials are low in stock:  
-                <strong>{{ low_inventory_items|join:", " }}</strong>
+                The following materials are low: {{ low_inventory_items|join:", " }}
             {% else %}
                 {{ low_inventory_items|length }} materials are low in stock!
             {% endif %}
+            <a href="{% url 'low_inventory_summary' %}" class="btn btn-outline-warning btn-sm ms-2">View Details</a>
         </div>
     {% endif %}
 
     <div class="row">
         <div class="col-md-10 col-12 mx-auto mt-5">
-            <div class="d-flex justify-content-end">
+            <div class="d-flex justify-content-end mb-3">
                 <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
             </div>
 
             <table class="table table-hover table-striped">
-                <thead>
+                <thead class="table-dark">
                     <tr>
                         <th scope="col">ID</th>
                         <th scope="col">Name</th>
@@ -59,21 +61,17 @@
                             <tr>
                                 <th scope="row">{{ item.id }}</th>
                                 <td>{{ item.name }}</td>
-
-                                <!-- ✅ Format number with commas -->
                                 <td class="{% if item.id in low_inventory_ids %} text-danger {% endif %}">
                                     {{ item.quantity|intcomma }}
                                 </td>
-
                                 <td>{{ item.unit.name }}</td>
                                 <td>{{ item.category.name }}</td>
                                 <td>{{ item.code }}</td>
-
                                 <td class="text-center">
-                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary">Edit</a>
+                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
                                 </td>
                                 <td class="text-center">
-                                    <a href="{% url 'delete-item' item.id %}" class="btn btn-danger">Delete</a>
+                                    <a href="{% url 'delete-item' item.id %}" class="btn btn-danger btn-sm">Delete</a>
                                 </td>
                             </tr>
                         {% endfor %}
