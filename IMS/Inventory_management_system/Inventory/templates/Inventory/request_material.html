@@ -13,49 +13,66 @@
                 <div id="form-container">
                     {% for form in formset %}
                         <div class="card mb-3 shadow-sm p-3 material-form">
-                            <div class="row g-3 align-items-center">
-                                <!-- Select Material -->
-                                <div class="col-md-3">
+                            <div class="d-flex flex-column gap-3">
+                                <div>
                                     <label class="fw-semibold">{{ form.name.label }}</label>
                                     {{ form.name }}
                                     {{ form.name.errors }}
                                 </div>
-
-                                <!-- Quantity -->
-                                <div class="col-md-2">
+                                <div>
                                     <label class="fw-semibold">{{ form.quantity.label }}</label>
                                     {{ form.quantity }}
                                     {{ form.quantity.errors }}
                                 </div>
-
-                                <!-- Display Category (Readonly) -->
-                                <div class="col-md-3">
+                                <div>
+                                    <label class="fw-semibold">{{ form.region.label }}</label>
+                                    {{ form.region }}
+                                    {{ form.region.errors }}
+                                </div>
+                                <div>
+                                    <label class="fw-semibold">{{ form.district.label }}</label>
+                                    {{ form.district }}
+                                    {{ form.district.errors }}
+                                </div>
+                                <div>
+                                    <label class="fw-semibold">{{ form.community.label }}</label>
+                                    {{ form.community }}
+                                    {{ form.community.errors }}
+                                </div>
+                                <div>
+                                    <label class="fw-semibold">{{ form.consultant.label }}</label>
+                                    {{ form.consultant }}
+                                    {{ form.consultant.errors }}
+                                </div>
+                                <div>
+                                    <label class="fw-semibold">{{ form.contractor.label }}</label>
+                                    {{ form.contractor }}
+                                    {{ form.contractor.errors }}
+                                </div>
+                                <div>
+                                    <label class="fw-semibold">{{ form.package_number.label }}</label>
+                                    {{ form.package_number }}
+                                    {{ form.package_number.errors }}
+                                </div>
+                                <div>
                                     <label class="fw-semibold">Category</label>
                                     <input type="text" class="form-control category-field" readonly>
                                 </div>
-
-                                <!-- Display Code (Readonly) -->
-                                <div class="col-md-2">
+                                <div>
                                     <label class="fw-semibold">Code</label>
                                     <input type="text" class="form-control material-code" readonly>
                                 </div>
-
-                                <!-- Display Unit (Readonly) -->
-                                <div class="col-md-1">
+                                <div>
                                     <label class="fw-semibold">Unit</label>
                                     <input type="text" class="form-control unit-field" readonly>
                                 </div>
-
-                                <!-- Remove Button -->
-                                <div class="col-md-1 d-flex justify-content-center align-items-end">
+                                <div class="d-flex justify-content-center">
                                     <button type="button" class="btn btn-outline-danger remove-form">❌</button>
                                 </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
-
-                <!-- Form Buttons -->
                 <div class="d-flex justify-content-center gap-3 mt-4">
                     <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another</button>
                     <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
@@ -65,7 +82,6 @@
     </div>
 </div>
 
-<!-- JavaScript for Autofill and Dynamic Forms -->
 <script>
     const inventoryItems = {{ inventory_items|safe }};
 
@@ -93,7 +109,6 @@
             select.addEventListener("change", function () {
                 autofillFields(this);
             });
-            // Trigger autofill on load if there's a pre-selected value
             if (select.value) autofillFields(select);
         });
 
@@ -106,7 +121,9 @@
             newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
             const select = newForm.querySelector(".material-select");
             select.selectedIndex = 0;
-            newForm.querySelector("[name$='quantity']").value = "";
+            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number'].forEach(field => {
+                newForm.querySelector(`[name$='${field}']`).value = "";
+            });
             newForm.querySelector(".category-field").value = "";
             newForm.querySelector(".material-code").value = "";
             newForm.querySelector(".unit-field").value = "";
@@ -136,5 +153,4 @@
         });
     });
 </script>
-
 {% endblock %}

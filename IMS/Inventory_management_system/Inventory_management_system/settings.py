@@ -196,3 +196,20 @@ logging.basicConfig(
     level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}

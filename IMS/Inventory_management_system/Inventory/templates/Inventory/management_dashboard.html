@@ -1,0 +1,163 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Adjust for fixed navbar with padding-top -->
+<div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
+    <div class="bg-light py-2 sticky-top">
+        <h2 class="text-center fw-bold text-primary mb-0">📊 Management Material Order Dashboard</h2>
+        <p class="text-muted text-center mb-0">Comprehensive overview of orders, receipts, and interactions</p>
+    </div>
+
+    {% if messages %}
+        <div class="row justify-content-center">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Summary Statistics -->
+    <div class="row justify-content-center mt-3">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Summary</h5>
+                    <p>Total Orders: {{ total_orders }}</p>
+                    <p>Materials Received by Consultants: {{ total_received_by_consultants }}</p>
+                    <p>Materials Received by Storekeepers: {{ total_received_by_storekeepers }}</p>
+                    <p>Total Materials Released by Storekeepers: {{ total_released_by_storekeepers }}</p>
+                    <p>Total On Site: {{ total_on_site }}</p>
+                    <p>Pending Orders: {{ pending_orders }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="row justify-content-center mt-3">
+        <div class="col-md-10">
+            <h4>Material Orders and Receipts</h4>
+            <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
+                <table class="table table-hover table-striped w-100" id="orders-table">
+                    <thead class="sticky-top bg-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Material</th>
+                            <th>Quantity</th>
+                            <th>Processed</th>
+                            <th>Remaining</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Last Updated By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                            <tr>
+                                <td>{{ order.user.username }}</td>
+                                <td>{{ order.name }}</td>
+                                <td>{{ order.quantity }}</td>
+                                <td>{{ order.processed_quantity }}</td>
+                                <td>{{ order.remaining_quantity }}</td>
+                                <td>{{ order.request_type }}</td>
+                                <td>
+                                    {% if order.status == "Pending" %}⏳ Pending
+                                    {% elif order.status == "Seen" %}👀 Seen
+                                    {% elif order.status == "Approved" %}🔄 Approved
+                                    {% elif order.status == "Received" %}✔️ Received
+                                    {% elif order.status == "On Site" %}🏗️ On Site
+                                    {% elif order.status == "Completed" %}✅ Completed
+                                    {% else %}🔄 {{ order.status }}{% endif %}
+                                </td>
+                                <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
+                                <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="row justify-content-center mt-3">
+        <div class="col-md-10">
+            <h4>Audit Trail</h4>
+            <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
+                <table class="table table-hover table-striped w-100" id="audit-table">
+                    <thead class="sticky-top bg-light">
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Action</th>
+                            <th>Performed By</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for audit in audit_trail %}
+                            <tr>
+                                <td>{{ audit.order_id }}</td>
+                                <td>{{ audit.action }}</td>
+                                <td>{{ audit.performed_by.username|default:"N/A" }}</td>
+                                <td>{{ audit.date|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light fixed-bottom">
+        <button class="btn btn-secondary" id="refresh-btn">🔄 Refresh Data</button>
+    </div>
+</div>
+
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded");
+
+    document.getElementById('refresh-btn').addEventListener('click', function() {
+        console.log("Refresh button clicked");
+        location.reload();
+    });
+});
+</script>
+
+<style>
+    .container-fluid {
+        padding: 0;
+    }
+    .table-responsive {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: calc(100vh - 300px);
+    }
+    .table th, .table td {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+        white-space: normal;
+        word-wrap: break-word;
+    }
+    .table th {
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        text-align: left;
+    }
+    .card {
+        margin-bottom: 1rem;
+    }
+    .fixed-bottom {
+        z-index: 1000;
+    }
+</style>
+{% endblock %}

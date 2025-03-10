@@ -28,6 +28,14 @@
                     <li class="nav-item">
                         <a class="nav-link text-dark fw-semibold" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'consultant_dash' %}">📤 Consultants' Dashbaord</a>
+                    </li>
+                    {% if user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'management_dashboard' %}">👔 Management Dashboard</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle d-flex align-items-center text-dark fw-semibold" href="#" 
                            id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">

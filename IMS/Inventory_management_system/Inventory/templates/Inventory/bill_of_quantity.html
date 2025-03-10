@@ -4,61 +4,201 @@
 {% block title %}Bill of Quantity - Inventory Manager{% endblock %}
 
 {% block content %}
-    <div class="row">
-        <div class="col-md-12 col-12 mx-auto mt-5">
-            <h2 class="text-center mb-4">Bill of Quantity</h2>
-            {% if user.is_superuser %}
-                <div class="d-flex justify-content-end mb-3">
-                    <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
-                </div>
-            {% endif %}
-            {% if boq_items %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped">
-                        <thead class="table-dark">
-                            <tr>
-                                <th scope="col">Region</th>
-                                <th scope="col">District</th>
-                                <th scope="col">Community</th>
-                                <th scope="col">Consultant</th>
-                                <th scope="col">Contractor</th>
-                                <th scope="col">Package Number</th>
-                                <th scope="col">Material Description</th>
-                                <th scope="col">Item Code</th>
-                                <th scope="col">Contract Quantity</th>
-                                <th scope="col">Quantity Received</th>
-                                <th scope="col">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in boq_items %}
-                                <tr>
-                                    <td>{{ item.region }}</td>
-                                    <td>{{ item.district }}</td>
-                                    <td>{{ item.community|default:"N/A" }}</td>
-                                    <td>{{ item.consultant }}</td>
-                                    <td>{{ item.contractor }}</td>
-                                    <td>{{ item.package_number }}</td>
-                                    <td>{{ item.material_description }}</td>
-                                    <td>{{ item.item_code }}</td>
-                                    <td>{{ item.contract_quantity|intcomma }}</td>
-                                    <td>{{ item.quantity_received|intcomma }}</td>
-                                    <td class="{% if item.balance < 0 %} text-danger {% endif %}">
-                                        {{ item.balance|intcomma }}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="alert alert-info text-center" role="alert">
-                    No Bill of Quantity data available.
-                </div>
-            {% endif %}
-            <div class="d-flex justify-content-center mt-4">
-                <a href="{% url 'dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
+<div class="row">
+    <div class="col-12 mx-auto mt-5">
+        <h2 class="text-center mb-4">Bill of Quantity</h2>
+        {% if user.is_superuser %}
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
             </div>
+        {% endif %}
+        {% if boq_items %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="boq-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">Region<span class="filter-arrow" data-column="0">▼</span><div class="dropdown-menu" id="filter-0" style="display: none;"></div></th>
+                            <th scope="col">District<span class="filter-arrow" data-column="1">▼</span><div class="dropdown-menu" id="filter-1" style="display: none;"></div></th>
+                            <th scope="col">Community<span class="filter-arrow" data-column="2">▼</span><div class="dropdown-menu" id="filter-2" style="display: none;"></div></th>
+                            <th scope="col">Consultant<span class="filter-arrow" data-column="3">▼</span><div class="dropdown-menu" id="filter-3" style="display: none;"></div></th>
+                            <th scope="col">Contractor<span class="filter-arrow" data-column="4">▼</span><div class="dropdown-menu" id="filter-4" style="display: none;"></div></th>
+                            <th scope="col">Package Number<span class="filter-arrow" data-column="5">▼</span><div class="dropdown-menu" id="filter-5" style="display: none;"></div></th>
+                            <th scope="col">Material Description<span class="filter-arrow" data-column="6">▼</span><div class="dropdown-menu" id="filter-6" style="display: none;"></div></th>
+                            <th scope="col">Item Code<span class="filter-arrow" data-column="7">▼</span><div class="dropdown-menu" id="filter-7" style="display: none;"></div></th>
+                            <th scope="col">Contract Quantity<span class="filter-arrow" data-column="8">▼</span><div class="dropdown-menu" id="filter-8" style="display: none;"></div></th>
+                            <th scope="col">Quantity Received<span class="filter-arrow" data-column="9">▼</span><div class="dropdown-menu" id="filter-9" style="display: none;"></div></th>
+                            <th scope="col">Balance<span class="filter-arrow" data-column="10">▼</span><div class="dropdown-menu" id="filter-10" style="display: none;"></div></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in boq_items %}
+                            <tr>
+                                <td>{{ item.region }}</td>
+                                <td>{{ item.district }}</td>
+                                <td>{{ item.community|default:"N/A" }}</td>
+                                <td>{{ item.consultant }}</td>
+                                <td>{{ item.contractor }}</td>
+                                <td>{{ item.package_number }}</td>
+                                <td>{{ item.material_description }}</td>
+                                <td>{{ item.item_code }}</td>
+                                <td>{{ item.contract_quantity|intcomma }}</td>
+                                <td>{{ item.quantity_received|intcomma }}</td>
+                                <td class="{% if item.balance < 0 %} text-danger {% endif %}">{{ item.balance|intcomma }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info text-center" role="alert">No Bill of Quantity data available.</div>
+        {% endif %}
+        <div class="d-flex justify-content-center mt-4">
+            <a href="{% url 'dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
         </div>
     </div>
+</div>
+<div class="d-flex justify-content-end gap-2">
+    <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
+    <button class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; display: none; z-index: 1000;" id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
+</div>
+
+<script>
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.onscroll = function() {
+    const btn = document.getElementById('scroll-top-btn');
+    btn.style.display = window.scrollY > 100 ? 'block' : 'none';
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('boq-table');
+    const headers = table.querySelectorAll('.filter-arrow');
+    const filters = {};
+    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
+
+    function populateDropdowns() {
+        headers.forEach(header => {
+            const colIndex = parseInt(header.getAttribute('data-column'));
+            const dropdown = document.getElementById(`filter-${colIndex}`);
+            const values = new Set();
+            const rows = table.querySelector('tbody').getElementsByTagName('tr');
+            
+            for (let row of rows) {
+                if (row.style.display !== 'none') {
+                    const cells = row.getElementsByTagName('td');
+                    if (cells[colIndex]) {
+                        values.add(cells[colIndex].textContent.trim() || 'N/A');
+                    }
+                }
+            }
+            console.log(`Column ${colIndex} available values:`, Array.from(values));
+
+            const currentSelections = filters[colIndex] || [];
+            dropdown.innerHTML = '';
+            const selectAll = document.createElement('div');
+            selectAll.className = 'dropdown-item';
+            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
+            dropdown.appendChild(selectAll);
+
+            values.forEach(value => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
+                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
+                dropdown.appendChild(item);
+            });
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                console.log(`Confirm clicked for column ${colIndex}`);
+                updateFilters(colIndex);
+                filterTable();
+                populateDropdowns();
+                dropdown.style.display = 'none';
+            });
+            dropdown.appendChild(confirmBtn);
+
+            selectAll.querySelector('input').addEventListener('change', function(e) {
+                e.stopPropagation();
+                const isChecked = this.checked;
+                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
+                console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
+            });
+        });
+    }
+
+    headers.forEach(header => {
+        const colIndex = parseInt(header.getAttribute('data-column'));
+        const dropdown = document.getElementById(`filter-${colIndex}`);
+
+        header.onclick = function(e) {
+            e.stopPropagation();
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+                dropdown.style.display = 'block';
+            }
+        };
+
+        dropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('filter-arrow')) {
+            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+        }
+    });
+
+    function updateFilters(colIndex) {
+        const dropdown = document.getElementById(`filter-${colIndex}`);
+        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
+        console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
+    }
+
+    function filterTable() {
+        const rows = table.querySelector('tbody').getElementsByTagName('tr');
+        console.log(`Filtering ${rows.length} rows`);
+        for (let row of rows) {
+            let show = true;
+            const cells = row.getElementsByTagName('td');
+            for (let col in filters) {
+                const colIdx = parseInt(col);
+                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
+                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
+                    show = false;
+                    break;
+                }
+            }
+            console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
+            row.style.display = show ? '' : 'none';
+        }
+        console.log('Filter applied');
+    }
+
+    function undoFilters() {
+        console.log('Undo filters triggered');
+        for (let col in filters) {
+            delete filters[col];
+        }
+        allRows.forEach(row => row.style.display = '');
+        populateDropdowns();
+    }
+
+    document.getElementById('undo-filter-btn').addEventListener('click', function() {
+        undoFilters();
+    });
+
+    populateDropdowns();
+    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
+    filterTable();
+});
+</script>
 {% endblock content %}

@@ -31,9 +31,18 @@ class MaterialOrderForm(forms.ModelForm):
 
     class Meta:
         model = MaterialOrder
-        fields = ['name', 'quantity']  # request_type set in view
+        fields = [
+            'name', 'quantity', 'region', 'district', 'community', 
+            'consultant', 'contractor', 'package_number'
+        ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'region': forms.TextInput(attrs={'class': 'form-control'}),
+            'district': forms.TextInput(attrs={'class': 'form-control'}),
+            'community': forms.TextInput(attrs={'class': 'form-control'}),
+            'consultant': forms.TextInput(attrs={'class': 'form-control'}),
+            'contractor': forms.TextInput(attrs={'class': 'form-control'}),
+            'package_number': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -45,8 +54,8 @@ class MaterialOrderForm(forms.ModelForm):
             else:
                 self.fields['name'].queryset = InventoryItem.objects.all()
 
-# Reuse for both requests and receipts
 MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1, can_delete=True)
+
 
 class UserUpdateForm(forms.ModelForm):
     class Meta:

@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate, login, update_session_auth_hash
 from .forms import UserRegistration, AuthenticationForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm, UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.views import LogoutView as BaseLogoutView
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity, MaterialOrderAudit
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
 from Inventory_management_system.settings import LOW_QUANTITY
@@ -29,7 +29,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import numpy as np
 import logging
-
+from django.db.models import Sum
+from django.contrib.auth.models import User, Group
 
 
 class Index(TemplateView):
@@ -141,6 +142,7 @@ MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 
 MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 
+
 class RequestMaterialView(LoginRequiredMixin, View):
     template_name = 'Inventory/request_material.html'
 
@@ -172,7 +174,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                         material_order.unit = selected_item.unit
                     material_order.user = request.user
                     material_order.group = request.user.groups.first() if request.user.groups.exists() else None
-                    material_order.request_type = 'Release'  # Set as Release Request
+                    material_order.request_type = 'Release'
                     material_order.save()
             messages.success(request, "Material requests submitted successfully!")
             return redirect('material_orders')
@@ -200,7 +202,6 @@ class MaterialOrdersView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
             return MaterialOrder.objects.all().order_by('-date_requested')
         return MaterialOrder.objects.filter(group__in=self.request.user.groups.all()).order_by('-date_requested')
 
-
 class UpdateMaterialStatusView(View):
     def post(self, request, order_id, new_status):
         if new_status not in ["Seen", "Partial", "Full"]:
@@ -218,7 +219,6 @@ class UpdateMaterialStatusView(View):
                 if order.remaining_quantity is None:
                     print(f"Warning: remaining_quantity was None for order {order.id}, setting to {order.quantity - order.processed_quantity}")
                     order.remaining_quantity = order.quantity - order.processed_quantity
-                    order.save()
 
                 inventory_item = InventoryItem.objects.filter(name=order.name).first()
                 if not inventory_item:
@@ -231,7 +231,6 @@ class UpdateMaterialStatusView(View):
 
                 if new_status == "Seen":
                     order.status = "Seen"
-                    order.save()
                 elif new_status in ["Partial", "Full"]:
                     if is_partial and (partial_quantity <= 0 or partial_quantity > order.remaining_quantity):
                         return JsonResponse({"success": False, "error": "Invalid partial quantity."}, status=400)
@@ -263,22 +262,26 @@ class UpdateMaterialStatusView(View):
                         order.status = "Completed"  # Fully processed
                     else:
                         order.status = "Approved"  # Partially processed or reset after action
-                    order.save()
+
+                # Set the user who updated the order
+                order.last_updated_by = request.user
+                order.save()
 
                 return JsonResponse({
                     "success": True,
                     "new_status": order.status,
                     "processed_quantity": order.processed_quantity,
-                    "remaining_quantity": order.remaining_quantity
+                    "remaining_quantity": order.remaining_quantity,
+                    "last_updated_by": request.user.username  # Return username
                 })
         except json.JSONDecodeError:
             return JsonResponse({"success": False, "error": "Invalid request data."}, status=400)
-        except ValueError as e:  # Handles invalid partial_quantity conversion
+        except ValueError as e:
             return JsonResponse({"success": False, "error": f"Invalid quantity value: {str(e)}"}, status=400)
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")  # Log the full error for debugging
+            print(f"Unexpected error: {str(e)}")
             return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
-
+        
 
 class ProfileView(LoginRequiredMixin, View):
     template_name = 'Inventory/profile.html'
@@ -734,3 +737,111 @@ class UploadBillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect('bill_of_quantity')
 
         return render(request, 'Inventory/upload_bill_of_quantity.html', {'form': form})
+    
+
+
+def consultant_dash(request):
+    orders = MaterialOrder.objects.all().order_by('-date_requested')
+    profile, created = Profile.objects.get_or_create(user=request.user)  # Ensure profile exists
+    context = {
+        'orders': orders,
+        'profile': profile  # Pass profile to the context
+    }
+    return render(request, 'Inventory/receive_material.html', context)
+
+logger = logging.getLogger(__name__)
+
+def management_dashboard(request):
+    # Log the total number of orders
+    total_orders = MaterialOrder.objects.count()
+    logger.debug(f"Total Orders: {total_orders}")
+
+    # Debug: Check if groups exist
+    consultants_group = Group.objects.filter(name='Consultants').first()
+    storekeepers_group = Group.objects.filter(name='Storekeepers').first()
+    logger.debug(f"Consultants Group Exists: {consultants_group is not None}")
+    logger.debug(f"Storekeepers Group Exists: {storekeepers_group is not None}")
+
+    # Debug: Count users in each group
+    consultants_users = User.objects.filter(groups__name='Consultants').count()
+    storekeepers_users = User.objects.filter(groups__name='Storekeepers').count()
+    logger.debug(f"Users in Consultants Group: {consultants_users}")
+    logger.debug(f"Users in Storekeepers Group: {storekeepers_users}")
+
+    # Debug: Check orders for each condition
+    received_by_consultants = MaterialOrder.objects.filter(
+        status='Received', user__groups__name='Consultants'
+    )
+    logger.debug(f"Received Orders by Consultants: {received_by_consultants.count()}")
+    total_received_by_consultants = received_by_consultants.aggregate(total=Sum('quantity'))['total'] or 0
+    logger.debug(f"Total Received by Consultants (Sum): {total_received_by_consultants}")
+
+    received_by_storekeepers = MaterialOrder.objects.filter(
+        status='Received', user__groups__name='Storekeepers'
+    )
+    logger.debug(f"Received Orders by Storekeepers: {received_by_storekeepers.count()}")
+    total_received_by_storekeepers = received_by_storekeepers.aggregate(total=Sum('quantity'))['total'] or 0
+    logger.debug(f"Total Received by Storekeepers (Sum): {total_received_by_storekeepers}")
+
+    released_by_storekeepers = MaterialOrder.objects.filter(
+        request_type='Release', user__groups__name='Storekeepers'
+    )
+    logger.debug(f"Released Orders by Storekeepers: {released_by_storekeepers.count()}")
+    total_released_by_storekeepers = released_by_storekeepers.aggregate(total=Sum('quantity'))['total'] or 0
+    logger.debug(f"Total Released by Storekeepers (Sum): {total_released_by_storekeepers}")
+
+    total_on_site = MaterialOrder.objects.filter(status='On Site').count()
+    logger.debug(f"Total On Site: {total_on_site}")
+
+    pending_orders = MaterialOrder.objects.filter(status='Pending').count()
+    logger.debug(f"Pending Orders: {pending_orders}")
+
+    orders = MaterialOrder.objects.all().order_by('-date_requested')
+    receipts = MaterialOrder.objects.filter(status__in=['Received', 'On Site']).order_by('-date_requested')
+    audit_trail = MaterialOrderAudit.objects.all().order_by('-date')
+    profile, created = Profile.objects.get_or_create(user=request.user)
+
+    context = {
+        'total_orders': total_orders,
+        'total_received_by_consultants': total_received_by_consultants,
+        'total_received_by_storekeepers': total_received_by_storekeepers,
+        'total_released_by_storekeepers': total_released_by_storekeepers,
+        'total_on_site': total_on_site,
+        'pending_orders': pending_orders,
+        'orders': orders,
+        'audit_trail': audit_trail,
+        'profile': profile,
+    }
+    return render(request, 'Inventory/management_dashboard.html', context)
+
+
+def update_material_receipt(request, order_id, new_status):
+    if request.method == 'POST':
+        if new_status not in ['Received', 'On Site']:  # Restrict to valid statuses
+            return JsonResponse({'success': False, 'error': 'Invalid status.'}, status=400)
+
+        try:
+            order = MaterialOrder.objects.get(id=order_id)
+            # Validate status transition
+            if new_status == 'On Site' and order.status != 'Received':
+                return JsonResponse({'success': False, 'error': 'Order must be marked as Received before On Site.'}, status=400)
+
+            order.status = new_status
+            order.last_updated_by = request.user
+            order.save()
+
+            # Log the action
+            MaterialOrderAudit.objects.create(
+                order=order,
+                action=f'Set to {new_status}',
+                performed_by=request.user
+            )
+
+            return JsonResponse({
+                'success': True,
+                'new_status': new_status,
+                'last_updated_by': request.user.username
+            })
+        except MaterialOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)

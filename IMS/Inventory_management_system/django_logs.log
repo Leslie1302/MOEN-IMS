@@ -6955,3 +6955,561 @@ Traceback (most recent call last):
     raise NoReverseMatch(msg)
 django.urls.exceptions.NoReverseMatch: Reverse for 'upload_bill_of_quantity' not found. 'upload_bill_of_quantity' is not a valid view function or pattern name.
 "GET /bill-of-quantity/ HTTP/1.1" 500 164954
+Internal Server Error: /request-material/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 73, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 107, in dispatch
+    if not self.has_permission():
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 103, in has_permission
+    perms = self.get_permission_required()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 87, in get_permission_required
+    raise ImproperlyConfigured(
+    ...<4 lines>...
+    )
+django.core.exceptions.ImproperlyConfigured: RequestMaterialView is missing the permission_required attribute. Define RequestMaterialView.permission_required, or override RequestMaterialView.get_permission_required().
+"GET /request-material/ HTTP/1.1" 500 85467
+Not Found: /favicon.ico
+"GET /favicon.ico HTTP/1.1" 404 8118
+Internal Server Error: /request-material/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 73, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 107, in dispatch
+    if not self.has_permission():
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 103, in has_permission
+    perms = self.get_permission_required()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 87, in get_permission_required
+    raise ImproperlyConfigured(
+    ...<4 lines>...
+    )
+django.core.exceptions.ImproperlyConfigured: RequestMaterialView is missing the permission_required attribute. Define RequestMaterialView.permission_required, or override RequestMaterialView.get_permission_required().
+"GET /request-material/ HTTP/1.1" 500 85467
+Method Not Allowed (GET): /request-material/
+Method Not Allowed: /request-material/
+"GET /request-material/ HTTP/1.1" 405 0
+Method Not Allowed (GET): /request-material/
+Method Not Allowed: /request-material/
+"GET /request-material/ HTTP/1.1" 405 0
+Method Not Allowed (GET): /request-material/
+Method Not Allowed: /request-material/
+"GET /request-material/ HTTP/1.1" 405 0
+Method Not Allowed (GET): /request-material/
+Method Not Allowed: /request-material/
+"GET /request-material/ HTTP/1.1" 405 0
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Partial/
+"POST /update_material_status/19/Partial/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Partial/
+"POST /update_material_status/19/Partial/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/7/Full/
+"POST /update_material_status/7/Full/ HTTP/1.1" 400 79
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Bad Request: /update_material_status/19/Full/
+"POST /update_material_status/19/Full/ HTTP/1.1" 400 94
+Internal Server Error: /material-orders/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 220, in _get_response
+    response = response.render()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\response.py", line 114, in render
+    self.content = self.rendered_content
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\response.py", line 92, in rendered_content
+    return template.render(context, self._request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 199, in render
+    template = context.template.engine.select_template(template_name)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 208, in select_template
+    return self.get_template(template_name)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 177, in get_template
+    template, origin = self.find_template(template_name)
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 159, in find_template
+    template = loader.get_template(name, skip=skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\base.py", line 28, in get_template
+    return Template(
+        contents,
+    ...<2 lines>...
+        self.engine,
+    )
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 196, in compile_nodelist
+    nodelist = parser.parse()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 518, in parse
+    raise self.error(token, e)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 516, in parse
+    compiled_result = compile_func(self, token)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 228, in do_block
+    raise TemplateSyntaxError(
+        "'%s' tag with name '%s' appears more than once" % (bits[0], block_name)
+    )
+django.template.exceptions.TemplateSyntaxError: 'block' tag with name 'title' appears more than once
+"GET /material-orders/ HTTP/1.1" 500 211987
+Internal Server Error: /dashboard/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 73, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 109, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 143, in dispatch
+    return handler(request, *args, **kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\IMS\Inventory_management_system\Inventory\views.py", line 54, in get
+    return render(request, 'Inventory/dashboard.html', {
+        'items': items,
+        'low_inventory_ids': low_inventory_ids,
+        'low_inventory_items': low_inventory_names
+    })
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 199, in render
+    template = context.template.engine.select_template(template_name)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 208, in select_template
+    return self.get_template(template_name)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 177, in get_template
+    template, origin = self.find_template(template_name)
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 159, in find_template
+    template = loader.get_template(name, skip=skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\base.py", line 28, in get_template
+    return Template(
+        contents,
+    ...<2 lines>...
+        self.engine,
+    )
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 196, in compile_nodelist
+    nodelist = parser.parse()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 518, in parse
+    raise self.error(token, e)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 516, in parse
+    compiled_result = compile_func(self, token)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 228, in do_block
+    raise TemplateSyntaxError(
+        "'%s' tag with name '%s' appears more than once" % (bits[0], block_name)
+    )
+django.template.exceptions.TemplateSyntaxError: 'block' tag with name 'title' appears more than once
+"GET /dashboard/ HTTP/1.1" 500 284152
+Internal Server Error: /
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 220, in _get_response
+    response = response.render()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\response.py", line 114, in render
+    self.content = self.rendered_content
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\response.py", line 92, in rendered_content
+    return template.render(context, self._request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 199, in render
+    template = context.template.engine.select_template(template_name)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 208, in select_template
+    return self.get_template(template_name)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 177, in get_template
+    template, origin = self.find_template(template_name)
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\engine.py", line 159, in find_template
+    template = loader.get_template(name, skip=skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loaders\base.py", line 28, in get_template
+    return Template(
+        contents,
+    ...<2 lines>...
+        self.engine,
+    )
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 196, in compile_nodelist
+    nodelist = parser.parse()
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 518, in parse
+    raise self.error(token, e)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 516, in parse
+    compiled_result = compile_func(self, token)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 228, in do_block
+    raise TemplateSyntaxError(
+        "'%s' tag with name '%s' appears more than once" % (bits[0], block_name)
+    )
+django.template.exceptions.TemplateSyntaxError: 'block' tag with name 'title' appears more than once
+"GET / HTTP/1.1" 500 208303
+Internal Server Error: /request-material/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\contrib\auth\mixins.py", line 73, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\views\generic\base.py", line 143, in dispatch
+    return handler(request, *args, **kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\IMS\Inventory_management_system\Inventory\views.py", line 157, in get
+    return render(request, self.template_name, {
+        'formset': formset,
+        'items': items,
+        'inventory_items': json.dumps(inventory_items)
+    })
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 210, in render
+    return template.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 173, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 327, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\base.py", line 88, in reverse
+    return resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'receive_material' not found. 'receive_material' is not a valid view function or pattern name.
+"GET /request-material/ HTTP/1.1" 500 330662
+Not Found: /receive_material/
+"GET /receive_material/ HTTP/1.1" 404 8429
+Internal Server Error: /management_dashboard/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\IMS\Inventory_management_system\Inventory\views.py", line 764, in management_dashboard
+    return render(request, 'Inventory/management_dashboard.html', context)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 210, in render
+    return template.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 173, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 327, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\base.py", line 88, in reverse
+    return resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'receive_material_dashboard' not found. 'receive_material_dashboard' is not a valid view function or pattern name.
+"GET /management_dashboard/ HTTP/1.1" 500 183611
+Internal Server Error: /management_dashboard/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\IMS\Inventory_management_system\Inventory\views.py", line 770, in management_dashboard
+    return render(request, 'Inventory/management_dashboard.html', context)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\loader_tags.py", line 210, in render
+    return template.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 173, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 327, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 1008, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\base.py", line 969, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\base.py", line 88, in reverse
+    return resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'receive_material' not found. 'receive_material' is not a valid view function or pattern name.
+"GET /management_dashboard/ HTTP/1.1" 500 184803
+Internal Server Error: /management_dashboard/
+Traceback (most recent call last):
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Leslie\Documents\GitHub\MOEN-IMS\IMS\Inventory_management_system\Inventory\views.py", line 756, in management_dashboard
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+                      ^^^
+NameError: name 'Sum' is not defined. Did you mean: 'sum'?
+"GET /management_dashboard/ HTTP/1.1" 500 67727

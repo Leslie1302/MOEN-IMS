@@ -50,18 +50,39 @@ class MaterialOrder(models.Model):
     date_requested = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     group = models.ForeignKey(Group, on_delete=models.CASCADE, blank=True, null=True)
+    
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+        ('Completed', 'Completed'),
+    ]
     status = models.CharField(
-        max_length=20, 
-        choices=[('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')],
+        max_length=20,
+        choices=STATUS_CHOICES,
         default='Pending'
     )
+    
+    REQUEST_TYPE_CHOICES = [
+        ('Release', 'Release Request'),
+        ('Receipt', 'Receipt Request'),
+    ]
     request_type = models.CharField(
         max_length=20,
-        choices=[('Release', 'Release Request'), ('Receipt', 'Receipt Request')],
+        choices=REQUEST_TYPE_CHOICES,
         default='Release'
     )
-    processed_quantity = models.IntegerField(default=0)  # Quantity processed so far
-    remaining_quantity = models.IntegerField(default=0)  # Quantity left to process, default to 0
+    
+    processed_quantity = models.IntegerField(default=0)
+    remaining_quantity = models.IntegerField(default=0)
+    region = models.CharField(max_length=100, blank=True, null=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
+    community = models.CharField(max_length=100, blank=True, null=True)
+    consultant = models.CharField(max_length=200, blank=True, null=True)
+    contractor = models.CharField(max_length=200, blank=True, null=True)
+    package_number = models.CharField(max_length=50, blank=True, null=True)
+    # New field
+    last_updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_material_orders')
 
     class Meta:
         verbose_name_plural = 'orders'
@@ -114,3 +135,13 @@ class BillOfQuantity(models.Model):
     @property
     def balance(self):
         return self.contract_quantity - self.quantity_received
+    
+
+class MaterialOrderAudit(models.Model):
+    order = models.ForeignKey(MaterialOrder, on_delete=models.CASCADE)
+    action = models.CharField(max_length=100)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.action} on {self.order.id} by {self.performed_by}"
