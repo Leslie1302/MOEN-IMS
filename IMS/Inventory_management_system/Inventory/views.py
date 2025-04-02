@@ -1,10 +1,10 @@
 from django.shortcuts import render, redirect
-from django.views.generic import TemplateView, View, CreateView, UpdateView, DeleteView, FormView, ListView
+from django.views.generic import TemplateView, View, CreateView, UpdateView, DeleteView, FormView, ListView, DetailView
 from django.contrib.auth import authenticate, login, update_session_auth_hash
-from .forms import UserRegistration, AuthenticationForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm, UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm
+from .forms import MaterialTransportForm, UserRegistration, AuthenticationForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm, UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm, ReportSubmissionForm
 from django.contrib.auth.views import LogoutView
 from django.contrib.auth.views import LogoutView as BaseLogoutView
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity, MaterialOrderAudit
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity, MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
 from Inventory_management_system.settings import LOW_QUANTITY
@@ -12,15 +12,13 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.shortcuts import get_object_or_404
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.forms import formset_factory
 import traceback
 from django.utils.decorators import method_decorator
 from django.db import transaction 
 import pandas as pd
-from django.shortcuts import render, redirect
-from .forms import ExcelUploadForm, MaterialReceiptFormSet
 import json
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -30,7 +28,6 @@ from reportlab.pdfgen import canvas
 import numpy as np
 import logging
 from django.db.models import Sum
-from django.contrib.auth.models import User, Group
 
 
 class Index(TemplateView):
@@ -845,3 +842,117 @@ def update_material_receipt(request, order_id, new_status):
         except MaterialOrder.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+class ReportSubmissionListView(LoginRequiredMixin, ListView):
+    model = ReportSubmission
+    template_name = 'inventory/report_submission_list.html'
+    context_object_name = 'reports'
+    
+    def get_queryset(self):
+        # Show reports based on user's group
+        if self.request.user.is_superuser:
+            return ReportSubmission.objects.all()
+        return ReportSubmission.objects.filter(group__in=self.request.user.groups.all())
+
+class ReportSubmissionCreateView(LoginRequiredMixin, CreateView):
+    model = ReportSubmission
+    form_class = ReportSubmissionForm
+    template_name = 'Inventory/report_submission_form.html'
+    success_url = reverse_lazy('report-submission-list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        print("Form in context:", context.get('form'))  # Debug print
+        return context
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.group = self.request.user.groups.first()
+        return super().form_valid(form)
+
+class ReportSubmissionUpdateView(LoginRequiredMixin, UpdateView):
+    model = ReportSubmission
+    form_class = ReportSubmissionForm
+    template_name = 'inventory/report_submission_form.html'
+    success_url = reverse_lazy('report-submission-list')
+
+    def get_queryset(self):
+        # Only allow editing of draft reports
+        if self.request.user.is_superuser:
+            return ReportSubmission.objects.all()
+        return ReportSubmission.objects.filter(
+            user=self.request.user,
+            status='Draft'
+        )
+
+class ReportSubmissionDetailView(LoginRequiredMixin, DetailView):
+    model = ReportSubmission
+    template_name = 'inventory/report_submission_detail.html'
+    context_object_name = 'report'
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return ReportSubmission.objects.all()
+        return ReportSubmission.objects.filter(group__in=self.request.user.groups.all())
+
+def submit_report(request, pk):
+    """View to handle report submission"""
+    report = ReportSubmission.objects.get(pk=pk)
+    if request.user == report.user and report.status == 'Draft':
+        report.status = 'Submitted'
+        report.save()
+    return redirect('report-submission-list')
+
+def approve_report(request, pk):
+    """View to handle report approval"""
+    if request.user.is_superuser:
+        report = ReportSubmission.objects.get(pk=pk)
+        if report.status == 'Submitted':
+            report.status = 'Approved'
+            report.save()
+            # Create or update corresponding BOQ
+            report.create_or_update_boq()
+    return redirect('report-submission-list')
+
+def reject_report(request, pk):
+    """View to handle report rejection"""
+    if request.user.is_superuser:
+        report = ReportSubmission.objects.get(pk=pk)
+        if report.status == 'Submitted':
+            report.status = 'Rejected'
+            report.save()
+    return redirect('report-submission-list')
+
+    
+class MaterialTransportView(LoginRequiredMixin, PermissionRequiredMixin, View):
+    permission_required = 'Inventory.view_materialtransport'
+
+    def get(self, request, pk=None):
+        """Handle GET requests based on the URL path."""
+        path = request.path
+        if 'transport_detail' in path and pk:
+            # Detail view
+            transport = get_object_or_404(MaterialTransport, pk=pk)
+            return render(request, 'Inventory/transport_detail.html', {'transport': transport})
+        elif 'transport_list' in path:
+            # List view
+            transports = MaterialTransport.objects.all()
+            return render(request, 'Inventory/transport_list.html', {'transports': transports})
+        elif 'transport_form' in path:
+            # Create form view
+            form = MaterialTransportForm()
+            return render(request, 'Inventory/transport_form.html', {'form': form})
+        else:
+            # Dashboard view (transport_dash)
+            transports = MaterialTransport.objects.all()
+            return render(request, 'Inventory/transport_dash.html', {'transports': transports})
+
+    def post(self, request):
+        """Handle POST requests for creating a new transport."""
+        if 'transport_form' in request.path:
+            form = MaterialTransportForm(request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect('transport_list')
+            return render(request, 'Inventory/transport_form.html', {'form': form})
+        return redirect('transport_list')  # Fallback

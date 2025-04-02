@@ -29,7 +29,29 @@
                         <a class="nav-link text-dark fw-semibold" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'consultant_dash' %}">📤 Consultants' Dashbaord</a>
+                        <a class="nav-link text-dark fw-semibold" href="{% url 'consultant_dash' %}">📤 Consultants' Dashboard</a>
+                    </li>
+                    <!-- Transport-related links grouped in a dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" 
+                           id="transportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            🚚 Transport
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'transport_dash' %}">📊 Transport Dashboard</a></li>
+                            <li><a class="dropdown-item" href="{% url 'transport_list' %}">📋 Transport List</a></li>
+                            <li><a class="dropdown-item" href="{% url 'transport_form' %}">📝 Add New Transport</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" 
+                           id="reportsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            📝 Reports
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'report-submission-list' %}">📋 View Reports</a></li>
+                            <li><a class="dropdown-item" href="{% url 'report-submission-create' %}">✏️ New Report</a></li>
+                        </ul>
                     </li>
                     {% if user.is_superuser %}
                         <li class="nav-item">

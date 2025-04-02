@@ -1,0 +1,38 @@
+{% extends "Inventory/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Transport Details</h1>
+    <div class="card">
+        <div class="card-header">
+            <h2>Transport #{{ transport.id }}</h2>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <tbody>
+                    <tr>
+                        <th>Material Name</th>
+                        <td>{{ transport.material_name|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Recipient</th>
+                        <td>{{ transport.recipient|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td>{{ transport.status|default:"N/A" }}</td>
+                    </tr>
+                    <!-- Add more fields as needed based on your MaterialTransport model -->
+                    <tr>
+                        <th>Created At</th>
+                        <td>{{ transport.created_at|date:"Y-m-d H:i"|default:"N/A" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'transport_list' %}" class="btn btn-secondary">Back to List</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

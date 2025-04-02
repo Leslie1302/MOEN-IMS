@@ -1,0 +1,35 @@
+{% extends 'Inventory/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>{% if form.instance.pk %}Edit{% else %}New{% endif %} Report Submission</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Debug information -->
+                    {% if form %}
+                        <p class="text-success">Form is available</p>
+                    {% else %}
+                        <p class="text-danger">Form is not available</p>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <!-- Try simple form rendering first -->
+                        {{ form|crispy }}
+                        
+                        <div class="text-end mt-3">
+                            <a href="{% url 'report-submission-list' %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save Report</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

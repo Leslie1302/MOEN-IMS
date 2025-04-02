@@ -1,0 +1,161 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% if form.instance.pk %}Edit Transport{% else %}Add New Transport{% endif %}</h1>
+    <form method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.material_order.id_for_label }}" class="form-label">Material Order</label>
+                {{ form.material_order }}
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.letter.id_for_label }}" class="form-label">Release Letter</label>
+                {{ form.letter }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+                {{ form.status }}
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.material_name.id_for_label }}" class="form-label">Material Name</label>
+                {{ form.material_name }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.material_code.id_for_label }}" class="form-label">Material Code</label>
+                {{ form.material_code }}
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.recipient.id_for_label }}" class="form-label">Recipient</label>
+                {{ form.recipient }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.consultant.id_for_label }}" class="form-label">Consultant</label>
+                {{ form.consultant }}
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.region.id_for_label }}" class="form-label">Region</label>
+                {{ form.region }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.district.id_for_label }}" class="form-label">District</label>
+                {{ form.district }}
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.community.id_for_label }}" class="form-label">Community</label>
+                {{ form.community }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.package_number.id_for_label }}" class="form-label">Package Number</label>
+                {{ form.package_number }}
+            </div>
+        </div>
+        {% if form.instance.pk %}
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Date Transported</label>
+                    <input type="text" class="form-control" value="{{ form.instance.date_transported|date:'Y-m-d H:i' }}" readonly>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Date Received</label>
+                    <input type="text" class="form-control" value="{{ form.instance.date_received|date:'Y-m-d H:i' }}" readonly>
+                </div>
+            </div>
+        {% endif %}
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                <ul>
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{% url 'transport_list' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get the material order select element
+    const materialOrderSelect = document.getElementById('id_material_order');
+    if (!materialOrderSelect) {
+        console.error('Material Order select element not found');
+        return;
+    }
+
+    // Define fields to update
+    const fieldsToUpdate = {
+        'id_material_name': 'name',
+        'id_material_code': 'code',
+        'id_recipient': 'contractor',
+        'id_consultant': 'consultant',
+        'id_region': 'region',
+        'id_district': 'district',
+        'id_community': 'community',
+        'id_package_number': 'package_number'
+    };
+
+    // Generate materialOrders object safely
+    const materialOrders = {
+        {% for order in form.fields.material_order.queryset %}
+            '{{ order.id }}': {
+                'name': '{{ order.name|escapejs }}',
+                'code': '{{ order.code|escapejs }}',
+                'contractor': '{{ order.contractor|default:''|escapejs }}',
+                'consultant': '{{ order.consultant|default:''|escapejs }}',
+                'region': '{{ order.region|default:''|escapejs }}',
+                'district': '{{ order.district|default:''|escapejs }}',
+                'community': '{{ order.community|default:''|escapejs }}',
+                'package_number': '{{ order.package_number|default:''|escapejs }}'
+            }{% if not forloop.last %},{% endif %}
+        {% empty %}
+            // Empty queryset fallback
+        {% endfor %}
+    };
+
+    // Log the materialOrders object for debugging
+    console.log('Material Orders:', materialOrders);
+
+    // Function to update fields based on selected material order
+    function updateFields() {
+        const selectedOrderId = materialOrderSelect.value;
+        const orderData = materialOrders[selectedOrderId] || {};
+
+        for (const [fieldId, key] of Object.entries(fieldsToUpdate)) {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.value = orderData[key] || '';
+                field.readOnly = !!selectedOrderId;  // Enable if no order selected
+            } else {
+                console.warn(`Field with ID ${fieldId} not found`);
+            }
+        }
+    }
+
+    // Initial update
+    updateFields();
+
+    // Update fields when material order changes
+    materialOrderSelect.addEventListener('change', updateFields);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends 'Inventory/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3>Report Details</h3>
+                <div>
+                    <a href="{% url 'report-submission-list' %}" class="btn btn-secondary">Back to List</a>
+                    {% if report.status == 'Draft' and report.user == request.user %}
+                    <a href="{% url 'report-submission-update' report.pk %}" class="btn btn-warning">Edit</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Project Details</h5>
+                    <table class="table">
+                        <tr>
+                            <th>Region:</th>
+                            <td>{{ report.region }}</td>
+                        </tr>
+                        <tr>
+                            <th>District:</th>
+                            <td>{{ report.district }}</td>
+                        </tr>
+                        <tr>
+                            <th>Community:</th>
+                            <td>{{ report.community }}</td>
+                        </tr>
+                        <tr>
+                            <th>Consultant:</th>
+                            <td>{{ report.consultant }}</td>
+                        </tr>
+                        <tr>
+                            <th>Contractor:</th>
+                            <td>{{ report.contractor }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h5>Material Details</h5>
+                    <table class="table">
+                        <tr>
+                            <th>Package Number:</th>
+                            <td>{{ report.package_number }}</td>
+                        </tr>
+                        <tr>
+                            <th>Material:</th>
+                            <td>{{ report.material_description }}</td>
+                        </tr>
+                        <tr>
+                            <th>Item Code:</th>
+                            <td>{{ report.item_code }}</td>
+                        </tr>
+                        <tr>
+                            <th>Contract Quantity:</th>
+                            <td>{{ report.contract_quantity }}</td>
+                        </tr>
+                        <tr>
+                            <th>Quantity Received:</th>
+                            <td>{{ report.quantity_received }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5>Executive Summary</h5>
+                    <p class="border p-3 bg-light">{{ report.executive_summary }}</p>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5>Status Information</h5>
+                    <table class="table">
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge {% if report.status == 'Approved' %}bg-success
+                                                 {% elif report.status == 'Rejected' %}bg-danger
+                                                 {% elif report.status == 'Submitted' %}bg-warning
+                                                 {% else %}bg-secondary{% endif %}">
+                                    {{ report.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Submitted By:</th>
+                            <td>{{ report.user.get_full_name|default:report.user.username }}</td>
+                        </tr>
+                        <tr>
+                            <th>Submission Date:</th>
+                            <td>{{ report.submission_date }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

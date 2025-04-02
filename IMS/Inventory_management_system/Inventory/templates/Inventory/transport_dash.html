@@ -1,0 +1,50 @@
+{% extends "Inventory/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Transport Dashboard</h1>
+    <p>Welcome to the transport dashboard. Here you can manage and view all transport-related activities.</p>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <h2>Transport List</h2>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Vehicle</th>
+                        <th>Driver</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transport in transports %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ transport.vehicle }}</td>
+                        <td>{{ transport.driver }}</td>
+                        <td>{{ transport.status }}</td>
+                        <td>
+                            <a href="{% url 'transport_detail' transport.id %}" class="btn btn-info btn-sm">View</a>
+                            <a href="{% url 'transport_edit' transport.id %}" class="btn btn-warning btn-sm">Edit</a>
+                            <a href="{% url 'transport_delete' transport.id %}" class="btn btn-danger btn-sm">Delete</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">No transport records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'transport_form' %}" class="btn btn-primary">Add New Transport</a>
+    </div>
+</div>
+{% endblock %}

@@ -51,7 +51,8 @@
                             <th>Processed</th>
                             <th>Remaining</th>
                             <th>Type</th>
-                            <th>Status</th>
+                            <th>Release Status</th>
+                            <th>Receipt Status</th>
                             <th>Date</th>
                             <th>Last Updated By</th>
                         </tr>
@@ -69,10 +70,13 @@
                                     {% if order.status == "Pending" %}⏳ Pending
                                     {% elif order.status == "Seen" %}👀 Seen
                                     {% elif order.status == "Approved" %}🔄 Approved
-                                    {% elif order.status == "Received" %}✔️ Received
-                                    {% elif order.status == "On Site" %}🏗️ On Site
                                     {% elif order.status == "Completed" %}✅ Completed
                                     {% else %}🔄 {{ order.status }}{% endif %}
+                                </td>
+                                <td>
+                                    {% if order.receipt_status == "Received" %}✔️ Received
+                                    {% elif order.receipt_status == "On Site" %}🏗️ On Site
+                                    {% else %}🔄 Not Received{% endif %}
                                 </td>
                                 <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
                                 <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
