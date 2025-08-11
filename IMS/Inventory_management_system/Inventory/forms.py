@@ -1,9 +1,12 @@
 from django import forms
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter
+from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
+import pandas as pd
+from io import BytesIO
+from django.utils import timezone
 
 class UserRegistration(UserCreationForm):
     email = forms.EmailField(required=True, help_text='Required. Enter a valid email address.')
@@ -86,6 +89,51 @@ class ExcelUploadForm(forms.Form):
     file = forms.FileField()
 
 
+class BulkMaterialRequestForm(forms.Form):
+    file = forms.FileField(
+        label='Excel File',
+        help_text='Upload an Excel file with material request data. Required columns: name, quantity, region, district, community, consultant, contractor, package_number',
+        validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
+    )
+    request_type = forms.ChoiceField(
+        choices=MaterialOrder.REQUEST_TYPE_CHOICES,
+        initial='Release',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Type of request (Release/Return)'
+    )
+
+    def clean_file(self):
+        file = self.cleaned_data.get('file')
+        if file:
+            try:
+                # Read the Excel file
+                if file.name.endswith('.xlsx'):
+                    df = pd.read_excel(file, engine='openpyxl')
+                else:
+                    df = pd.read_excel(file)
+                
+                # Check required columns
+                required_columns = ['name', 'quantity', 'region', 'district', 'community', 
+                                  'consultant', 'contractor', 'package_number']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    raise forms.ValidationError(
+                        f"Missing required columns in Excel file: {', '.join(missing_columns)}"
+                    )
+                
+                # Validate quantity is positive
+                if (df['quantity'] <= 0).any():
+                    raise forms.ValidationError("Quantity must be a positive number for all items.")
+                
+                # Store the cleaned data for later use
+                self.cleaned_data['df'] = df
+                
+            except Exception as e:
+                raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
+        
+        return file
+
+
 class MaterialReceiptForm(forms.ModelForm):
     name = forms.ModelChoiceField(
         queryset=InventoryItem.objects.all(),
@@ -138,6 +186,220 @@ class ReportSubmissionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         print("Form initialized with fields:", self.fields)  # Debug print
 
+
+
+class ReleaseLetterUploadForm(forms.ModelForm):
+    """Form for uploading signed release letters."""
+    request_code = forms.ChoiceField(
+        label="Request Code",
+        help_text="Select the request code that identifies the material request(s) this letter authorizes",
+        widget=forms.Select(attrs={
+            'class': 'form-select select2',
+            'data-placeholder': 'Select a request code...'
+        })
+    )
+    
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        from .models import MaterialOrder
+        
+        # Get all distinct request codes from material orders that don't have a release letter yet
+        request_codes = MaterialOrder.objects.filter(
+            status__in=['Pending', 'Approved'],
+            release_letter__isnull=True  # Only show orders without release letters
+        ).values_list('request_code', flat=True).distinct()
+        
+        # Extract base request codes (part before the last dash)
+        base_codes = set()
+        for code in request_codes:
+            if code:  # Only process non-None codes
+                # Split by dash and join all parts except the last one (row number)
+                parts = code.split('-')
+                if len(parts) > 2:  # Has a row number suffix
+                    base_code = '-'.join(parts[:-1])
+                    base_codes.add(base_code)
+        
+        # Convert back to a sorted list
+        base_codes = sorted(list(base_codes))
+        
+        # Create choices list with base request codes
+        self.fields['request_code'].choices = [('', '-- Select a base request code --')] + [
+            (code, code) for code in base_codes
+        ]
+        
+        # Add a custom option to enter a new request code
+        self.fields['request_code'].choices.append(('__new__', '-- Enter a new request code --'))
+        
+        # Add a field to store the full request code (hidden field for form submission)
+        self.fields['full_request_code'] = forms.CharField(
+            required=False,
+            widget=forms.HiddenInput()
+        )
+    title = forms.CharField(
+        max_length=200,
+        help_text="A descriptive title for this release letter",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    pdf_file = forms.FileField(
+        label="Signed Letter (PDF)",
+        help_text="Upload the signed release letter in PDF format",
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        widget=forms.FileInput(attrs={'class': 'form-control'})
+    )
+    notes = forms.CharField(
+        required=False,
+        help_text="Any additional notes or comments about this release letter",
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3
+        })
+    )
+
+    class Meta:
+        model = ReleaseLetter
+        fields = ['request_code', 'title', 'pdf_file', 'notes']
+
+    def clean_request_code(self):
+        """Validate that the request code exists and is in a valid status."""
+        request_code = self.cleaned_data.get('request_code')
+        if not request_code:
+            raise forms.ValidationError("Request code is required.")
+            
+        # Check if there are any orders with this request code
+        orders = MaterialOrder.objects.filter(request_code=request_code)
+        if not orders.exists():
+            raise forms.ValidationError(f"No material requests found with code: {request_code}")
+            
+        # Check if any order is already completed
+        completed_orders = orders.filter(status='Completed')
+        if completed_orders.exists():
+            raise forms.ValidationError(
+                f"Request {request_code} contains completed orders. Cannot upload a release letter for completed requests."
+            )
+            
+        return request_code
+
+    def save(self, commit=True):
+        # Set the request code from the form data
+        self.instance.request_code = self.cleaned_data['request_code']
+        
+        # Set the upload time if not already set
+        if not self.instance.upload_time:
+            self.instance.upload_time = timezone.now()
+            
+        # Save the release letter
+        release_letter = super().save(commit=commit)
+        
+        # Update the status of all related orders to 'Approved' if they're not already completed
+        if commit:
+            orders = MaterialOrder.objects.filter(
+                request_code=release_letter.request_code,
+                status__in=['Pending', 'Approved']
+            )
+            orders.update(status='Approved')
+            
+        return release_letter
+        return super().save(commit)
+
+
+class TransporterForm(forms.ModelForm):
+    class Meta:
+        model = Transporter
+        fields = ['name', 'contact_person', 'email', 'phone', 'address', 'is_active', 'notes']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'contact_person': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class TransportVehicleForm(forms.ModelForm):
+    class Meta:
+        model = TransportVehicle
+        fields = ['registration_number', 'vehicle_type', 'capacity', 'transporter', 'is_active', 'notes']
+        widgets = {
+            'registration_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'vehicle_type': forms.Select(attrs={'class': 'form-select'}),
+            'capacity': forms.TextInput(attrs={'class': 'form-control'}),
+            'transporter': forms.Select(attrs={'class': 'form-select'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class TransportAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = MaterialTransport
+        fields = ['material_order', 'transporter', 'vehicle', 'driver_name', 'driver_phone', 'status', 'notes']
+        widgets = {
+            'material_order': forms.Select(attrs={'class': 'form-select'}),
+            'transporter': forms.Select(attrs={'class': 'form-select', 'id': 'id_transporter'}),
+            'vehicle': forms.Select(attrs={'class': 'form-select', 'id': 'id_vehicle'}),
+            'driver_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'driver_phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit choices to orders that are approved but not yet assigned for transport
+        self.fields['material_order'].queryset = MaterialOrder.objects.filter(
+            status__in=['Approved', 'In Progress']
+        ).exclude(
+            transports__status__in=['In Transit', 'Delivered', 'Completed']
+        )
+        
+        # Set initial empty choices for vehicle field
+        self.fields['vehicle'].queryset = TransportVehicle.objects.none()
+        
+        if 'transporter' in self.data:
+            try:
+                transporter_id = int(self.data.get('transporter'))
+                self.fields['vehicle'].queryset = TransportVehicle.objects.filter(
+                    transporter_id=transporter_id,
+                    is_active=True
+                ).order_by('registration_number')
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.transporter:
+            self.fields['vehicle'].queryset = self.instance.transporter.vehicles.filter(
+                is_active=True
+            ).order_by('registration_number')
+
+
+class TransporterImportForm(forms.Form):
+    """Form for importing transporters from Excel."""
+    file = forms.FileField(
+        label='Excel File',
+        help_text='Upload an Excel file with transporter data. Required columns: name, contact_person, email, phone, address',
+        validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
+    )
+    
+    def clean_file(self):
+        file = self.cleaned_data['file']
+        if file:
+            try:
+                # Try to read the Excel file to validate it
+                df = pd.read_excel(file)
+                required_columns = ['name', 'contact_person', 'email', 'phone', 'address']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    raise forms.ValidationError(
+                        f"The following required columns are missing: {', '.join(missing_columns)}"
+                    )
+                    
+            except Exception as e:
+                raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
+                
+        return file
 
 
 class MaterialTransportForm(forms.ModelForm):

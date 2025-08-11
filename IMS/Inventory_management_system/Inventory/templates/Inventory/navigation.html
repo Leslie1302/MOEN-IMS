@@ -10,54 +10,53 @@
         <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
             <ul class="navbar-nav align-items-center">
                 {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'request_material' %}">📥 Request Material</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_orders' %}">📦 Material Orders</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_receipt' %}">📤 Receive Material</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-dark fw-semibold" href="{% url 'consultant_dash' %}">📤 Consultants' Dashboard</a>
-                    </li>
-                    <!-- Transport-related links grouped in a dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" 
-                           id="transportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            🚚 Transport
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'transport_dash' %}">📊 Transport Dashboard</a></li>
-                            <li><a class="dropdown-item" href="{% url 'transport_list' %}">📋 Transport List</a></li>
-                            <li><a class="dropdown-item" href="{% url 'transport_form' %}">📝 Add New Transport</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" 
-                           id="reportsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            📝 Reports
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'report-submission-list' %}">📋 View Reports</a></li>
-                            <li><a class="dropdown-item" href="{% url 'report-submission-create' %}">✏️ New Report</a></li>
-                        </ul>
-                    </li>
-                    {% if user.is_superuser %}
+                    {% if user.groups.exists or user.is_superuser %}
+                        <!-- Show full menu for authorized users -->
                         <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'management_dashboard' %}">👔 Management Dashboard</a>
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'request_material' %}">📥 Request Material</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_orders' %}">📦 Material Orders</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a>
+                        </li>
+                        {% if user.is_superuser %}
+                            <li class="nav-item">
+                                <a class="nav-link text-dark fw-semibold" href="{% url 'management_dashboard' %}">👔 Management Dashboard</a>
+                            </li>
+                        {% endif %}
+                        {% if user.groups.filter.name == 'Storekeeper' or user.is_superuser or user.groups.filter.name == 'Schedule Officer' %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
+                                   role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    🚚 Transport
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="transportDropdown">
+                                    <li><a class="dropdown-item" href="{% url 'transporter_list' %}">Transporters</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">Transporter Legend</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">Assign Transport</a></li>
+                                    {% if user.groups.filter.name == 'Schedule Officer' or user.is_superuser %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="{% url 'release-letter-upload' %}">Release Letters</a></li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <!-- Show limited menu for unassigned users -->
+                        <li class="nav-item">
+                            <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
                         </li>
                     {% endif %}
+
+                    <!-- User profile dropdown -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle d-flex align-items-center text-dark fw-semibold" href="#" 
                            id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -75,7 +74,9 @@
                             <span class="ms-2">{{ user.username }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{% url 'profile' %}">👤 View Profile</a></li>
+                            <li><a class="dropdown-item" href="{% url 'profile' %}">👤 Account Settings</a></li>
+                            <li><a class="dropdown-item" href="{% url 'help' %}">❓ Help</a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form action="{% url 'logout' %}" method="post">
                                     {% csrf_token %}

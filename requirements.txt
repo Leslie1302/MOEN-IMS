@@ -5,6 +5,7 @@ whitenoise>=6.0.0
 Pillow>=9.0.0
 pandas>=2.0.0
 openpyxl>=3.0.0
+plotly>=5.18.0
 seaborn>=0.13.0
 reportlab>=4.0.0
 matplotlib>=3.8.0

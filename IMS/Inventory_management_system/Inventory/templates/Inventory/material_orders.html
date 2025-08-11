@@ -1,12 +1,14 @@
 {% extends 'Inventory/base.html' %}
-{% load static %}
+{% load static humanize %}
 
-{% block content %}
+{% block title %}Material Orders - Inventory Manager{% endblock %}
+
+{% block full_width_content %}
 <!-- Adjust for fixed navbar with padding-top -->
-<div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
+<div class="w-100" style="padding-top: 60px; min-height: calc(100vh - 60px);">
     <div class="bg-light py-2 sticky-top">
-        <h2 class="text-center fw-bold text-primary mb-0">📦 My Material Requests</h2>
-        <p class="text-muted text-center mb-0">Track the status of your requested materials</p>
+        <h2 class="text-center fw-bold text-primary mb-0">📦 Material Requests</h2>
+        <p class="text-muted text-center mb-0">Track the status of material requests</p>
     </div>
 
     {% if messages %}
@@ -20,332 +22,192 @@
         </div>
     {% endif %}
 
-    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 140px);">
-        <table class="table table-hover table-striped w-100" id="material-orders-table" style="table-layout: auto;">
-            <thead class="sticky-top bg-light">
-                <tr>
-                    <th scope="col" class="text-wrap">Usr<span class="filter-arrow" data-column="0">▼</span><div class="dropdown-menu" id="filter-0" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Mat<span class="filter-arrow" data-column="1">▼</span><div class="dropdown-menu" id="filter-1" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Qty<span class="filter-arrow" data-column="2">▼</span><div class="dropdown-menu" id="filter-2" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Proc<span class="filter-arrow" data-column="3">▼</span><div class="dropdown-menu" id="filter-3" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Rem<span class="filter-arrow" data-column="4">▼</span><div class="dropdown-menu" id="filter-4" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Reg<span class="filter-arrow" data-column="5">▼</span><div class="dropdown-menu" id="filter-5" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Dist<span class="filter-arrow" data-column="6">▼</span><div class="dropdown-menu" id="filter-6" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Comm<span class="filter-arrow" data-column="7">▼</span><div class="dropdown-menu" id="filter-7" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Cons<span class="filter-arrow" data-column="8">▼</span><div class="dropdown-menu" id="filter-8" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Cont<span class="filter-arrow" data-column="9">▼</span><div class="dropdown-menu" id="filter-9" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Pkg<span class="filter-arrow" data-column="10">▼</span><div class="dropdown-menu" id="filter-10" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Typ<span class="filter-arrow" data-column="11">▼</span><div class="dropdown-menu" id="filter-11" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Stat<span class="filter-arrow" data-column="12">▼</span><div class="dropdown-menu" id="filter-12" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Date<span class="filter-arrow" data-column="13">▼</span><div class="dropdown-menu" id="filter-13" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Last By<span class="filter-arrow" data-column="14">▼</span><div class="dropdown-menu" id="filter-14" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Act</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                    <tr id="order-{{ order.id }}">
-                        <td>{{ order.user.username }}</td>
-                        <td>{{ order.name }}</td>
-                        <td>{{ order.quantity }}</td>
-                        <td id="processed-{{ order.id }}">{{ order.processed_quantity }}</td>
-                        <td id="remaining-{{ order.id }}">{{ order.remaining_quantity }}</td>
-                        <td>{{ order.region|default:"N/A" }}</td>
-                        <td>{{ order.district|default:"N/A" }}</td>
-                        <td>{{ order.community|default:"N/A" }}</td>
-                        <td>{{ order.consultant|default:"N/A" }}</td>
-                        <td>{{ order.contractor|default:"N/A" }}</td>
-                        <td>{{ order.package_number|default:"N/A" }}</td>
-                        <td>{{ order.request_type }}</td>
-                        <td id="status-{{ order.id }}">
-                            {% if order.status == "Pending" %}⏳ Pending
-                            {% elif order.status == "Seen" %}👀 Seen
-                            {% elif order.status == "Approved" %}🔄 Approved
-                            {% elif order.status == "Completed" %}✅ Completed
-                            {% else %}🔄 {{ order.status }}{% endif %}
-                        </td>
-                        <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
-                        <td id="last-updated-by-{{ order.id }}">{{ order.last_updated_by.username|default:"N/A" }}</td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button id="seen-btn-{{ order.id }}" class="btn btn-warning btn-sm seen-btn" data-order-id="{{ order.id }}"
-                                    {% if order.status != 'Pending' and order.status != 'Approved' %}disabled{% endif %}>👀</button>
-                                <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn" data-order-id="{{ order.id }}"
-                                    {% if order.status != 'Seen' %}disabled{% endif %}>📏</button>
-                                <button id="full-btn-{{ order.id }}" class="btn btn-success btn-sm full-btn" data-order-id="{{ order.id }}"
-                                    {% if order.status != 'Seen' %}disabled{% endif %}>✅</button>
-                            </div>
-                            <div id="partial-form-{{ order.id }}" class="mt-1 d-none">
-                                <input type="number" id="partial-input-{{ order.id }}" class="form-control form-control-sm d-inline-block" min="1" max="{{ order.remaining_quantity }}"
+    {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover table-striped enhanced-table" id="material-orders-table">
+                <thead>
+                    <tr>
+                        <th scope="col" data-sort>Request #</th>
+                        <th scope="col" data-sort>User</th>
+                        <th scope="col" data-sort>Material</th>
+                        <th scope="col" data-sort data-type="number">Qty</th>
+                        <th scope="col" data-sort data-type="number">Proc</th>
+                        <th scope="col" data-sort data-type="number">Rem</th>
+                        <th scope="col" data-sort>Region</th>
+                        <th scope="col" data-sort>District</th>
+                        <th scope="col" data-sort>Community</th>
+                        <th scope="col" data-sort>Consultant</th>
+                        <th scope="col" data-sort>Contractor</th>
+                        <th scope="col" data-sort>Pkg</th>
+                        <th scope="col" data-sort>Type</th>
+                        <th scope="col" data-sort>Status</th>
+                        <th scope="col" data-sort>Date</th>
+                        <th scope="col" data-sort>Last By</th>
+                        {% if user.is_superuser %}
+                        <th scope="col">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr id="order-{{ order.id }}">
+                            <td>{{ order.request_code|default:"N/A" }}</td>
+                            <td>{{ order.user.username }}</td>
+                            <td>{{ order.name }}</td>
+                            <td data-sort-value="{{ order.quantity|default:0 }}">{{ order.quantity|default:0|intcomma }}</td>
+                            <td id="processed-{{ order.id }}" data-sort-value="{{ order.processed_quantity|default:0 }}">
+                                {{ order.processed_quantity|default:0|intcomma }}
+                            </td>
+                            <td id="remaining-{{ order.id }}" data-sort-value="{{ order.remaining_quantity|default:0 }}">
+                                {{ order.remaining_quantity|default:0|intcomma }}
+                            </td>
+                            <td>{{ order.region|default:"N/A" }}</td>
+                            <td>{{ order.district|default:"N/A" }}</td>
+                            <td>{{ order.community|default:"N/A" }}</td>
+                            <td>{{ order.consultant|default:"N/A" }}</td>
+                            <td>{{ order.contractor|default:"N/A" }}</td>
+                            <td>{{ order.package_number|default:"N/A" }}</td>
+                            <td>{{ order.request_type }}</td>
+                            <td id="status-{{ order.id }}" data-sort-value="{{ order.status }}">
+                                {% if order.status == "Pending" %}⏳ Pending
+                                {% elif order.status == "Seen" %}👀 Seen
+                                {% elif order.status == "Approved" %}🔄 Approved
+                                {% elif order.status == "Completed" %}✅ Completed
+                                {% else %}🔄 {{ order.status }}{% endif %}
+                            </td>
+                            <td data-sort-value="{{ order.date_requested|date:'U' }}">
+                                {{ order.date_requested|date:"Y-m-d H:i" }}
+                            </td>
+                            <td id="last-updated-by-{{ order.id }}">
+                                {{ order.last_updated_by.username|default:"N/A" }}
+                            </td>
+                            {% if user.is_superuser %}
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button id="seen-btn-{{ order.id }}" class="btn btn-warning btn-sm seen-btn" data-order-id="{{ order.id }}"
+                                        {% if order.status != 'Pending' and order.status != 'Approved' %}disabled{% endif %}>👀</button>
+                                    <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn" data-order-id="{{ order.id }}"
+                                        {% if order.status != 'Seen' %}disabled{% endif %}>📏</button>
+                                    <button id="full-btn-{{ order.id }}" class="btn btn-success btn-sm full-btn" data-order-id="{{ order.id }}"
+                                        {% if order.status != 'Seen' %}disabled{% endif %}>✅</button>
+                                </div>
+                                <div id="partial-form-{{ order.id }}" class="mt-1 d-none">
+                                    <input type="number" id="partial-input-{{ order.id }}" class="form-control form-control-sm d-inline-block" min="1" max="{{ order.remaining_quantity }}"
                                     value="1" style="width: 60px;" placeholder="Qty">
                                 <button id="submit-partial-{{ order.id }}" class="btn btn-primary btn-sm submit-partial-btn" data-order-id="{{ order.id }}">✔️</button>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% if not forloop.last %}
+                        <tr class="spacer"><td colspan="{% if user.is_superuser %}17{% else %}16{% endif %}"></td></tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="{% if user.is_superuser %}17{% else %}16{% endif %}" class="text-center">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary me-2" id="first-page">First</button>
+                                    <button class="btn btn-sm btn-outline-secondary me-2" id="prev-page">Previous</button>
+                                    <span id="page-info">Page 1 of 1</span>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" id="next-page">Next</button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" id="last-page">Last</button>
+                                </div>
+                                <div>
+                                    <span class="me-2">Rows per page:</span>
+                                    <select id="rows-per-page" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                                        <option value="10">10</option>
+                                        <option value="25" selected>25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="0">All</option>
+                                    </select>
+                                </div>
                             </div>
                         </td>
                     </tr>
-                {% empty %}
-                    <tr><td colspan="16" class="text-muted text-center">No material requests found.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light fixed-bottom">
-        <a href="{% url 'request_material' %}" class="btn btn-primary">➕ Request New Material</a>
-        <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
-    </div>
-    <button class="btn btn-primary" style="position: fixed; bottom: 80px; right: 20px; display: none; z-index: 1000;" id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
+                </tfoot>
+            </table>
+            
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light">
+                <a href="{% url 'request_material' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Request New Material
+                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-download"></i> Export
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item export-btn" data-type="csv"><i class="bi bi-filetype-csv"></i> Export as CSV</a></li>
+                        <li><a class="dropdown-item export-btn" data-type="excel"><i class="bi bi-file-earmark-excel"></i> Export as Excel</a></li>
+                        <li><a class="dropdown-item export-btn" data-type="pdf"><i class="bi bi-file-earmark-pdf"></i> Export as PDF</a></li>
+                        <li><a class="dropdown-item export-btn" data-type="print"><i class="bi bi-printer"></i> Print Table</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle"></i> No material orders found.
+        </div>
+    {% endif %}
 </div>
 
-<meta name="csrf-token" content="{{ csrf_token }}">
-
+<!-- Include the table utilities -->
 <script>
-console.log("Script starting...");
-
-function scrollToTop() {
-    console.log("Scroll to top triggered");
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-window.onscroll = function() {
-    const btn = document.getElementById('scroll-top-btn');
-    btn.style.display = window.scrollY > 100 ? 'block' : 'none';
-};
-
-function getCSRFToken() {
-    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    console.log("CSRF Token retrieved:", token);
-    return token;
-}
-
-function togglePartialInput(orderId) {
-    console.log(`Toggling partial form for order ${orderId}`);
-    const partialForm = document.getElementById(`partial-form-${orderId}`);
-    if (partialForm) {
-        partialForm.classList.toggle('d-none');
-        console.log(`Partial form ${partialForm.classList.contains('d-none') ? 'hidden' : 'shown'}`);
-    } else {
-        console.error(`Partial form not found for order ${orderId}`);
-    }
-}
-
-function updateStatus(orderId, newStatus, partialQuantity = null) {
-    console.log(`updateStatus called: orderId=${orderId}, newStatus=${newStatus}, partialQuantity=${partialQuantity}`);
-    
-    const statusCell = document.getElementById(`status-${orderId}`);
-    const processedCell = document.getElementById(`processed-${orderId}`);
-    const remainingCell = document.getElementById(`remaining-${orderId}`);
-    const lastUpdatedByCell = document.getElementById(`last-updated-by-${orderId}`);
-    const seenBtn = document.getElementById(`seen-btn-${orderId}`);
-    const partialBtn = document.getElementById(`partial-btn-${orderId}`);
-    const fullBtn = document.getElementById(`full-btn-${orderId}`);
-    const partialForm = document.getElementById(`partial-form-${orderId}`);
-    const partialInput = document.getElementById(`partial-input-${orderId}`);
-
-    if (!statusCell || !processedCell || !remainingCell || !lastUpdatedByCell || !seenBtn || !partialBtn || !fullBtn) {
-        console.error(`Missing critical DOM elements for order ${orderId}`);
-        return;
-    }
-
-    let payload;
-    if (newStatus === 'Partial') {
-        partialQuantity = parseInt(partialQuantity);
-        const remaining = parseInt(remainingCell.innerText);
-        if (isNaN(partialQuantity) || partialQuantity <= 0 || partialQuantity > remaining) {
-            console.warn(`Invalid partial quantity: ${partialQuantity}, must be 1-${remaining}`);
-            alert(`Cannot approve more than available stock (${remaining} remaining). Please enter a quantity between 1 and ${remaining}.`);
-            return;
-        }
-        payload = { is_partial: true, partial_quantity: partialQuantity };
-    } else {
-        payload = { is_partial: false };
-    }
-
-    console.log("Payload:", payload);
-
-    fetch(`/update_material_status/${orderId}/${newStatus}/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCSRFToken(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(response => {
-        console.log(`Fetch response: status=${response.status}`);
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        return response.json();
-    })
-    .then(data => {
-        console.log("Server response:", data);
-        if (data.success) {
-            statusCell.innerText = data.new_status === 'Approved' ? '🔄 Approved' :
-                                  data.new_status === 'Seen' ? '👀 Seen' :
-                                  data.new_status === 'Completed' ? '✅ Completed' : '🔄 ' + data.new_status;
-            processedCell.innerText = data.processed_quantity;
-            remainingCell.innerText = data.remaining_quantity;
-            lastUpdatedByCell.innerText = data.last_updated_by || 'N/A';
-
-            seenBtn.disabled = data.new_status !== 'Pending' && data.new_status !== 'Approved';
-            partialBtn.disabled = data.new_status !== 'Seen';
-            fullBtn.disabled = data.new_status !== 'Seen';
-            if (partialForm && (data.new_status === 'Approved' || data.new_status === 'Completed')) {
-                partialForm.classList.add('d-none');
-            }
-            if (partialInput) partialInput.setAttribute('max', data.remaining_quantity);
-            console.log(`Order ${orderId} updated to ${data.new_status}`);
-        } else {
-            console.error("Update failed:", data.error);
-            alert(`Error: ${data.error}`);
-        }
-    })
-    .catch(error => {
-        console.error("Fetch error:", error.message);
-        alert(`Fetch Error: ${error.message}`);
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded, setting up event listeners");
-
-    document.querySelectorAll('.seen-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            console.log(`Seen button clicked for order ${orderId}`);
-            updateStatus(orderId, 'Seen');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Existing event listeners for the material orders functionality
+        document.querySelectorAll('.seen-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const orderId = this.getAttribute('data-order-id');
+                updateStatus(orderId, 'Seen');
+            });
         });
-    });
 
-    document.querySelectorAll('.partial-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            console.log(`Partial button clicked for order ${orderId}`);
-            togglePartialInput(orderId);
+        document.querySelectorAll('.partial-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const orderId = this.getAttribute('data-order-id');
+                togglePartialInput(orderId);
+            });
         });
-    });
 
-    document.querySelectorAll('.full-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            console.log(`Full button clicked for order ${orderId}`);
-            updateStatus(orderId, 'Full');
-        });
-    });
-
-    document.querySelectorAll('.submit-partial-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            const partialInput = document.getElementById(`partial-input-${orderId}`);
-            const partialQuantity = partialInput ? partialInput.value : null;
-            console.log(`Submit partial clicked for order ${orderId}, quantity=${partialQuantity}`);
-            updateStatus(orderId, 'Partial', partialQuantity);
-        });
-    });
-
-    const table = document.getElementById('material-orders-table');
-    const headers = table.querySelectorAll('.filter-arrow');
-    const filters = {};
-    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
-
-    function populateDropdowns() {
-        headers.forEach(header => {
-            const colIndex = parseInt(header.getAttribute('data-column'));
-            const dropdown = document.getElementById(`filter-${colIndex}`);
-            const values = new Set();
-            const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            
-            for (let row of rows) {
-                if (row.style.display !== 'none') {
-                    const cells = row.getElementsByTagName('td');
-                    if (cells[colIndex]) values.add(cells[colIndex].textContent.trim() || 'N/A');
+        document.querySelectorAll('.full-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const orderId = this.getAttribute('data-order-id');
+                if (confirm('Mark this order as fully processed?')) {
+                    updateStatus(orderId, 'Completed');
                 }
-            }
-            const currentSelections = filters[colIndex] || [];
-            dropdown.innerHTML = '';
-            const selectAll = document.createElement('div');
-            selectAll.className = 'dropdown-item';
-            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
-            dropdown.appendChild(selectAll);
-
-            values.forEach(value => {
-                const item = document.createElement('div');
-                item.className = 'dropdown-item';
-                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
-                dropdown.appendChild(item);
-            });
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
-            confirmBtn.textContent = 'Confirm';
-            confirmBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                updateFilters(colIndex);
-                filterTable();
-                populateDropdowns();
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(confirmBtn);
-
-            selectAll.querySelector('input').addEventListener('change', function(e) {
-                e.stopPropagation();
-                const isChecked = this.checked;
-                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
             });
         });
-    }
 
-    function updateFilters(colIndex) {
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-    }
-
-    function filterTable() {
-        const rows = table.querySelector('tbody').getElementsByTagName('tr');
-        for (let row of rows) {
-            let show = true;
-            const cells = row.getElementsByTagName('td');
-            for (let col in filters) {
-                const colIdx = parseInt(col);
-                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                    show = false;
-                    break;
+        document.querySelectorAll('.submit-partial-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const orderId = this.getAttribute('data-order-id');
+                const quantity = parseInt(document.getElementById(`partial-input-${orderId}`).value);
+                const maxQuantity = parseInt(document.getElementById(`partial-input-${orderId}`).max);
+                
+                if (isNaN(quantity) || quantity <= 0) {
+                    alert('Please enter a valid quantity');
+                    return;
                 }
-            }
-            row.style.display = show ? '' : 'none';
-        }
-    }
-
-    document.getElementById('undo-filter-btn').addEventListener('click', function() {
-        for (let col in filters) delete filters[col];
-        allRows.forEach(row => row.style.display = '');
-        populateDropdowns();
+                
+                if (quantity > maxQuantity) {
+                    alert(`Quantity cannot exceed ${maxQuantity}`);
+                    return;
+                }
+                
+                updateStatus(orderId, 'Partial', quantity);
+            });
+        });
+        
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
     });
-
-    headers.forEach(header => {
-        const colIndex = parseInt(header.getAttribute('data-column'));
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        header.onclick = function(e) {
-            e.stopPropagation();
-            if (dropdown.style.display === 'block') dropdown.style.display = 'none';
-            else {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-                dropdown.style.display = 'block';
-            }
-        };
-        dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-        }
-    });
-
-    populateDropdowns();
-    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-    filterTable();
-});
 </script>
 
 <style>
@@ -356,31 +218,62 @@ document.addEventListener('DOMContentLoaded', function() {
         overflow-x: auto; /* Allow horizontal scrolling only if needed */
         overflow-y: auto; /* Vertical scrolling for height */
         max-height: calc(100vh - 140px); /* Adjust for navbar, header, and footer */
+        width: 100%;
+        margin: 0;
+        padding: 0 30px;
+    }
+    
+    .table-wrapper {
+        min-width: 1600px; /* Increased minimum width */
+        width: 100%;
     }
     #material-orders-table {
         width: 100% !important;
+        min-width: 100%;
         table-layout: auto; /* Allow columns to adjust based on content */
     }
-    #material-orders-table th, #material-orders-table td {
-        font-size: 0.9rem;
-        padding: 0.5rem; /* Reduced padding to fit more content */
-        white-space: normal; /* Allow text wrapping */
-        word-wrap: break-word; /* Ensure long text wraps */
-        max-width: 0; /* Prevent columns from expanding too much */
+    #material-orders-table {
+        table-layout: fixed;
+        width: 100% !important;
     }
-    #material-orders-table th {
-        background-color: #f8f9fa;
+
+    #material-orders-table th, #material-orders-table td {
+        font-size: 0.95rem;
+        padding: 0.5rem 0.75rem;
+        white-space: normal; /* Allow text wrapping */
+        word-wrap: break-word;
+        overflow: visible;
+        vertical-align: middle;
+    }
+    
+    /* Specific style for request code column */
+    #material-orders-table td:first-child {
+        white-space: normal;
+        word-break: break-word;
+        min-width: 180px;
+    }
+    
+    /* Ensure buttons stay on one line */
+    #material-orders-table .btn-group {
+        white-space: nowrap;
+        display: inline-flex;
+    }
+    #material-orders-table thead th {
+        background-color: #2c3e50 !important; /* Dark blue background */
+        color: #ffffff !important; /* White text */
         position: sticky;
         top: 0;
         z-index: 1;
-        text-align: left; /* Align text to left for better wrapping */
-    }
-    #material-orders-table .text-wrap {
-        white-space: normal !important; /* Force wrapping for headers */
-    }
-    #material-orders-table .btn-sm {
-        padding: 0.25rem 0.5rem;
+        white-space: nowrap;
+        padding: 0.75rem;
+        border: 1px solid #1a252f;
+        font-weight: 600;
+        text-transform: uppercase;
         font-size: 0.8rem;
+        letter-spacing: 0.5px;
+    }
+    .table tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.03);
     }
     #material-orders-table .form-control-sm {
         padding: 0.15rem 0.35rem;

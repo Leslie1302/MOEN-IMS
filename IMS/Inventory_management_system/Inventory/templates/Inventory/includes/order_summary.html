@@ -1,0 +1,50 @@
+{% if orders %}
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list-check me-2"></i>
+                Order Summary for {{ selected_request_code }}
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Request Code</th>
+                            <th>Material</th>
+                            <th>Quantity</th>
+                            <th>Status</th>
+                            <th>Requested By</th>
+                            <th>Date Requested</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.request_code }}</td>
+                            <td>{{ order.name }}</td>
+                            <td>
+                                {{ order.quantity }}
+                                {% if order.unit %}{{ order.unit.name }}{% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ order.get_status_display|lower }}">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ order.requested_by.get_full_name|default:order.requested_by.username }}</td>
+                            <td>{{ order.created_at|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        No orders found for the selected request code. Please check the code and try again.
+    </div>
+{% endif %}

@@ -1,3 +1,4 @@
+
 # Inventory/models.py
 from django.db import models
 from django.contrib.auth.models import User, Group
@@ -5,13 +6,55 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.core.validators import FileExtensionValidator
 
+# Import transporter models
+from .transporter_models import Transporter, TransportVehicle
+
 class ReleaseLetter(models.Model):
-    title = models.CharField(max_length=200)
-    pdf_file = models.FileField(upload_to='media/')
+    """
+    Model for storing release letters that authorize material releases.
+    Each letter is linked to a specific material order.
+    """
+    request_code = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="The request code that identifies the material request(s) this letter authorizes"
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="A descriptive title for this release letter"
+    )
+    pdf_file = models.FileField(
+        upload_to='release_letters/%Y/%m/%d/',
+        help_text="The signed release letter in PDF format"
+    )
+    uploaded_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_release_letters',
+        help_text="User who uploaded this letter"
+    )
     upload_time = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(
+        blank=True,
+        help_text="Any additional notes or comments about this release letter"
+    )
+
+    class Meta:
+        ordering = ['-upload_time']
+        verbose_name = 'Release Letter'
+        verbose_name_plural = 'Release Letters'
+        unique_together = ['request_code', 'title']  # Prevent duplicate letters for same request
+        permissions = [
+            ('can_upload_release_letter', 'Can upload release letters'),
+        ]
+        
+    def get_related_orders(self):
+        """Get all material orders associated with this request code."""
+        return MaterialOrder.objects.filter(request_code=self.request_code)
 
     def __str__(self):
-        return self.title
+        return f"{self.title} - {self.material_order.name}"
 
 class InventoryItem(models.Model):
     name = models.CharField(max_length=200)
@@ -51,27 +94,78 @@ def get_default_unit():
     return Unit.objects.first().id
 
 class MaterialOrder(models.Model):
+    """
+    Model representing a material order request (release or receipt).
+    """
+    # Basic information
     name = models.CharField(max_length=200)
-    quantity = models.IntegerField()  # Total requested/received quantity
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)  # Changed to DecimalField for precision
     category = models.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, blank=False, default="Enter code")
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
-    date_requested = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, blank=True, null=True)
     
+    # Request metadata
+    date_requested = models.DateTimeField(auto_now_add=True)
+    date_required = models.DateField(null=True, blank=True)
+    priority = models.CharField(
+        max_length=20,
+        choices=[
+            ('Low', 'Low'),
+            ('Medium', 'Medium'),
+            ('High', 'High'),
+            ('Urgent', 'Urgent')
+        ],
+        default='Medium'
+    )
+    
+    # User and group associations
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='material_orders_created'
+    )
+    group = models.ForeignKey(
+        Group, 
+        on_delete=models.SET_NULL, 
+        blank=True, 
+        null=True,
+        related_name='material_orders'
+    )
+    
+    # Request tracking
+    request_code = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        unique=True, 
+        db_index=True,
+        help_text="Unique code for tracking this request"
+    )
+    
+    # Status tracking
     STATUS_CHOICES = [
-        ('Pending', 'Pending'),
+        ('Draft', 'Draft'),
+        ('Pending', 'Pending Approval'),
         ('Approved', 'Approved'),
-        ('Rejected', 'Rejected'),
+        ('In Progress', 'In Progress'),
+        ('Partially Fulfilled', 'Partially Fulfilled'),
+        ('Ready for Pickup', 'Ready for Pickup'),
+        ('In Transit', 'In Transit'),
+        ('Delivered', 'Delivered'),
         ('Completed', 'Completed'),
+        ('Rejected', 'Rejected'),
+        ('Cancelled', 'Cancelled')
     ]
+    
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='Pending'
+        default='Draft'
     )
     
+    # Request type
     REQUEST_TYPE_CHOICES = [
         ('Release', 'Release Request'),
         ('Receipt', 'Receipt Request'),
@@ -82,27 +176,118 @@ class MaterialOrder(models.Model):
         default='Release'
     )
     
-    processed_quantity = models.IntegerField(default=0)
-    remaining_quantity = models.IntegerField(default=0)
+    # Quantity tracking
+    processed_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    remaining_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Location information
     region = models.CharField(max_length=100, blank=True, null=True)
     district = models.CharField(max_length=100, blank=True, null=True)
     community = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Project information
     consultant = models.CharField(max_length=200, blank=True, null=True)
     contractor = models.CharField(max_length=200, blank=True, null=True)
     package_number = models.CharField(max_length=50, blank=True, null=True)
-    # New field
-    last_updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_material_orders')
+    project_name = models.CharField(max_length=200, blank=True, null=True)
+    
+    # Additional metadata
+    notes = models.TextField(blank=True, null=True, help_text="Additional notes or instructions")
+    is_urgent = models.BooleanField(default=False)
+    
+    # Relationships
+    release_letter = models.ForeignKey(
+        'ReleaseLetter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='material_orders',
+        help_text="The release letter that authorizes this material order"
+    )
+    
+    # Audit fields
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_material_orders',
+        help_text="User who created this order"
+    )
+    last_updated_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='updated_material_orders',
+        help_text="User who last updated this order"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name_plural = 'orders'
+        verbose_name = 'Material Order'
+        verbose_name_plural = 'Material Orders'
+        ordering = ['-date_requested']
+        permissions = [
+            ('can_approve_order', 'Can approve material orders'),
+            ('can_reject_order', 'Can reject material orders'),
+            ('can_export_orders', 'Can export material orders'),
+        ]
 
     def __str__(self):
-        return f"{self.name} - {self.quantity} ({self.request_type})"
+        return f"{self.name} - {self.quantity} {self.unit} ({self.get_status_display()})"
 
     def save(self, *args, **kwargs):
-        if self.pk is None:  # Only set on creation
-            self.remaining_quantity = self.quantity
+        """Custom save method to handle request code generation and status updates."""
+        is_new = self.pk is None
+        
+        # Set created_by if this is a new record and not provided
+        if is_new and not self.created_by_id and hasattr(self, '_current_user'):
+            self.created_by = self._current_user
+        
+        # Set last_updated_by if user is available
+        if hasattr(self, '_current_user'):
+            self.last_updated_by = self._current_user
+        
+        # Generate request code for new orders
+        if is_new and not self.request_code:
+            date_str = self.date_requested.strftime('%Y%m%d')
+            unique_id = str(uuid.uuid4().int)[:6].upper()
+            self.request_code = f"REQ-{date_str}-{unique_id}"
+        
+        # Calculate remaining quantity if quantity or processed_quantity changes
+        if 'quantity' in kwargs.get('update_fields', []) or 'processed_quantity' in kwargs.get('update_fields', []):
+            self.remaining_quantity = float(self.quantity) - float(self.processed_quantity)
+            
+            # Update status based on quantity
+            if float(self.processed_quantity) <= 0:
+                if self.status in ['Partially Fulfilled', 'Fulfilled']:
+                    self.status = 'Approved'
+            elif float(self.processed_quantity) >= float(self.quantity):
+                self.status = 'Fulfilled'
+                self.remaining_quantity = 0
+            else:
+                self.status = 'Partially Fulfilled'
+        
         super().save(*args, **kwargs)
+    
+    @property
+    def is_approved(self):
+        return self.status in ['Approved', 'In Progress', 'Partially Fulfilled', 'Fulfilled', 'Completed']
+    
+    @property
+    def is_completed(self):
+        return self.status in ['Completed', 'Cancelled', 'Rejected']
+    
+    @property
+    def progress_percentage(self):
+        if float(self.quantity) == 0:
+            return 0
+        return min(100, (float(self.processed_quantity) / float(self.quantity)) * 100)
+    
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('material_order_detail', kwargs={'pk': self.pk})
 
 
 class Profile(models.Model):
@@ -237,45 +422,158 @@ class ReportSubmission(models.Model):
             self.save()
 
 class MaterialTransport(models.Model):
-    # Add STATUS_CHOICES as a class attribute
+    """
+    Model to track the transportation of materials from warehouse to destination.
+    """
     STATUS_CHOICES = [
-        ('Loaded', 'Loaded'),
-        ('En Route', 'En Route'),
-        ('On Site', 'On Site')
+        ('Pending', 'Pending Assignment'),
+        ('Assigned', 'Assigned to Transporter'),
+        ('Loading', 'Loading in Progress'),
+        ('Loaded', 'Loaded on Truck'),
+        ('In Transit', 'In Transit'),
+        ('Delivered', 'Delivered to Site'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled')
     ]
 
-    material_order = models.ForeignKey(MaterialOrder, on_delete=models.CASCADE)  
-    letter = models.ForeignKey(ReleaseLetter, on_delete=models.CASCADE)  
-    material_name = models.CharField(max_length=200)  
-    material_code = models.CharField(max_length=200)  
-    recipient = models.CharField(max_length=200)  
-    consultant = models.CharField(max_length=200) 
-    region = models.CharField(max_length=100, blank=True, null=True)  
-    district = models.CharField(max_length=100, blank=True, null=True)  
-    community = models.CharField(max_length=100, blank=True, null=True)  
-    package_number = models.CharField(max_length=50, blank=True, null=True)  
+    material_order = models.ForeignKey(
+        MaterialOrder, 
+        on_delete=models.CASCADE,
+        related_name='transports'
+    )
+    release_letter = models.ForeignKey(
+        ReleaseLetter, 
+        on_delete=models.CASCADE,
+        related_name='transports',
+        null=True,
+        blank=True
+    )
     
-    date_transported = models.DateTimeField(auto_now_add=True)
-    date_received = models.DateTimeField(auto_now=True)
+    # Material details (cached from order)
+    material_name = models.CharField(max_length=200)
+    material_code = models.CharField(max_length=200)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    unit = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Destination details
+    recipient = models.CharField(max_length=200)
+    consultant = models.CharField(max_length=200)
+    region = models.CharField(max_length=100, blank=True, null=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
+    community = models.CharField(max_length=100, blank=True, null=True)
+    package_number = models.CharField(max_length=50, blank=True, null=True)
+    destination_contact = models.CharField(max_length=100, blank=True, null=True)
+    destination_phone = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Transporter and vehicle details
+    transporter = models.ForeignKey(
+        'Transporter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transports'
+    )
+    vehicle = models.ForeignKey(
+        'TransportVehicle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transports'
+    )
+    driver_name = models.CharField(max_length=100, blank=True, null=True)
+    driver_phone = models.CharField(max_length=20, blank=True, null=True)
+    waybill_number = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Status tracking
     status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES  
+        choices=STATUS_CHOICES,
+        default='Pending'
     )
-
+    
+    # Dates
+    date_assigned = models.DateTimeField(null=True, blank=True)
+    date_loading_started = models.DateTimeField(null=True, blank=True)
+    date_loaded = models.DateTimeField(null=True, blank=True)
+    date_departed = models.DateTimeField(null=True, blank=True)
+    date_delivered = models.DateTimeField(null=True, blank=True)
+    date_completed = models.DateTimeField(null=True, blank=True)
+    
+    # Tracking and documentation
+    tracking_url = models.URLField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    
+    # Audit fields
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_transports'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Material Transport'
+        verbose_name_plural = 'Material Transports'
+    
     def save(self, *args, **kwargs):
-        """ Auto-populate fields from MaterialOrder when saving """
+        """Auto-populate fields from MaterialOrder when saving"""
         if self.material_order:
             self.material_name = self.material_order.name
             self.material_code = self.material_order.code
-            self.recipient = self.material_order.contractor
-            self.consultant = self.material_order.consultant
+            self.quantity = self.material_order.quantity
+            self.unit = str(self.material_order.unit) if self.material_order.unit else ''
+            self.recipient = self.material_order.contractor or ''
+            self.consultant = self.material_order.consultant or ''
             self.region = self.material_order.region
             self.district = self.material_order.district
             self.community = self.material_order.community
             self.package_number = self.material_order.package_number
+            
+            # If this is a new transport and has a release letter, set status to 'Assigned'
+            if not self.pk and self.release_letter:
+                self.status = 'Assigned'
+        
+        # Update timestamps based on status changes
+        if self.pk:
+            old_instance = MaterialTransport.objects.get(pk=self.pk)
+            if old_instance.status != self.status:
+                now = timezone.now()
+                if self.status == 'Assigned' and not self.date_assigned:
+                    self.date_assigned = now
+                elif self.status == 'Loading' and not self.date_loading_started:
+                    self.date_loading_started = now
+                elif self.status == 'Loaded' and not self.date_loaded:
+                    self.date_loaded = now
+                elif self.status == 'In Transit' and not self.date_departed:
+                    self.date_departed = now
+                elif self.status == 'Delivered' and not self.date_delivered:
+                    self.date_delivered = now
+                elif self.status == 'Completed' and not self.date_completed:
+                    self.date_completed = now
+        
         super().save(*args, **kwargs)
-
+    
     def __str__(self):
-        return f"Transport: {self.material_name} ({self.material_code})"
+        return f"Transport: {self.material_name} ({self.quantity} {self.unit}) to {self.recipient}"
+    
+    @property
+    def current_status_display(self):
+        """Return a more user-friendly status display"""
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+    
+    @property
+    def is_completed(self):
+        return self.status in ['Completed', 'Cancelled']
+    
+    @property
+    def is_active(self):
+        return self.status not in ['Completed', 'Cancelled']
+    
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('transport_detail', kwargs={'pk': self.pk})
 
     

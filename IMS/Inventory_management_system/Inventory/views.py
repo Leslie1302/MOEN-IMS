@@ -1,143 +1,97 @@
-from django.shortcuts import render, redirect
+import base64
+import io
+import logging
+from io import BytesIO
+
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views.generic import TemplateView, View, CreateView, UpdateView, DeleteView, FormView, ListView, DetailView
 from django.contrib.auth import authenticate, login, update_session_auth_hash
-from .forms import MaterialTransportForm, UserRegistration, AuthenticationForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm, UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm, ReportSubmissionForm
-from django.contrib.auth.views import LogoutView
-from django.contrib.auth.views import LogoutView as BaseLogoutView
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity, MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
-from django.urls import reverse_lazy
-from Inventory_management_system.settings import LOW_QUANTITY
-from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.models import User, Group
-from django.contrib.auth.decorators import login_required
 from django.forms import formset_factory
-import traceback
-from django.utils.decorators import method_decorator
-from django.db import transaction 
-import pandas as pd
+from django.db import transaction
+from django.contrib import messages
+from django.urls import reverse_lazy
+from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Q, Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, IntegerField, Prefetch
+from django.utils import timezone
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
+from django.utils.timezone import now, timedelta
+from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
+from django.contrib.auth.models import Group, User
+
+# Forms
+from .forms import (
+    MaterialTransportForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm,
+    UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm,
+    ReportSubmissionForm, BulkMaterialRequestForm, ReleaseLetterUploadForm
+)
+
+# Models
+from .models import (
+    InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity,
+    MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter
+)
+
+# Other views
+from .auth_views import Dashboard
+from .item_views import AddItem, EditItem, DeleteItem
+
+# Transporter views
+from .transporter_views import (
+    TransporterListView, TransporterCreateView, TransporterUpdateView, TransporterDetailView, TransporterDeleteView,
+    TransportVehicleListView, TransportVehicleCreateView, TransportVehicleUpdateView, TransportVehicleDetailView, TransportVehicleDeleteView,
+    TransporterAssignmentView, ReleaseLetterListView, TransporterLegendView, import_transporters, update_transport_status
+)
+
+__all__ = [
+    'Index', 'RequestMaterialView', 'MaterialOrdersView', 'UpdateMaterialStatusView',
+    'ProfileView', 'UploadInventoryView', 'UploadCategoriesAndUnitsView',
+    'list_categories', 'list_units', 'MaterialReceiptView', 'MaterialLegendView',
+    'MaterialHeatmapView', 'LowInventorySummaryView', 'BillOfQuantityView',
+    'UploadBillOfQuantityView', 'consultant_dash', 'management_dashboard',
+    'ReportSubmissionListView', 'ReportSubmissionCreateView', 'ReportSubmissionUpdateView',
+    'ReportSubmissionDetailView', 'submit_report', 'approve_report', 'reject_report',
+    'ReleaseLetterUploadView', 'update_material_receipt', 'MaterialTransportView',
+    # Transporter views
+    'TransporterListView', 'TransporterCreateView', 'TransporterUpdateView', 'TransporterDetailView', 'TransporterDeleteView',
+    'TransportVehicleListView', 'TransportVehicleCreateView', 'TransportVehicleUpdateView', 'TransportVehicleDetailView', 'TransportVehicleDeleteView',
+    'TransporterAssignmentView', 'ReleaseLetterListView', 'TransporterLegendView', 'import_transporters', 'update_transport_status'
+]
+
+# Third-party imports
+import uuid
 import json
-import seaborn as sns
+import logging
+import pandas as pd
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import numpy as np
-import logging
-from django.db.models import Sum
+from datetime import datetime, timedelta
+from django.db.models.functions import TruncMonth, TruncWeek, TruncDay
+from django.conf import settings
+
+MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 
 
 class Index(TemplateView):
     template_name = 'Inventory/index.html'
 
-LOW_QUANTITY = 5  # Set threshold
 
-class Dashboard(LoginRequiredMixin, PermissionRequiredMixin, View):
-    permission_required = 'Inventory.view_inventoryitem'
-
-    def get(self, request):
-        user = request.user
-        if user.is_superuser:
-            # Superusers see all items
-            items = InventoryItem.objects.all()
-        else:
-            # Non-superusers see items associated with their groups
-            items = InventoryItem.objects.filter(group__in=user.groups.all())
-        low_inventory_items = items.filter(quantity__lte=LOW_QUANTITY)
-        low_inventory_ids = list(low_inventory_items.values_list('id', flat=True))
-        low_inventory_names = list(low_inventory_items.values_list('name', flat=True))
-        return render(request, 'Inventory/dashboard.html', {
-            'items': items,
-            'low_inventory_ids': low_inventory_ids,
-            'low_inventory_items': low_inventory_names
-        })
-
-class SignUpView(View):
-    def get(self, request):
-        form = UserRegistration()
-        return render(request, 'Inventory/signup.html', {'form': form})
-
-    def post(self, request):
-        form = UserRegistration(request.POST)
-        if form.is_valid():
-            user = form.save()
-            authenticated_user = authenticate(
-                username=form.cleaned_data['username'],
-                password=form.cleaned_data['password1']
-            )
-            login(request, authenticated_user)
-            return redirect('index')
-        return render(request, 'Inventory/signup.html', {'form': form})
-
-class SignInView(View):
-    def get(self, request):
-        form = AuthenticationForm()
-        return render(request, 'Inventory/signin.html', {'form': form})
-
-    def post(self, request):
-        form = AuthenticationForm(data=request.POST)
-        if form.is_valid():
-            user = form.get_user()
-            login(request, user)
-            return redirect('index')
-        return render(request, 'Inventory/signin.html', {'form': form})
-
-class CustomLogoutView(BaseLogoutView):
-    http_method_names = ['get', 'post']
-
-class AddItem(LoginRequiredMixin, PermissionRequiredMixin, View):
-    permission_required = 'Inventory.add_inventoryitem'
-    template_name = 'Inventory/item_form.html'
-
-    def get(self, request):
-        formset = InventoryItemFormSet()
-        return render(request, self.template_name, {'formset': formset})
-
-    def post(self, request):
-        formset = InventoryItemFormSet(request.POST)
-        if formset.is_valid():
-            for form in formset:
-                if form.cleaned_data:
-                    item = form.save(commit=False)
-                    item.user = request.user
-                    if request.user.groups.exists():
-                        item.group = request.user.groups.first()
-                    item.save()
-            return redirect(reverse_lazy('dashboard'))
-        return render(request, self.template_name, {'formset': formset})
-
-class EditItem(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    model = InventoryItem
-    form_class = InventoryItemForm
-    template_name = 'Inventory/item_form.html'
-    success_url = reverse_lazy('dashboard')
-    permission_required = 'Inventory.change_inventoryitem'
-
-    def get_queryset(self):
-        # Ensure users can only edit items in their groups
-        if self.request.user.is_superuser:
-            return InventoryItem.objects.all()
-        return InventoryItem.objects.filter(group__in=self.request.user.groups.all())
-
-class DeleteItem(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
-    model = InventoryItem
-    template_name = 'Inventory/delete_item.html'
-    success_url = reverse_lazy('dashboard')
-    context_object_name = 'item'
-    permission_required = 'Inventory.delete_inventoryitem'
-
-    def get_queryset(self):
-        # Ensure users can only delete items in their groups
-        if self.request.user.is_superuser:
-            return InventoryItem.objects.all()
-        return InventoryItem.objects.filter(group__in=self.request.user.groups.all())
-
-MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
-
-MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
+def generate_request_code():
+    """Generate a unique request code in the format REQ-YYYYMMDD-XXXXXX"""
+    date_str = timezone.now().strftime('%Y%m%d')
+    unique_id = str(uuid.uuid4().int)[:6].upper()
+    return f"REQ-{date_str}-{unique_id}"
 
 
 class RequestMaterialView(LoginRequiredMixin, View):
@@ -150,54 +104,362 @@ class RequestMaterialView(LoginRequiredMixin, View):
             items = InventoryItem.objects.filter(group__in=request.user.groups.all())
 
         formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
+        bulk_form = BulkMaterialRequestForm()
         inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
 
         return render(request, self.template_name, {
             'formset': formset,
+            'bulk_form': bulk_form,
             'items': items,
-            'inventory_items': json.dumps(inventory_items)
+            'inventory_items': json.dumps(inventory_items),
+            'active_tab': 'single'  # Default to single request tab
         })
 
     def post(self, request):
+        # Check which form was submitted
+        if 'bulk_submit' in request.POST:
+            return self.handle_bulk_request(request)
+        else:
+            return self.handle_single_request(request)
+
+    def handle_single_request(self, request):
         formset = MaterialOrderFormSet(request.POST, form_kwargs={'user': request.user})
         if formset.is_valid():
-            for form in formset:
-                if form.cleaned_data:
-                    material_order = form.save(commit=False)
-                    selected_item = InventoryItem.objects.filter(name=form.cleaned_data['name']).first()
-                    if selected_item:
-                        material_order.category = selected_item.category
-                        material_order.code = selected_item.code
-                        material_order.unit = selected_item.unit
-                    material_order.user = request.user
-                    material_order.group = request.user.groups.first() if request.user.groups.exists() else None
-                    material_order.request_type = 'Release'
-                    material_order.save()
-            messages.success(request, "Material requests submitted successfully!")
-            return redirect('material_orders')
+            request_code = generate_request_code()
+            with transaction.atomic():
+                for form in formset:
+                    if form.cleaned_data:
+                        material_order = form.save(commit=False)
+                        selected_item = InventoryItem.objects.filter(name=form.cleaned_data['name']).first()
+                        if selected_item:
+                            material_order.category = selected_item.category
+                            material_order.code = selected_item.code
+                            material_order.unit = selected_item.unit
+                        material_order.user = request.user
+                        material_order.group = request.user.groups.first() if request.user.groups.exists() else None
+                        material_order.request_type = 'Release'
+                        material_order.request_code = request_code
+                        material_order.save()
+                messages.success(request, "Material requests submitted successfully!")
+                return redirect('material_orders')
         else:
             print("Formset errors:", formset.errors)
             messages.error(request, "There was an error with your submission.")
-        
+
+        # Prepare context for re-rendering the form with errors
         if request.user.is_superuser:
             items = InventoryItem.objects.all()
         else:
             items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+
         return render(request, self.template_name, {
             'formset': formset,
+            'bulk_form': BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code')))
+            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'active_tab': 'single'
         })
 
-class MaterialOrdersView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    def _find_inventory_item(self, item_name, user):
+        """Helper method to find an inventory item with various fallbacks"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔍 Looking up item: '{item_name}' for user: {user.username}")
+        logger.info(f"User groups: {[g.name for g in user.groups.all()]}")
+        
+        # Clean the item name
+        item_name = str(item_name).strip()
+        
+        # Try exact match with user's groups
+        items = InventoryItem.objects.filter(
+            name__iexact=item_name,
+            group__in=user.groups.all()
+        )
+        item = items.first()
+        
+        if item:
+            logger.info(f"✅ Found exact match in user's groups: {item.name} (ID: {item.id}, Group: {item.group})")
+            return item
+            
+        # Try contains with user's groups
+        items = InventoryItem.objects.filter(
+            name__icontains=item_name,
+            group__in=user.groups.all()
+        )
+        item = items.first()
+        
+        if item:
+            logger.info(f"✅ Found partial match in user's groups: {item.name} (ID: {item.id}, Group: {item.group})")
+            return item
+            
+        # If superuser, try without group restrictions
+        if user.is_superuser:
+            logger.info("User is superuser, trying without group restrictions...")
+            
+            # Try exact match without group restriction
+            item = InventoryItem.objects.filter(
+                name__iexact=item_name
+            ).first()
+            
+            if item:
+                logger.info(f"✅ Found exact match (superuser): {item.name} (ID: {item.id}, Group: {item.group})")
+                return item
+                
+            # Try contains without group restriction
+            item = InventoryItem.objects.filter(
+                name__icontains=item_name
+            ).first()
+            
+            if item:
+                logger.info(f"✅ Found partial match (superuser): {item.name} (ID: {item.id}, Group: {item.group})")
+                return item
+        
+        # Log all available items for debugging
+        all_items = InventoryItem.objects.all()
+        logger.warning(f"❌ Item not found: '{item_name}'")
+        logger.warning(f"Available items: {[(i.name, i.group.name if i.group else 'No group') for i in all_items]}")
+                
+        return None
+        
+    def _get_order_group(self, user, item, item_name):
+        """Helper method to determine the group for a new order"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"Determining group for item: {item_name}")
+        
+        # Try user's first group
+        group = user.groups.first()
+        if group:
+            logger.info(f"Using user's first group: {group.name}")
+        
+        # Try item's group
+        if not group and hasattr(item, 'group') and item.group:
+            group = item.group
+            logger.info(f"Using item's group: {group.name if group else 'None'}")
+            
+        # Try first available group
+        if not group:
+            from django.contrib.auth.models import Group
+            group = Group.objects.first()
+            logger.info(f"Using first available group: {group.name if group else 'None'}")
+            
+        # Final fallback
+        if not group:
+            logger.warning(f"No group could be assigned for {item_name}")
+        else:
+            logger.info(f"Assigned group for {item_name}: {group.name}")
+            
+        return group
+    
+    def handle_bulk_request(self, request):
+        logger = logging.getLogger(__name__)
+        logger.info("Starting bulk request processing...")
+        
+        bulk_form = BulkMaterialRequestForm(request.POST, request.FILES)
+        if not bulk_form.is_valid():
+            logger.error(f"Bulk form validation failed: {bulk_form.errors}")
+            for field, errors in bulk_form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+            return self._render_request_form(request, bulk_form=bulk_form)
+        
+        # Initialize variables outside the transaction
+        success_count = 0
+        error_messages = []
+        
+        try:
+            df = bulk_form.cleaned_data['df']
+            request_type = bulk_form.cleaned_data['request_type']
+            
+            logger.info(f"Processing bulk request with {len(df)} rows")
+            
+            # Generate a base request code for reference
+            base_request_code = generate_request_code()
+            logger.info(f"Base request code for this batch: {base_request_code}")
+            
+            # Add a request code column to the DataFrame
+            df['request_code'] = [f"{base_request_code}-{i+1}" for i in range(len(df))]
+            
+            # Process each row in the Excel file
+            logger.info(f"Starting to process {len(df)} rows from Excel")
+            logger.info(f"DataFrame columns: {df.columns.tolist()}")
+            logger.info(f"First few rows of data:\n{df.head().to_string()}")
+            
+            for idx, row in df.iterrows():
+                row_dict = row.to_dict()
+                logger.info(f"\n{'='*50}")
+                logger.info(f"PROCESSING ROW {idx + 1}:")
+                logger.info(f"Row data: {row_dict}")
+                
+                try:
+                    # Skip empty rows
+                    if not row.get('name'):
+                        logger.warning(f"Skipping empty row at index {idx}")
+                        continue
+                        
+                    # Find the inventory item
+                    item_name = str(row['name']).strip()
+                    logger.info(f"Looking up item: {item_name}")
+                    item = self._find_inventory_item(item_name, request.user)
+                    
+                    if not item:
+                        error_msg = f"Item not found or not accessible: {item_name}"
+                        error_messages.append(error_msg)
+                        logger.warning(error_msg)
+                        continue
+                        
+                    logger.info(f"Found item: {item.name} (ID: {item.id})")
+                    
+                    # Handle group assignment
+                    logger.info(f"Getting group for item: {item_name}")
+                    group = self._get_order_group(request.user, item, item_name)
+                    logger.info(f"Assigned to group: {group.name if group else 'None'}")
+                    
+                    # Create the order in a new transaction for each item
+                    try:
+                        with transaction.atomic():
+                            order_data = {
+                                'name': item.name,
+                                'quantity': row['quantity'],
+                                'category': item.category,
+                                'code': item.code,
+                                'unit': item.unit,
+                                'user': request.user,
+                                'group': group,
+                                'request_type': request_type,
+                                'request_code': row['request_code'],  # Use the unique request code from the DataFrame
+                                'region': row.get('region', ''),
+                                'district': row.get('district', ''),
+                                'community': row.get('community', ''),
+                                'consultant': row.get('consultant', ''),
+                                'contractor': row.get('contractor', ''),
+                                'package_number': row.get('package_number', ''),
+                                'last_updated_by': request.user
+                            }
+                            logger.info(f"Creating order with data: {order_data}")
+                            
+                            order = MaterialOrder.objects.create(**order_data)
+                            success_count += 1
+                            logger.info(f"Successfully created order ID {order.id} for {item.name} with request code {row['request_code']}")
+                            
+                            # Verify the order was saved
+                            if not MaterialOrder.objects.filter(id=order.id).exists():
+                                raise Exception(f"Failed to verify order {order.id} was saved to database")
+                            
+                            logger.info(f"✅ SUCCESS: Created order ID {order.id} for {item_name} with quantity {row['quantity']} and request code {row['request_code']}")
+                            
+                    except Exception as e:
+                        error_msg = f"❌ ERROR saving order for {item_name}: {str(e)}"
+                        error_messages.append(error_msg)
+                        logger.error(error_msg, exc_info=True)
+                        continue
+                        
+                except Exception as e:
+                    error_msg = f"❌ ERROR processing row for {row.get('name', 'unknown')}: {str(e)}"
+                    error_messages.append(error_msg)
+                    logger.error(error_msg, exc_info=True)
+                    continue
+                    
+                finally:
+                    logger.info(f"Completed processing row {idx + 1} for {item_name}")
+                    logger.info(f"Success count: {success_count}, Error count: {len(error_messages)}")
+            
+            # Show success/error messages
+            if success_count > 0:
+                msg = f"Successfully created {success_count} material request(s) with unique request codes starting with {base_request_code}"
+                messages.success(request, msg)
+                logger.info(msg)
+                
+                # Add an info message about how to track related requests
+                if success_count > 1:
+                    messages.info(request, 
+                        "Each item in the bulk upload has been assigned a unique request code. "
+                        "You can find related requests by searching for the base code."
+                    )
+                
+                # Only redirect if we had any successful saves
+                return redirect('material_orders')
+                
+            # If we got here, there were no successful saves
+            if error_messages:
+                for error in error_messages[:5]:  # Show first 5 errors to avoid flooding
+                    messages.error(request, error)
+                if len(error_messages) > 5:
+                    messages.warning(request, f"... and {len(error_messages) - 5} more errors occurred.")
+                    
+            return self._render_request_form(request, bulk_form=bulk_form)
+                    
+        except Exception as e:
+            error_msg = f"Unexpected error processing bulk request: {str(e)}"
+            messages.error(request, error_msg)
+            logger.error(error_msg, exc_info=True)
+            return self._render_request_form(request, bulk_form=bulk_form)
+            
+        return self._render_request_form(request, bulk_form=bulk_form)
+        
+    def _render_request_form(self, request, bulk_form=None):
+        """Helper method to render the request form with the current context"""
+        if request.user.is_superuser:
+            items = InventoryItem.objects.all()
+        else:
+            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+            
+        context = {
+            'formset': MaterialOrderFormSet(form_kwargs={'user': request.user}),
+            'bulk_form': bulk_form or BulkMaterialRequestForm(),
+            'items': items,
+            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'active_tab': 'bulk' if bulk_form else 'single'
+        }
+        return render(request, self.template_name, context)
+
+        # Prepare context for re-rendering the form with errors
+        if request.user.is_superuser:
+            items = InventoryItem.objects.all()
+        else:
+            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+
+        return render(request, self.template_name, {
+            'formset': MaterialOrderFormSet(form_kwargs={'user': request.user}),
+            'bulk_form': bulk_form,
+            'items': items,
+            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'active_tab': 'bulk'
+        })
+
+
+class MaterialOrdersView(LoginRequiredMixin, ListView):
+    """
+    View for displaying material orders.
+    - Storekeepers can see all orders
+    - Other users can only see their own orders
+    """
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
-    permission_required = 'Inventory.view_materialorder'
 
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return MaterialOrder.objects.all().order_by('-date_requested')
-        return MaterialOrder.objects.filter(group__in=self.request.user.groups.all()).order_by('-date_requested')
+        user = self.request.user
+        logger = logging.getLogger(__name__)
+        logger.info(f"Getting orders for user: {user.username}")
+        
+        try:
+            # Storekeepers can see all orders
+            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
+                orders = MaterialOrder.objects.all().order_by('-date_requested')
+                logger.info(f"User {user.username} is a storekeeper/superuser. Found {orders.count()} total orders.")
+                return orders
+            
+            # Regular users can only see their own orders
+            orders = MaterialOrder.objects.filter(user=user).order_by('-date_requested')
+            logger.info(f"User {user.username} is a regular user. Found {orders.count()} personal orders.")
+            return orders
+            
+        except Exception as e:
+            logger.error(f"Error in MaterialOrdersView for user {user.username}: {str(e)}", exc_info=True)
+            # Fallback to showing only user's orders in case of any error
+            orders = MaterialOrder.objects.filter(user=user).order_by('-date_requested')
+            logger.info(f"Fallback: Found {orders.count()} orders for user {user.username} after error.")
+            return orders
+    
+
 
 class UpdateMaterialStatusView(View):
     def post(self, request, order_id, new_status):
@@ -333,7 +595,7 @@ class ProfileView(LoginRequiredMixin, View):
 
 class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser  # ✅ Only allow admins
+        return self.request.user.is_superuser  # Only allow admins
 
     def get(self, request):
         form = ExcelUploadForm()
@@ -356,12 +618,12 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                     messages.error(request, "Excel file is missing required columns.")
                     return redirect('dashboard')
 
-                # 🔹 Load category & unit mappings from DB
+                # Load category & unit mappings from DB
                 category_mapping = {c.name: c.id for c in Category.objects.all()}
                 unit_mapping = {u.name: u.id for u in Unit.objects.all()}
 
                 for index, row in df.iterrows():
-                    # 🔄 Convert category & unit names to IDs
+                    # Convert category & unit names to IDs
                     category_id = category_mapping.get(row['category'])
                     unit_id = unit_mapping.get(row['unit'])
 
@@ -393,7 +655,7 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 class UploadCategoriesAndUnitsView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser  # ✅ Only allow admins
+        return self.request.user.is_superuser  # Only allow admins
 
     def get(self, request):
         form = ExcelUploadForm()
@@ -410,19 +672,19 @@ class UploadCategoriesAndUnitsView(LoginRequiredMixin, UserPassesTestMixin, View
                 # Read Excel File
                 df = pd.read_excel(file, engine='openpyxl')
 
-                # 🔥 Column Mapping: Convert Excel Columns to Match Model Fields
+                # Column Mapping: Convert Excel Columns to Match Model Fields
                 column_mapping = {
                     'CATEGORY': 'category',
                     'UNIT': 'unit'
                 }
                 df.rename(columns=column_mapping, inplace=True)
 
-                # ✅ Add Categories to Database
+                # Add Categories to Database
                 unique_categories = df['category'].dropna().unique()
                 for category_name in unique_categories:
                     Category.objects.get_or_create(name=category_name)
 
-                # ✅ Add Units to Database
+                # Add Units to Database
                 unique_units = df['unit'].dropna().unique()
                 for unit_name in unique_units:
                     Unit.objects.get_or_create(name=unit_name)
@@ -497,77 +759,180 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         })
 
 
+class MaterialLegendView(LoginRequiredMixin, ListView):
+    template_name = 'Inventory/material_legend.html'
+    context_object_name = 'materials'
+    paginate_by = 25  # Show 25 items per page
+
+    def get_queryset(self):
+        queryset = InventoryItem.objects.all().order_by('code')
+        
+        # Apply group filter for non-superusers
+        if not self.request.user.is_superuser:
+            user_groups = self.request.user.groups.all()
+            if user_groups.exists():
+                queryset = queryset.filter(group__in=user_groups)
+        
+        return queryset.select_related('category', 'unit')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Material Code Legend'
+        return context
+
+
 class MaterialHeatmapView(LoginRequiredMixin, View):
     template_name = 'Inventory/material_heatmap.html'
 
     def get(self, request):
-        if request.user.is_superuser:
+        try:
+            # Show all orders and items to all authenticated users
             orders = MaterialOrder.objects.all()
             items = InventoryItem.objects.all()
-        else:
-            orders = MaterialOrder.objects.filter(group__in=request.user.groups.all())
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
 
-        period = request.GET.get('period', 'month')
-        report_type = request.GET.get('type', 'release')
+            period = request.GET.get('period', 'month')
+            report_type = request.GET.get('type', 'release')
 
-        if report_type in ['release', 'receipt']:
-            orders = orders.filter(request_type=report_type.capitalize())
-            df = pd.DataFrame.from_records(orders.values('code', 'processed_quantity', 'date_requested'))  # Use 'code' instead of 'name'
-            if df.empty:
-                df = pd.DataFrame(columns=['code', 'processed_quantity', 'date_requested'])
+            if report_type in ['release', 'receipt']:
+                orders = orders.filter(request_type=report_type.capitalize())
+                df = pd.DataFrame.from_records(orders.values('code', 'name', 'processed_quantity', 'date_requested'))
+                if df.empty:
+                    df = pd.DataFrame(columns=['code', 'name', 'processed_quantity', 'date_requested'])
+                else:
+                    df['date'] = pd.to_datetime(df['date_requested'])
+                    if period == 'day':
+                        df['period'] = df['date'].dt.strftime('%Y-%m-%d')
+                    elif period == 'week':
+                        df['period'] = df['date'].dt.strftime('Week %U, %Y')
+                    else:  # month
+                        df['period'] = df['date'].dt.strftime('%b %Y')
+                    
+                    # Create pivot table with material names for better readability
+                    pivot = pd.pivot_table(
+                        df, 
+                        values='processed_quantity', 
+                        index=['code', 'name'], 
+                        columns='period', 
+                        aggfunc='sum', 
+                        fill_value=0
+                    )
+                    
+                    # Reset index to get code and name as columns
+                    pivot = pivot.reset_index()
+                    
+                    # Create a combined label for code and name
+                    pivot['material'] = pivot.apply(
+                        lambda x: f"{x['code']} - {x['name']}", 
+                        axis=1
+                    )
+                    
+                    # Set the combined label as index
+                    pivot = pivot.set_index('material').drop(['code', 'name'], axis=1, errors='ignore')
             else:
-                df['date'] = pd.to_datetime(df['date_requested'])
-                if period == 'day':
-                    df['period'] = df['date'].dt.date
-                elif period == 'week':
-                    df['period'] = df['date'].dt.to_period('W').apply(lambda r: r.start_time.date())
-                else:  # month
-                    df['period'] = df['date'].dt.to_period('M').apply(lambda r: r.start_time.date())
-                pivot = pd.pivot_table(df, values='processed_quantity', index='code', columns='period', aggfunc='sum', fill_value=0)  # Use 'code' for index
-        else:
-            df = pd.DataFrame.from_records(items.values('code', 'quantity'))  # Use 'code' instead of 'name'
-            pivot = df.set_index('code').T  # Use 'code' for index
+                # For stock view, show current quantities
+                df = pd.DataFrame.from_records(items.values('code', 'name', 'quantity'))
+                if not df.empty:
+                    df['material'] = df.apply(
+                        lambda x: f"{x['code']} - {x['name']}", 
+                        axis=1
+                    )
+                    # Create a DataFrame with material as index and quantity as value
+                    pivot = df[['material', 'quantity']].set_index('material').T
+                    # Ensure all materials are included as columns
+                    for material in df['material'].tolist():
+                        if material not in pivot.columns:
+                            pivot[material] = 0
+                else:
+                    pivot = pd.DataFrame()
 
-        # Set up a professional, modern style heatmap
-        plt.figure(figsize=(15, 10))  # Larger figure for better visibility
-        sns.set_style("whitegrid")  # Clean, modern background
-        heatmap = sns.heatmap(
-            pivot,
-            cmap="Blues",  # Vibrant blue palette matching your reference (similar to teal/navy)
-            annot=True,  # Show values
-            fmt='.0f',  # Integer format
-            cbar_kws={'label': 'Quantity', 'shrink': 0.8, 'pad': 0.02, 'orientation': 'vertical'},
-            linewidths=0.5,  # Thin lines for grid
-            annot_kws={'size': 10, 'weight': 'bold'},  # Bold, readable annotations
-            square=True,  # Square cells for clarity
-            vmin=0,  # Minimum value for color scale
-            vmax=pivot.max().max() * 1.1  # Scale max slightly higher for contrast
-        )
-        plt.title("Material Movement Heatmap", fontsize=16, pad=20, fontweight='bold', color='#2c3e50')  # Navy title
-        plt.xlabel("Time Period", fontsize=12, color='#2c3e50')
-        plt.ylabel("Material Code", fontsize=12, color='#2c3e50')  # Updated to "Material Code"
-        
-        # Rotate x-axis labels for readability
-        plt.xticks(rotation=45, ha='right', fontsize=10)
-        plt.yticks(fontsize=10)
+            # Initialize pivot if empty (for cases with no data)
+            if 'pivot' not in locals() or pivot is None:
+                pivot = pd.DataFrame()
 
-        # Adjust layout for a clean look
-        plt.tight_layout()
-
-        # Save to buffer
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300)  # Higher DPI for quality
-        plt.close()
-        buffer.seek(0)
-        heatmap_image = buffer.getvalue()
-
-        context = {
-            'heatmap_image': heatmap_image.hex(),
-            'report_type': report_type,
-            'period': period,
-        }
-        return render(request, self.template_name, context)
+            # Generate Plotly figure
+            if not pivot.empty:
+                import plotly.express as px
+                import plotly.graph_objects as go
+                
+                # Convert pivot to long format for Plotly
+                df_plot = pivot.reset_index().melt(
+                    id_vars='material', 
+                    var_name='period', 
+                    value_name='quantity'
+                )
+                
+                # Create the heatmap
+                fig = px.imshow(
+                    pivot.values,
+                    labels=dict(x="Time Period", y="Material", color="Quantity"),
+                    x=pivot.columns.tolist(),
+                    y=pivot.index.tolist(),
+                    aspect="auto",
+                    color_continuous_scale='Viridis',
+                    text_auto=True
+                )
+                
+                # Customize layout
+                title = f"{report_type.capitalize()} Heatmap ({period.capitalize()})"
+                fig.update_layout(
+                    title={
+                        'text': title,
+                        'y':0.95,
+                        'x':0.5,
+                        'xanchor': 'center',
+                        'yanchor': 'top',
+                        'font': {'size': 20, 'family': 'Arial, sans-serif'}
+                    },
+                    xaxis_title="Time Period",
+                    yaxis_title="Material",
+                    height=600 + (len(pivot) * 15),  # Adjust height based on number of materials
+                    margin=dict(l=150, r=50, b=150, t=100, pad=4),
+                    coloraxis_colorbar=dict(
+                        title="Quantity",
+                        thicknessmode="pixels", thickness=20,
+                        lenmode="pixels", len=300,
+                        yanchor="top", y=1,
+                        ticks="outside"
+                    )
+                )
+                
+                # Customize hover text
+                fig.update_traces(
+                    hovertemplate='<b>Material</b>: %{y}<br>' +
+                                 '<b>Period</b>: %{x}<br>' +
+                                 '<b>Quantity</b>: %{z}<extra></extra>',
+                    texttemplate="%{z}",
+                    textfont={"size": 10}
+                )
+                
+                # Convert the plot to HTML
+                plot_div = fig.to_html(
+                    full_html=False, 
+                    include_plotlyjs='cdn',  # Use CDN for Plotly.js
+                    config={
+                        'displayModeBar': True,
+                        'scrollZoom': True,
+                        'responsive': True
+                    }
+                )
+                
+                has_data = True
+            else:
+                plot_div = ""
+                has_data = False
+            
+            context = {
+                'plot_div': plot_div,
+                'report_type': report_type,
+                'period': period,
+                'has_data': has_data
+            }
+            return render(request, self.template_name, context)
+            
+        except Exception as e:
+            logger.error(f"Error generating heatmap: {str(e)}", exc_info=True)
+            messages.error(request, f"Error generating heatmap: {str(e)}")
+            return render(request, self.template_name, {'has_data': False})
 
     def post(self, request):
         if request.user.is_superuser:
@@ -631,33 +996,38 @@ class MaterialHeatmapView(LoginRequiredMixin, View):
         response['Content-Disposition'] = f'attachment; filename="{report_type}_heatmap_{period}.pdf"'
         return response
     
-class LowInventorySummaryView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class LowInventorySummaryView(LoginRequiredMixin, ListView):
+    """
+    View for displaying low inventory items.
+    Accessible to all authenticated users.
+    Shows all low inventory items regardless of group.
+    """
     template_name = 'Inventory/low_inventory_summary.html'
     context_object_name = 'low_items'
-    permission_required = 'Inventory.view_inventoryitem'
 
     def get_queryset(self):
-        user = self.request.user
+        """
+        Return all low inventory items.
+        Accessible to all authenticated users.
+        """
         LOW_QUANTITY = 5  # Match the threshold used in Dashboard view
-        if user.is_superuser:
-            return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).order_by('name')
-        return InventoryItem.objects.filter(
-            group__in=user.groups.all(),
-            quantity__lte=LOW_QUANTITY
-        ).order_by('name')
+        return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).order_by('name')
 
-class BillOfQuantityView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class BillOfQuantityView(LoginRequiredMixin, ListView):
+    """
+    View for displaying Bill of Quantities.
+    Accessible to all authenticated users.
+    Shows all BOQ items regardless of group.
+    """
     template_name = 'Inventory/bill_of_quantity.html'
     context_object_name = 'boq_items'
-    permission_required = 'Inventory.view_billofquantity'
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
-        return BillOfQuantity.objects.filter(
-            group__in=user.groups.all()
-        ).order_by('package_number', 'material_description')
+        """
+        Return all BOQ items.
+        Accessible to all authenticated users.
+        """
+        return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
 
     
 logger = logging.getLogger(__name__)
@@ -748,10 +1118,33 @@ def consultant_dash(request):
 
 logger = logging.getLogger(__name__)
 
+@login_required
 def management_dashboard(request):
+    # Check if user is in Management group or is superuser
+    if not (request.user.groups.filter(name='Management').exists() or request.user.is_superuser):
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('dashboard')
+        
     # Log the total number of orders
     total_orders = MaterialOrder.objects.count()
     logger.debug(f"Total Orders: {total_orders}")
+    
+    # Get all users with their groups and permissions
+    users = User.objects.prefetch_related('groups').all()
+    user_grades = {}
+    
+    # Calculate grades for each user (example: based on activity)
+    for user in users:
+        user_orders = MaterialOrder.objects.filter(user=user).count()
+        user_receipts = MaterialOrder.objects.filter(status__in=['Received', 'On Site']).filter(user=user).count()
+        # Simple grade calculation - can be customized
+        grade = min(100, (user_orders + user_receipts) * 5)
+        user_grades[user.id] = {
+            'username': user.username,
+            'groups': ", ".join([g.name for g in user.groups.all()]),
+            'grade': grade,
+            'grade_letter': 'A' if grade >= 90 else 'B' if grade >= 80 else 'C' if grade >= 70 else 'D' if grade >= 60 else 'F'
+        }
 
     # Debug: Check if groups exist
     consultants_group = Group.objects.filter(name='Consultants').first()
@@ -798,6 +1191,30 @@ def management_dashboard(request):
     audit_trail = MaterialOrderAudit.objects.all().order_by('-date')
     profile, created = Profile.objects.get_or_create(user=request.user)
 
+    # Get system-wide notifications
+    notifications = []
+    
+    # Low inventory items - using a default reorder level of 10 since the field doesn't exist
+    # TODO: Add reorder_level field to InventoryItem model for better inventory management
+    low_inventory = InventoryItem.objects.filter(quantity__lt=10)  # Default reorder level of 10
+    if low_inventory.exists():
+        notifications.append({
+            'type': 'warning',
+            'message': f'{low_inventory.count()} items are below reorder level',
+            'url': reverse('low_inventory_summary')
+        })
+    
+    # Pending orders
+    if pending_orders > 0:
+        notifications.append({
+            'type': 'info',
+            'message': f'{pending_orders} pending material orders',
+            'url': reverse('material_orders')
+        })
+    
+    # Recent activities (last 10)
+    recent_activities = MaterialOrderAudit.objects.all().order_by('-date')[:10]
+    
     context = {
         'total_orders': total_orders,
         'total_received_by_consultants': total_received_by_consultants,
@@ -805,14 +1222,16 @@ def management_dashboard(request):
         'total_released_by_storekeepers': total_released_by_storekeepers,
         'total_on_site': total_on_site,
         'pending_orders': pending_orders,
-        'orders': orders,
-        'audit_trail': audit_trail,
+        'orders': orders[:10],  # Only show recent 10 orders
+        'audit_trail': recent_activities,
+        'notifications': notifications,
+        'user_grades': user_grades,
+        'low_inventory_count': low_inventory.count(),
         'profile': profile,
     }
     return render(request, 'Inventory/management_dashboard.html', context)
 
 
-def update_material_receipt(request, order_id, new_status):
     if request.method == 'POST':
         if new_status not in ['Received', 'On Site']:  # Restrict to valid statuses
             return JsonResponse({'success': False, 'error': 'Invalid status.'}, status=400)
@@ -923,7 +1342,167 @@ def reject_report(request, pk):
             report.save()
     return redirect('report-submission-list')
 
+
+class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """View for uploading signed release letters.
     
+    Only accessible to schedule officers and superusers.
+    """
+    template_name = 'Inventory/upload_release_letter.html'
+    login_url = 'login'
+    permission_denied_message = "You don't have permission to upload release letters."
+    
+    def test_func(self):
+        """Only allow schedule officers and superusers."""
+        if not self.request.user.is_authenticated:
+            return False
+        if self.request.user.is_superuser:
+            return True
+        return self.request.user.groups.filter(name='Schedule Officers').exists()
+    
+    def get(self, request):
+        """Display the upload form with optional order summary."""
+        form = ReleaseLetterUploadForm(user=request.user)
+        request_code = request.GET.get('request_code')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == 'true'
+        
+        orders = []
+        if request_code:
+            try:
+                # First, try to find orders with the exact request code
+                orders = MaterialOrder.objects.filter(
+                    request_code=request_code,
+                    release_letter__isnull=True
+                ).select_related('unit', 'requested_by')
+                
+                # If no exact match, try with base request code
+                if not orders.exists() and '-' in request_code:
+                    # Extract base request code (everything before the last dash)
+                    base_code = '-'.join(request_code.split('-')[:-1])
+                    if base_code:
+                        orders = MaterialOrder.objects.filter(
+                            request_code__startswith=base_code,
+                            release_letter__isnull=True
+                        ).select_related('unit', 'requested_by')
+                
+                # Debug output
+                print(f"Found {orders.count()} orders for request code: {request_code}")
+                for order in orders:
+                    print(f"- {order.request_code}: {order.name} ({order.quantity} {order.unit})")
+            except Exception as e:
+                print(f"Error fetching orders: {str(e)}")
+                if is_ajax:
+                    return JsonResponse({'error': str(e)}, status=400)
+        
+        context = {
+            'form': form,
+            'orders': orders,
+            'selected_request_code': request_code,
+            'is_superuser': request.user.is_superuser,
+            'is_schedule_officer': request.user.groups.filter(name='Schedule Officers').exists()
+        }
+        
+        # Handle AJAX requests
+        if is_ajax:
+            if request_code:
+                return render(request, 'Inventory/includes/order_summary.html', context)
+            return JsonResponse({'error': 'No request code provided'}, status=400)
+        
+        # Regular GET request - render full page
+        return render(request, self.template_name, context)
+    
+    def post(self, request):
+        """Handle file upload."""
+        form = ReleaseLetterUploadForm(request.POST, request.FILES, user=request.user)
+        
+        if form.is_valid():
+            try:
+                # Get the base request code and find all matching orders
+                base_request_code = form.cleaned_data['request_code']
+                full_request_code = form.cleaned_data.get('full_request_code') or base_request_code
+                
+                # Find all orders that match the base request code
+                matching_orders = MaterialOrder.objects.filter(
+                    request_code__startswith=base_request_code,
+                    release_letter__isnull=True  # Only include orders without release letters
+                )
+                
+                if not matching_orders.exists():
+                    # If no matching orders with the base code, try exact match
+                    matching_orders = MaterialOrder.objects.filter(
+                        request_code=base_request_code,
+                        release_letter__isnull=True
+                    )
+                
+                if not matching_orders.exists():
+                    raise ValueError(f"No pending orders found for request code: {base_request_code}")
+                
+                # Create a release letter for these orders
+                release_letter = form.save(commit=False)
+                release_letter.uploaded_by = request.user
+                release_letter.request_code = base_request_code
+                release_letter.save()
+                
+                # Update all matching orders to point to this release letter
+                matching_orders.update(release_letter=release_letter)
+                
+                messages.success(
+                    request, 
+                    f'Release letter for {matching_orders.count()} order(s) with request code {base_request_code} uploaded successfully!',
+                    extra_tags='alert-success'
+                )
+                return redirect('material_orders')
+                
+            except Exception as e:
+                logger.error(f"Error uploading release letter: {str(e)}", exc_info=True)
+                messages.error(
+                    request, 
+                    f'Error uploading release letter: {str(e)}',
+                    extra_tags='alert-danger'
+                )
+        
+        # If form is invalid or there was an error, re-render the form with errors
+        return render(request, self.template_name, {
+            'form': form,
+            'selected_request_code': request.POST.get('request_code'),
+            'is_superuser': request.user.is_superuser,
+            'is_schedule_officer': request.user.groups.filter(name='Schedule Officers').exists()
+        })
+
+
+def update_material_receipt(request, order_id):
+    """
+    Handle AJAX updates for material receipts.
+    Updates the status of a material order and returns a JSON response.
+    """
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            order = MaterialOrder.objects.get(id=order_id)
+            status = request.POST.get('status')
+            
+            # Only allow status updates to valid statuses
+            valid_statuses = [choice[0] for choice in MaterialOrder.STATUS_CHOICES]
+            if status not in valid_statuses:
+                return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+            
+            # Update the order status
+            order.status = status
+            order.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'status': order.get_status_display(),
+                'status_class': order.get_status_class()
+            })
+            
+        except MaterialOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+
 class MaterialTransportView(LoginRequiredMixin, PermissionRequiredMixin, View):
     permission_required = 'Inventory.view_materialtransport'
 

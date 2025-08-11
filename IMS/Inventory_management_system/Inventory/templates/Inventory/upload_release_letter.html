@@ -1,0 +1,490 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    /* Custom file upload styling */
+    .file-upload-wrapper {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+    
+    .file-upload-input {
+        width: 0.1px;
+        height: 0.1px;
+        opacity: 0;
+        overflow: hidden;
+        position: absolute;
+        z-index: -1;
+    }
+    
+    .file-upload-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        border: 2px dashed #dee2e6;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background-color: #f8f9fa;
+    }
+    
+    .file-upload-label:hover {
+        border-color: #0d6efd;
+        background-color: #f1f8ff;
+    }
+    
+    .file-upload-icon {
+        font-size: 2.5rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Order summary card */
+    .order-summary-card {
+        border-left: 4px solid #0d6efd;
+        transition: all 0.3s ease;
+    }
+    
+    /* Recent uploads table */
+    .recent-uploads {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    /* Custom select2 styling */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 48px;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.5rem;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+        padding-left: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Main Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-file-upload me-2"></i>
+                            Upload Release Letter
+                        </h4>
+                        <a href="{% url 'material_orders' %}" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i> Back to Orders
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Request Code Selection -->
+                        <div class="mb-4">
+                            <label for="{{ form.request_code.id_for_label }}" class="form-label fw-bold">
+                                {{ form.request_code.label }}
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.request_code }}
+                            <div class="form-text">Search for a request code or select from the list</div>
+                            <div class="invalid-feedback">
+                                Please select a valid request code.
+                            </div>
+                        </div>
+                        
+                        <!-- Hidden field to store the full request code -->
+                        <input type="hidden" id="id_full_request_code" name="full_request_code">
+                        
+                        <!-- Order Summary -->
+                        <div id="orderSummary" class="mb-4">
+                            {% if orders %}
+                                {% include 'Inventory/includes/order_summary.html' %}
+                            {% endif %}
+                        </div>
+                        
+                        <!-- PDF Upload -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold d-block mb-3">
+                                {{ form.pdf_file.label }}
+                                <span class="text-danger">*</span>
+                            </label>
+                            
+                            <div class="file-upload-wrapper">
+                                <input type="file" 
+                                       name="{{ form.pdf_file.name }}" 
+                                       id="{{ form.pdf_file.id_for_label }}" 
+                                       class="file-upload-input" 
+                                       accept=".pdf" 
+                                       required>
+                                
+                                <label for="{{ form.pdf_file.id_for_label }}" class="file-upload-label text-center">
+                                    <div>
+                                        <div class="file-upload-icon">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </div>
+                                        <h5>Drag & drop your PDF here</h5>
+                                        <p class="text-muted mb-0">or click to browse</p>
+                                        <small class="text-muted d-block mt-2">Maximum file size: 10MB</small>
+                                    </div>
+                                </label>
+                                
+                                <div id="fileInfo" class="mt-2 d-none">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-file-pdf text-danger me-2"></i>
+                                        <span id="fileName" class="text-truncate"></span>
+                                        <button type="button" class="btn btn-link text-danger ms-auto" id="clearFile">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {% if form.pdf_file.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.pdf_file.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">
+                                <i class="fas fa-sticky-note me-1"></i>
+                                {{ form.notes.label }}
+                            </label>
+                            {{ form.notes }}
+                            <div class="form-text">Add any additional notes about this release letter (optional)</div>
+                        </div>
+                        
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <button type="reset" class="btn btn-outline-secondary">
+                                <i class="fas fa-undo me-1"></i> Reset
+                            </button>
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="fas fa-upload me-1"></i> Upload Release Letter
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recent Uploads Section -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light py-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Recently Uploaded Letters
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_letters %}
+                        <div class="recent-uploads">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Request #</th>
+                                            <th>Title</th>
+                                            <th>Uploaded By</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for letter in recent_letters %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex flex-column">
+                                                    <span class="fw-medium">{{ letter.uploaded_at|date:"M d, Y" }}</span>
+                                                    <small class="text-muted">{{ letter.uploaded_at|date:"H:i" }}</small>
+                                                </div>
+                                            </td>
+                                            <td><span class="badge bg-primary">{{ letter.request_code }}</span></td>
+                                            <td>{{ letter.title|default:"Untitled"|truncatechars:30 }}</td>
+                                            <td>{{ letter.uploaded_by.get_full_name|default:letter.uploaded_by.username }}</td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <a href="{{ letter.pdf_file.url }}" 
+                                                       class="btn btn-outline-primary" 
+                                                       target="_blank"
+                                                       data-bs-toggle="tooltip"
+                                                       title="View PDF">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a href="{{ letter.pdf_file.url }}" 
+                                                       class="btn btn-outline-secondary"
+                                                       download
+                                                       data-bs-toggle="tooltip"
+                                                       title="Download PDF">
+                                                        <i class="fas fa-download"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="mb-3">
+                                <i class="fas fa-inbox fa-3x text-muted"></i>
+                            </div>
+                            <h5 class="text-muted">No recent uploads</h5>
+                            <p class="text-muted">Uploaded release letters will appear here</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // File upload preview
+        const fileInput = document.getElementById('{{ form.pdf_file.id_for_label }}');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const clearFileBtn = document.getElementById('clearFile');
+        const fileUploadLabel = document.querySelector(`label[for="{{ form.pdf_file.id_for_label }}"]`);
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    fileName.textContent = file.name;
+                    fileInfo.classList.remove('d-none');
+                    fileUploadLabel.classList.add('d-none');
+                    
+                    // Validate file size (10MB)
+                    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+                    if (file.size > maxSize) {
+                        this.setCustomValidity('File size must be less than 10MB');
+                        this.reportValidity();
+                        this.value = '';
+                        fileInfo.classList.add('d-none');
+                        fileUploadLabel.classList.remove('d-none');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                }
+            });
+            
+            clearFileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                fileInput.value = '';
+                fileInfo.classList.add('d-none');
+                fileUploadLabel.classList.remove('d-none');
+            });
+            
+            // Handle drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                fileUploadLabel.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                fileUploadLabel.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                fileUploadLabel.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                fileUploadLabel.classList.add('border-primary', 'bg-light');
+            }
+            
+            function unhighlight() {
+                fileUploadLabel.classList.remove('border-primary', 'bg-light');
+            }
+            
+            fileUploadLabel.addEventListener('drop', handleDrop, false);
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length) {
+                    fileInput.files = files;
+                    const event = new Event('change');
+                    fileInput.dispatchEvent(event);
+                }
+            }
+        }
+        
+        // Initialize Select2 for the request code dropdown
+        const $requestCodeSelect = $('#id_request_code');
+        
+        $requestCodeSelect.select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: 'Search for a request code...',
+            allowClear: true,
+            dropdownParent: $('form'),
+            language: {
+                noResults: function() {
+                    return "No matching request codes found";
+                },
+                searching: function() {
+                    return "Searching...";
+                }
+            },
+            templateResult: function(data) {
+                if (data.id === '') { return undefined; }
+                if (data.id === '__new__') {
+                    return $('<div class="text-primary"><i class="fas fa-plus-circle me-2"></i> Enter a new request code</div>');
+                }
+                return data.text;
+            }
+        });
+
+        // Handle request code selection
+        $requestCodeSelect.on('change', function() {
+            const requestCode = $(this).val();
+            if (requestCode) {
+                loadOrderSummary(requestCode);
+            } else {
+                $('#orderSummary').empty();
+                const url = new URL(window.location.href);
+                url.searchParams.delete('request_code');
+                window.history.pushState({}, '', url.toString());
+            }
+        });
+        
+        // Set the selected value from URL parameter if exists
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestCode = urlParams.get('request_code');
+        if (requestCode) {
+            $requestCodeSelect.val(requestCode).trigger('change');
+            // Small delay to ensure select2 is fully initialized
+            setTimeout(function() {
+                loadOrderSummary(requestCode);
+            }, 100);
+        }
+
+        // Handle the custom "Enter a new request code" option
+        $requestCodeSelect.on('select2:selecting', function(e) {
+            const selectedValue = e.params.args.data.id;
+            
+            if (selectedValue === '__new__') {
+                e.preventDefault();
+                
+                const newCode = prompt('Please enter the new request code (e.g., REQ-20230810-123456):');
+                if (newCode) {
+                    // Create a new option and select it
+                    const newOption = new Option(newCode, newCode, true, true);
+                    $requestCodeSelect.append(newOption).trigger('change');
+                    
+                    // Manually trigger the order summary load
+                    loadOrderSummary(newCode);
+                }
+            }
+        });
+        
+        // Function to load orders for the selected request code
+        function loadOrderSummary(requestCode) {
+            if (!requestCode) return;
+            
+            // Show loading state
+            const summaryContainer = $('#orderSummary');
+            if (summaryContainer.length) {
+                summaryContainer.html(`
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0">Loading order details...</p>
+                    </div>
+                `);
+            }
+            
+            // Load orders via AJAX
+            $.ajax({
+                url: window.location.pathname,
+                data: { 'request_code': requestCode },
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                success: function(data) {
+                    const newContent = $(data).find('#orderSummary').html();
+                    if (newContent) {
+                        $('#orderSummary').html(newContent);
+                    }
+                    
+                    // Update the hidden field with the full request code
+                    $('#id_full_request_code').val(requestCode);
+                    
+                    // Update URL without reloading the page
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('request_code', requestCode);
+                    window.history.pushState({}, '', url.toString());
+                },
+                error: function() {
+                    const errorMsg = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error loading order details. Please try again.
+                        </div>
+                    `;
+                    $('#orderSummary').html(errorMsg);
+                }
+            });
+        }
+    });
+                    event.preventDefault();
+                    event.stopPropagation();
+                } else {
+                    // Additional custom validation
+                    const requestCode = document.getElementById('id_request_code');
+                    const newRequestCode = document.getElementById('id_new_request_code');
+                    
+                    if ((!requestCode || !requestCode.value) && (!newRequestCode || !newRequestCode.value)) {
+                        event.preventDefault();
+                        alert('Please select or enter a request code.');
+                        return false;
+                    }
+                    
+                    // If we have a new request code, add it to the form data
+                    if (newRequestCode && newRequestCode.value) {
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = 'request_code';
+                        hiddenInput.value = newRequestCode.value;
+                        form.appendChild(hiddenInput);
+                    }
+                }
+                
+                // Add validation class to show feedback
+                form.classList.add('was-validated');
+            }, false);
+        }
+    })();
+</script>
+{% endblock %}

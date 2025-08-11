@@ -2,48 +2,400 @@
 
 {% block title %}Material Heatmap{% endblock %}
 
-{% block content %}
-<div class="container mt-5">
-    <h2 class="text-center fw-bold text-primary">📊 Material Movement Heatmap</h2>
-    <p class="text-muted text-center">Visualize releases, receipts, or stock levels</p>
-    <hr class="w-50 mx-auto border-primary">
+{% block extra_css %}
+<style>
+    .chart-container {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-top: 20px;
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 20px;
+    }
+    .spinner-border {
+        width: 3rem; 
+        height: 3rem;
+    }
+    .chart-actions {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+    .form-container {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
 
-    <form method="GET" class="mb-4">
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label for="type" class="form-label">Report Type</label>
-                <select name="type" id="type" class="form-select">
-                    <option value="release" {% if report_type == 'release' %}selected{% endif %}>Release</option>
-                    <option value="receipt" {% if report_type == 'receipt' %}selected{% endif %}>Receipt</option>
-                    <option value="stock" {% if report_type == 'stock' %}selected{% endif %}>Stock</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label for="period" class="form-label">Time Period</label>
-                <select name="period" id="period" class="form-select">
-                    <option value="day" {% if period == 'day' %}selected{% endif %}>Daily</option>
-                    <option value="week" {% if period == 'week' %}selected{% endif %}>Weekly</option>
-                    <option value="month" {% if period == 'month' %}selected{% endif %}>Monthly</option>
-                </select>
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">Generate Heatmap</button>
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h2 class="h4 mb-0 text-primary">
+                        <i class="fas fa-chart-heat me-2"></i>Material Movement Heatmap
+                    </h2>
+                    <p class="text-muted mb-0">Interactive visualization of material movements and stock levels</p>
+                </div>
+                
+                <div class="card-body">
+                    <form method="GET" class="mb-4">
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label for="type" class="form-label">Report Type</label>
+                                <select name="type" id="type" class="form-select form-select-lg">
+                                    <option value="release" {% if report_type == 'release' %}selected{% endif %}>Material Releases</option>
+                                    <option value="receipt" {% if report_type == 'receipt' %}selected{% endif %}>Material Receipts</option>
+                                    <option value="stock" {% if report_type == 'stock' %}selected{% endif %}>Current Stock Levels</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label for="period" class="form-label">Time Period</label>
+                                <select name="period" id="period" class="form-select form-select-lg" {% if report_type == 'stock' %}disabled{% endif %}>
+                                    <option value="day" {% if period == 'day' %}selected{% endif %}>Daily View</option>
+                                    <option value="week" {% if period == 'week' %}selected{% endif %}>Weekly View</option>
+                                    <option value="month" {% if period == 'month' %}selected{% endif %}>Monthly View</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary btn-lg w-100">
+                                    <i class="fas fa-sync-alt me-2"></i>Update
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Loading Spinner -->
+                    <div id="loadingSpinner" class="loading-spinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Generating your heatmap...</p>
+                    </div>
+
+                    <!-- Chart Container -->
+                    <div class="chart-container mt-4">
+                        {% if has_data %}
+                            {{ plot_div|safe }}
+                            
+                            <div class="chart-actions">
+                                <button onclick="downloadAsImage(event)" class="btn btn-outline-primary me-2" id="downloadImageBtn">
+                                    <i class="fas fa-download me-2"></i>Download as Image
+                                </button>
+                                <button onclick="downloadAsCSV(event)" class="btn btn-outline-secondary" id="exportCsvBtn">
+                                    <i class="fas fa-file-csv me-2"></i>Export as CSV
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="no-data">
+                                <i class="fas fa-chart-pie fa-4x mb-3 text-muted"></i>
+                                <h4>No Data Available</h4>
+                                <p>There's no data to display for the selected filters.</p>
+                                <a href="{% url 'material_heatmap' %}" class="btn btn-primary mt-2">
+                                    <i class="fas fa-redo me-2"></i>Reset Filters
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Hover over cells for details. Click on column headers to sort. 
+                            <a href="{% url 'material_legend' %}" class="ms-2">
+                                <i class="fas fa-book me-1"></i>View Material Code Legend
+                            </a>
+                        </small>
+                        <small class="text-muted">
+                            <i class="fas fa-sync-alt me-1"></i>Data updates in real-time
+                        </small>
+                    </div>
+                </div>
             </div>
         </div>
-    </form>
-
-    {% if heatmap_image %}
-    <div class="text-center">
-        <img src="data:image/png;base64,{{ heatmap_image|safe }}" alt="Material Heatmap" class="img-fluid" style="max-width: 100%;">
-        <form method="POST" class="mt-3">
-            {% csrf_token %}
-            <input type="hidden" name="type" value="{{ report_type }}">
-            <input type="hidden" name="period" value="{{ period }}">
-            <button type="submit" class="btn btn-success">Export to PDF</button>
-        </form>
     </div>
-    {% else %}
-    <p class="text-center text-muted">Select options above to generate a heatmap.</p>
-    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load Plotly library -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    // Global variable to store the plot data
+    let plotData = null;
+    let plotLayout = null;
+    
+    // Function to update plot data reference
+    function updatePlotData() {
+        const plotlyDiv = document.querySelector('.js-plotly-plot');
+        if (plotlyDiv && plotlyDiv.data) {
+            plotData = JSON.parse(JSON.stringify(plotlyDiv.data));
+            plotLayout = JSON.parse(JSON.stringify(plotlyDiv.layout));
+            return true;
+        }
+        return false;
+    }
+    
+    // Wait for DOM and Plotly to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial plot data update
+        updatePlotData();
+        
+        // Also update plot data when the chart is updated
+        const observer = new MutationObserver(function(mutations) {
+            if (updatePlotData()) {
+                // If we successfully updated plot data, we can disconnect the observer
+                observer.disconnect();
+            }
+        });
+        
+        // Start observing the plot div for changes
+        const plotlyDiv = document.querySelector('.js-plotly-plot');
+        if (plotlyDiv) {
+            observer.observe(plotlyDiv, { childList: true, subtree: true });
+        }
+        
+        // Show loading spinner when form is submitted
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                const spinner = document.getElementById('loadingSpinner');
+                if (spinner) spinner.style.display = 'block';
+            });
+        }
+        
+        // Disable period selector when stock view is selected
+        const typeSelect = document.getElementById('type');
+        if (typeSelect) {
+            typeSelect.addEventListener('change', function() {
+                const periodSelect = document.getElementById('period');
+                if (periodSelect) {
+                    periodSelect.disabled = (this.value === 'stock');
+                }
+            });
+            
+            // Trigger change event in case stock is selected on page load
+            typeSelect.dispatchEvent(new Event('change'));
+        }
+        
+        // Add click handlers for download buttons
+        document.addEventListener('click', function(e) {
+            const downloadBtn = e.target.closest('#downloadImageBtn');
+            const exportBtn = e.target.closest('#exportCsvBtn');
+            const plotlyDownloadBtn = e.target.closest('a[data-title="Download plot as a png"]');
+            
+            if (downloadBtn || plotlyDownloadBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Use our custom download function for both buttons
+                downloadAsImage(e);
+            } else if (exportBtn) {
+                e.preventDefault();
+                downloadAsCSV(e);
+            }
+        }, true); // Use capture phase to ensure we catch the event first
+    });
+    
+    // Function to download chart as image
+    function downloadAsImage(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const button = event.target.closest('button, a[data-title="Download plot as a png"]');
+        const originalHTML = button ? button.innerHTML : '';
+        const originalText = typeof originalHTML === 'string' ? originalHTML : '';
+        
+        try {
+            if (!plotData) {
+                const plotlyDiv = document.querySelector('.js-plotly-plot');
+                if (!plotlyDiv) {
+                    throw new Error('Chart not found');
+                }
+                plotData = JSON.parse(JSON.stringify(plotlyDiv.data));
+                plotLayout = JSON.parse(JSON.stringify(plotlyDiv.layout));
+            }
+            
+            // Show loading state if button exists
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Preparing...';
+            }
+            
+            // Create a copy of layout for download
+            const downloadLayout = JSON.parse(JSON.stringify(plotLayout));
+            downloadLayout.width = 1600;
+            downloadLayout.height = 1000;
+            downloadLayout.margin = {l: 200, r: 50, b: 200, t: 100};
+            
+            // Create a hidden div for the download
+            const hiddenDiv = document.createElement('div');
+            hiddenDiv.style.display = 'none';
+            document.body.appendChild(hiddenDiv);
+            
+            // Create new plot in the hidden div
+            Plotly.newPlot(hiddenDiv, plotData, downloadLayout, {displayModeBar: false})
+                .then(function() {
+                    // Use Plotly's built-in download functionality
+                    return Plotly.downloadImage(hiddenDiv, {
+                        format: 'png',
+                        width: 1600,
+                        height: 1000,
+                        filename: `material_heatmap_${new Date().toISOString().split('T')[0]}`
+                    });
+                })
+                .then(function() {
+                    showToast('Image downloaded successfully!', 'success');
+                })
+                .catch(function(error) {
+                    console.error('Error downloading image:', error);
+                    showToast('Failed to download image: ' + (error.message || 'Unknown error'), 'error');
+                })
+                .finally(function() {
+                    // Clean up
+                    if (document.body.contains(hiddenDiv)) {
+                        document.body.removeChild(hiddenDiv);
+                    }
+                    // Restore button state if button exists
+                    if (button) {
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    }
+                });
+            
+        } catch (error) {
+            console.error('Error in downloadAsImage:', error);
+            showToast('Error preparing download: ' + (error.message || 'Unknown error'), 'error');
+            if (button) {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+    }
+    
+    // Helper function to show toast messages
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `position-fixed bottom-0 end-0 m-3 p-3 rounded shadow`;
+        toast.style.zIndex = '1100';
+        toast.style.transition = 'opacity 0.3s';
+        
+        if (type === 'success') {
+            toast.className += ' bg-success text-white';
+            toast.innerHTML = `<i class="fas fa-check-circle me-2"></i>${message}`;
+        } else {
+            toast.className += ' bg-danger text-white';
+            toast.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>${message}`;
+        }
+        
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // Function to export data as CSV
+    function downloadAsCSV(event) {
+        event.preventDefault();
+        const button = event.target.closest('button');
+        const originalText = button ? button.innerHTML : '';
+        
+        try {
+            // Get the plot data
+            if (!plotData) {
+                const plotlyDiv = document.querySelector('.js-plotly-plot');
+                if (!plotlyDiv) {
+                    throw new Error('Chart not found');
+                }
+                plotData = JSON.parse(JSON.stringify(plotlyDiv.data));
+                plotLayout = JSON.parse(JSON.stringify(plotlyDiv.layout));
+            }
+            
+            // Show loading state if button exists
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Preparing...';
+            }
+            
+            // Get the first trace (assuming there's at least one)
+            const trace = plotData[0];
+            if (!trace?.z?.length || !trace?.y?.length) {
+                throw new Error('No data available to export');
+            }
+            
+            // Prepare CSV content
+            const headers = ['Material', ...(trace.x || [])];
+            let csvContent = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\r\n';
+            
+            // Add data rows
+            trace.y.forEach((material, rowIndex) => {
+                const row = [`"${material}"`]; // Wrap in quotes to handle commas
+                if (trace.z && trace.z[rowIndex]) {
+                    // Convert each value to a string and escape any existing quotes
+                    row.push(...trace.z[rowIndex].map(val => {
+                        const strVal = String(val || '0');
+                        // If the value contains commas or quotes, wrap it in quotes and escape existing quotes
+                        if (strVal.includes(',') || strVal.includes('"')) {
+                            return `"${strValue.replace(/"/g, '""')}"`;
+                        }
+                        return strVal;
+                    }));
+                }
+                csvContent += row.join(',') + '\r\n';
+            });
+            
+            // Create and trigger download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `material_heatmap_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            
+            // Trigger download
+            link.click();
+            
+            // Clean up
+            setTimeout(() => {
+                if (document.body.contains(link)) {
+                    document.body.removeChild(link);
+                }
+            }, 100);
+            
+            showToast('CSV exported successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Error in downloadAsCSV:', error);
+            showToast('Error exporting data: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            // Always restore button state if button exists
+            if (button) {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+    }
+    
+    // Make the chart responsive to window resize
+    window.addEventListener('resize', function() {
+        const plotlyDiv = document.querySelector('.js-plotly-plot');
+        if (plotlyDiv) {
+            Plotly.Plots.resize(plotlyDiv);
+        }
+    });
+</script>
 {% endblock %}

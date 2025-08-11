@@ -1,0 +1,113 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Bulk Material Request - MOEN IMS{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">📦 Bulk Material Request</h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle me-2"></i>Instructions</h5>
+                <ol class="mb-0">
+                    <li>Download the Excel template below</li>
+                    <li>Fill in the required information</li>
+                    <li>Upload the completed file using the form</li>
+                    <li>Each request will be assigned a unique tracking code</li>
+                </ol>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Download Template</h5>
+                            <p class="card-text">Use this template to prepare your bulk material request.</p>
+                            <a href="{% static 'Inventory/templates/bulk_request_template.xlsx' %}" 
+                               class="btn btn-success" 
+                               download="Bulk_Request_Template.xlsx">
+                                <i class="fas fa-file-excel me-2"></i>Download Excel Template
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Upload Completed File</h5>
+                            <form method="post" enctype="multipart/form-data" id="bulk-upload-form">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label for="excel_file" class="form-label">Select Excel File</label>
+                                    <input class="form-control" type="file" id="excel_file" name="excel_file" 
+                                           accept=".xlsx, .xls" required>
+                                    <div class="form-text">Only .xlsx or .xls files are accepted.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="request_type" class="form-label">Request Type</label>
+                                    <select class="form-select" id="request_type" name="request_type" required>
+                                        <option value="">-- Select Request Type --</option>
+                                        <option value="Release">Release</option>
+                                        <option value="Transfer">Transfer</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload me-2"></i>Upload & Process
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if messages %}
+                <div class="mt-4">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Processing Modal -->
+<div class="modal fade" id="processingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Processing Your Request</h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Please wait while we process your bulk request...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('bulk-upload-form');
+        
+        form.addEventListener('submit', function() {
+            const fileInput = document.getElementById('excel_file');
+            const requestType = document.getElementById('request_type');
+            
+            if (fileInput.files.length > 0 && requestType.value) {
+                const modal = new bootstrap.Modal(document.getElementById('processingModal'));
+                modal.show();
+            }
+        });
+    });
+</script>
+{% endblock %}

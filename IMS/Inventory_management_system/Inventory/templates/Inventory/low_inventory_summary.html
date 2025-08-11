@@ -6,36 +6,50 @@
 {% block content %}
 <div class="row">
     <div class="col-12 mx-auto mt-5">
-        <h2 class="text-center mb-4">Low Inventory Summary</h2>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Low Inventory Summary</h2>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+        
         {% if low_items %}
-            <table class="table table-hover table-striped" id="low-inventory-table">
-                <thead class="table-dark">
-                    <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Name<span class="filter-arrow" data-column="0">▼</span><div class="dropdown-menu" id="filter-0" style="display: none;"></div></th>
-                        <th scope="col">Quantity<span class="filter-arrow" data-column="1">▼</span><div class="dropdown-menu" id="filter-1" style="display: none;"></div></th>
-                        <th scope="col">Unit<span class="filter-arrow" data-column="2">▼</span><div class="dropdown-menu" id="filter-2" style="display: none;"></div></th>
-                        <th scope="col">Category<span class="filter-arrow" data-column="3">▼</span><div class="dropdown-menu" id="filter-3" style="display: none;"></div></th>
-                        <th scope="col">Item Code<span class="filter-arrow" data-column="4">▼</span><div class="dropdown-menu" id="filter-4" style="display: none;"></div></th>
-                        <th scope="col" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in low_items %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped enhanced-table" id="low-inventory-table" data-export-filename="low_inventory">
+                    <thead>
                         <tr>
-                            <th scope="row">{{ item.id }}</th>
-                            <td>{{ item.name }}</td>
-                            <td class="text-danger">{{ item.quantity|intcomma }}</td>
-                            <td>{{ item.unit.name }}</td>
-                            <td>{{ item.category.name }}</td>
-                            <td>{{ item.code }}</td>
-                            <td class="text-center">
-                                <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-primary btn-sm">Edit</a>
-                            </td>
+                            <th scope="col" data-sort>ID</th>
+                            <th scope="col" data-sort>Name</th>
+                            <th scope="col" data-sort data-type="number">Quantity</th>
+                            <th scope="col" data-sort>Unit</th>
+                            <th scope="col" data-sort>Category</th>
+                            <th scope="col" data-sort>Item Code</th>
+                            {% if user.is_superuser %}
+                            <th scope="col" class="text-center" data-no-filter>Action</th>
+                            {% endif %}
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for item in low_items %}
+                            <tr>
+                                <th scope="row">{{ item.id }}</th>
+                                <td>{{ item.name }}</td>
+                                <td class="text-danger fw-bold">{{ item.quantity|intcomma }}</td>
+                                <td>{{ item.unit.name }}</td>
+                                <td>{{ item.category.name }}</td>
+                                <td>{{ item.code }}</td>
+                                {% if user.is_superuser %}
+                                <td class="text-center">
+                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
             <div class="alert alert-info text-center" role="alert">No items are currently low in inventory.</div>
         {% endif %}
@@ -56,136 +70,15 @@ function scrollToTop() {
 
 window.onscroll = function() {
     const btn = document.getElementById('scroll-top-btn');
-    btn.style.display = window.scrollY > 100 ? 'block' : 'none';
+    if (btn) {
+        btn.style.display = window.scrollY > 100 ? 'block' : 'none';
+    }
 };
 
+// Initialize the enhanced table when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    const table = document.getElementById('low-inventory-table');
-    const headers = table.querySelectorAll('.filter-arrow');
-    const filters = {};
-    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
-
-    function populateDropdowns() {
-        headers.forEach(header => {
-            const colIndex = parseInt(header.getAttribute('data-column'));
-            const dropdown = document.getElementById(`filter-${colIndex}`);
-            const values = new Set();
-            const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            
-            for (let row of rows) {
-                if (row.style.display !== 'none') {
-                    const cells = row.getElementsByTagName('td');
-                    if (cells[colIndex]) {
-                        values.add(cells[colIndex].textContent.trim() || 'N/A');
-                    }
-                }
-            }
-            console.log(`Column ${colIndex} available values:`, Array.from(values));
-
-            const currentSelections = filters[colIndex] || [];
-            dropdown.innerHTML = '';
-            const selectAll = document.createElement('div');
-            selectAll.className = 'dropdown-item';
-            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
-            dropdown.appendChild(selectAll);
-
-            values.forEach(value => {
-                const item = document.createElement('div');
-                item.className = 'dropdown-item';
-                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
-                dropdown.appendChild(item);
-            });
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
-            confirmBtn.textContent = 'Confirm';
-            confirmBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                console.log(`Confirm clicked for column ${colIndex}`);
-                updateFilters(colIndex);
-                filterTable();
-                populateDropdowns();
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(confirmBtn);
-
-            selectAll.querySelector('input').addEventListener('change', function(e) {
-                e.stopPropagation();
-                const isChecked = this.checked;
-                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
-                console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
-            });
-        });
-    }
-
-    headers.forEach(header => {
-        const colIndex = parseInt(header.getAttribute('data-column'));
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-
-        header.onclick = function(e) {
-            e.stopPropagation();
-            if (dropdown.style.display === 'block') {
-                dropdown.style.display = 'none';
-            } else {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-                dropdown.style.display = 'block';
-            }
-        };
-
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-        }
-    });
-
-    function updateFilters(colIndex) {
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-        console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
-    }
-
-    function filterTable() {
-        const rows = table.querySelector('tbody').getElementsByTagName('tr');
-        console.log(`Filtering ${rows.length} rows`);
-        for (let row of rows) {
-            let show = true;
-            const cells = row.getElementsByTagName('td');
-            for (let col in filters) {
-                const colIdx = parseInt(col);
-                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                    show = false;
-                    break;
-                }
-            }
-            console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
-            row.style.display = show ? '' : 'none';
-        }
-        console.log('Filter applied');
-    }
-
-    function undoFilters() {
-        console.log('Undo filters triggered');
-        for (let col in filters) {
-            delete filters[col];
-        }
-        allRows.forEach(row => row.style.display = '');
-        populateDropdowns();
-    }
-
-    document.getElementById('undo-filter-btn').addEventListener('click', function() {
-        undoFilters();
-    });
-
-    populateDropdowns();
-    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-    filterTable();
+    // The table-utils.js script will automatically initialize the enhanced table
+    // with sorting, filtering, and export functionality
 });
 </script>
 {% endblock content %}

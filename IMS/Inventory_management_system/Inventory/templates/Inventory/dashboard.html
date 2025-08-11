@@ -32,41 +32,52 @@
 
 <div class="row">
     <div class="col-12 mx-auto mt-5">
+        {% if user.is_superuser %}
         <div class="d-flex justify-content-end mb-3">
             <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
         </div>
+        {% endif %}
 
-        <table class="table table-hover table-striped" id="dashboard-table">
-            <thead class="table-dark">
-                <tr>
-                    <th scope="col">ID</th>
-                    <th scope="col">Name<span class="filter-arrow" data-column="0">▼</span><div class="dropdown-menu" id="filter-0"ರೀಕ್ಷೇತ್ರಿಕೆ ಇದೆಯೇ?</div></th>
-                    <th scope="col">Qty<span class="filter-arrow" data-column="1">▼</span><div class="dropdown-menu" id="filter-1" style="display: none;"></div></th>
-                    <th scope="col">Unit<span class="filter-arrow" data-column="2">▼</span><div class="dropdown-menu" id="filter-2" style="display: none;"></div></th>
-                    <th scope="col">Category<span class="filter-arrow" data-column="3">▼</span><div class="dropdown-menu" id="filter-3" style="display: none;"></div></th>
-                    <th scope="col">Item Code<span class="filter-arrow" data-column="4">▼</span><div class="dropdown-menu" id="filter-4" style="display: none;"></div></th>
-                    <th scope="col" colspan="2" class="text-center">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if not items %}
-                    <tr><td colspan="8" class="text-center text-muted">No items available</td></tr>
-                {% else %}
-                    {% for item in items %}
-                        <tr>
-                            <th scope="row">{{ item.id }}</th>
-                            <td>{{ item.name }}</td>
-                            <td class="{% if item.id in low_inventory_ids %} text-danger {% endif %}">{{ item.quantity|intcomma }}</td>
-                            <td>{{ item.unit.name }}</td>
-                            <td>{{ item.category.name }}</td>
-                            <td>{{ item.code }}</td>
-                            <td class="text-center"><a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary btn-sm">Edit</a></td>
-                            <td class="text-center"><a href="{% url 'delete-item' item.id %}" class="btn btn-danger btn-sm">Delete</a></td>
-                        </tr>
-                    {% endfor %}
-                {% endif %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped enhanced-table" id="inventory-table" data-export-filename="inventory">
+                <thead>
+                    <tr>
+                        <th scope="col" data-sort>ID</th>
+                        <th scope="col" data-sort>Name</th>
+                        <th scope="col" data-sort data-type="number">Qty</th>
+                        <th scope="col" data-sort>Unit</th>
+                        <th scope="col" data-sort>Category</th>
+                        <th scope="col" data-sort>Item Code</th>
+                        {% if user.is_superuser %}
+                        <th scope="col" colspan="2" class="text-center" data-no-filter>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if not items %}
+                        <tr><td colspan="8" class="text-center text-muted">No items available</td></tr>
+                    {% else %}
+                        {% for item in items %}
+                            <tr>
+                                <th scope="row">{{ item.id }}</th>
+                                <td>{{ item.name }}</td>
+                                <td class="{% if item.id in low_inventory_ids %} text-danger {% endif %}">{{ item.quantity|intcomma }}</td>
+                                <td>{{ item.unit.name }}</td>
+                                <td>{{ item.category.name }}</td>
+                                <td>{{ item.code }}</td>
+                                {% if user.is_superuser %}
+                                <td class="text-center"><a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary btn-sm">Edit</a></td>
+                                <td class="text-center"><a href="{% url 'delete-item' item.id %}" class="btn btn-danger btn-sm">Delete</a></td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

@@ -1,5 +1,5 @@
 @echo off
-cd /d %USERPROFILE%\Documents\GitHub\MOEN-IMS
+cd C:\Users\Leslie\Documents\GitHub\MOEN-IMS
 
 call env\Scripts\activate
 

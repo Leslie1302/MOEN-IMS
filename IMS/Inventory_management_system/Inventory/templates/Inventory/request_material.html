@@ -1,83 +1,174 @@
 {% extends 'Inventory/base.html' %}
-{% block content %}
+{% load static %}
 
+{% block content %}
 <div class="container mt-5">
     <div class="card shadow-lg border-0 p-4">
         <div class="card-body">
             <h2 class="text-center fw-bold text-primary mb-3">📥 Request Materials</h2>
             <hr class="w-25 mx-auto border-primary mb-4">
             
-            <form method="POST">
-                {% csrf_token %}
-                {{ formset.management_form }}
-                <div id="form-container">
-                    {% for form in formset %}
-                        <div class="card mb-3 shadow-sm p-3 material-form">
-                            <div class="d-flex flex-column gap-3">
-                                <div>
-                                    <label class="fw-semibold">{{ form.name.label }}</label>
-                                    {{ form.name }}
-                                    {{ form.name.errors }}
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-tabs nav-fill mb-4" id="requestTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'single' %}active{% endif %}" 
+                            id="single-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#single-request" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="single-request" 
+                            aria-selected="{% if active_tab == 'single' %}true{% else %}false{% endif %}">
+                        Single Request
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'bulk' %}active{% endif %}" 
+                            id="bulk-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#bulk-request" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="bulk-request" 
+                            aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}">
+                        Bulk Request (Excel)
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="requestTabsContent">
+                <!-- Single Request Tab -->
+                <div class="tab-pane fade {% if active_tab == 'single' %}show active{% endif %}" 
+                     id="single-request" 
+                     role="tabpanel" 
+                     aria-labelledby="single-tab">
+                    
+                    <form method="POST">
+                        {% csrf_token %}
+                        {{ formset.management_form }}
+                        <div id="form-container">
+                            {% for form in formset %}
+                                <div class="card mb-3 shadow-sm p-3 material-form">
+                                    <div class="d-flex flex-column gap-3">
+                                        <div>
+                                            <label class="fw-semibold">{{ form.name.label }}</label>
+                                            {{ form.name }}
+                                            {{ form.name.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.quantity.label }}</label>
+                                            {{ form.quantity }}
+                                            {{ form.quantity.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.region.label }}</label>
+                                            {{ form.region }}
+                                            {{ form.region.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.district.label }}</label>
+                                            {{ form.district }}
+                                            {{ form.district.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.community.label }}</label>
+                                            {{ form.community }}
+                                            {{ form.community.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.consultant.label }}</label>
+                                            {{ form.consultant }}
+                                            {{ form.consultant.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.contractor.label }}</label>
+                                            {{ form.contractor }}
+                                            {{ form.contractor.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.package_number.label }}</label>
+                                            {{ form.package_number }}
+                                            {{ form.package_number.errors }}
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">Category</label>
+                                            <input type="text" class="form-control category-field" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">Code</label>
+                                            <input type="text" class="form-control material-code" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="fw-semibold">Unit</label>
+                                            <input type="text" class="form-control unit-field" readonly>
+                                        </div>
+                                        <div class="d-flex justify-content-center">
+                                            <button type="button" class="btn btn-outline-danger remove-form">❌ Remove Item</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.quantity.label }}</label>
-                                    {{ form.quantity }}
-                                    {{ form.quantity.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.region.label }}</label>
-                                    {{ form.region }}
-                                    {{ form.region.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.district.label }}</label>
-                                    {{ form.district }}
-                                    {{ form.district.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.community.label }}</label>
-                                    {{ form.community }}
-                                    {{ form.community.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.consultant.label }}</label>
-                                    {{ form.consultant }}
-                                    {{ form.consultant.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.contractor.label }}</label>
-                                    {{ form.contractor }}
-                                    {{ form.contractor.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">{{ form.package_number.label }}</label>
-                                    {{ form.package_number }}
-                                    {{ form.package_number.errors }}
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">Category</label>
-                                    <input type="text" class="form-control category-field" readonly>
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">Code</label>
-                                    <input type="text" class="form-control material-code" readonly>
-                                </div>
-                                <div>
-                                    <label class="fw-semibold">Unit</label>
-                                    <input type="text" class="form-control unit-field" readonly>
-                                </div>
-                                <div class="d-flex justify-content-center">
-                                    <button type="button" class="btn btn-outline-danger remove-form">❌</button>
-                                </div>
-                            </div>
+                            {% endfor %}
                         </div>
-                    {% endfor %}
+                        <div class="d-flex justify-content-center gap-3 mt-4">
+                            <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another Item</button>
+                            <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="d-flex justify-content-center gap-3 mt-4">
-                    <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another</button>
-                    <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
+
+                <!-- Bulk Request Tab -->
+                <div class="tab-pane fade {% if active_tab == 'bulk' %}show active{% endif %}" 
+                     id="bulk-request" 
+                     role="tabpanel" 
+                     aria-labelledby="bulk-tab">
+                    
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title text-center mb-4">📊 Bulk Material Request</h5>
+                            <p class="text-muted text-center mb-4">
+                                Upload an Excel file with your material requests. 
+                                <a href="https://limewire.com/d/3BnBH#jMcv7h9vRW" id="download-template" class="text-primary">Download template</a>
+                            </p>
+                            
+                            <form method="POST" enctype="multipart/form-data" id="bulk-request-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="bulk_submit" value="1">
+                                
+                                <div class="mb-3">
+                                    <label for="id_file" class="form-label fw-semibold">Select Excel File</label>
+                                    <input class="form-control" type="file" id="id_file" name="file" accept=".xlsx, .xls" required>
+                                    <div class="form-text">Only .xlsx or .xls files are accepted.</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="request_type" class="form-label fw-semibold">Request Type</label>
+                                    <select class="form-select" id="request_type" name="request_type" required>
+                                        <option value="Release">Release</option>
+                                        <option value="Transfer">Transfer</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="d-grid gap-2 mt-4">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-upload me-2"></i>Upload & Process
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Instructions:</h6>
+                        <ol class="mb-0">
+                            <li>Download and fill out the Excel template</li>
+                            <li>Make sure all required fields are filled</li>
+                            <li>Save the file and upload it using the form above</li>
+                            <li>Each request will be assigned a unique tracking code</li>
+                        </ol>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>

@@ -2,11 +2,38 @@
 {% load static %}
 
 {% block content %}
-<!-- Adjust for fixed navbar with padding-top -->
 <div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
+    <!-- Header with Notifications -->
     <div class="bg-light py-2 sticky-top">
-        <h2 class="text-center fw-bold text-primary mb-0">📊 Management Material Order Dashboard</h2>
-        <p class="text-muted text-center mb-0">Comprehensive overview of orders, receipts, and interactions</p>
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="fw-bold text-primary mb-0">📊 Management Dashboard</h2>
+                    <p class="text-muted mb-0">Comprehensive system overview and user performance metrics</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary position-relative" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            🔔 Notifications
+                            {% if notifications %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ notifications|length }}
+                            </span>
+                            {% endif %}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown">
+                            {% if notifications %}
+                                {% for notification in notifications %}
+                                <li><a class="dropdown-item text-{{ notification.type }}" href="{{ notification.url }}">{{ notification.message }}</a></li>
+                                {% endfor %}
+                            {% else %}
+                                <li><span class="dropdown-item text-muted">No new notifications</span></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if messages %}
@@ -21,134 +48,320 @@
     {% endif %}
 
     <!-- Summary Statistics -->
-    <div class="row justify-content-center mt-3">
-        <div class="col-md-10">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Summary</h5>
-                    <p>Total Orders: {{ total_orders }}</p>
-                    <p>Materials Received by Consultants: {{ total_received_by_consultants }}</p>
-                    <p>Materials Received by Storekeepers: {{ total_received_by_storekeepers }}</p>
-                    <p>Total Materials Released by Storekeepers: {{ total_released_by_storekeepers }}</p>
-                    <p>Total On Site: {{ total_on_site }}</p>
-                    <p>Pending Orders: {{ pending_orders }}</p>
+    <div class="container py-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Orders</h5>
+                        <h2 class="display-6">{{ total_orders }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Materials On Site</h5>
+                        <h2 class="display-6">{{ total_on_site }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Pending Orders</h5>
+                        <h2 class="display-6">{{ pending_orders }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Low Stock Items</h5>
+                        <h2 class="display-6">{{ low_inventory_count }}</h2>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Orders Table -->
-    <div class="row justify-content-center mt-3">
-        <div class="col-md-10">
-            <h4>Material Orders and Receipts</h4>
-            <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
-                <table class="table table-hover table-striped w-100" id="orders-table">
-                    <thead class="sticky-top bg-light">
-                        <tr>
-                            <th>User</th>
-                            <th>Material</th>
-                            <th>Quantity</th>
-                            <th>Processed</th>
-                            <th>Remaining</th>
-                            <th>Type</th>
-                            <th>Release Status</th>
-                            <th>Receipt Status</th>
-                            <th>Date</th>
-                            <th>Last Updated By</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for order in orders %}
+    <!-- User Performance -->
+    <div class="container py-3">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">User Performance Grades</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="user-grades">
+                        <thead>
                             <tr>
-                                <td>{{ order.user.username }}</td>
-                                <td>{{ order.name }}</td>
-                                <td>{{ order.quantity }}</td>
-                                <td>{{ order.processed_quantity }}</td>
-                                <td>{{ order.remaining_quantity }}</td>
-                                <td>{{ order.request_type }}</td>
-                                <td>
-                                    {% if order.status == "Pending" %}⏳ Pending
-                                    {% elif order.status == "Seen" %}👀 Seen
-                                    {% elif order.status == "Approved" %}🔄 Approved
-                                    {% elif order.status == "Completed" %}✅ Completed
-                                    {% else %}🔄 {{ order.status }}{% endif %}
-                                </td>
-                                <td>
-                                    {% if order.receipt_status == "Received" %}✔️ Received
-                                    {% elif order.receipt_status == "On Site" %}🏗️ On Site
-                                    {% else %}🔄 Not Received{% endif %}
-                                </td>
-                                <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
-                                <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Grade</th>
+                                <th>Performance</th>
+                                <th>Actions</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for user_id, data in user_grades.items %}
+                            <tr>
+                                <td>{{ data.username }}</td>
+                                <td>{{ data.groups|default:"No Role" }}</td>
+                                <td>
+                                    <div class="progress" style="height: 25px;">
+                                        <div class="progress-bar 
+                                            {% if data.grade_letter|lower == 'f' %}
+                                                bg-danger
+                                            {% elif data.grade_letter|lower == 'a' %}
+                                                bg-success
+                                            {% else %}
+                                                bg-warning
+                                            {% endif %}
+                                        " 
+                                             role="progressbar" 
+                                             style="width: {{ data.grade }}%" 
+                                             aria-valuenow="{{ data.grade }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ data.grade }}% ({{ data.grade_letter }})
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if data.grade_letter == 'A' %}
+                                        <span class="badge bg-success">Excellent</span>
+                                    {% elif data.grade_letter == 'B' %}
+                                        <span class="badge bg-info">Good</span>
+                                    {% elif data.grade_letter == 'C' %}
+                                        <span class="badge bg-warning">Average</span>
+                                    {% elif data.grade_letter == 'D' %}
+                                        <span class="badge bg-warning text-dark">Needs Improvement</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Poor</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewUserDetails('{{ data.username }}')">
+                                        View Details
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Audit Trail -->
-    <div class="row justify-content-center mt-3">
-        <div class="col-md-10">
-            <h4>Audit Trail</h4>
-            <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
-                <table class="table table-hover table-striped w-100" id="audit-table">
-                    <thead class="sticky-top bg-light">
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Action</th>
-                            <th>Performed By</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for audit in audit_trail %}
-                            <tr>
-                                <td>{{ audit.order_id }}</td>
-                                <td>{{ audit.action }}</td>
-                                <td>{{ audit.performed_by.username|default:"N/A" }}</td>
-                                <td>{{ audit.date|date:"Y-m-d H:i" }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <!-- Recent Activity and Orders -->
+    <div class="container py-3">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Recent Orders</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-hover mb-0">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Material</th>
+                                        <th>Qty</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in orders %}
+                                    <tr>
+                                        <td>{{ order.user.username }}</td>
+                                        <td>{{ order.name|truncatechars:20 }}</td>
+                                        <td>{{ order.quantity }}</td>
+                                        <td>
+                                            {% if order.status == "Pending" %}
+                                                <span class="badge bg-warning">⏳ Pending</span>
+                                            {% elif order.status == "Seen" %}
+                                                <span class="badge bg-info">👀 Seen</span>
+                                            {% elif order.status == "Approved" %}
+                                                <span class="badge bg-primary">🔄 Approved</span>
+                                            {% elif order.status == "Completed" %}
+                                                <span class="badge bg-success">✅ Completed</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">🔄 {{ order.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Recent Activities</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="timeline" style="max-height: 300px; overflow-y: auto; padding: 15px;">
+                            {% for activity in audit_trail %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <p class="mb-1">
+                                        <strong>{{ activity.performed_by.username|default:"System" }}</strong>
+                                        <span class="text-muted small">{{ activity.date|timesince }} ago</span>
+                                    </p>
+                                    <p class="mb-0">{{ activity.action }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Detailed Orders Table -->
+    <div class="container py-3">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Material Orders and Receipts</h4>
+                <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#ordersTable">
+                    Toggle Table
+                </button>
+            </div>
+            <div class="collapse show" id="ordersTable">
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
+                        <table class="table table-hover table-striped w-100" id="orders-table">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>User</th>
+                                    <th>Material</th>
+                                    <th>Quantity</th>
+                                    <th>Processed</th>
+                                    <th>Remaining</th>
+                                    <th>Type</th>
+                                    <th>Release Status</th>
+                                    <th>Receipt Status</th>
+                                    <th>Date</th>
+                                    <th>Last Updated By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in orders %}
+                                <tr>
+                                    <td>{{ order.user.username }}</td>
+                                    <td>{{ order.name }}</td>
+                                    <td>{{ order.quantity }}</td>
+                                    <td>{{ order.processed_quantity }}</td>
+                                    <td>{{ order.remaining_quantity }}</td>
+                                    <td>{{ order.request_type }}</td>
+                                    <td>
+                                        {% if order.status == "Pending" %}⏳ Pending
+                                        {% elif order.status == "Seen" %}👀 Seen
+                                        {% elif order.status == "Approved" %}🔄 Approved
+                                        {% elif order.status == "Completed" %}✅ Completed
+                                        {% else %}🔄 {{ order.status }}{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if order.receipt_status == "Received" %}✔️ Received
+                                        {% elif order.receipt_status == "On Site" %}🏗️ On Site
+                                        {% else %}🔄 Not Received{% endif %}
+                                    </td>
+                                    <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
+                                    <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer with Refresh Button -->
     <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light fixed-bottom">
-        <button class="btn btn-secondary" id="refresh-btn">🔄 Refresh Data</button>
+        <div>
+            <span class="text-muted small">Last updated: {% now "F j, Y H:i" %}</span>
+        </div>
+        <div>
+            <button class="btn btn-primary" id="refresh-btn">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Data
+            </button>
+        </div>
     </div>
 </div>
+
+<!-- Include Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 
 <meta name="csrf-token" content="{{ csrf_token }}">
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded");
-
+    // Refresh button
     document.getElementById('refresh-btn').addEventListener('click', function() {
-        console.log("Refresh button clicked");
         location.reload();
     });
+
+    // Initialize DataTables for better table functionality
+    if (typeof $ !== 'undefined') {
+        $('#user-grades').DataTable({
+            order: [[2, 'desc']], // Sort by grade descending
+            pageLength: 10,
+            responsive: true
+        });
+    }
+
+    // Auto-refresh every 5 minutes
+    setTimeout(function() {
+        location.reload();
+    }, 5 * 60 * 1000);
 });
+
+function viewUserDetails(username) {
+    // Implement user detail view modal or redirect
+    alert('Viewing details for user: ' + username);
+    // Example: window.location.href = `/user/${username}/details/`;
+}
 </script>
 
 <style>
+    /* Base Styles */
+    body {
+        background-color: #f8f9fa;
+    }
     .container-fluid {
         padding: 0;
     }
-    .table-responsive {
-        overflow-x: auto;
-        overflow-y: auto;
-        max-height: calc(100vh - 300px);
+    
+    /* Card Styles */
+    .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s;
     }
-    .table th, .table td {
-        font-size: 0.9rem;
-        padding: 0.5rem;
-        white-space: normal;
-        word-wrap: break-word;
+    .card:hover {
+        transform: translateY(-5px);
+    }
+    .card-header {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        font-weight: 600;
+    }
+    
+    /* Table Styles */
+    .table {
+        margin-bottom: 0;
     }
     .table th {
         background-color: #f8f9fa;
@@ -156,12 +369,85 @@ document.addEventListener('DOMContentLoaded', function() {
         top: 0;
         z-index: 1;
         text-align: left;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+    .table td {
+        vertical-align: middle;
+    }
+    
+    /* Timeline Styles */
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+        border-left: 2px solid #e9ecef;
+        padding-left: 1.5rem;
+    }
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    .timeline-marker {
+        position: absolute;
+        left: -8px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: #0d6efd;
+        top: 5px;
+    }
+    .timeline-content {
+        font-size: 0.9rem;
+    }
+    
+    /* Progress Bar */
+    .progress {
+        height: 25px;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    .progress-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+    
+    /* Badge Styles */
+    .badge {
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+    }
+    
+    /* Fixed Bottom Bar */
+    .fixed-bottom {
+        z-index: 1030;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .card {
+            margin-bottom: 1rem;
+        }
+        .display-6 {
+            font-size: 1.5rem;
+        }
+    }
+    
+    /* Animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     .card {
-        margin-bottom: 1rem;
-    }
-    .fixed-bottom {
-        z-index: 1000;
+        animation: fadeIn 0.3s ease-out;
     }
 </style>
 {% endblock %}
