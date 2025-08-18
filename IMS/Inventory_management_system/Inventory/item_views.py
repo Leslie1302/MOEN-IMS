@@ -16,7 +16,12 @@ class AddItem(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         return self.request.user.is_staff
 
     def form_valid(self, form):
-        form.instance.added_by = self.request.user
+        form.instance.user = self.request.user
+        # Attach the user's group if available (keeps filtering by group consistent)
+        if not self.request.user.is_superuser:
+            first_group = self.request.user.groups.first()
+            if first_group:
+                form.instance.group = first_group
         messages.success(self.request, 'Item added successfully!')
         return super().form_valid(form)
 

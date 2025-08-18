@@ -1,0 +1,584 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Transportation Status - IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-icon {
+        font-size: 1.2em;
+        margin-right: 0.5rem;
+    }
+    .transport-card {
+        transition: transform 0.2s;
+        border-left: 4px solid #dee2e6;
+    }
+    .transport-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .transport-card.in-transit {
+        border-left-color: #007bff;
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+    }
+    .transport-card.loading {
+        border-left-color: #ffc107;
+        background: linear-gradient(135deg, #fffbf0 0%, #ffffff 100%);
+    }
+    .transport-card.delivered {
+        border-left-color: #28a745;
+        background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
+    }
+    .transport-card.assigned {
+        border-left-color: #6c757d;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    }
+    .stats-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    .truck-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">🚛 Transportation Status</h1>
+            <p class="text-muted">Track active shipments and transporter assignments</p>
+        </div>
+        <div>
+            <a href="{% url 'transport_assignment' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Assignment
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="stats-card card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Active</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_active }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-truck truck-icon text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="stats-card card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                In Transit</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ in_transit_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-shipping-fast truck-icon text-gray-300 pulse"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="stats-card card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Loading</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ loading_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dolly truck-icon text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="stats-card card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Delivered</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ delivered_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle truck-icon text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Search</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="{{ search_query }}" placeholder="Search orders, transporters, drivers...">
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">All Statuses</option>
+                        {% for status_code, status_display in status_choices %}
+                        <option value="{{ status_code }}" {% if status_filter == status_code %}selected{% endif %}>
+                            {{ status_display }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="transporter" class="form-label">Transporter</label>
+                    <select class="form-select" id="transporter" name="transporter">
+                        <option value="">All Transporters</option>
+                        {% for transporter in transporters %}
+                        <option value="{{ transporter.id }}" {% if transporter_filter == transporter.id|stringformat:"s" %}selected{% endif %}>
+                            {{ transporter.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <a href="{% url 'transportation_status' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Horizontal Scrollable Transport Cards Container -->
+    {% if transports %}
+    <div style="position: relative; margin: 20px 0;">
+        <!-- Pagination Controls -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="prevPage" class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 15px;">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <span id="pageInfo" style="font-size: 0.9rem; color: #666; font-weight: 500;">
+                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                </span>
+                <button id="nextPage" class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 15px;">
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div style="font-size: 0.85rem; color: #888;">
+                Showing <span id="showingCount">{{ transports|length }}</span> transport{{ transports|length|pluralize }} • Scroll horizontally or use pagination
+            </div>
+        </div>
+
+        <!-- Horizontal Scrollable Container -->
+        <div id="transportContainer" style="
+            display: flex; 
+            gap: 20px; 
+            overflow-x: auto; 
+            overflow-y: hidden;
+            padding: 10px 5px 20px 5px;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f7fafc;
+        ">
+            {% for transport in transports %}
+            <div class="transport-card-horizontal" style="
+                min-width: 380px;
+                max-width: 380px;
+                flex-shrink: 0;
+                background: white;
+                border-radius: 15px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                border: 1px solid #e2e8f0;
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            " onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 30px rgba(0,0,0,0.12)'" 
+               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.08)'">
+                
+                <!-- Status Header -->
+                <div style="
+                    background: {% if transport.status == 'Assigned' %}linear-gradient(135deg, #6c757d 0%, #495057 100%)
+                    {% elif transport.status == 'Loading' %}linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)
+                    {% elif transport.status == 'Loaded' %}linear-gradient(135deg, #17a2b8 0%, #007bff 100%)
+                    {% elif transport.status == 'In Transit' %}linear-gradient(135deg, #007bff 0%, #6610f2 100%)
+                    {% elif transport.status == 'Delivered' %}linear-gradient(135deg, #28a745 0%, #20c997 100%)
+                    {% else %}linear-gradient(135deg, #6c757d 0%, #495057 100%){% endif %};
+                    color: white;
+                    padding: 15px 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                ">
+                    <h6 style="margin: 0; font-weight: 700; font-size: 1rem;">
+                        {{ transport.material_order.request_code }}
+                    </h6>
+                    <span style="
+                        background: rgba(255,255,255,0.2);
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 0.8rem;
+                        font-weight: 600;
+                        backdrop-filter: blur(10px);
+                    ">
+                        {% if transport.status == 'Assigned' %}
+                            <i class="fas fa-clipboard-check"></i> Assigned
+                        {% elif transport.status == 'Loading' %}
+                            <i class="fas fa-dolly"></i> Loading
+                        {% elif transport.status == 'Loaded' %}
+                            <i class="fas fa-truck-loading"></i> Loaded
+                        {% elif transport.status == 'In Transit' %}
+                            <i class="fas fa-shipping-fast"></i> In Transit
+                        {% elif transport.status == 'Delivered' %}
+                            <i class="fas fa-check-circle"></i> Delivered
+                        {% else %}
+                            <i class="fas fa-question-circle"></i> {{ transport.get_status_display }}
+                        {% endif %}
+                    </span>
+                </div>
+
+                <!-- Card Content -->
+                <div style="padding: 20px;">
+                    <!-- Material Info -->
+                    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;"></div>
+                        
+                        <div style="position: relative; z-index: 2;">
+                            <h6 style="color: white; font-weight: 700; margin-bottom: 8px; font-size: 0.95rem;">
+                                📦 {{ transport.material_order.name }}
+                            </h6>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <span style="color: #00f2fe; font-size: 0.8rem; font-weight: 600;">
+                                    Processed: {{ transport.material_order.processed_quantity|default:"0" }} {{ transport.material_order.unit }}
+                                </span>
+                                <span style="color: rgba(255,255,255,0.6);">|</span>
+                                <span style="color: rgba(255,255,255,0.9); font-size: 0.8rem; font-weight: 500;">
+                                    This Transport: {{ transport.quantity|floatformat:0 }} {{ transport.material_order.unit }}
+                                </span>
+                            </div>
+                            
+                            <!-- Fulfillment Status Badge -->
+                            {% if transport.quantity < transport.material_order.processed_quantity %}
+                            <div style="display: inline-block; background: rgba(255, 193, 7, 0.2); color: #ffc107; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 193, 7, 0.3);">
+                                ⚠️ Partial Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
+                            </div>
+                            {% elif transport.quantity == transport.material_order.processed_quantity %}
+                            <div style="display: inline-block; background: rgba(40, 167, 69, 0.2); color: #28a745; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(40, 167, 69, 0.3);">
+                                ✅ Full Transport
+                            </div>
+                            {% else %}
+                            <div style="display: inline-block; background: rgba(255, 87, 34, 0.2); color: #ff5722; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 87, 34, 0.3);">
+                                ⚠️ Over Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Transport Details -->
+                    <div style="display: grid; gap: 8px; font-size: 0.85rem;">
+                        <div style="background: rgba(102, 126, 234, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #667eea;">
+                            <strong style="color: #667eea;">🚛 Transporter:</strong> {{ transport.transporter.name }}
+                        </div>
+                        <div style="background: rgba(40, 167, 69, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #28a745;">
+                            <strong style="color: #28a745;">👤 Driver:</strong> {{ transport.driver_name|default:"Not assigned" }}
+                        </div>
+                        <div style="background: rgba(255, 193, 7, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #ffc107;">
+                            <strong style="color: #e67e22;">📍 Destination:</strong> {{ transport.region }}, {{ transport.district }}
+                        </div>
+                    </div>
+
+                    <!-- Animated Progress Bar -->
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 15px; margin-top: 15px; position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;"></div>
+                        
+                        <div style="position: relative; z-index: 2;">
+                            <div style="color: white; font-weight: 600; margin-bottom: 10px; font-size: 0.8rem;">
+                                🚚 Transport Progress
+                            </div>
+                            
+                            <!-- Progress Track -->
+                            <div style="background: rgba(255,255,255,0.2); height: 6px; border-radius: 10px; position: relative; margin-bottom: 8px;">
+                                <div style="
+                                    background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%);
+                                    height: 100%;
+                                    border-radius: 10px;
+                                    width: {% if transport.status == 'Assigned' %}25%
+                                           {% elif transport.status == 'Loading' %}50%
+                                           {% elif transport.status == 'Loaded' %}65%
+                                           {% elif transport.status == 'In Transit' %}85%
+                                           {% elif transport.status == 'Delivered' %}100%
+                                           {% else %}10%{% endif %};
+                                    position: relative;
+                                    transition: width 0.5s ease;
+                                ">
+                                    <!-- Animated Truck -->
+                                    <div style="
+                                        position: absolute;
+                                        right: -8px;
+                                        top: -8px;
+                                        font-size: 16px;
+                                        animation: bounce 2s infinite;
+                                    ">ᯓ⛟</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Status Text -->
+                            <div style="color: rgba(255,255,255,0.9); font-size: 0.75rem; text-align: center;">
+                                Status: {{ transport.get_status_display }}
+                                {% if transport.status == 'Assigned' %} • Awaiting pickup
+                                {% elif transport.status == 'In Transit' %} • En route to destination
+                                {% elif transport.status == 'Delivered' %} • Successfully delivered
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;">
+                            <i class="fas fa-info-circle"></i> View Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Custom Scrollbar Styles -->
+        <style>
+            #transportContainer::-webkit-scrollbar {
+                height: 8px;
+            }
+            #transportContainer::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 10px;
+            }
+            #transportContainer::-webkit-scrollbar-thumb {
+                background: #cbd5e0;
+                border-radius: 10px;
+            }
+            #transportContainer::-webkit-scrollbar-thumb:hover {
+                background: #a0aec0;
+            }
+            
+            @keyframes bounce {
+                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                40% { transform: translateY(-4px); }
+                60% { transform: translateY(-2px); }
+            }
+        </style>
+
+        <!-- Pagination JavaScript -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const container = document.getElementById('transportContainer');
+                const cards = container.querySelectorAll('.transport-card-horizontal');
+                const cardsPerPage = 3; // Show 3 cards per page
+                const totalPages = Math.ceil(cards.length / cardsPerPage);
+                let currentPage = 1;
+
+                const prevBtn = document.getElementById('prevPage');
+                const nextBtn = document.getElementById('nextPage');
+                const currentPageSpan = document.getElementById('currentPage');
+                const totalPagesSpan = document.getElementById('totalPages');
+                const showingCount = document.getElementById('showingCount');
+
+                // Update page info
+                totalPagesSpan.textContent = totalPages;
+
+                function showPage(page) {
+                    const startIndex = (page - 1) * cardsPerPage;
+                    const endIndex = startIndex + cardsPerPage;
+
+                    cards.forEach((card, index) => {
+                        if (index >= startIndex && index < endIndex) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+
+                    currentPageSpan.textContent = page;
+                    showingCount.textContent = Math.min(cardsPerPage, cards.length - startIndex);
+
+                    // Update button states
+                    prevBtn.disabled = page === 1;
+                    nextBtn.disabled = page === totalPages;
+
+                    // Scroll to start of container
+                    container.scrollLeft = 0;
+                }
+
+                // Event listeners
+                prevBtn.addEventListener('click', () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        showPage(currentPage);
+                    }
+                });
+
+                nextBtn.addEventListener('click', () => {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        showPage(currentPage);
+                    }
+                });
+
+                // Initialize first page
+                showPage(1);
+
+                // Add smooth scrolling with mouse wheel
+                container.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    container.scrollLeft += e.deltaY;
+                });
+            });
+        </script>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-truck fa-3x text-muted mb-3"></i>
+        <h4 class="text-muted">No active transports</h4>
+        <p class="text-muted">All shipments have been completed or there are no active assignments.</p>
+        <a href="{% url 'transport_assignment' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create New Assignment
+        </a>
+    </div>
+    {% endif %}
+    
+    {% if is_paginated %}
+    <nav aria-label="Transportation status pagination">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">&laquo; First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Previous</a>
+                </li>
+            {% endif %}
+            
+            <li class="page-item active">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+            
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Last &raquo;</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    
+</div>
+
+<!-- Status Update Modal -->
+<div class="modal fade" id="statusUpdateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Transport Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="statusUpdateForm">
+                {% csrf_token %}
+                <input type="hidden" id="transportId" name="transport_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newStatus" class="form-label">New Status</label>
+                        <select class="form-select" id="newStatus" name="status" required>
+                            <option value="">Select Status</option>
+                            {% for status_code, status_display in status_choices %}
+                            <option value="{{ status_code }}">{{ status_display }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="statusNotes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="statusNotes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Handle status update button clicks
+    $('.update-status-btn').click(function() {
+        var transportId = $(this).data('transport-id');
+        var currentStatus = $(this).data('current-status');
+        
+        $('#transportId').val(transportId);
+        $('#newStatus').val(currentStatus);
+        $('#statusUpdateModal').modal('show');
+    });
+    
+    // Handle status update form submission
+    $('#statusUpdateForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        var transportId = $('#transportId').val();
+        var formData = $(this).serialize();
+        
+        $.ajax({
+            type: 'POST',
+            url: '{% url "update_transport_status" 0 %}'.replace('0', transportId),
+            data: formData,
+            success: function(response) {
+                if (response.success) {
+                    $('#statusUpdateModal').modal('hide');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (response.error || 'Unknown error occurred'));
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

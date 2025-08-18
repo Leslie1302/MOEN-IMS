@@ -9,15 +9,18 @@ from .views import (
     list_units, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView, 
     BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard, 
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView, 
-    ReportSubmissionCreateView, ReportSubmissionUpdateView, ReportSubmissionDetailView, 
-    submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView
+    ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
+    submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
+    StaffProfileView,
 )
 
 # Import transporter views
+from . import transporter_views
 from .transporter_views import (
     TransporterListView, TransporterDetailView, TransporterCreateView, TransporterUpdateView, TransporterDeleteView,
     TransportVehicleListView, TransportVehicleDetailView, TransportVehicleCreateView, TransportVehicleUpdateView, TransportVehicleDeleteView,
-    TransporterAssignmentView, TransporterLegendView, import_transporters, export_transporters_template, ajax_load_vehicles
+    TransporterAssignmentView, TransporterLegendView, import_transporters, export_transporters_template, ajax_load_vehicles,
+    TransportationStatusView, update_transport_status, debug_transport_records, create_test_transport, debug_assignment_orders
 )
 
 # Import help view
@@ -27,16 +30,16 @@ from .views_help import HelpView
 from .auth_views import SignUpView, SignInView, CustomLogoutView, Dashboard
 from .views_auth import AwaitingAuthorizationView, custom_403_view, custom_404_view, custom_500_view
 
+# Import item views
+from .item_views import AddItem, EditItem, DeleteItem
+
+# Import consultant views
+from .views import ConsultantDeliveriesView, SiteReceiptCreateView, SiteReceiptListView
+
 # Error handlers
 handler403 = custom_403_view
 handler404 = custom_404_view
 handler500 = custom_500_view
-
-# Import auth views
-from .auth_views import SignUpView, SignInView, CustomLogoutView, Dashboard
-
-# Import item views
-from .item_views import AddItem, EditItem, DeleteItem
 
 urlpatterns = [
     # Public routes
@@ -51,6 +54,7 @@ urlpatterns = [
     path('dashboard/', Dashboard.as_view(), name='dashboard'),
     path('add-item', AddItem.as_view(), name='add-item'),
     path('profile/', ProfileView.as_view(), name='profile'),
+    path('staff-profile/<str:username>/', StaffProfileView.as_view(), name='staff_profile'),
     path('request-material/', RequestMaterialView.as_view(), name='request_material'),
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
     
@@ -79,39 +83,44 @@ urlpatterns = [
     path('reports/<int:pk>/approve/', approve_report, name='report-submission-approve'),
     path('reports/<int:pk>/reject/', reject_report, name='report-submission-reject'),
     
-    # Transport-related routes
-    path('transport/dashboard/', MaterialTransportView.as_view(), name='transport_dash'),  # Dashboard
-    path('transport/list/', MaterialTransportView.as_view(), name='transport_list'),  # List
-    path('transport/create/', MaterialTransportView.as_view(), name='transport_form'),  # Create form
-    path('transport/<int:pk>/', MaterialTransportView.as_view(), name='transport_detail'),  # Detail
+    # Consultant URLs
+    path('consultant/deliveries/', ConsultantDeliveriesView.as_view(), name='consultant_deliveries'),
+    path('consultant/site-receipt/<int:transport_id>/', SiteReceiptCreateView.as_view(), name='site_receipt_create'),
+    path('consultant/receipts/', SiteReceiptListView.as_view(), name='site_receipts'),
+    
+    # Transportation and Transport Assignment URLs
+    path('transporter-assignment/', transporter_views.TransporterAssignmentView.as_view(), name='transport_assignment'),
+    path('transportation-status/', transporter_views.TransportationStatusView.as_view(), name='transportation_status'),
+    path('update-transport-status/<int:pk>/', transporter_views.update_transport_status, name='update_transport_status'),
+    path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
+    path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
+    path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
     
     # Transporter management
-    path('transporters/', TransporterListView.as_view(), name='transporter_list'),
-    path('transporters/add/', TransporterCreateView.as_view(), name='transporter_create'),
-    path('transporters/<int:pk>/', TransporterDetailView.as_view(), name='transporter_detail'),
-    path('transporters/<int:pk>/edit/', TransporterUpdateView.as_view(), name='transporter_edit'),
-    path('transporters/<int:pk>/delete/', TransporterDeleteView.as_view(), name='transporter_delete'),
+    path('transporters/', transporter_views.TransporterListView.as_view(), name='transporter_list'),
+    path('transporters/add/', transporter_views.TransporterCreateView.as_view(), name='transporter_create'),
+    path('transporters/<int:pk>/', transporter_views.TransporterDetailView.as_view(), name='transporter_detail'),
+    path('transporters/<int:pk>/edit/', transporter_views.TransporterUpdateView.as_view(), name='transporter_edit'),
+    path('transporters/<int:pk>/delete/', transporter_views.TransporterDeleteView.as_view(), name='transporter_delete'),
     
     # Transport vehicle management
-    path('vehicles/', TransportVehicleListView.as_view(), name='vehicle_list'),
-    path('vehicles/add/', TransportVehicleCreateView.as_view(), name='vehicle_create'),
-    path('vehicles/<int:pk>/', TransportVehicleDetailView.as_view(), name='vehicle_detail'),
-    path('vehicles/<int:pk>/edit/', TransportVehicleUpdateView.as_view(), name='vehicle_edit'),
-    path('vehicles/<int:pk>/delete/', TransportVehicleDeleteView.as_view(), name='vehicle_delete'),
-    
-    # Transport assignment
-    path('transport/assign/', TransporterAssignmentView.as_view(), name='transport_assignment'),
+    path('vehicles/', transporter_views.TransportVehicleListView.as_view(), name='vehicle_list'),
+    path('vehicles/add/', transporter_views.TransportVehicleCreateView.as_view(), name='vehicle_create'),
+    path('vehicles/<int:pk>/', transporter_views.TransportVehicleDetailView.as_view(), name='vehicle_detail'),
+    path('vehicles/<int:pk>/edit/', transporter_views.TransportVehicleUpdateView.as_view(), name='vehicle_edit'),
+    path('vehicles/<int:pk>/delete/', transporter_views.TransportVehicleDeleteView.as_view(), name='vehicle_delete'),
     
     # Transporter AJAX endpoints
-    path('ajax/load-vehicles/', ajax_load_vehicles, name='ajax_load_vehicles'),
+    path('ajax/load-vehicles/', transporter_views.ajax_load_vehicles, name='ajax_load_vehicles'),
     
     # Transporter import/export
-    path('transporters/import/', import_transporters, name='transporter_import'),
-    path('transporters/export-template/', export_transporters_template, name='transporter_export_template'),
+    path('transporters/import/', transporter_views.import_transporters, name='transporter_import'),
+    path('transporters/export-template/', transporter_views.export_transporters_template, name='transporter_export_template'),
     
     # Transporter legend
-    path('transport/legend/', TransporterLegendView.as_view(), name='transporter_legend'),
+    path('transport/legend/', transporter_views.TransporterLegendView.as_view(), name='transporter_legend'),
     
     # Release letter upload
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
+    path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
 ]

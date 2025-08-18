@@ -5,8 +5,8 @@
 <!-- Adjust for fixed navbar with padding-top -->
 <div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
     <div class="bg-light py-2 sticky-top">
-        <h2 class="text-center fw-bold text-primary mb-0">📦 Material Order Receipts</h2>
-        <p class="text-muted text-center mb-0">Track the receipt status of your requested materials</p>
+        <h2 class="text-center fw-bold text-primary mb-0">📦 Material Receipts</h2>
+        <p class="text-muted text-center mb-0">Create material receipt entries</p>
     </div>
 
     {% if messages %}
@@ -20,344 +20,204 @@
         </div>
     {% endif %}
 
-    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 140px);">
-        <table class="table table-hover table-striped w-100" id="material-receipts-table" style="table-layout: auto;">
-            <thead class="sticky-top bg-light">
-                <tr>
-                    <th scope="col" class="text-wrap">User<span class="filter-arrow" data-column="0">▼</span><div class="dropdown-menu" id="filter-0" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Material<span class="filter-arrow" data-column="1">▼</span><div class="dropdown-menu" id="filter-1" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Quantity<span class="filter-arrow" data-column="2">▼</span><div class="dropdown-menu" id="filter-2" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Processed<span class="filter-arrow" data-column="3">▼</span><div class="dropdown-menu" id="filter-3" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Remaining<span class="filter-arrow" data-column="4">▼</span><div class="dropdown-menu" id="filter-4" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Region<span class="filter-arrow" data-column="5">▼</span><div class="dropdown-menu" id="filter-5" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">District<span class="filter-arrow" data-column="6">▼</span><div class="dropdown-menu" id="filter-6" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Community<span class="filter-arrow" data-column="7">▼</span><div class="dropdown-menu" id="filter-7" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Consultant<span class="filter-arrow" data-column="8">▼</span><div class="dropdown-menu" id="filter-8" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Contractor<span class="filter-arrow" data-column="9">▼</span><div class="dropdown-menu" id="filter-9" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Package<span class="filter-arrow" data-column="10">▼</span><div class="dropdown-menu" id="filter-10" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Type<span class="filter-arrow" data-column="11">▼</span><div class="dropdown-menu" id="filter-11" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Status<span class="filter-arrow" data-column="12">▼</span><div class="dropdown-menu" id="filter-12" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Date<span class="filter-arrow" data-column="13">▼</span><div class="dropdown-menu" id="filter-13" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Last Updated By<span class="filter-arrow" data-column="14">▼</span><div class="dropdown-menu" id="filter-14" style="display: none;"></div></th>
-                    <th scope="col" class="text-wrap">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                    <tr id="order-{{ order.id }}">
-                        <td>{{ order.user.username }}</td>
-                        <td>{{ order.name }}</td>
-                        <td>{{ order.quantity }}</td>
-                        <td id="processed-{{ order.id }}">{{ order.processed_quantity }}</td>
-                        <td id="remaining-{{ order.id }}">{{ order.remaining_quantity }}</td>
-                        <td>{{ order.region|default:"N/A" }}</td>
-                        <td>{{ order.district|default:"N/A" }}</td>
-                        <td>{{ order.community|default:"N/A" }}</td>
-                        <td>{{ order.consultant|default:"N/A" }}</td>
-                        <td>{{ order.contractor|default:"N/A" }}</td>
-                        <td>{{ order.package_number|default:"N/A" }}</td>
-                        <td>{{ order.request_type }}</td>
-                        <td id="status-{{ order.id }}">
-                            {% if order.status == "Pending" %}⏳ Pending
-                            {% elif order.status == "Seen" %}👀 Seen
-                            {% elif order.status == "Approved" %}🔄 Approved
-                            {% elif order.status == "Received" %}✔️ Received
-                            {% elif order.status == "On Site" %}🏗️ On Site
-                            {% elif order.status == "Completed" %}✅ Completed
-                            {% else %}🔄 {{ order.status }}{% endif %}
-                        </td>
-                        <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
-                        <td id="last-updated-by-{{ order.id }}">{{ order.last_updated_by.username|default:"N/A" }}</td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button id="received-btn-{{ order.id }}" class="btn btn-success btn-sm received-btn" data-order-id="{{ order.id }}"
-                                    {% if order.status != 'Approved' and order.status != 'Received' %}disabled{% endif %}>✔️ Received</button>
-                                <button id="on-site-btn-{{ order.id }}" class="btn btn-info btn-sm on-site-btn" data-order-id="{{ order.id }}"
-                                    {% if order.status != 'Received' %}disabled{% endif %}>🏗️ On Site</button>
-                            </div>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="16" class="text-muted text-center">No material requests found.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <div class="container mt-3">
+        <div class="card shadow-lg border-0 p-3">
+            <div class="card-body">
+                <ul class="nav nav-tabs nav-fill mb-4" id="receiptTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if active_tab == 'single' %}active{% endif %}"
+                                id="single-receipt-tab" data-bs-toggle="tab" data-bs-target="#single-receipt"
+                                type="button" role="tab" aria-controls="single-receipt"
+                                aria-selected="{% if active_tab == 'single' %}true{% else %}false{% endif %}">Single Receipt</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if active_tab == 'bulk' %}active{% endif %}"
+                                id="bulk-receipt-tab" data-bs-toggle="tab" data-bs-target="#bulk-receipt"
+                                type="button" role="tab" aria-controls="bulk-receipt"
+                                aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}">Bulk Receipt (Excel)</button>
+                    </li>
+                </ul>
 
-    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light fixed-bottom">
-        <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
+                <div class="tab-content" id="receiptTabsContent">
+                    <!-- Single Receipt Tab -->
+                    <div class="tab-pane fade {% if active_tab == 'single' %}show active{% endif %}" id="single-receipt" role="tabpanel" aria-labelledby="single-receipt-tab">
+                        <form method="POST">
+                            {% csrf_token %}
+                            {{ formset.management_form }}
+                            <div id="receipt-form-container">
+                                {% for form in formset %}
+                                    <div class="card mb-3 shadow-sm p-3 material-form">
+                                        <div class="d-flex flex-column gap-3">
+                                            <div>
+                                                <label class="fw-semibold">{{ form.name.label }}</label>
+                                                {{ form.name }}
+                                                {{ form.name.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.quantity.label }}</label>
+                                                {{ form.quantity }}
+                                                {{ form.quantity.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.region.label }}</label>
+                                                {{ form.region }}
+                                                {{ form.region.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.district.label }}</label>
+                                                {{ form.district }}
+                                                {{ form.district.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.community.label }}</label>
+                                                {{ form.community }}
+                                                {{ form.community.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.consultant.label }}</label>
+                                                {{ form.consultant }}
+                                                {{ form.consultant.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.contractor.label }}</label>
+                                                {{ form.contractor }}
+                                                {{ form.contractor.errors }}
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">{{ form.package_number.label }}</label>
+                                                {{ form.package_number }}
+                                                {{ form.package_number.errors }}
+                                            </div>
+                                            <!-- Readonly autofill fields -->
+                                            <div>
+                                                <label class="fw-semibold">Category</label>
+                                                <input type="text" class="form-control category-field" readonly>
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">Material Code</label>
+                                                <input type="text" class="form-control material-code" readonly>
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">Unit</label>
+                                                <input type="text" class="form-control unit-field" readonly>
+                                            </div>
+                                            <div class="d-flex justify-content-end">
+                                                <button type="button" class="btn btn-outline-danger remove-form" style="display: none;">❌ Remove Item</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex justify-content-center gap-3 mt-3">
+                                <button type="button" id="add-receipt-form" class="btn btn-outline-success px-4">➕ Add Another Item</button>
+                                <button type="submit" class="btn btn-primary px-4">✅ Submit Receipt</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Bulk Receipt Tab -->
+                    <div class="tab-pane fade {% if active_tab == 'bulk' %}show active{% endif %}" id="bulk-receipt" role="tabpanel" aria-labelledby="bulk-receipt-tab">
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title text-center mb-4">📊 Bulk Material Receipt</h5>
+                                <p class="text-muted text-center mb-4">Upload an Excel file with your material receipts.</p>
+                                <form method="POST" enctype="multipart/form-data">
+                                    {% csrf_token %}
+                                    <div class="row g-3 align-items-center justify-content-center">
+                                        <div class="col-md-6">
+                                            {{ bulk_form.file.label_tag }}
+                                            {{ bulk_form.file }}
+                                            <div class="text-danger small">{{ bulk_form.file.errors }}</div>
+                                        </div>
+                                        <div class="col-12 text-center">
+                                            <button type="submit" name="bulk_submit" class="btn btn-success">
+                                                <i class="fas fa-upload me-2"></i>Upload & Process
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <button class="btn btn-primary" style="position: fixed; bottom: 80px; right: 20px; display: none; z-index: 1000;" id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
 </div>
 
-<meta name="csrf-token" content="{{ csrf_token }}">
-
 <script>
-console.log("Script starting...");
+// Receipt form JS (autofill + dynamic add/remove)
+const inventoryItems = {{ inventory_items|safe }};
 
-function scrollToTop() {
-    console.log("Scroll to top triggered");
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+document.addEventListener("DOMContentLoaded", function () {
+    function autofillFields(selectElement) {
+        const selectedName = selectElement.value;
+        const formRow = selectElement.closest(".material-form");
+        const categoryInput = formRow.querySelector(".category-field");
+        const codeInput = formRow.querySelector(".material-code");
+        const unitInput = formRow.querySelector(".unit-field");
 
-window.onscroll = function() {
-    const btn = document.getElementById('scroll-top-btn');
-    if (btn) {
-        btn.style.display = window.scrollY > 100 ? 'block' : 'none';
-    }
-};
-
-function getCSRFToken() {
-    const tokenElement = document.querySelector('meta[name="csrf-token"]');
-    if (!tokenElement) {
-        console.error("CSRF token meta tag not found");
-        return null;
-    }
-    const token = tokenElement.getAttribute('content');
-    console.log("CSRF Token retrieved:", token);
-    return token;
-}
-
-function updateReceiptStatus(orderId, newStatus) {
-    console.log(`updateReceiptStatus called: orderId=${orderId}, newStatus=${newStatus}`);
-    
-    const statusCell = document.getElementById(`status-${orderId}`);
-    const lastUpdatedByCell = document.getElementById(`last-updated-by-${orderId}`);
-    const receivedBtn = document.getElementById(`received-btn-${orderId}`);
-    const onSiteBtn = document.getElementById(`on-site-btn-${orderId}`);
-
-    if (!statusCell || !lastUpdatedByCell || !receivedBtn || !onSiteBtn) {
-        console.error(`Missing critical DOM elements for order ${orderId}`);
-        alert(`Error: Could not find DOM elements for order ${orderId}`);
-        return;
-    }
-
-    const csrfToken = getCSRFToken();
-    if (!csrfToken) {
-        alert("Error: CSRF token not found. Please refresh the page and try again.");
-        return;
-    }
-
-    fetch(`/update_material_receipt/${orderId}/${newStatus}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({})
-    })
-    .then(response => {
-        console.log(`Fetch response: status=${response.status}, url=${response.url}`);
-        if (!response.ok) {
-            return response.json().then(errorData => {
-                throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log("Server response:", data);
-        if (data.success) {
-            statusCell.innerText = data.new_status === 'Received' ? '✔️ Received' :
-                                  data.new_status === 'On Site' ? '🏗️ On Site' :
-                                  data.new_status === 'Completed' ? '✅ Completed' : '🔄 ' + data.new_status;
-            lastUpdatedByCell.innerText = data.last_updated_by || 'N/A';
-
-            receivedBtn.disabled = data.new_status !== 'Approved' && data.new_status !== 'Received';
-            onSiteBtn.disabled = data.new_status !== 'Received';
-            console.log(`Order ${orderId} updated to ${data.new_status}`);
-            alert(`Order ${orderId} updated to ${data.new_status} successfully!`);
+        const item = inventoryItems.find(i => i.name === selectedName);
+        if (item) {
+            categoryInput.value = item.category__name || "";
+            codeInput.value = item.code || "";
+            unitInput.value = item.unit__name || "";
         } else {
-            console.error("Update failed:", data.error);
-            alert(`Error: ${data.error}`);
-        }
-    })
-    .catch(error => {
-        console.error("Fetch error:", error.message);
-        alert(`Fetch Error: ${error.message}. Check the console for details.`);
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded, setting up event listeners");
-
-    const receivedButtons = document.querySelectorAll('.received-btn');
-    console.log(`Found ${receivedButtons.length} received buttons`);
-    receivedButtons.forEach(btn => {
-        console.log(`Attaching event to received-btn-${btn.getAttribute('data-order-id')}`);
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            console.log(`Received button clicked for order ${orderId}`);
-            updateReceiptStatus(orderId, 'Received');
-        });
-    });
-
-    const onSiteButtons = document.querySelectorAll('.on-site-btn');
-    console.log(`Found ${onSiteButtons.length} on-site buttons`);
-    onSiteButtons.forEach(btn => {
-        console.log(`Attaching event to on-site-btn-${btn.getAttribute('data-order-id')}`);
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order-id');
-            console.log(`On Site button clicked for order ${orderId}`);
-            updateReceiptStatus(orderId, 'On Site');
-        });
-    });
-
-    const table = document.getElementById('material-receipts-table');
-    if (!table) {
-        console.error("Material receipts table not found");
-        return;
-    }
-    const headers = table.querySelectorAll('.filter-arrow');
-    const filters = {};
-    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
-
-    function populateDropdowns() {
-        headers.forEach(header => {
-            const colIndex = parseInt(header.getAttribute('data-column'));
-            const dropdown = document.getElementById(`filter-${colIndex}`);
-            if (!dropdown) {
-                console.error(`Filter dropdown for column ${colIndex} not found`);
-                return;
-            }
-            const values = new Set();
-            const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            
-            for (let row of rows) {
-                if (row.style.display !== 'none') {
-                    const cells = row.getElementsByTagName('td');
-                    if (cells[colIndex]) values.add(cells[colIndex].textContent.trim() || 'N/A');
-                }
-            }
-            const currentSelections = filters[colIndex] || [];
-            dropdown.innerHTML = '';
-            const selectAll = document.createElement('div');
-            selectAll.className = 'dropdown-item';
-            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
-            dropdown.appendChild(selectAll);
-
-            values.forEach(value => {
-                const item = document.createElement('div');
-                item.className = 'dropdown-item';
-                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
-                dropdown.appendChild(item);
-            });
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
-            confirmBtn.textContent = 'Confirm';
-            confirmBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                updateFilters(colIndex);
-                filterTable();
-                populateDropdowns();
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(confirmBtn);
-
-            selectAll.querySelector('input').addEventListener('change', function(e) {
-                e.stopPropagation();
-                const isChecked = this.checked;
-                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
-            });
-        });
-    }
-
-    function updateFilters(colIndex) {
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-    }
-
-    function filterTable() {
-        const rows = table.querySelector('tbody').getElementsByTagName('tr');
-        for (let row of rows) {
-            let show = true;
-            const cells = row.getElementsByTagName('td');
-            for (let col in filters) {
-                const colIdx = parseInt(col);
-                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                    show = false;
-                    break;
-                }
-            }
-            row.style.display = show ? '' : 'none';
+            categoryInput.value = "";
+            codeInput.value = "";
+            unitInput.value = "";
         }
     }
 
-    const undoFilterBtn = document.getElementById('undo-filter-btn');
-    if (undoFilterBtn) {
-        undoFilterBtn.addEventListener('click', function() {
-            for (let col in filters) delete filters[col];
-            allRows.forEach(row => row.style.display = '');
-            populateDropdowns();
+    document.querySelectorAll(".material-select").forEach(select => {
+        select.addEventListener("change", function () { autofillFields(this); });
+        if (select.value) autofillFields(select);
+    });
+
+    const addBtn = document.getElementById("add-receipt-form");
+    if (addBtn) {
+        addBtn.addEventListener("click", function () {
+            const formContainer = document.getElementById("receipt-form-container");
+            const totalForms = document.querySelector("#id_form-TOTAL_FORMS");
+            const newFormIdx = parseInt(totalForms.value);
+            const newForm = formContainer.firstElementChild.cloneNode(true);
+
+            newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
+            const select = newForm.querySelector(".material-select");
+            if (select) select.selectedIndex = 0;
+            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number'].forEach(field => {
+                const el = newForm.querySelector(`[name$='${field}']`);
+                if (el) el.value = "";
+            });
+            const cat = newForm.querySelector(".category-field"); if (cat) cat.value = "";
+            const code = newForm.querySelector(".material-code"); if (code) code.value = "";
+            const unit = newForm.querySelector(".unit-field"); if (unit) unit.value = "";
+
+            if (select) select.addEventListener("change", function () { autofillFields(this); });
+
+            const removeBtn = newForm.querySelector(".remove-form");
+            if (removeBtn) removeBtn.style.display = "block";
+
+            formContainer.appendChild(newForm);
+            totalForms.value = newFormIdx + 1;
         });
     }
 
-    headers.forEach(header => {
-        const colIndex = parseInt(header.getAttribute('data-column'));
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        header.onclick = function(e) {
-            e.stopPropagation();
-            if (dropdown.style.display === 'block') dropdown.style.display = 'none';
-            else {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-                dropdown.style.display = 'block';
+    document.addEventListener("click", function (event) {
+        if (event.target.classList.contains("remove-form")) {
+            const formContainer = document.getElementById("receipt-form-container");
+            const totalForms = document.querySelector("#id_form-TOTAL_FORMS");
+            const formCount = formContainer.children.length;
+            if (formCount > 1) {
+                event.target.closest(".material-form").remove();
+                totalForms.value = formCount - 1;
             }
-        };
-        dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
         }
     });
-
-    populateDropdowns();
-    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-    filterTable();
 });
 </script>
 
 <style>
-    .container-fluid {
-        padding: 0;
-    }
-    .table-responsive {
-        overflow-x: auto;
-        overflow-y: auto;
-        max-height: calc(100vh - 140px);
-    }
-    #material-receipts-table {
-        width: 100% !important;
-        table-layout: auto;
-    }
-    #material-receipts-table th, #material-receipts-table td {
-        font-size: 0.9rem;
-        padding: 0.5rem;
-        white-space: normal;
-        word-wrap: break-word;
-        max-width: 0;
-    }
-    #material-receipts-table th {
-        background-color: #f8f9fa;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        text-align: left;
-    }
-    #material-receipts-table .text-wrap {
-        white-space: normal !important;
-    }
-    #material-receipts-table .btn-sm {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8rem;
-    }
-    .fixed-bottom {
-        z-index: 1000;
-    }
+    .container-fluid { padding: 0; }
 </style>
 {% endblock %}

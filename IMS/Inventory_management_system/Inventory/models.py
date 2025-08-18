@@ -1,10 +1,11 @@
-
 # Inventory/models.py
 from django.db import models
 from django.contrib.auth.models import User, Group
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.core.validators import FileExtensionValidator
+from django.utils import timezone
+import uuid
 
 # Import transporter models
 from .transporter_models import Transporter, TransportVehicle
@@ -54,7 +55,7 @@ class ReleaseLetter(models.Model):
         return MaterialOrder.objects.filter(request_code=self.request_code)
 
     def __str__(self):
-        return f"{self.title} - {self.material_order.name}"
+        return f"{self.title} - {self.request_code}"
 
 class InventoryItem(models.Model):
     name = models.CharField(max_length=200)
@@ -63,8 +64,8 @@ class InventoryItem(models.Model):
     code = models.CharField(max_length=200)
     unit = models.ForeignKey('Unit', on_delete=models.CASCADE) 
     date_created = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -251,23 +252,30 @@ class MaterialOrder(models.Model):
         
         # Generate request code for new orders
         if is_new and not self.request_code:
-            date_str = self.date_requested.strftime('%Y%m%d')
-            unique_id = str(uuid.uuid4().int)[:6].upper()
+            # date_requested may be None before first save when using auto_now_add
+            dt = self.date_requested or timezone.now()
+            date_str = dt.strftime('%Y%m%d')
+            unique_id = uuid.uuid4().hex[:6].upper()
             self.request_code = f"REQ-{date_str}-{unique_id}"
         
-        # Calculate remaining quantity if quantity or processed_quantity changes
-        if 'quantity' in kwargs.get('update_fields', []) or 'processed_quantity' in kwargs.get('update_fields', []):
-            self.remaining_quantity = float(self.quantity) - float(self.processed_quantity)
-            
-            # Update status based on quantity
-            if float(self.processed_quantity) <= 0:
-                if self.status in ['Partially Fulfilled', 'Fulfilled']:
+        # Always compute remaining and status based on quantity and processed_quantity
+        try:
+            q = float(self.quantity or 0)
+            p = float(self.processed_quantity or 0)
+            # Initialize remaining for new records
+            self.remaining_quantity = max(0.0, q - p)
+            if p <= 0:
+                # Not yet processed
+                if self.status in ['Partially Fulfilled', 'Fulfilled', 'Completed']:
                     self.status = 'Approved'
-            elif float(self.processed_quantity) >= float(self.quantity):
+            elif p >= q > 0:
                 self.status = 'Fulfilled'
                 self.remaining_quantity = 0
             else:
                 self.status = 'Partially Fulfilled'
+        except Exception:
+            # Fallback: do not block save if any conversion issue
+            pass
         
         super().save(*args, **kwargs)
     
@@ -285,13 +293,32 @@ class MaterialOrder(models.Model):
             return 0
         return min(100, (float(self.processed_quantity) / float(self.quantity)) * 100)
     
+    @property
+    def remaining_transport_quantity(self):
+        """Calculate remaining quantity available for transport assignment"""
+        if not self.processed_quantity:
+            return 0
+        
+        total_transported = self.transports.aggregate(
+            total=models.Sum('quantity')
+        )['total'] or 0
+        
+        return max(0, self.processed_quantity - total_transported)
+    
+    @property
+    def total_transported_quantity(self):
+        """Calculate total quantity already assigned to transporters"""
+        return self.transports.aggregate(
+            total=models.Sum('quantity')
+        )['total'] or 0
+    
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse('material_order_detail', kwargs={'pk': self.pk})
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
 
     def __str__(self):
@@ -316,8 +343,8 @@ class BillOfQuantity(models.Model):
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()  # Changed to FloatField
     quantity_received = models.FloatField(default=0.0)  # Changed to FloatField
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -381,8 +408,8 @@ class ReportSubmission(models.Model):
     )
     
     # Foreign keys
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     related_boq = models.ForeignKey(
         BillOfQuantity, 
         on_delete=models.SET_NULL, 
@@ -443,10 +470,10 @@ class MaterialTransport(models.Model):
     )
     release_letter = models.ForeignKey(
         ReleaseLetter, 
-        on_delete=models.CASCADE,
-        related_name='transports',
+        on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name='transports'
     )
     
     # Material details (cached from order)
@@ -523,7 +550,9 @@ class MaterialTransport(models.Model):
         if self.material_order:
             self.material_name = self.material_order.name
             self.material_code = self.material_order.code
-            self.quantity = self.material_order.quantity
+            # Only set quantity if it's not already set (to preserve processed quantity from assignment)
+            if not self.quantity:
+                self.quantity = self.material_order.processed_quantity or self.material_order.quantity
             self.unit = str(self.material_order.unit) if self.material_order.unit else ''
             self.recipient = self.material_order.contractor or ''
             self.consultant = self.material_order.consultant or ''
@@ -576,4 +605,292 @@ class MaterialTransport(models.Model):
         from django.urls import reverse
         return reverse('transport_detail', kwargs={'pk': self.pk})
 
+class SiteReceipt(models.Model):
+    """
+    Model for consultants to log material receipts at project sites.
+    Links to MaterialTransport to update delivery status.
+    """
+    material_transport = models.OneToOneField(
+        MaterialTransport,
+        on_delete=models.CASCADE,
+        related_name='site_receipt'
+    )
     
+    # Receipt details
+    received_quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    received_date = models.DateTimeField(auto_now_add=True)
+    received_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    # Documentation
+    waybill_pdf = models.FileField(
+        upload_to='site_receipts/waybills/%Y/%m/%d/',
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        help_text="Upload the endorsed waybill PDF"
+    )
+    site_photos = models.FileField(
+        upload_to='site_receipts/photos/%Y/%m/%d/',
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
+        help_text="Upload photos of materials at site"
+    )
+    
+    # Additional fields
+    notes = models.TextField(blank=True, null=True, help_text="Additional notes about the receipt")
+    condition = models.CharField(
+        max_length=20,
+        choices=[
+            ('Good', 'Good Condition'),
+            ('Damaged', 'Damaged'),
+            ('Partial', 'Partial Delivery')
+        ],
+        default='Good'
+    )
+    
+    class Meta:
+        ordering = ['-received_date']
+        verbose_name = 'Site Receipt'
+        verbose_name_plural = 'Site Receipts'
+    
+    def save(self, *args, **kwargs):
+        """Update the related MaterialTransport status when site receipt is created"""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        if is_new and self.material_transport:
+            # Update transport status to 'Delivered' when site receipt is logged
+            self.material_transport.status = 'Delivered'
+            self.material_transport.date_delivered = self.received_date
+            self.material_transport.save()
+    
+    def __str__(self):
+        return f"Site Receipt: {self.material_transport.material_name} - {self.received_quantity} {self.material_transport.unit}"
+
+class Project(models.Model):
+    """
+    Main project model that represents a construction/infrastructure project
+    """
+    PROJECT_STATUS_CHOICES = [
+        ('Planning', 'Planning'),
+        ('Active', 'Active'),
+        ('On Hold', 'On Hold'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+    
+    PROJECT_TYPE_CHOICES = [
+        ('Infrastructure', 'Infrastructure'),
+        ('Construction', 'Construction'),
+        ('Maintenance', 'Maintenance'),
+        ('Emergency', 'Emergency'),
+    ]
+    
+    name = models.CharField(max_length=200, help_text="Project name")
+    code = models.CharField(max_length=50, unique=True, help_text="Unique project code")
+    description = models.TextField(help_text="Detailed project description")
+    project_type = models.CharField(max_length=50, choices=PROJECT_TYPE_CHOICES, default='Infrastructure')
+    status = models.CharField(max_length=50, choices=PROJECT_STATUS_CHOICES, default='Planning')
+    
+    # Project management details
+    project_manager = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='managed_projects',
+        help_text="User responsible for managing this project"
+    )
+    consultant = models.CharField(max_length=200, help_text="Primary consultant for the project")
+    contractor = models.CharField(max_length=200, help_text="Primary contractor for the project")
+    
+    # Timeline
+    start_date = models.DateField(null=True, blank=True)
+    planned_end_date = models.DateField(null=True, blank=True)
+    actual_end_date = models.DateField(null=True, blank=True)
+    
+    # Budget
+    total_budget = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    spent_budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    
+    # Administrative
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_projects')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        permissions = [
+            ('can_manage_projects', 'Can manage projects'),
+            ('can_view_all_projects', 'Can view all projects'),
+        ]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+class ProjectSite(models.Model):
+    """
+    Represents individual sites within a project
+    """
+    SITE_STATUS_CHOICES = [
+        ('Planned', 'Planned'),
+        ('Active', 'Active'),
+        ('Completed', 'Completed'),
+        ('On Hold', 'On Hold'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='sites')
+    name = models.CharField(max_length=200, help_text="Site name or identifier")
+    code = models.CharField(max_length=50, help_text="Site code")
+    
+    # Location details
+    region = models.CharField(max_length=100)
+    district = models.CharField(max_length=100)
+    community = models.CharField(max_length=100, null=True, blank=True)
+    gps_coordinates = models.CharField(max_length=100, null=True, blank=True, help_text="GPS coordinates if available")
+    
+    # Site management
+    site_supervisor = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='supervised_sites',
+        help_text="User supervising this site"
+    )
+    status = models.CharField(max_length=50, choices=SITE_STATUS_CHOICES, default='Planned')
+    
+    # Timeline
+    start_date = models.DateField(null=True, blank=True)
+    planned_completion_date = models.DateField(null=True, blank=True)
+    actual_completion_date = models.DateField(null=True, blank=True)
+    
+    # Administrative
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['project', 'name']
+        unique_together = ['project', 'code']
+    
+    def __str__(self):
+        return f"{self.project.code} - {self.name}"
+
+class ProjectPhase(models.Model):
+    """
+    Represents different phases within a project
+    """
+    PHASE_STATUS_CHOICES = [
+        ('Not Started', 'Not Started'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+        ('Delayed', 'Delayed'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='phases')
+    name = models.CharField(max_length=200, help_text="Phase name")
+    description = models.TextField(help_text="Phase description")
+    phase_order = models.PositiveIntegerField(help_text="Order of this phase in the project")
+    
+    status = models.CharField(max_length=50, choices=PHASE_STATUS_CHOICES, default='Not Started')
+    
+    # Timeline
+    planned_start_date = models.DateField(null=True, blank=True)
+    planned_end_date = models.DateField(null=True, blank=True)
+    actual_start_date = models.DateField(null=True, blank=True)
+    actual_end_date = models.DateField(null=True, blank=True)
+    
+    # Progress tracking
+    completion_percentage = models.PositiveIntegerField(default=0, help_text="Completion percentage (0-100)")
+    
+    # Administrative
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['project', 'phase_order']
+        unique_together = ['project', 'phase_order']
+    
+    def __str__(self):
+        return f"{self.project.code} - Phase {self.phase_order}: {self.name}"
+
+class Notification(models.Model):
+    """
+    Model for system notifications between user groups
+    """
+    NOTIFICATION_TYPES = [
+        ('material_request', 'Material Request'),
+        ('material_processed', 'Material Processed'),
+        ('transport_assigned', 'Transport Assigned'),
+        ('material_delivered', 'Material Delivered'),
+        ('site_receipt_logged', 'Site Receipt Logged'),
+        ('boq_updated', 'BOQ Updated'),
+        ('staff_prompt', 'Staff Prompt'),
+    ]
+    
+    RECIPIENT_GROUPS = [
+        ('Schedule Officers', 'Schedule Officers'),
+        ('Storekeepers', 'Storekeepers'),
+        ('Management', 'Management'),
+        ('Consultants', 'Consultants'),
+        ('All', 'All Users'),
+    ]
+    
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    
+    # Recipients
+    recipient_group = models.CharField(max_length=20, choices=RECIPIENT_GROUPS)
+    recipient_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='received_notifications',
+        help_text="Specific user recipient (optional)"
+    )
+    
+    # Sender
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sent_notifications'
+    )
+    
+    # Related objects (optional)
+    related_order = models.ForeignKey(
+        MaterialOrder,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    related_transport = models.ForeignKey(
+        MaterialTransport,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    related_project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    
+    # Status
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        
+    def __str__(self):
+        return f"{self.title} - {self.recipient_group}"
+    
+    def mark_as_read(self, user=None):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save()

@@ -9,9 +9,9 @@ class AwaitingAuthorizationView(LoginRequiredMixin, TemplateView):
     template_name = 'Inventory/awaiting_authorization.html'
     
     def dispatch(self, request, *args, **kwargs):
-        # Allow access only to users with no groups (not assigned any role yet)
-        if request.user.groups.exists() or request.user.is_superuser:
-            return redirect('dashboard')  # Redirect to dashboard if user has roles
+        # Allow access to superusers or users with no groups (not assigned any role yet)
+        if not request.user.is_superuser and request.user.groups.exists():
+            return redirect('dashboard')  # Redirect to dashboard if user has roles but is not a superuser
         return super().dispatch(request, *args, **kwargs)
 
 

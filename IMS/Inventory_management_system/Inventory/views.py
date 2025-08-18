@@ -1,6 +1,8 @@
 import base64
 import io
+import json
 import logging
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
 import matplotlib
@@ -26,18 +28,21 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.utils.timezone import now, timedelta
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
 from django.contrib.auth.models import Group, User
+from django.template.loader import render_to_string
 
 # Forms
 from .forms import (
     MaterialTransportForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm,
     UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm,
-    ReportSubmissionForm, BulkMaterialRequestForm, ReleaseLetterUploadForm
+    ReportSubmissionForm, BulkMaterialRequestForm, ReleaseLetterUploadForm,
+    SiteReceiptForm  # Add SiteReceiptForm
 )
 
 # Models
 from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity,
-    MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter
+    MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter,
+    SiteReceipt  # Add SiteReceipt
 )
 
 # Other views
@@ -63,12 +68,13 @@ __all__ = [
     # Transporter views
     'TransporterListView', 'TransporterCreateView', 'TransporterUpdateView', 'TransporterDetailView', 'TransporterDeleteView',
     'TransportVehicleListView', 'TransportVehicleCreateView', 'TransportVehicleUpdateView', 'TransportVehicleDetailView', 'TransportVehicleDeleteView',
-    'TransporterAssignmentView', 'ReleaseLetterListView', 'TransporterLegendView', 'import_transporters', 'update_transport_status'
+    'TransporterAssignmentView', 'ReleaseLetterListView', 'TransporterLegendView', 'import_transporters', 'update_transport_status',
+    'MaterialReceiptListView', 'StaffProfileView',
+    'ConsultantDeliveriesView', 'SiteReceiptCreateView', 'SiteReceiptListView'  # Add consultant views
 ]
 
 # Third-party imports
 import uuid
-import json
 import logging
 import pandas as pd
 import numpy as np
@@ -79,6 +85,7 @@ from io import BytesIO
 from datetime import datetime, timedelta
 from django.db.models.functions import TruncMonth, TruncWeek, TruncDay
 from django.conf import settings
+from django.template.loader import render_to_string
 
 MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 
@@ -123,7 +130,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
             return self.handle_single_request(request)
 
     def handle_single_request(self, request):
-        formset = MaterialOrderFormSet(request.POST, form_kwargs={'user': request.user})
+        formset = MaterialOrderFormSet(request.POST, request.FILES, form_kwargs={'user': request.user})
         if formset.is_valid():
             request_code = generate_request_code()
             with transaction.atomic():
@@ -139,9 +146,40 @@ class RequestMaterialView(LoginRequiredMixin, View):
                         material_order.group = request.user.groups.first() if request.user.groups.exists() else None
                         material_order.request_type = 'Release'
                         material_order.request_code = request_code
+                        # Ensure newly created requests start as Draft
+                        material_order.status = 'Draft'
+                        # Initialize quantities so remaining is not zero
+                        material_order.processed_quantity = 0
+                        material_order.remaining_quantity = material_order.quantity
+                        
+                        # Set current user for release letter creation
+                        material_order._current_user = request.user
+                        
+                        # Save the material order first to get the ID and proper request_code
                         material_order.save()
-                messages.success(request, "Material requests submitted successfully!")
-                return redirect('material_orders')
+                        
+                        # Now handle release letter creation if file was uploaded
+                        if form.cleaned_data.get('release_letter_pdf'):
+                            from .models import ReleaseLetter
+                            from django.utils import timezone
+                            
+                            title = form.cleaned_data.get('release_letter_title') or f"Release Letter for {material_order.name}"
+                            
+                            release_letter = ReleaseLetter.objects.create(
+                                request_code=material_order.request_code,
+                                title=title,
+                                pdf_file=form.cleaned_data['release_letter_pdf'],
+                                upload_time=timezone.now(),
+                                uploaded_by=request.user,
+                                notes=f"Uploaded with material request {material_order.request_code}"
+                            )
+                            
+                            # Link the release letter to the material order
+                            material_order.release_letter = release_letter
+                            material_order.save()
+                            
+            messages.success(request, "Material requests submitted successfully!")
+            return redirect('material_orders')
         else:
             print("Formset errors:", formset.errors)
             messages.error(request, "There was an error with your submission.")
@@ -160,95 +198,6 @@ class RequestMaterialView(LoginRequiredMixin, View):
             'active_tab': 'single'
         })
 
-    def _find_inventory_item(self, item_name, user):
-        """Helper method to find an inventory item with various fallbacks"""
-        logger = logging.getLogger(__name__)
-        logger.info(f"🔍 Looking up item: '{item_name}' for user: {user.username}")
-        logger.info(f"User groups: {[g.name for g in user.groups.all()]}")
-        
-        # Clean the item name
-        item_name = str(item_name).strip()
-        
-        # Try exact match with user's groups
-        items = InventoryItem.objects.filter(
-            name__iexact=item_name,
-            group__in=user.groups.all()
-        )
-        item = items.first()
-        
-        if item:
-            logger.info(f"✅ Found exact match in user's groups: {item.name} (ID: {item.id}, Group: {item.group})")
-            return item
-            
-        # Try contains with user's groups
-        items = InventoryItem.objects.filter(
-            name__icontains=item_name,
-            group__in=user.groups.all()
-        )
-        item = items.first()
-        
-        if item:
-            logger.info(f"✅ Found partial match in user's groups: {item.name} (ID: {item.id}, Group: {item.group})")
-            return item
-            
-        # If superuser, try without group restrictions
-        if user.is_superuser:
-            logger.info("User is superuser, trying without group restrictions...")
-            
-            # Try exact match without group restriction
-            item = InventoryItem.objects.filter(
-                name__iexact=item_name
-            ).first()
-            
-            if item:
-                logger.info(f"✅ Found exact match (superuser): {item.name} (ID: {item.id}, Group: {item.group})")
-                return item
-                
-            # Try contains without group restriction
-            item = InventoryItem.objects.filter(
-                name__icontains=item_name
-            ).first()
-            
-            if item:
-                logger.info(f"✅ Found partial match (superuser): {item.name} (ID: {item.id}, Group: {item.group})")
-                return item
-        
-        # Log all available items for debugging
-        all_items = InventoryItem.objects.all()
-        logger.warning(f"❌ Item not found: '{item_name}'")
-        logger.warning(f"Available items: {[(i.name, i.group.name if i.group else 'No group') for i in all_items]}")
-                
-        return None
-        
-    def _get_order_group(self, user, item, item_name):
-        """Helper method to determine the group for a new order"""
-        logger = logging.getLogger(__name__)
-        logger.info(f"Determining group for item: {item_name}")
-        
-        # Try user's first group
-        group = user.groups.first()
-        if group:
-            logger.info(f"Using user's first group: {group.name}")
-        
-        # Try item's group
-        if not group and hasattr(item, 'group') and item.group:
-            group = item.group
-            logger.info(f"Using item's group: {group.name if group else 'None'}")
-            
-        # Try first available group
-        if not group:
-            from django.contrib.auth.models import Group
-            group = Group.objects.first()
-            logger.info(f"Using first available group: {group.name if group else 'None'}")
-            
-        # Final fallback
-        if not group:
-            logger.warning(f"No group could be assigned for {item_name}")
-        else:
-            logger.info(f"Assigned group for {item_name}: {group.name}")
-            
-        return group
-    
     def handle_bulk_request(self, request):
         logger = logging.getLogger(__name__)
         logger.info("Starting bulk request processing...")
@@ -332,7 +281,12 @@ class RequestMaterialView(LoginRequiredMixin, View):
                                 'consultant': row.get('consultant', ''),
                                 'contractor': row.get('contractor', ''),
                                 'package_number': row.get('package_number', ''),
-                                'last_updated_by': request.user
+                                'last_updated_by': request.user,
+                                # Ensure bulk-created requests start as Draft
+                                'status': 'Draft',
+                                # Initialize quantities so remaining is not zero
+                                'processed_quantity': 0,
+                                'remaining_quantity': row['quantity']
                             }
                             logger.info(f"Creating order with data: {order_data}")
                             
@@ -428,119 +382,244 @@ class RequestMaterialView(LoginRequiredMixin, View):
 
 class MaterialOrdersView(LoginRequiredMixin, ListView):
     """
-    View for displaying material orders.
+    View for displaying material orders with proper fulfillment workflow.
     - Storekeepers can see all orders
     - Other users can only see their own orders
     """
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
+    paginate_by = 50
 
     def get_queryset(self):
         user = self.request.user
         logger = logging.getLogger(__name__)
-        logger.info(f"Getting orders for user: {user.username}")
         
         try:
-            # Storekeepers can see all orders
-            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
-                orders = MaterialOrder.objects.all().order_by('-date_requested')
-                logger.info(f"User {user.username} is a storekeeper/superuser. Found {orders.count()} total orders.")
-                return orders
+            # Base queryset with proper ordering and select_related for performance
+            base_queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
             
-            # Regular users can only see their own orders
-            orders = MaterialOrder.objects.filter(user=user).order_by('-date_requested')
-            logger.info(f"User {user.username} is a regular user. Found {orders.count()} personal orders.")
-            return orders
+            # Storekeepers and superusers can see all orders
+            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
+                queryset = base_queryset
+                logger.info(f"User {user.username} (storekeeper/superuser) accessing {queryset.count()} total orders")
+            else:
+                # Regular users can only see their own orders
+                queryset = base_queryset.filter(user=user)
+                logger.info(f"User {user.username} (regular user) accessing {queryset.count()} personal orders")
+            
+            # Ensure remaining_quantity is calculated correctly
+            for order in queryset:
+                if order.remaining_quantity is None or order.remaining_quantity < 0:
+                    order.remaining_quantity = max(0, order.quantity - (order.processed_quantity or 0))
+                    order.save(update_fields=['remaining_quantity'])
+            
+            return queryset
             
         except Exception as e:
             logger.error(f"Error in MaterialOrdersView for user {user.username}: {str(e)}", exc_info=True)
-            # Fallback to showing only user's orders in case of any error
-            orders = MaterialOrder.objects.filter(user=user).order_by('-date_requested')
-            logger.info(f"Fallback: Found {orders.count()} orders for user {user.username} after error.")
-            return orders
-    
+            # Fallback to empty queryset to prevent crashes
+            return MaterialOrder.objects.none()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get the full queryset for statistics (not paginated)
+        full_queryset = self.get_queryset()
+        
+        # Add summary statistics using the full queryset
+        if full_queryset.exists():
+            context.update({
+                'total_orders': full_queryset.count(),
+                'pending_orders': full_queryset.filter(status='Pending').count(),
+                'completed_orders': full_queryset.filter(status='Completed').count(),
+                'partial_orders': full_queryset.filter(status='Partially Fulfilled').count(),
+            })
+        else:
+            context.update({
+                'total_orders': 0,
+                'pending_orders': 0,
+                'completed_orders': 0,
+                'partial_orders': 0,
+            })
+        
+        return context
 
 
 class UpdateMaterialStatusView(View):
+    """
+    Handle material order status updates and fulfillment processing.
+    Supports: Seen, Approved, Rejected, Partial, Full status updates.
+    """
+    
     def post(self, request, order_id, new_status):
-        if new_status not in ["Seen", "Partial", "Full"]:
-            return JsonResponse({"success": False, "error": "Invalid status."}, status=400)
+        logger = logging.getLogger(__name__)
+        logger.info(f"UpdateMaterialStatusView called: order_id={order_id}, new_status={new_status}")
+        
+        # Validate status
+        allowed_statuses = ["Seen", "Approved", "Rejected", "Partially Fulfilled", "Full"]
+        if new_status not in allowed_statuses:
+            logger.error(f"Invalid status: {new_status}")
+            return JsonResponse({
+                "success": False, 
+                "error": f"Invalid status '{new_status}'. Allowed: {', '.join(allowed_statuses)}"
+            }, status=400)
 
         try:
+            logger.info("Starting transaction")
             with transaction.atomic():
+                logger.info(f"Getting order with id: {order_id}")
                 order = get_object_or_404(MaterialOrder, id=order_id)
-                data = json.loads(request.body) if request.body else {}
-                is_partial = new_status == "Partial" or data.get('is_partial', False)
-                partial_quantity = int(data.get('partial_quantity', 0)) if is_partial else 0
-                quantity_to_process = partial_quantity if is_partial else order.remaining_quantity
+                logger.info(f"Found order: {order.id}, current status: {order.status}, type: {order.request_type}")
+                
+                # Parse request data
+                try:
+                    logger.info("Parsing request body")
+                    data = json.loads(request.body) if request.body and request.body.strip() else {}
+                    logger.info(f"Parsed data: {data}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}")
+                    return JsonResponse({
+                        "success": False, 
+                        "error": "Invalid JSON in request body"
+                    }, status=400)
 
-                # Ensure remaining_quantity is an integer
-                if order.remaining_quantity is None:
-                    print(f"Warning: remaining_quantity was None for order {order.id}, setting to {order.quantity - order.processed_quantity}")
-                    order.remaining_quantity = order.quantity - order.processed_quantity
+                logger.info(f"Processing status update: Order {order_id}, Status: {new_status}, Current: {order.status}, Type: {order.request_type}")
 
-                inventory_item = InventoryItem.objects.filter(name=order.name).first()
-                if not inventory_item:
-                    return JsonResponse({"success": False, "error": "No matching inventory item found for this order."}, status=400)
+                # Handle simple status changes
+                if new_status in ["Seen", "Approved", "Rejected"]:
+                    logger.info(f"Simple status change to: {new_status}")
+                    order.status = new_status
+                    logger.info(f"Updated order {order_id} status to {new_status}")
+                
+                # Handle quantity processing (Partial/Full)
+                elif new_status in ["Partially Fulfilled", "Full"]:
+                    logger.info(f"Processing quantity for status: {new_status}")
+                    
+                    # Validate current status allows quantity processing
+                    required_status = 'Approved' if order.request_type == 'Release' else 'Seen'
+                    logger.info(f"Required status: {required_status}, Current status: {order.status}")
+                    
+                    if order.status not in [required_status, 'Partially Fulfilled']:
+                        logger.error(f"Invalid status transition: {order.status} -> {new_status}")
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Order must be in "{required_status}" or "Partially Fulfilled" status before processing quantities. Current status: "{order.status}"'
+                        }, status=400)
 
-                # Debugging: Log all relevant details
-                print(f"Order ID: {order_id}, Item: {inventory_item.name}, Inventory Quantity: {inventory_item.quantity}, "
-                      f"Request Type: {order.request_type}, To Process: {quantity_to_process}, "
-                      f"Processed: {order.processed_quantity}, Remaining: {order.remaining_quantity}")
-
-                if new_status == "Seen":
-                    order.status = "Seen"
-                elif new_status in ["Partial", "Full"]:
-                    if is_partial and (partial_quantity <= 0 or partial_quantity > order.remaining_quantity):
-                        return JsonResponse({"success": False, "error": "Invalid partial quantity."}, status=400)
-
-                    if inventory_item.quantity is None:
-                        if order.request_type == "Receipt":
-                            inventory_item.quantity = 0  # Initialize for receipts
-                        else:  # Release
+                    # Calculate quantity to process
+                    if new_status == "Partially Fulfilled":
+                        try:
+                            logger.info("Processing partial quantity")
+                            partial_quantity = Decimal(str(data.get('partial_quantity', 0)))
+                            logger.info(f"Partial quantity: {partial_quantity}")
+                        except (ValueError, TypeError, InvalidOperation) as e:
+                            logger.error(f"Invalid partial quantity: {e}")
                             return JsonResponse({
-                                "success": False,
-                                "error": "Inventory quantity is not set for this item."
+                                "success": False, 
+                                "error": "Invalid partial_quantity value. Must be a valid number."
                             }, status=400)
+                    else:  # Full
+                        logger.info("Processing full quantity")
+                        partial_quantity = order.remaining_quantity
+                        logger.info(f"Full quantity: {partial_quantity}")
 
-                    if order.request_type == "Release":
-                        if inventory_item.quantity < quantity_to_process:
-                            return JsonResponse({
-                                "success": False,
-                                "error": "The inventory for this material is less than the order quantity"
-                            }, status=400)
-                        inventory_item.quantity -= quantity_to_process
-                    elif order.request_type == "Receipt":
-                        inventory_item.quantity += quantity_to_process
+                    # Validate quantity
+                    if partial_quantity <= 0:
+                        logger.error(f"Invalid quantity: {partial_quantity}")
+                        return JsonResponse({
+                            "success": False, 
+                            "error": "Quantity must be greater than zero"
+                        }, status=400)
+                    
+                    if partial_quantity > order.remaining_quantity:
+                        logger.error(f"Quantity exceeds remaining: {partial_quantity} > {order.remaining_quantity}")
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Quantity {partial_quantity} exceeds remaining quantity {order.remaining_quantity}'
+                        }, status=400)
 
-                    inventory_item.save()
-                    order.processed_quantity += quantity_to_process
-                    order.remaining_quantity -= quantity_to_process
+                    logger.info("Updating order quantities")
+                    # Process the quantity
+                    order.processed_quantity = (order.processed_quantity or 0) + partial_quantity
+                    order.remaining_quantity = max(0, order.quantity - order.processed_quantity)
+                    logger.info(f"New quantities - Processed: {order.processed_quantity}, Remaining: {order.remaining_quantity}")
 
+                    # Update inventory
+                    try:
+                        logger.info(f"Looking for inventory item: {order.name}")
+                        inventory_item = InventoryItem.objects.get(name__iexact=order.name)
+                        logger.info(f"Found inventory item: {inventory_item.name}, current quantity: {inventory_item.quantity}")
+                        
+                        if order.request_type == "Release":
+                            if inventory_item.quantity < partial_quantity:
+                                logger.error(f"Insufficient inventory: {inventory_item.quantity} < {partial_quantity}")
+                                return JsonResponse({
+                                    'success': False,
+                                    'error': f'Insufficient inventory. Available: {inventory_item.quantity}, Requested: {partial_quantity}'
+                                }, status=400)
+                            inventory_item.quantity -= partial_quantity
+                            logger.info(f"Reduced inventory by {partial_quantity}")
+                        elif order.request_type == "Receipt":
+                            inventory_item.quantity += partial_quantity
+                            logger.info(f"Increased inventory by {partial_quantity}")
+                        
+                        inventory_item.save()
+                        logger.info(f"Updated inventory for {inventory_item.name}: {inventory_item.quantity}")
+                        
+                    except InventoryItem.DoesNotExist:
+                        logger.warning(f"Inventory item '{order.name}' not found. Skipping inventory update.")
+
+                    # Update order status based on remaining quantity
                     if order.remaining_quantity <= 0:
-                        order.status = "Completed"  # Fully processed
+                        order.status = 'Completed'
+                        logger.info(f"Order {order_id} completed - no remaining quantity")
                     else:
-                        order.status = "Approved"  # Partially processed or reset after action
+                        order.status = 'Partially Fulfilled'
+                        logger.info(f"Order {order_id} partially fulfilled - {order.remaining_quantity} remaining")
 
-                # Set the user who updated the order
+                # Update audit fields
+                logger.info("Updating audit fields")
                 order.last_updated_by = request.user
                 order.save()
+                order.refresh_from_db()
+                logger.info("Order saved successfully")
 
-                return JsonResponse({
-                    "success": True,
-                    "new_status": order.status,
-                    "processed_quantity": order.processed_quantity,
-                    "remaining_quantity": order.remaining_quantity,
-                    "last_updated_by": request.user.username  # Return username
-                })
-        except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "Invalid request data."}, status=400)
-        except ValueError as e:
-            return JsonResponse({"success": False, "error": f"Invalid quantity value: {str(e)}"}, status=400)
+                # Prepare response data
+                try:
+                    logger.info("Rendering status HTML")
+                    status_html = render_to_string('Inventory/includes/status_cell.html', {'order': order})
+                    logger.info("Status HTML rendered successfully")
+                except Exception as e:
+                    logger.warning(f"Could not render status_html: {e}")
+                    status_html = f'<span class="badge bg-secondary">{order.status}</span>'
+
+                response_data = {
+                    'success': True,
+                    'new_status': order.get_status_display(),
+                    'status_html': status_html.strip(),
+                    'processed_quantity': float(order.processed_quantity or 0),
+                    'remaining_quantity': float(order.remaining_quantity or 0),
+                    'is_completed': order.status in ['Completed', 'Rejected'] or order.remaining_quantity <= 0,
+                    'last_updated_by': order.last_updated_by.username if order.last_updated_by else 'System',
+                    'message': f'Order {order.request_code or order.id} status updated to {order.get_status_display()}'
+                }
+
+                logger.info(f"Successfully processed order {order_id}: {response_data}")
+                return JsonResponse(response_data)
+
+        except MaterialOrder.DoesNotExist:
+            logger.error(f"Material order {order_id} not found")
+            return JsonResponse({
+                "success": False, 
+                "error": f"Material order with ID {order_id} not found"
+            }, status=404)
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
-        
+            logger.error(f"Unexpected error updating material status for order {order_id}: {e}", exc_info=True)
+            return JsonResponse({
+                "success": False, 
+                "error": "An unexpected server error occurred. Please try again."
+            }, status=500)
+
 
 class ProfileView(LoginRequiredMixin, View):
     template_name = 'Inventory/profile.html'
@@ -710,7 +789,7 @@ def list_units(request):
 
 
 class MaterialReceiptView(LoginRequiredMixin, View):
-    template_name = 'Inventory/material_receipt.html'
+    template_name = 'Inventory/receive_material.html'
 
     def get(self, request):
         if request.user.is_superuser:
@@ -718,13 +797,18 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         else:
             items = InventoryItem.objects.filter(group__in=request.user.groups.all())
 
-        formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
         inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
+        formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
+        bulk_form = BulkMaterialRequestForm()
+        orders = self._get_receipt_orders(request.user)
 
         return render(request, self.template_name, {
             'formset': formset,
+            'bulk_form': bulk_form,
             'items': items,
-            'inventory_items': json.dumps(inventory_items)
+            'inventory_items': json.dumps(inventory_items),
+            'active_tab': 'single',
+            'orders': orders,
         })
 
     def post(self, request):
@@ -743,7 +827,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
                     material_order.request_type = 'Receipt'  # Set as Receipt Request
                     material_order.save()
             messages.success(request, "Material receipts submitted successfully!")
-            return redirect('material_orders')
+            return redirect('material_receipt')
         else:
             print("Formset errors:", formset.errors)
             messages.error(request, "There was an error with your submission.")
@@ -754,9 +838,27 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             items = InventoryItem.objects.filter(group__in=request.user.groups.all())
         return render(request, self.template_name, {
             'formset': formset,
+            'bulk_form': BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code')))
+            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'active_tab': 'single',
+            'orders': self._get_receipt_orders(request.user),
         })
+
+    def _find_inventory_item(self, item_name, user):
+        logger = logging.getLogger(__name__)
+        item = InventoryItem.objects.filter(name=item_name).first()
+        if item:
+            return item
+
+    def _get_receipt_orders(self, user):
+        """Return MaterialOrder queryset for receipts with same visibility rules as orders page."""
+        try:
+            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
+                return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
+            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
+        except Exception:
+            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
 
 
 class MaterialLegendView(LoginRequiredMixin, ListView):
@@ -1135,17 +1237,40 @@ def management_dashboard(request):
     
     # Calculate grades for each user (example: based on activity)
     for user in users:
-        user_orders = MaterialOrder.objects.filter(user=user).count()
-        user_receipts = MaterialOrder.objects.filter(status__in=['Received', 'On Site']).filter(user=user).count()
-        # Simple grade calculation - can be customized
-        grade = min(100, (user_orders + user_receipts) * 5)
+        user_orders = MaterialOrder.objects.filter(user=user)
+        total_orders = user_orders.count()
+        completed_orders = user_orders.filter(status='Completed').count()
+        
+        # Performance Calculation (based on order completion rate)
+        if total_orders > 0:
+            completion_rate = (completed_orders / total_orders) * 100
+            if completion_rate >= 90:
+                grade_letter = 'A'
+                grade_color = 'success'
+            elif completion_rate >= 80:
+                grade_letter = 'B'
+                grade_color = 'info'
+            elif completion_rate >= 70:
+                grade_letter = 'C'
+                grade_color = 'warning'
+            else:
+                grade_letter = 'D'
+                grade_color = 'danger'
+        else:
+            completion_rate = 0
+            grade_letter = 'N/A'
+            grade_color = 'secondary'
+        
         user_grades[user.id] = {
             'username': user.username,
             'groups': ", ".join([g.name for g in user.groups.all()]),
-            'grade': grade,
-            'grade_letter': 'A' if grade >= 90 else 'B' if grade >= 80 else 'C' if grade >= 70 else 'D' if grade >= 60 else 'F'
+            'grade': completion_rate,
+            'grade_letter': grade_letter,
+            'grade_color': grade_color,
+            'total_orders': total_orders,
+            'completed_orders': completed_orders
         }
-
+    
     # Debug: Check if groups exist
     consultants_group = Group.objects.filter(name='Consultants').first()
     storekeepers_group = Group.objects.filter(name='Storekeepers').first()
@@ -1281,7 +1406,26 @@ class ReportSubmissionCreateView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        print("Form in context:", context.get('form'))  # Debug print
+        
+        # Get the full queryset for statistics (not paginated)
+        full_queryset = self.get_queryset()
+        
+        # Add summary statistics using the full queryset
+        if full_queryset.exists():
+            context.update({
+                'total_orders': full_queryset.count(),
+                'pending_orders': full_queryset.filter(status='Pending').count(),
+                'completed_orders': full_queryset.filter(status='Completed').count(),
+                'partial_orders': full_queryset.filter(status='Partially Fulfilled').count(),
+            })
+        else:
+            context.update({
+                'total_orders': 0,
+                'pending_orders': 0,
+                'completed_orders': 0,
+                'partial_orders': 0,
+            })
+        
         return context
 
     def form_valid(self, form):
@@ -1470,38 +1614,99 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         })
 
 
-def update_material_receipt(request, order_id):
+def update_material_receipt(request, order_id, new_status):
     """
     Handle AJAX updates for material receipts.
-    Updates the status of a material order and returns a JSON response.
+    Mirrors the release actions but adds to stock instead.
+    URL carries new_status: Seen | Partial | Full
+    If Partial, expects JSON body with 'partial_quantity' or form-encoded fallback.
     """
-    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        try:
-            order = MaterialOrder.objects.get(id=order_id)
-            status = request.POST.get('status')
-            
-            # Only allow status updates to valid statuses
-            valid_statuses = [choice[0] for choice in MaterialOrder.STATUS_CHOICES]
-            if status not in valid_statuses:
-                return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
-            
-            # Update the order status
-            order.status = status
-            order.save()
-            
-            return JsonResponse({
-                'success': True, 
-                'status': order.get_status_display(),
-                'status_class': order.get_status_class()
-            })
-            
-        except MaterialOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+    if request.method != 'POST' or request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
 
+    if new_status not in ["Seen", "Partially Fulfilled", "Full"]:
+        return JsonResponse({"success": False, "error": "Invalid status."}, status=400)
+
+    try:
+        with transaction.atomic():
+            order = get_object_or_404(MaterialOrder, id=order_id)
+
+            if order.request_type != 'Receipt':
+                return JsonResponse({"success": False, "error": "This endpoint only handles receipt orders."}, status=400)
+
+            is_partial = new_status == "Partially Fulfilled"
+
+            # Parse body as JSON first, fallback to POST for form-encoded
+            data = {}
+            if request.body:
+                try:
+                    data = json.loads(request.body.decode('utf-8'))
+                except Exception:
+                    data = {}
+
+            # Parse partial quantity safely
+            partial_quantity = 0
+            if is_partial:
+                raw_pq = data.get('partial_quantity', request.POST.get('partial_quantity', 0))
+                try:
+                    partial_quantity = int(float(raw_pq))
+                except (TypeError, ValueError):
+                    partial_quantity = 0
+
+            # Ensure remaining up-to-date
+            if order.remaining_quantity is None:
+                order.remaining_quantity = (order.quantity or 0) - (order.processed_quantity or 0)
+            try:
+                remaining_int = int(float(order.remaining_quantity))
+            except Exception:
+                remaining_int = 0
+
+            qty_to_process = partial_quantity if is_partial else remaining_int
+
+            # Validate partial
+            if is_partial and (partial_quantity <= 0 or partial_quantity > remaining_int):
+                return JsonResponse({"success": False, "error": "Invalid partial quantity."}, status=400)
+
+            inventory_item = InventoryItem.objects.filter(name=order.name).first()
+            if not inventory_item:
+                return JsonResponse({"success": False, "error": "No matching inventory item found for this order."}, status=400)
+
+            # Initialize quantity if None
+            if inventory_item.quantity is None:
+                inventory_item.quantity = 0
+
+            if new_status == 'Seen':
+                order.status = 'Seen'
+            else:
+                # Receipt adds to stock
+                inventory_item.quantity += qty_to_process
+                inventory_item.save()
+
+                # Update order progress
+                order.processed_quantity = (order.processed_quantity or 0) + qty_to_process
+                # Recompute remaining from source values to avoid drift
+                order.remaining_quantity = max(0, int(float(order.quantity or 0)) - int(float(order.processed_quantity or 0)))
+                if order.remaining_quantity <= 0:
+                    order.status = 'Completed'
+                else:
+                    order.status = 'Partially Fulfilled'
+
+            order.last_updated_by = request.user
+            order.save()
+
+            return JsonResponse({
+                'success': True,
+                'status': order.status,
+                'processed_quantity': float(order.processed_quantity or 0),
+                'remaining_quantity': float(order.remaining_quantity or 0),
+                'inventory_quantity': inventory_item.quantity,
+                'last_updated_by': getattr(request.user, 'username', None),
+            })
+
+    except MaterialOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 class MaterialTransportView(LoginRequiredMixin, PermissionRequiredMixin, View):
     permission_required = 'Inventory.view_materialtransport'
@@ -1535,3 +1740,270 @@ class MaterialTransportView(LoginRequiredMixin, PermissionRequiredMixin, View):
                 return redirect('transport_list')
             return render(request, 'Inventory/transport_form.html', {'form': form})
         return redirect('transport_list')  # Fallback
+
+class MaterialReceiptListView(LoginRequiredMixin, ListView):
+    template_name = 'Inventory/material_receipts.html'
+    context_object_name = 'orders'
+
+    def get_queryset(self):
+        try:
+            user = self.request.user
+            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
+                return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
+            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
+        except Exception:
+            return MaterialOrder.objects.filter(user=self.request.user, request_type='Receipt').order_by('-date_requested')
+
+class StaffProfileView(LoginRequiredMixin, View):
+    """
+    Comprehensive staff profile view showing detailed metrics and activities for a specific user.
+    Accessible only to superusers for management purposes.
+    """
+    
+    def get(self, request, username):
+        # Ensure only superusers can access staff profiles
+        if not request.user.is_superuser:
+            return redirect('dashboard')
+        
+        try:
+            # Get the target user
+            target_user = get_object_or_404(User, username=username)
+            
+            # Get or create the user's profile
+            try:
+                target_profile = target_user.profile
+            except Profile.DoesNotExist:
+                target_profile = Profile.objects.create(user=target_user)
+            
+            # Get date range for filtering (default to last 30 days)
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=30)
+            
+            # Material Orders Statistics
+            user_orders = MaterialOrder.objects.filter(user=target_user)
+            recent_orders = user_orders.filter(date_requested__date__gte=start_date)
+            
+            order_stats = {
+                'total_orders': user_orders.count(),
+                'recent_orders': recent_orders.count(),
+                'pending_orders': user_orders.filter(status='Pending').count(),
+                'completed_orders': user_orders.filter(status='Completed').count(),
+                'draft_orders': user_orders.filter(status='Draft').count(),
+                'partially_fulfilled': user_orders.filter(status='Partially Fulfilled').count(),
+            }
+            
+            # Request Type Breakdown
+            release_orders = user_orders.filter(request_type='Release').count()
+            receipt_orders = user_orders.filter(request_type='Receipt').count()
+            
+            # Recent Activity (Material Orders)
+            recent_material_orders = recent_orders.order_by('-date_requested')[:10]
+            
+            # Audit Log Activity
+            try:
+                from audit_log.models import AuditLog
+                user_audit_logs = AuditLog.objects.filter(user=target_user).order_by('-timestamp')[:20]
+                audit_stats = {
+                    'total_actions': AuditLog.objects.filter(user=target_user).count(),
+                    'recent_actions': AuditLog.objects.filter(
+                        user=target_user, 
+                        timestamp__date__gte=start_date
+                    ).count(),
+                }
+            except ImportError:
+                user_audit_logs = []
+                audit_stats = {'total_actions': 0, 'recent_actions': 0}
+            
+            # Performance Calculation (based on order completion rate)
+            if order_stats['total_orders'] > 0:
+                completion_rate = (order_stats['completed_orders'] / order_stats['total_orders']) * 100
+                if completion_rate >= 90:
+                    performance_grade = 'A'
+                    performance_color = 'success'
+                elif completion_rate >= 80:
+                    performance_grade = 'B'
+                    performance_color = 'info'
+                elif completion_rate >= 70:
+                    performance_grade = 'C'
+                    performance_color = 'warning'
+                else:
+                    performance_grade = 'D'
+                    performance_color = 'danger'
+            else:
+                completion_rate = 0
+                performance_grade = 'N/A'
+                performance_color = 'secondary'
+            
+            # User Groups/Roles
+            user_groups = target_user.groups.all()
+            
+            # Activity Timeline (combine orders and audit logs)
+            timeline_items = []
+            
+            # Add recent orders to timeline
+            for order in recent_material_orders:
+                timeline_items.append({
+                    'type': 'order',
+                    'timestamp': order.date_requested,
+                    'title': f'Material Order: {order.name}',
+                    'description': f'{order.get_request_type_display()} - {order.quantity} {order.unit}',
+                    'status': order.status,
+                    'icon': '📦' if order.request_type == 'Release' else '📥'
+                })
+            
+            # Add recent audit logs to timeline
+            for log in user_audit_logs[:10]:
+                timeline_items.append({
+                    'type': 'audit',
+                    'timestamp': log.timestamp,
+                    'title': f'{log.action}: {log.model_name}',
+                    'description': f'Object ID: {log.object_id}',
+                    'status': log.action,
+                    'icon': '📝'
+                })
+            
+            # Sort timeline by timestamp (most recent first)
+            timeline_items.sort(key=lambda x: x['timestamp'], reverse=True)
+            timeline_items = timeline_items[:15]  # Limit to 15 most recent items
+            
+            # Monthly Activity Chart Data (last 6 months)
+            monthly_data = []
+            for i in range(6):
+                month_start = (end_date.replace(day=1) - timedelta(days=i*30)).replace(day=1)
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                
+                month_orders = user_orders.filter(
+                    date_requested__date__gte=month_start,
+                    date_requested__date__lte=month_end
+                ).count()
+                
+                monthly_data.append({
+                    'month': month_start.strftime('%b %Y'),
+                    'orders': month_orders
+                })
+            
+            monthly_data.reverse()  # Show oldest to newest
+            
+            context = {
+                'target_user': target_user,
+                'target_profile': target_profile,
+                'user_groups': user_groups,
+                'order_stats': order_stats,
+                'release_orders': release_orders,
+                'receipt_orders': receipt_orders,
+                'audit_stats': audit_stats,
+                'completion_rate': completion_rate,
+                'performance_grade': performance_grade,
+                'performance_color': performance_color,
+                'recent_material_orders': recent_material_orders,
+                'user_audit_logs': user_audit_logs,
+                'timeline_items': timeline_items,
+                'monthly_data': monthly_data,
+                'date_range': f"{start_date.strftime('%B %d, %Y')} - {end_date.strftime('%B %d, %Y')}",
+                'start_date': start_date,
+                'end_date': end_date,
+            }
+            
+            return render(request, 'Inventory/staff_profile.html', context)
+            
+        except User.DoesNotExist:
+            messages.error(request, f'User "{username}" not found.')
+            return redirect('management_dashboard')
+        except Exception as e:
+            logger.error(f"Error loading staff profile for {username}: {e}", exc_info=True)
+            messages.error(request, 'An error occurred while loading the staff profile.')
+            return redirect('management_dashboard')
+
+
+class ConsultantDeliveriesView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """
+    View for consultants to see materials in transit to their project sites
+    """
+    model = MaterialTransport
+    template_name = 'Inventory/consultant_deliveries.html'
+    context_object_name = 'transports'
+    paginate_by = 20
+    
+    def test_func(self):
+        from .utils import is_consultant
+        return is_consultant(self.request.user)
+    
+    def get_queryset(self):
+        # Show transports that are in transit or delivered but not yet logged as received
+        return MaterialTransport.objects.filter(
+            status__in=['In Transit', 'Delivered']
+        ).exclude(
+            site_receipt__isnull=False  # Exclude those already logged
+        ).select_related('material_order', 'transporter').order_by('-created_at')
+
+
+class SiteReceiptCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    """
+    View for consultants to log site receipts
+    """
+    model = SiteReceipt
+    form_class = SiteReceiptForm
+    template_name = 'Inventory/site_receipt_form.html'
+    
+    def test_func(self):
+        from .utils import is_consultant
+        return is_consultant(self.request.user)
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        transport_id = self.kwargs.get('transport_id')
+        if transport_id:
+            try:
+                transport = MaterialTransport.objects.get(id=transport_id)
+                kwargs['transport'] = transport
+            except MaterialTransport.DoesNotExist:
+                pass
+        return kwargs
+    
+    def form_valid(self, form):
+        transport_id = self.kwargs.get('transport_id')
+        try:
+            transport = MaterialTransport.objects.get(id=transport_id)
+            form.instance.material_transport = transport
+            form.instance.received_by = self.request.user
+            messages.success(self.request, 'Site receipt logged successfully!')
+            return super().form_valid(form)
+        except MaterialTransport.DoesNotExist:
+            messages.error(self.request, 'Transport not found.')
+            return redirect('consultant_deliveries')
+    
+    def get_success_url(self):
+        return reverse_lazy('consultant_deliveries')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        transport_id = self.kwargs.get('transport_id')
+        if transport_id:
+            try:
+                context['transport'] = MaterialTransport.objects.get(id=transport_id)
+            except MaterialTransport.DoesNotExist:
+                pass
+        return context
+
+
+class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """
+    View for consultants to see their logged site receipts
+    """
+    model = SiteReceipt
+    template_name = 'Inventory/site_receipts.html'
+    context_object_name = 'receipts'
+    paginate_by = 20
+    
+    def test_func(self):
+        from .utils import is_consultant, is_management
+        return is_consultant(self.request.user) or is_management(self.request.user)
+    
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return SiteReceipt.objects.all().select_related('material_transport', 'received_by').order_by('-received_date')
+        else:
+            # Consultants see only their own receipts
+            return SiteReceipt.objects.filter(
+                received_by=self.request.user
+            ).select_related('material_transport', 'received_by').order_by('-received_date')

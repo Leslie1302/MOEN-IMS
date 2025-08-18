@@ -1,0 +1,491 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
+  <div class="bg-light py-2 sticky-top">
+    <h2 class="text-center fw-bold text-primary mb-0">📋 Receipt Table</h2>
+    <p class="text-muted text-center mb-0">Manage receipt statuses and filter records</p>
+  </div>
+
+  <div class="container mt-3">
+    <div class="d-flex justify-content-between mb-2">
+      <a href="{% url 'material_receipt' %}" class="btn btn-outline-secondary">➕ New Receipt</a>
+      <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
+    </div>
+
+    <div class="table-responsive">
+      <div class="table-wrapper">
+        <table class="table table-hover table-striped enhanced-table w-100" id="material-receipts-table">
+          <thead class="sticky-top bg-light">
+            <tr>
+              <th scope="col" class="text-wrap">
+                User <span class="filter-arrow" data-column="0">▼</span>
+                <div class="dropdown-menu" id="filter-0" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Material <span class="filter-arrow" data-column="1">▼</span>
+                <div class="dropdown-menu" id="filter-1" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Quantity <span class="filter-arrow" data-column="2">▼</span>
+                <div class="dropdown-menu" id="filter-2" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Processed <span class="filter-arrow" data-column="3">▼</span>
+                <div class="dropdown-menu" id="filter-3" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Remaining <span class="filter-arrow" data-column="4">▼</span>
+                <div class="dropdown-menu" id="filter-4" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Region <span class="filter-arrow" data-column="5">▼</span>
+                <div class="dropdown-menu" id="filter-5" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                District <span class="filter-arrow" data-column="6">▼</span>
+                <div class="dropdown-menu" id="filter-6" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Community <span class="filter-arrow" data-column="7">▼</span>
+                <div class="dropdown-menu" id="filter-7" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Consultant <span class="filter-arrow" data-column="8">▼</span>
+                <div class="dropdown-menu" id="filter-8" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Contractor <span class="filter-arrow" data-column="9">▼</span>
+                <div class="dropdown-menu" id="filter-9" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Package <span class="filter-arrow" data-column="10">▼</span>
+                <div class="dropdown-menu" id="filter-10" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Type <span class="filter-arrow" data-column="11">▼</span>
+                <div class="dropdown-menu" id="filter-11" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Status <span class="filter-arrow" data-column="12">▼</span>
+                <div class="dropdown-menu" id="filter-12" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Date <span class="filter-arrow" data-column="13">▼</span>
+                <div class="dropdown-menu" id="filter-13" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">
+                Last Updated By <span class="filter-arrow" data-column="14">▼</span>
+                <div class="dropdown-menu" id="filter-14" style="display: none;"></div>
+              </th>
+              <th scope="col" class="text-wrap">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in orders %}
+              <tr id="order-{{ order.id }}">
+                <td>{{ order.user.username }}</td>
+                <td>{{ order.name }}</td>
+                <td>{{ order.quantity }}</td>
+                <td id="processed-{{ order.id }}">{{ order.processed_quantity }}</td>
+                <td id="remaining-{{ order.id }}">{{ order.remaining_quantity }}</td>
+                <td>{{ order.region|default:"N/A" }}</td>
+                <td>{{ order.district|default:"N/A" }}</td>
+                <td>{{ order.community|default:"N/A" }}</td>
+                <td>{{ order.consultant|default:"N/A" }}</td>
+                <td>{{ order.contractor|default:"N/A" }}</td>
+                <td>{{ order.package_number|default:"N/A" }}</td>
+                <td>{{ order.request_type }}</td>
+                <td id="status-{{ order.id }}">
+                  {% if order.status == "Pending" %}⏳ Pending
+                  {% elif order.status == "Seen" %}👀 Seen
+                  {% elif order.status == "Approved" %}🔄 Approved
+                  {% elif order.status == "Completed" %}✅ Completed
+                  {% elif order.status == "Draft" %}📝 Draft
+                  {% else %}🔄 {{ order.status }}{% endif %}
+                </td>
+                <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
+                <td id="last-updated-by-{{ order.id }}">{{ order.last_updated_by.username|default:"N/A" }}</td>
+                <td>
+                  <div class="btn-group" role="group">
+                    <button id="seen-btn-{{ order.id }}" class="btn btn-secondary btn-sm seen-btn action-btn" data-order-id="{{ order.id }}"
+                            {% if order.status != 'Pending' and order.status != 'Draft' %}disabled{% endif %}>👀 Seen</button>
+                    <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn action-btn" data-order-id="{{ order.id }}"
+                             {% if (order.status != 'Seen' and order.status != 'Approved') or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>➗ Partial</button>
+                    <button id="complete-btn-{{ order.id }}" class="btn btn-success btn-sm complete-btn action-btn" data-order-id="{{ order.id }}"
+                             {% if (order.status != 'Seen' and order.status != 'Approved') or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>✅ Completed</button>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="16" class="text-muted text-center">No material receipts found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<script>
+// Utilities
+function getCSRFToken() {
+  const el = document.querySelector('meta[name="csrf-token"]');
+  return el ? el.getAttribute('content') : null;
+}
+
+// Status updates
+function updateReceiptStatus(orderId, newStatus, payload = {}) {
+  const statusCell = document.getElementById(`status-${orderId}`);
+  const lastUpdatedByCell = document.getElementById(`last-updated-by-${orderId}`);
+  const processedCell = document.getElementById(`processed-${orderId}`);
+  const remainingCell = document.getElementById(`remaining-${orderId}`);
+  const seenBtn = document.getElementById(`seen-btn-${orderId}`);
+  const partialBtn = document.getElementById(`partial-btn-${orderId}`);
+  const completeBtn = document.getElementById(`complete-btn-${orderId}`);
+
+  // For partial status, prompt for quantity
+  if (newStatus === 'Partial') {
+    const remainingQty = parseInt(remainingCell.innerText) || 0;
+    if (remainingQty <= 0) {
+      alert('No remaining quantity to process');
+      return;
+    }
+    
+    const qty = prompt(`Enter quantity to process (max: ${remainingQty}):`, remainingQty);
+    if (qty === null) return; // User cancelled
+    
+    const qtyNum = parseInt(qty);
+    if (isNaN(qtyNum) || qtyNum <= 0 || qtyNum > remainingQty) {
+      alert(`Please enter a valid quantity between 1 and ${remainingQty}`);
+      return;
+    }
+    
+    payload.quantity = qtyNum;
+  }
+
+  const csrfToken = getCSRFToken();
+  if (!csrfToken) {
+    alert("CSRF token not found. Please refresh the page.");
+    return;
+  }
+
+  // Disable all buttons during processing
+  seenBtn.disabled = true;
+  partialBtn.disabled = true;
+  completeBtn.disabled = true;
+
+  fetch(`/update_material_receipt/${orderId}/${newStatus}/`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json', 
+      'X-CSRFToken': csrfToken, 
+      'X-Requested-With': 'XMLHttpRequest' 
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || r.statusText); }))
+  .then(data => {
+    if (!data.success) throw new Error(data.error || 'Update failed');
+
+    // Update status cell with appropriate emoji
+    const statusText = {
+      'Approved': '🔄 Approved',
+      'Seen': '👀 Seen',
+      'Partial': '↩️ Partially Processed',
+      'Completed': '✅ Completed',
+      'Draft': '📝 Draft',
+      'Pending': '⏳ Pending'
+    };
+    
+    // Ensure we have a valid status, default to 'Draft' if undefined
+    const displayStatus = data.status || 'Draft';
+    statusCell.innerText = statusText[displayStatus] || `🔄 ${displayStatus}`;
+
+    // Update quantities if provided
+    if (typeof data.processed_quantity !== 'undefined') {
+      processedCell.innerText = data.processed_quantity;
+    }
+    if (typeof data.remaining_quantity !== 'undefined') {
+      remainingCell.innerText = data.remaining_quantity;
+    }
+
+    // Update last updated by if provided
+    if (data.last_updated_by) {
+      lastUpdatedByCell.innerText = data.last_updated_by;
+    }
+
+    // Update button states based on the new status and remaining quantity
+    updateButtonStates(orderId, displayStatus, data.remaining_quantity || 0);
+  })
+  .catch(err => {
+    console.error('Error:', err);
+    alert(`Error: ${err.message}`);
+    // Re-enable buttons on error
+    const currentStatus = statusCell.textContent.trim().replace(/^[^\w]+|\s+\w+$/g, '');
+    updateButtonStates(orderId, currentStatus, parseInt(remainingCell.textContent) || 0);
+  });
+}
+
+function updateButtonStates(orderId, status, remainingQty) {
+  const seenBtn = document.getElementById(`seen-btn-${orderId}`);
+  const partialBtn = document.getElementById(`partial-btn-${orderId}`);
+  const completeBtn = document.getElementById(`complete-btn-${orderId}`);
+  
+  // Reset all buttons to default state
+  seenBtn.disabled = false;
+  partialBtn.disabled = false;
+  completeBtn.disabled = false;
+  
+  // Get the current remaining quantity from the DOM in case it wasn't passed
+  const remainingQtyElement = document.getElementById(`remaining-${orderId}`);
+  const currentRemainingQty = remainingQty !== undefined ? remainingQty : 
+    (remainingQtyElement ? parseInt(remainingQtyElement.textContent) || 0 : 0);
+  
+  // Update button states based on status and remaining quantity
+  switch(status) {
+    case 'Pending':
+    case 'Draft':
+      // Only enable seen button
+      partialBtn.disabled = true;
+      completeBtn.disabled = true;
+      break;
+      
+    case 'Seen':
+    case 'Approved':
+      // Enable partial and complete if there's remaining quantity
+      partialBtn.disabled = currentRemainingQty <= 0;
+      completeBtn.disabled = currentRemainingQty <= 0;
+      break;
+      
+    case 'Completed':
+      // Disable all buttons when completed
+      seenBtn.disabled = true;
+      partialBtn.disabled = true;
+      completeBtn.disabled = true;
+      break;
+      
+    default:
+      // For any other status, ensure buttons are enabled based on remaining quantity
+      partialBtn.disabled = currentRemainingQty <= 0;
+      completeBtn.disabled = currentRemainingQty <= 0;
+  }
+  
+  // Special case: If there's no remaining quantity, disable partial/complete
+  if (currentRemainingQty <= 0) {
+    partialBtn.disabled = true;
+    completeBtn.disabled = true;
+  }
+}
+
+// Initialize button states on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Helper function to initialize buttons for a specific row
+  function initRowButtons(row) {
+    const orderId = row.id.replace('order-', '');
+    const statusCell = document.getElementById(`status-${orderId}`);
+    const remainingQty = parseInt(document.getElementById(`remaining-${orderId}`)?.textContent) || 0;
+    
+    if (!statusCell) return;
+    
+    // Get the status text and clean it up (remove emoji and extra spaces)
+    const statusText = statusCell.textContent.trim();
+    const status = statusText.replace(/^[^\w]+|\s+\w+$/g, '');
+    
+    updateButtonStates(orderId, status, remainingQty);
+    
+    // Add click handlers for each button
+    const seenBtn = document.getElementById(`seen-btn-${orderId}`);
+    const partialBtn = document.getElementById(`partial-btn-${orderId}`);
+    const completeBtn = document.getElementById(`complete-btn-${orderId}`);
+    
+    if (seenBtn) {
+      seenBtn.onclick = function() {
+        updateReceiptStatus(orderId, 'Seen');
+      };
+    }
+    
+    if (partialBtn) {
+      partialBtn.onclick = function() {
+        updateReceiptStatus(orderId, 'Partial');
+      };
+    }
+    
+    if (completeBtn) {
+      completeBtn.onclick = function() {
+        updateReceiptStatus(orderId, 'Full');
+      };
+    }
+  }
+  
+  // Initialize all rows
+  document.querySelectorAll('tr[id^="order-"]').forEach(initRowButtons);
+  
+  // Set up a mutation observer to handle dynamically added rows
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1 && node.matches('tr[id^="order-"]')) {
+          initRowButtons(node);
+        }
+      });
+    });
+  });
+  
+  // Start observing the document with the configured parameters
+  observer.observe(document.body, { childList: true, subtree: true });
+});
+
+// Filtering
+const table = document.getElementById('material-receipts-table');
+const headers = table.querySelectorAll('.filter-arrow');
+const filters = {};
+const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
+
+function populateDropdowns() {
+  headers.forEach(header => {
+    const colIndex = parseInt(header.getAttribute('data-column'));
+    const dropdown = document.getElementById(`filter-${colIndex}`);
+    const values = new Set();
+    const rows = table.querySelector('tbody').getElementsByTagName('tr');
+
+    for (let row of rows) {
+      if (row.style.display !== 'none') {
+        const cells = row.getElementsByTagName('td');
+        if (cells[colIndex]) values.add(cells[colIndex].textContent.trim() || 'N/A');
+      }
+    }
+    const currentSelections = filters[colIndex] || [];
+    dropdown.innerHTML = '';
+
+    const selectAll = document.createElement('div');
+    selectAll.className = 'dropdown-item';
+    selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
+    dropdown.appendChild(selectAll);
+
+    values.forEach(value => {
+      const item = document.createElement('div');
+      item.className = 'dropdown-item';
+      const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
+      item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
+      dropdown.appendChild(item);
+    });
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      updateFilters(colIndex);
+      filterTable();
+      populateDropdowns();
+      dropdown.style.display = 'none';
+    });
+    dropdown.appendChild(confirmBtn);
+
+    selectAll.querySelector('input').addEventListener('change', function(e) {
+      e.stopPropagation();
+      const isChecked = this.checked;
+      dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
+    });
+  });
+}
+
+function updateFilters(colIndex) {
+  const dropdown = document.getElementById(`filter-${colIndex}`);
+  filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
+}
+
+function filterTable() {
+  const rows = table.querySelector('tbody').getElementsByTagName('tr');
+  for (let row of rows) {
+    let show = true;
+    const cells = row.getElementsByTagName('td');
+    for (let col in filters) {
+      const colIdx = parseInt(col);
+      const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
+      if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
+        show = false; break;
+      }
+    }
+    row.style.display = show ? '' : 'none';
+  }
+}
+
+headers.forEach(header => {
+  const colIndex = parseInt(header.getAttribute('data-column'));
+  const dropdown = document.getElementById(`filter-${colIndex}`);
+  header.onclick = function(e) {
+    e.stopPropagation();
+    if (dropdown.style.display === 'block') dropdown.style.display = 'none';
+    else {
+      document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+      dropdown.style.display = 'block';
+    }
+  };
+  dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+});
+
+document.addEventListener('click', function(e) {
+  if (!e.target.classList.contains('filter-arrow')) {
+    document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+  }
+});
+
+populateDropdowns();
+headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
+filterTable();
+</script>
+
+<style>
+  .container-fluid { padding: 0; }
+  .table-responsive {
+    overflow-x: auto; /* horizontal when needed */
+    overflow-y: auto; /* vertical scrolling */
+    max-height: calc(100vh - 140px); /* match orders page */
+    width: 100%;
+    margin: 0;
+    padding: 0 30px; /* match side padding */
+  }
+  .table-wrapper { min-width: 1600px; width: 100%; }
+
+  #material-receipts-table {
+    width: 100% !important;
+    min-width: 100%;
+    table-layout: fixed; /* consistent with orders */
+  }
+
+  #material-receipts-table th, #material-receipts-table td {
+    font-size: 0.95rem;
+    padding: 0.5rem 0.75rem;
+    white-space: normal; /* allow wrap */
+    word-wrap: break-word;
+    overflow: visible;
+    vertical-align: middle;
+  }
+
+  /* Header styling to match orders */
+  #material-receipts-table thead th {
+    background-color: #2c3e50 !important; /* dark blue */
+    color: #ffffff !important; /* white text */
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+    padding: 0.75rem;
+    border: 1px solid #1a252f;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+  }
+
+  #material-receipts-table .text-wrap { white-space: normal !important; }
+  #material-receipts-table .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+  .dropdown-menu { max-height: 300px; overflow-y: auto; padding: .5rem; display: none; position: absolute; background: white; border: 1px solid #ddd; }
+  .filter-arrow { cursor: pointer; font-size: 0.85rem; margin-left: .35rem; }
+</style>
+{% endblock %}

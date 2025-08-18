@@ -1,0 +1,17 @@
+{% if order.status == "Pending" %}
+    <span class="badge bg-warning text-dark">⏳ Pending</span>
+{% elif order.status == "Seen" %}
+    <span class="badge bg-info text-dark">👀 Seen</span>
+{% elif order.status == "Approved" %}
+    <span class="badge bg-success">✅ Approved</span>
+{% elif order.status == "Rejected" %}
+    <span class="badge bg-danger">❌ Rejected</span>
+{% elif order.status == "Processing" %}
+    <span class="badge bg-primary">🚚 Processing</span>
+{% elif order.status == "Dispatched" %}
+    <span class="badge bg-secondary">✈️ Dispatched</span>
+{% elif order.status == "Completed" %}
+    <span class="badge bg-dark">✔️ Completed</span>
+{% else %}
+    <span class="badge bg-light text-dark">{{ order.status }}</span>
+{% endif %}

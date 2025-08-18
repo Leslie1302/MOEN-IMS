@@ -1,286 +1,383 @@
 {% extends 'Inventory/base.html' %}
-{% load static humanize %}
+{% load humanize %}
 
 {% block title %}Material Orders - Inventory Manager{% endblock %}
 
 {% block full_width_content %}
-<!-- Adjust for fixed navbar with padding-top -->
-<div class="w-100" style="padding-top: 60px; min-height: calc(100vh - 60px);">
-    <div class="bg-light py-2 sticky-top">
-        <h2 class="text-center fw-bold text-primary mb-0">📦 Material Requests</h2>
-        <p class="text-muted text-center mb-0">Track the status of material requests</p>
-    </div>
-
-    {% if messages %}
-        <div class="row justify-content-center">
+{% csrf_token %}
+{% if messages %}
+    <div class="container-fluid">
+        <div class="row mt-3">
             {% for message in messages %}
-                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }}">{{ message }}</div>
             {% endfor %}
         </div>
-    {% endif %}
+    </div>
+{% endif %}
+
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">📦 Material Orders</h1>
+            <p class="text-muted">Manage and fulfill material requests</p>
+        </div>
+    </div>
 
     {% if orders %}
-        <div class="table-responsive">
-            <table class="table table-hover table-striped enhanced-table" id="material-orders-table">
-                <thead>
-                    <tr>
-                        <th scope="col" data-sort>Request #</th>
-                        <th scope="col" data-sort>User</th>
-                        <th scope="col" data-sort>Material</th>
-                        <th scope="col" data-sort data-type="number">Qty</th>
-                        <th scope="col" data-sort data-type="number">Proc</th>
-                        <th scope="col" data-sort data-type="number">Rem</th>
-                        <th scope="col" data-sort>Region</th>
-                        <th scope="col" data-sort>District</th>
-                        <th scope="col" data-sort>Community</th>
-                        <th scope="col" data-sort>Consultant</th>
-                        <th scope="col" data-sort>Contractor</th>
-                        <th scope="col" data-sort>Pkg</th>
-                        <th scope="col" data-sort>Type</th>
-                        <th scope="col" data-sort>Status</th>
-                        <th scope="col" data-sort>Date</th>
-                        <th scope="col" data-sort>Last By</th>
-                        {% if user.is_superuser %}
-                        <th scope="col">Actions</th>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped enhanced-table" id="material-orders-table">
+            <thead class="table-dark">
+                <tr>
+                    <th>Request #</th>
+                    <th>User</th>
+                    <th>Material</th>
+                    <th>Type</th>
+                    <th>Requested</th>
+                    <th>Processed</th>
+                    <th>Remaining</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Release Letter</th>
+                    {% if user.is_superuser %}
+                    <th class="text-center">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr data-order-id="{{ order.id }}" data-request-type="{{ order.request_type }}">
+                    <td class="fw-bold">{{ order.request_code|default:"N/A" }}</td>
+                    <td>{{ order.user.username }}</td>
+                    <td>{{ order.name }}</td>
+                    <td>
+                        {% if order.request_type == "Release" %}
+                            <span class="badge bg-danger">📤 Release</span>
+                        {% else %}
+                            <span class="badge bg-success">📥 Receipt</span>
                         {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for order in orders %}
-                        <tr id="order-{{ order.id }}">
-                            <td>{{ order.request_code|default:"N/A" }}</td>
-                            <td>{{ order.user.username }}</td>
-                            <td>{{ order.name }}</td>
-                            <td data-sort-value="{{ order.quantity|default:0 }}">{{ order.quantity|default:0|intcomma }}</td>
-                            <td id="processed-{{ order.id }}" data-sort-value="{{ order.processed_quantity|default:0 }}">
-                                {{ order.processed_quantity|default:0|intcomma }}
-                            </td>
-                            <td id="remaining-{{ order.id }}" data-sort-value="{{ order.remaining_quantity|default:0 }}">
-                                {{ order.remaining_quantity|default:0|intcomma }}
-                            </td>
-                            <td>{{ order.region|default:"N/A" }}</td>
-                            <td>{{ order.district|default:"N/A" }}</td>
-                            <td>{{ order.community|default:"N/A" }}</td>
-                            <td>{{ order.consultant|default:"N/A" }}</td>
-                            <td>{{ order.contractor|default:"N/A" }}</td>
-                            <td>{{ order.package_number|default:"N/A" }}</td>
-                            <td>{{ order.request_type }}</td>
-                            <td id="status-{{ order.id }}" data-sort-value="{{ order.status }}">
-                                {% if order.status == "Pending" %}⏳ Pending
-                                {% elif order.status == "Seen" %}👀 Seen
-                                {% elif order.status == "Approved" %}🔄 Approved
-                                {% elif order.status == "Completed" %}✅ Completed
-                                {% else %}🔄 {{ order.status }}{% endif %}
-                            </td>
-                            <td data-sort-value="{{ order.date_requested|date:'U' }}">
-                                {{ order.date_requested|date:"Y-m-d H:i" }}
-                            </td>
-                            <td id="last-updated-by-{{ order.id }}">
-                                {{ order.last_updated_by.username|default:"N/A" }}
-                            </td>
-                            {% if user.is_superuser %}
-                            <td>
-                                <div class="btn-group" role="group">
-                                    <button id="seen-btn-{{ order.id }}" class="btn btn-warning btn-sm seen-btn" data-order-id="{{ order.id }}"
-                                        {% if order.status != 'Pending' and order.status != 'Approved' %}disabled{% endif %}>👀</button>
-                                    <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn" data-order-id="{{ order.id }}"
-                                        {% if order.status != 'Seen' %}disabled{% endif %}>📏</button>
-                                    <button id="full-btn-{{ order.id }}" class="btn btn-success btn-sm full-btn" data-order-id="{{ order.id }}"
-                                        {% if order.status != 'Seen' %}disabled{% endif %}>✅</button>
-                                </div>
-                                <div id="partial-form-{{ order.id }}" class="mt-1 d-none">
-                                    <input type="number" id="partial-input-{{ order.id }}" class="form-control form-control-sm d-inline-block" min="1" max="{{ order.remaining_quantity }}"
-                                    value="1" style="width: 60px;" placeholder="Qty">
-                                <button id="submit-partial-{{ order.id }}" class="btn btn-primary btn-sm submit-partial-btn" data-order-id="{{ order.id }}">✔️</button>
-                                </div>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% if not forloop.last %}
-                        <tr class="spacer"><td colspan="{% if user.is_superuser %}17{% else %}16{% endif %}"></td></tr>
+                    </td>
+                    <td>{{ order.quantity|floatformat:0|intcomma }}</td>
+                    <td class="processed-qty">{{ order.processed_quantity|floatformat:0|intcomma }}</td>
+                    <td class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
+                    <td class="status-cell">
+                        {% if order.status == "Pending" %}
+                            <span class="badge bg-warning text-dark">⏳ Pending</span>
+                        {% elif order.status == "Seen" %}
+                            <span class="badge bg-info">👀 In Progress</span>
+                        {% elif order.status == "Approved" %}
+                            <span class="badge bg-success">✅ Approved</span>
+                        {% elif order.status == "Partial" %}
+                            <span class="badge bg-primary">📏 Partial</span>
+                        {% elif order.status == "Completed" %}
+                            <span class="badge bg-success">✅ Completed</span>
+                        {% elif order.status == "Draft" %}
+                            <span class="badge bg-secondary">📝 Draft</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ order.status }}</span>
                         {% endif %}
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="{% if user.is_superuser %}17{% else %}16{% endif %}" class="text-center">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <button class="btn btn-sm btn-outline-secondary me-2" id="first-page">First</button>
-                                    <button class="btn btn-sm btn-outline-secondary me-2" id="prev-page">Previous</button>
-                                    <span id="page-info">Page 1 of 1</span>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2" id="next-page">Next</button>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2" id="last-page">Last</button>
-                                </div>
-                                <div>
-                                    <span class="me-2">Rows per page:</span>
-                                    <select id="rows-per-page" class="form-select form-select-sm d-inline-block" style="width: auto;">
-                                        <option value="10">10</option>
-                                        <option value="25" selected>25</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                        <option value="0">All</option>
-                                    </select>
-                                </div>
+                    </td>
+                    <td>{{ order.date_requested|date:"M d, Y" }}</td>
+                    <td>
+                        {% if order.release_letter %}
+                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
+                                <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"View PDF" }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    {% if user.is_superuser %}
+                    <td class="text-center">
+                        {% if order.remaining_quantity > 0 and order.status != "Completed" %}
+                            <div class="d-flex gap-2 align-items-center justify-content-center">
+                                <input type="number" 
+                                       class="form-control form-control-sm fulfill-qty-input" 
+                                       style="width: 80px;" 
+                                       min="1" 
+                                       max="{{ order.remaining_quantity }}" 
+                                       placeholder="Qty"
+                                       title="Enter quantity to fulfill">
+                                <button class="btn btn-primary btn-sm process-btn" 
+                                        data-order-id="{{ order.id }}"
+                                        title="Process partial fulfillment">
+                                    Process
+                                </button>
+                                <button class="btn btn-success btn-sm complete-btn" 
+                                        data-order-id="{{ order.id }}"
+                                        data-remaining="{{ order.remaining_quantity }}"
+                                        title="Complete full fulfillment">
+                                    Complete
+                                </button>
                             </div>
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-            
-            <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light">
-                <a href="{% url 'request_material' %}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Request New Material
-                </a>
-                <div class="btn-group">
-                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-download"></i> Export
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item export-btn" data-type="csv"><i class="bi bi-filetype-csv"></i> Export as CSV</a></li>
-                        <li><a class="dropdown-item export-btn" data-type="excel"><i class="bi bi-file-earmark-excel"></i> Export as Excel</a></li>
-                        <li><a class="dropdown-item export-btn" data-type="pdf"><i class="bi bi-file-earmark-pdf"></i> Export as PDF</a></li>
-                        <li><a class="dropdown-item export-btn" data-type="print"><i class="bi bi-printer"></i> Print Table</a></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
+                        {% else %}
+                            <span class="text-success">
+                                <i class="fas fa-check-circle"></i> Fulfilled
+                            </span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-        <div class="alert alert-info mt-3">
-            <i class="bi bi-info-circle"></i> No material orders found.
+    <div class="text-center py-5">
+        <div class="mb-3">
+            <i class="fas fa-inbox fa-3x text-muted"></i>
         </div>
+        <h4 class="text-muted">No Material Orders Found</h4>
+        <p class="text-muted">There are currently no material orders to display.</p>
+    </div>
     {% endif %}
 </div>
 
-<!-- Include the table utilities -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Existing event listeners for the material orders functionality
-        document.querySelectorAll('.seen-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-order-id');
-                updateStatus(orderId, 'Seen');
-            });
-        });
-
-        document.querySelectorAll('.partial-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-order-id');
-                togglePartialInput(orderId);
-            });
-        });
-
-        document.querySelectorAll('.full-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-order-id');
-                if (confirm('Mark this order as fully processed?')) {
-                    updateStatus(orderId, 'Completed');
-                }
-            });
-        });
-
-        document.querySelectorAll('.submit-partial-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-order-id');
-                const quantity = parseInt(document.getElementById(`partial-input-${orderId}`).value);
-                const maxQuantity = parseInt(document.getElementById(`partial-input-${orderId}`).max);
-                
-                if (isNaN(quantity) || quantity <= 0) {
-                    alert('Please enter a valid quantity');
-                    return;
-                }
-                
-                if (quantity > maxQuantity) {
-                    alert(`Quantity cannot exceed ${maxQuantity}`);
-                    return;
-                }
-                
-                updateStatus(orderId, 'Partial', quantity);
-            });
-        });
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Material orders page loaded');
+    
+    // Get CSRF token
+    function getCSRFToken() {
+        const tokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const tokenCookie = getCookie('csrftoken');
         
-        // Initialize tooltips
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
+        const token = tokenInput?.value || tokenMeta?.getAttribute('content') || tokenCookie;
+        console.log('CSRF token found:', token ? 'Yes' : 'No');
+        return token;
+    }
+    
+    // Helper function to get cookie value
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Process partial fulfillment
+    const processButtons = document.querySelectorAll('.process-btn');
+    console.log('Found process buttons:', processButtons.length);
+    
+    processButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Process button clicked');
+            
+            const orderId = this.getAttribute('data-order-id');
+            const row = this.closest('tr');
+            const qtyInput = row.querySelector('.fulfill-qty-input');
+            const quantity = parseFloat(qtyInput.value);
+            const maxQty = parseFloat(qtyInput.getAttribute('max'));
+            
+            console.log('Process button data:', { orderId, quantity, maxQty });
+            
+            if (!quantity || quantity <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+            
+            if (quantity > maxQty) {
+                alert(`Quantity cannot exceed ${maxQty.toLocaleString()}`);
+                return;
+            }
+            
+            processFulfillment(orderId, quantity, false, row);
         });
     });
+    
+    // Complete full fulfillment
+    const completeButtons = document.querySelectorAll('.complete-btn');
+    console.log('Found complete buttons:', completeButtons.length);
+    
+    completeButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Complete button clicked');
+            
+            const orderId = this.getAttribute('data-order-id');
+            const quantity = parseFloat(this.getAttribute('data-remaining'));
+            const row = this.closest('tr');
+            
+            console.log('Complete button data:', { orderId, quantity });
+            
+            if (confirm(`Complete fulfillment of ${quantity.toLocaleString()} units?`)) {
+                processFulfillment(orderId, quantity, true, row);
+            }
+        });
+    });
+    
+    function processFulfillment(orderId, quantity, isComplete, row) {
+        console.log('Starting processFulfillment:', { orderId, quantity, isComplete });
+        
+        const buttons = row.querySelectorAll('button, input');
+        buttons.forEach(btn => btn.disabled = true);
+        
+        const csrfToken = getCSRFToken();
+        if (!csrfToken) {
+            alert('CSRF token not found. Please refresh the page.');
+            buttons.forEach(btn => btn.disabled = false);
+            return;
+        }
+        
+        const requestType = row.getAttribute('data-request-type');
+        const statusText = row.querySelector('.status-cell').textContent.trim();
+        
+        console.log('Processing fulfillment:', {
+            orderId,
+            quantity,
+            isComplete,
+            requestType,
+            statusText
+        });
+        
+        // Determine if we need to update status first
+        const needsStatusUpdate = statusText.includes('Pending') || statusText.includes('Draft');
+        const targetStatus = requestType === 'Release' ? 'Approved' : 'Seen';
+        
+        if (needsStatusUpdate) {
+            console.log('Need status update first:', targetStatus);
+            // First update status, then process fulfillment
+            updateOrderStatus(orderId, targetStatus, csrfToken)
+                .then(() => {
+                    return fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType);
+                })
+                .then(data => {
+                    updateUI(row, data);
+                    alert(`Successfully processed ${quantity.toLocaleString()} units.`);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error processing fulfillment: ' + error.message);
+                })
+                .finally(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                });
+        } else {
+            console.log('Processing fulfillment directly');
+            // Process fulfillment directly
+            fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType)
+                .then(data => {
+                    updateUI(row, data);
+                    alert(`Successfully processed ${quantity.toLocaleString()} units.`);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error processing fulfillment: ' + error.message);
+                })
+                .finally(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                });
+        }
+    }
+    
+    function updateOrderStatus(orderId, status, csrfToken) {
+        console.log('Updating order status:', { orderId, status });
+        
+        return fetch(`/update_material_status/${orderId}/${status}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            console.log('Status update response:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Status update error response:', text);
+                    throw new Error(`Status update failed: ${response.status} - ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Status update response data:', data);
+            if (!data.success) {
+                throw new Error(data.error || 'Status update failed');
+            }
+            return data;
+        });
+    }
+    
+    function fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType) {
+        const endpoint = isComplete ? 'Full' : 'Partially Fulfilled';
+        const body = isComplete ? {} : { partial_quantity: quantity };
+        
+        // Use different URL based on request type
+        const baseUrl = requestType === 'Receipt' ? '/update_material_receipt' : '/update_material_status';
+        
+        console.log('Fulfilling order:', { orderId, endpoint, baseUrl, body });
+        
+        return fetch(`${baseUrl}/${orderId}/${endpoint}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(body)
+        })
+        .then(response => {
+            console.log('Fulfillment response:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Fulfillment error response:', text);
+                    throw new Error(`Fulfillment failed: ${response.status} - ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Fulfillment response data:', data);
+            if (!data.success) {
+                throw new Error(data.error || 'Fulfillment failed');
+            }
+            return data;
+        });
+    }
+    
+    function updateUI(row, data) {
+        console.log('Updating UI with data:', data);
+        
+        // Update quantities
+        row.querySelector('.processed-qty').textContent = parseFloat(data.processed_quantity || 0).toLocaleString();
+        row.querySelector('.remaining-qty').textContent = parseFloat(data.remaining_quantity || 0).toLocaleString();
+        
+        // Update status
+        const statusCell = row.querySelector('.status-cell');
+        const remainingQty = parseFloat(data.remaining_quantity || 0);
+        
+        if (remainingQty <= 0) {
+            statusCell.innerHTML = '<span class="badge bg-success">✅ Completed</span>';
+            // Replace action buttons with fulfilled message
+            const actionCell = row.querySelector('td:last-child');
+            actionCell.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Fulfilled</span>';
+        } else {
+            statusCell.innerHTML = '<span class="badge bg-primary">📏 Partial</span>';
+            // Update input max value
+            const qtyInput = row.querySelector('.fulfill-qty-input');
+            if (qtyInput) {
+                qtyInput.setAttribute('max', remainingQty);
+                qtyInput.value = '';
+            }
+            // Update complete button
+            const completeBtn = row.querySelector('.complete-btn');
+            if (completeBtn) {
+                completeBtn.setAttribute('data-remaining', remainingQty);
+            }
+        }
+    }
+});
 </script>
-
-<style>
-    .container-fluid {
-        padding: 0;
-    }
-    .table-responsive {
-        overflow-x: auto; /* Allow horizontal scrolling only if needed */
-        overflow-y: auto; /* Vertical scrolling for height */
-        max-height: calc(100vh - 140px); /* Adjust for navbar, header, and footer */
-        width: 100%;
-        margin: 0;
-        padding: 0 30px;
-    }
-    
-    .table-wrapper {
-        min-width: 1600px; /* Increased minimum width */
-        width: 100%;
-    }
-    #material-orders-table {
-        width: 100% !important;
-        min-width: 100%;
-        table-layout: auto; /* Allow columns to adjust based on content */
-    }
-    #material-orders-table {
-        table-layout: fixed;
-        width: 100% !important;
-    }
-
-    #material-orders-table th, #material-orders-table td {
-        font-size: 0.95rem;
-        padding: 0.5rem 0.75rem;
-        white-space: normal; /* Allow text wrapping */
-        word-wrap: break-word;
-        overflow: visible;
-        vertical-align: middle;
-    }
-    
-    /* Specific style for request code column */
-    #material-orders-table td:first-child {
-        white-space: normal;
-        word-break: break-word;
-        min-width: 180px;
-    }
-    
-    /* Ensure buttons stay on one line */
-    #material-orders-table .btn-group {
-        white-space: nowrap;
-        display: inline-flex;
-    }
-    #material-orders-table thead th {
-        background-color: #2c3e50 !important; /* Dark blue background */
-        color: #ffffff !important; /* White text */
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        white-space: nowrap;
-        padding: 0.75rem;
-        border: 1px solid #1a252f;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        letter-spacing: 0.5px;
-    }
-    .table tbody tr:hover {
-        background-color: rgba(0, 0, 0, 0.03);
-    }
-    #material-orders-table .form-control-sm {
-        padding: 0.15rem 0.35rem;
-        font-size: 0.8rem;
-    }
-    .fixed-bottom {
-        z-index: 1000;
-    }
-</style>
 {% endblock %}

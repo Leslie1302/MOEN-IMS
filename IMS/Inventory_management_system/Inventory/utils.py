@@ -29,3 +29,10 @@ def is_management(user):
     A user is considered management if they are in the 'Management' group.
     """
     return user.groups.filter(name='Management').exists() or user.is_superuser
+
+def is_consultant(user):
+    """
+    Check if the user is a consultant.
+    A user is considered a consultant if they are in the 'Consultant' group.
+    """
+    return user.groups.filter(name='Consultant').exists() or user.is_superuser

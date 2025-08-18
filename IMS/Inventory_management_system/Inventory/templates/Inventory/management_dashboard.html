@@ -110,21 +110,13 @@
                                 <td>{{ data.groups|default:"No Role" }}</td>
                                 <td>
                                     <div class="progress" style="height: 25px;">
-                                        <div class="progress-bar 
-                                            {% if data.grade_letter|lower == 'f' %}
-                                                bg-danger
-                                            {% elif data.grade_letter|lower == 'a' %}
-                                                bg-success
-                                            {% else %}
-                                                bg-warning
-                                            {% endif %}
-                                        " 
+                                        <div class="progress-bar bg-{{ data.grade_color }}" 
                                              role="progressbar" 
                                              style="width: {{ data.grade }}%" 
                                              aria-valuenow="{{ data.grade }}" 
                                              aria-valuemin="0" 
                                              aria-valuemax="100">
-                                            {{ data.grade }}% ({{ data.grade_letter }})
+                                            {{ data.grade|floatformat:1 }}% ({{ data.grade_letter }})
                                         </div>
                                     </div>
                                 </td>
@@ -136,15 +128,17 @@
                                     {% elif data.grade_letter == 'C' %}
                                         <span class="badge bg-warning">Average</span>
                                     {% elif data.grade_letter == 'D' %}
-                                        <span class="badge bg-warning text-dark">Needs Improvement</span>
+                                        <span class="badge bg-danger">Needs Improvement</span>
+                                    {% elif data.grade_letter == 'N/A' %}
+                                        <span class="badge bg-secondary">No Orders</span>
                                     {% else %}
-                                        <span class="badge bg-danger">Poor</span>
+                                        <span class="badge bg-secondary">{{ data.grade_letter }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="viewUserDetails('{{ data.username }}')">
+                                    <a href="{% url 'staff_profile' data.username %}" class="btn btn-sm btn-outline-primary">
                                         View Details
-                                    </button>
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -326,12 +320,6 @@ document.addEventListener('DOMContentLoaded', function() {
         location.reload();
     }, 5 * 60 * 1000);
 });
-
-function viewUserDetails(username) {
-    // Implement user detail view modal or redirect
-    alert('Viewing details for user: ' + username);
-    // Example: window.location.href = `/user/${username}/details/`;
-}
 </script>
 
 <style>

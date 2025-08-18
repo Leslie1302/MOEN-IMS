@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle
+from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
 import pandas as pd
@@ -32,6 +32,25 @@ class MaterialOrderForm(forms.ModelForm):
         empty_label="-- Choose Material --",
         widget=forms.Select(attrs={'class': 'form-control material-select'})
     )
+    
+    release_letter_pdf = forms.FileField(
+        required=False,
+        label="Release Letter (PDF)",
+        help_text="Upload the signed release letter for this material request (optional)",
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': 'application/pdf',
+            'data-max-size': '10485760'  # 10MB limit
+        })
+    )
+    
+    release_letter_title = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Release Letter Title",
+        help_text="Title for the release letter (optional, will auto-generate if not provided)",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
 
     class Meta:
         model = MaterialOrder
@@ -57,6 +76,10 @@ class MaterialOrderForm(forms.ModelForm):
                 self.fields['name'].queryset = InventoryItem.objects.filter(group__in=user.groups.all())
             else:
                 self.fields['name'].queryset = InventoryItem.objects.all()
+    
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        return instance
 
 MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1, can_delete=True)
 
@@ -204,6 +227,9 @@ class ReleaseLetterUploadForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         from .models import MaterialOrder
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         # Get all distinct request codes from material orders that don't have a release letter yet
         request_codes = MaterialOrder.objects.filter(
@@ -211,18 +237,26 @@ class ReleaseLetterUploadForm(forms.ModelForm):
             release_letter__isnull=True  # Only show orders without release letters
         ).values_list('request_code', flat=True).distinct()
         
+        logger.info(f"Found {len(request_codes)} request codes: {list(request_codes)}")
+        
         # Extract base request codes (part before the last dash)
         base_codes = set()
         for code in request_codes:
             if code:  # Only process non-None codes
                 # Split by dash and join all parts except the last one (row number)
                 parts = code.split('-')
-                if len(parts) > 2:  # Has a row number suffix
+                if len(parts) > 1:  
                     base_code = '-'.join(parts[:-1])
                     base_codes.add(base_code)
+                    logger.debug(f"Extracted base code '{base_code}' from '{code}'")
+                else:
+                    # If no dash or only one part, use the whole code as base
+                    base_codes.add(code)
+                    logger.debug(f"Using full code '{code}' as base code")
         
         # Convert back to a sorted list
         base_codes = sorted(list(base_codes))
+        logger.info(f"Final base codes: {base_codes}")
         
         # Create choices list with base request codes
         self.fields['request_code'].choices = [('', '-- Select a base request code --')] + [
@@ -508,3 +542,42 @@ class MaterialTransportForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class SiteReceiptForm(forms.ModelForm):
+    """Form for consultants to log site receipts with waybill and photos"""
+    
+    class Meta:
+        model = SiteReceipt
+        fields = ['received_quantity', 'waybill_pdf', 'site_photos', 'condition', 'notes']
+        widgets = {
+            'received_quantity': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'waybill_pdf': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'application/pdf'
+            }),
+            'site_photos': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*'
+            }),
+            'condition': forms.Select(attrs={'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Additional notes about the delivery condition, location, etc.'
+            })
+        }
+    
+    def __init__(self, *args, **kwargs):
+        transport = kwargs.pop('transport', None)
+        super().__init__(*args, **kwargs)
+        
+        if transport:
+            # Set the expected quantity as the default
+            self.fields['received_quantity'].initial = transport.quantity
+            # Add transport info to help text
+            self.fields['received_quantity'].help_text = f"Expected: {transport.quantity} {transport.unit}"

@@ -1,0 +1,387 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Staff Profile - {{ target_user.username }} - Warehouse Management Tool{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-1">👤 Staff Profile</h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a href="{% url 'management_dashboard' %}">Management Dashboard</a></li>
+                            <li class="breadcrumb-item active">{{ target_user.username }}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{% url 'management_dashboard' %}" class="btn btn-outline-secondary">
+                        ← Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Info Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            {% if target_profile.profile_picture %}
+                                <img src="{{ target_profile.profile_picture.url }}" 
+                                     alt="{{ target_user.username }}'s profile picture"
+                                     class="avatar-lg rounded-circle"
+                                     style="width: 80px; height: 80px; object-fit: cover;">
+                            {% else %}
+                                <div class="avatar-lg bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
+                                    <i class="fas fa-user fa-2x"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h3 class="mb-1">{{ target_user.get_full_name|default:target_user.username }}</h3>
+                            <p class="text-muted mb-1">@{{ target_user.username }}</p>
+                            <p class="text-muted mb-1">{{ target_user.email }}</p>
+                            <div class="mt-2">
+                                {% for group in user_groups %}
+                                    <span class="badge bg-info me-1">{{ group.name }}</span>
+                                {% empty %}
+                                    <span class="badge bg-secondary">No Role Assigned</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h4 class="text-primary mb-0">{{ completion_rate|floatformat:1 }}%</h4>
+                                    <small class="text-muted">Completion Rate</small>
+                                </div>
+                                <div class="col-6">
+                                    <h4 class="text-{{ performance_color }} mb-0">{{ performance_grade }}</h4>
+                                    <small class="text-muted">Performance Grade</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-2">
+                        <i class="fas fa-clipboard-list fa-2x"></i>
+                    </div>
+                    <h3 class="mb-1">{{ order_stats.total_orders }}</h3>
+                    <p class="text-muted mb-0">Total Orders</p>
+                    <small class="text-success">{{ order_stats.recent_orders }} recent</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-success mb-2">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                    <h3 class="mb-1">{{ order_stats.completed_orders }}</h3>
+                    <p class="text-muted mb-0">Completed</p>
+                    <small class="text-muted">{{ order_stats.partially_fulfilled }} partial</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-2">
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                    <h3 class="mb-1">{{ order_stats.pending_orders }}</h3>
+                    <p class="text-muted mb-0">Pending</p>
+                    <small class="text-muted">{{ order_stats.draft_orders }} drafts</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-info mb-2">
+                        <i class="fas fa-history fa-2x"></i>
+                    </div>
+                    <h3 class="mb-1">{{ audit_stats.total_actions }}</h3>
+                    <p class="text-muted mb-0">Total Actions</p>
+                    <small class="text-success">{{ audit_stats.recent_actions }} recent</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Type Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">📊 Request Type Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h3 class="text-danger mb-1">{{ release_orders }}</h3>
+                                <p class="text-muted mb-0">📤 Release Orders</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-success mb-1">{{ receipt_orders }}</h3>
+                            <p class="text-muted mb-0">📥 Receipt Orders</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">📈 Performance Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Completion Rate</span>
+                            <span>{{ completion_rate|floatformat:1 }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{{ performance_color }}" 
+                                 style="width: {{ completion_rate }}%"></div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <span class="badge bg-{{ performance_color }} fs-6">Grade: {{ performance_grade }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Timeline and Recent Orders -->
+    <div class="row">
+        <div class="col-md-8 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">⏱️ Activity Timeline</h5>
+                    <small class="text-muted">{{ date_range }}</small>
+                </div>
+                <div class="card-body">
+                    {% if timeline_items %}
+                        <div class="timeline">
+                            {% for item in timeline_items %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-{{ performance_color }}"></div>
+                                    <div class="timeline-content">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    {{ item.icon }} {{ item.title }}
+                                                </h6>
+                                                <p class="text-muted mb-1">{{ item.description }}</p>
+                                                {% if item.status %}
+                                                    <span class="badge bg-secondary">{{ item.status }}</span>
+                                                {% endif %}
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ item.timestamp|timesince }} ago
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-inbox fa-3x mb-3"></i>
+                            <p>No recent activity found</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <!-- Recent Material Orders -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">📦 Recent Orders</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_material_orders %}
+                        {% for order in recent_material_orders %}
+                            <div class="border-bottom pb-2 mb-2">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">{{ order.name }}</h6>
+                                        <p class="text-muted mb-1 small">
+                                            {{ order.quantity|intcomma }} {{ order.unit }}
+                                        </p>
+                                        <span class="badge bg-{% if order.request_type == 'Release' %}danger{% else %}success{% endif %}">
+                                            {{ order.get_request_type_display }}
+                                        </span>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">{{ order.date_requested|date:"M d" }}</small>
+                                        <br>
+                                        <span class="badge bg-secondary">{{ order.status }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <p class="mb-0">No recent orders</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Monthly Activity Chart -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">📊 Monthly Activity</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Monthly Activity Chart
+    const ctx = document.getElementById('monthlyChart').getContext('2d');
+    const monthlyData = {{ monthly_data|safe }};
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: monthlyData.map(item => item.month),
+            datasets: [{
+                label: 'Orders',
+                data: monthlyData.map(item => item.orders),
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+
+<style>
+/* Timeline Styles */
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+    border-left: 2px solid #e9ecef;
+    padding-left: 1.5rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+    border-left: none;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -8px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    top: 5px;
+}
+
+.timeline-content {
+    font-size: 0.9rem;
+}
+
+/* Avatar Styles */
+.avatar-lg {
+    width: 80px;
+    height: 80px;
+    font-size: 2rem;
+}
+
+/* Card Hover Effects */
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+/* Progress Bar */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .timeline {
+        padding-left: 1rem;
+    }
+    
+    .timeline-item {
+        padding-left: 1rem;
+    }
+    
+    .avatar-lg {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+}
+</style>
+
+<!-- Include Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}

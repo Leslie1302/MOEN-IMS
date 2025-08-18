@@ -1,0 +1,286 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block title %}Log Site Receipt - MOEN-IMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="d-flex align-items-center mb-4">
+                <a href="{% url 'consultant_deliveries' %}" class="btn btn-outline-secondary me-3">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div>
+                    <h2 class="fw-bold text-primary mb-1">📋 Log Site Receipt</h2>
+                    <p class="text-muted mb-0">Confirm material delivery and upload required documentation</p>
+                </div>
+            </div>
+
+            <!-- Transport Details Card -->
+            {% if transport %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-truck me-2"></i>Delivery Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-primary">Material Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted">Material:</td>
+                                    <td class="fw-semibold">{{ transport.material_order.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Code:</td>
+                                    <td>{{ transport.material_order.code }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Expected Quantity:</td>
+                                    <td class="fw-semibold">{{ transport.quantity }} {{ transport.material_order.unit }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Priority:</td>
+                                    <td>
+                                        {% if transport.material_order.priority == 'High' %}
+                                            <span class="badge bg-danger">🔥 High</span>
+                                        {% elif transport.material_order.priority == 'Medium' %}
+                                            <span class="badge bg-warning text-dark">⚡ Medium</span>
+                                        {% else %}
+                                            <span class="badge bg-success">📋 Low</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-primary">Delivery Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted">Destination:</td>
+                                    <td class="fw-semibold">{{ transport.material_order.region }}, {{ transport.material_order.district }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Community:</td>
+                                    <td>{{ transport.material_order.community|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Transporter:</td>
+                                    <td>{{ transport.transporter.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Vehicle:</td>
+                                    <td>{{ transport.vehicle.registration_number|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Status:</td>
+                                    <td>
+                                        <span class="badge bg-warning text-dark">📦 {{ transport.status }}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    {% if transport.waybill_scan %}
+                    <div class="mt-3">
+                        <h6 class="fw-bold text-primary">Original Waybill</h6>
+                        <a href="{{ transport.waybill_scan.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-file-pdf me-1"></i>View Transport Waybill
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Site Receipt Form -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clipboard-check me-2"></i>Site Receipt Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="siteReceiptForm">
+                        {% csrf_token %}
+                        
+                        <!-- Received Quantity -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="{{ form.received_quantity.id_for_label }}" class="form-label fw-semibold">
+                                    <i class="fas fa-balance-scale me-1 text-primary"></i>Received Quantity *
+                                </label>
+                                {{ form.received_quantity }}
+                                {% if form.received_quantity.help_text %}
+                                    <div class="form-text">{{ form.received_quantity.help_text }}</div>
+                                {% endif %}
+                                {% if form.received_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.received_quantity.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.condition.id_for_label }}" class="form-label fw-semibold">
+                                    <i class="fas fa-check-circle me-1 text-primary"></i>Material Condition *
+                                </label>
+                                {{ form.condition }}
+                                {% if form.condition.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.condition.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- File Uploads -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="{{ form.waybill_pdf.id_for_label }}" class="form-label fw-semibold">
+                                    <i class="fas fa-file-pdf me-1 text-primary"></i>Endorsed Waybill (PDF) *
+                                </label>
+                                {{ form.waybill_pdf }}
+                                <div class="form-text">
+                                    Upload the waybill endorsed by the consultant confirming receipt
+                                </div>
+                                {% if form.waybill_pdf.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.waybill_pdf.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.site_photos.id_for_label }}" class="form-label fw-semibold">
+                                    <i class="fas fa-camera me-1 text-primary"></i>Site Photos *
+                                </label>
+                                {{ form.site_photos }}
+                                <div class="form-text">
+                                    Upload photos showing materials at the project site
+                                </div>
+                                {% if form.site_photos.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.site_photos.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label fw-semibold">
+                                <i class="fas fa-sticky-note me-1 text-primary"></i>Additional Notes
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.notes.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% url 'consultant_deliveries' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check-circle me-2"></i>Confirm Site Receipt
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Instructions Card -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Instructions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Required Documentation:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Endorsed waybill (PDF format)</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Clear photos of materials on site</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Accurate quantity received</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Material condition assessment</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Important Notes:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Verify quantities before confirming</li>
+                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Report any discrepancies in notes</li>
+                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Photos should show material condition</li>
+                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Endorsed waybill is mandatory</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // File upload preview
+    const waybillInput = document.getElementById('{{ form.waybill_pdf.id_for_label }}');
+    const photoInput = document.getElementById('{{ form.site_photos.id_for_label }}');
+    
+    if (waybillInput) {
+        waybillInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const fileName = file.name;
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                console.log(`Waybill selected: ${fileName} (${fileSize} MB)`);
+            }
+        });
+    }
+    
+    if (photoInput) {
+        photoInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const fileName = file.name;
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                console.log(`Photo selected: ${fileName} (${fileSize} MB)`);
+            }
+        });
+    }
+    
+    // Form validation
+    const form = document.getElementById('siteReceiptForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const requiredFields = ['{{ form.received_quantity.id_for_label }}', '{{ form.condition.id_for_label }}', '{{ form.waybill_pdf.id_for_label }}', '{{ form.site_photos.id_for_label }}'];
+            let isValid = true;
+            
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field && !field.value.trim()) {
+                    isValid = false;
+                    field.classList.add('is-invalid');
+                } else if (field) {
+                    field.classList.remove('is-invalid');
+                }
+            });
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert('Please fill in all required fields and upload the necessary files.');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

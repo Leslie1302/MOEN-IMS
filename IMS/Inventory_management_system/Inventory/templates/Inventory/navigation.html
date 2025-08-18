@@ -2,7 +2,7 @@
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container-fluid">
-        <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">📦 Inventory Manager</a>
+        <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">🏗️ MOEN-IMS</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
             aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -11,48 +11,219 @@
             <ul class="navbar-nav align-items-center">
                 {% if user.is_authenticated %}
                     {% if user.groups.exists or user.is_superuser %}
-                        <!-- Show full menu for authorized users -->
+                        <!-- Dashboard -->
                         <li class="nav-item">
                             <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Dashboard</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'request_material' %}">📥 Request Material</a>
+
+                        <!-- Schedule Officers Menu -->
+                        {% for group in user.groups.all %}
+                            {% if group.name == 'Schedule Officer' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                📋 Schedule
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
+                                <li><a class="dropdown-item" href="{% url 'request_material' %}">📥 Request Material</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders' %}">📦 Material Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_orders' %}">📦 Material Orders</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a>
-                        </li>
+                            {% endif %}
+                        {% endfor %}
                         {% if user.is_superuser %}
-                            <li class="nav-item">
-                                <a class="nav-link text-dark fw-semibold" href="{% url 'management_dashboard' %}">👔 Management Dashboard</a>
-                            </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                📋 Schedule
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
+                                <li><a class="dropdown-item" href="{% url 'request_material' %}">📥 Request Material</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders' %}">📦 Material Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a></li>
+                            </ul>
+                        </li>
                         {% endif %}
-                        {% if user.groups.filter.name == 'Storekeeper' or user.is_superuser or user.groups.filter.name == 'Schedule Officer' %}
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
-                                   role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    🚚 Transport
-                                </a>
-                                <ul class="dropdown-menu" aria-labelledby="transportDropdown">
-                                    <li><a class="dropdown-item" href="{% url 'transporter_list' %}">Transporters</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">Transporter Legend</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">Assign Transport</a></li>
-                                    {% if user.groups.filter.name == 'Schedule Officer' or user.is_superuser %}
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item" href="{% url 'release-letter-upload' %}">Release Letters</a></li>
+
+                        <!-- Storekeepers Menu -->
+                        {% for group in user.groups.all %}
+                            {% if group.name == 'Storekeeper' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storeDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🏪 Store
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="storeDropdown">
+                                <li><a class="dropdown-item" href="{% url 'material_receipt' %}">📦 Receive Material</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders' %}">📋 Process Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'release-letter-upload' %}">📄 Release Letters</a></li>
+                            </ul>
+                        </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if user.is_superuser %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storeDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🏪 Store
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="storeDropdown">
+                                <li><a class="dropdown-item" href="{% url 'material_receipt' %}">📦 Receive Material</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders' %}">📋 Process Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'release-letter-upload' %}">📄 Release Letters</a></li>
+                            </ul>
+                        </li>
+                        {% endif %}
+
+                        <!-- Transport Menu -->
+                        {% for group in user.groups.all %}
+                            {% if group.name == 'Storekeeper' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🚚 Transport
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="transportDropdown">
+                                <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Transporters</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">📦 Assign Transport</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
+                            </ul>
+                        </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if user.is_superuser %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🚚 Transport
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="transportDropdown">
+                                <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Transporters</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">📦 Assign Transport</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
+                            </ul>
+                        </li>
+                        {% endif %}
+
+                        <!-- Consultants Menu -->
+                        {% for group in user.groups.all %}
+                            {% if group.name == 'Consultant' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                👷 Site Work
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="consultantDropdown">
+                                <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">📦 Pending Deliveries</a></li>
+                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+                            </ul>
+                        </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if user.is_superuser %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                👷 Site Work
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="consultantDropdown">
+                                <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">📦 Pending Deliveries</a></li>
+                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+                            </ul>
+                        </li>
+                        {% endif %}
+
+                        <!-- Projects Menu -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="projectsDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🏗️ Projects
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="projectsDropdown">
+                                <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a></li>
+                                {% for group in user.groups.all %}
+                                    {% if group.name == 'Management' %}
+                                <li><a class="dropdown-item" href="#">🏗️ Project Management</a></li>
+                                <li><a class="dropdown-item" href="#">📊 Project Reports</a></li>
                                     {% endif %}
-                                </ul>
-                            </li>
+                                {% endfor %}
+                                {% if user.is_superuser %}
+                                <li><a class="dropdown-item" href="#">🏗️ Project Management</a></li>
+                                <li><a class="dropdown-item" href="#">📊 Project Reports</a></li>
+                                {% endif %}
+                            </ul>
+                        </li>
+
+                        <!-- Management Menu -->
+                        {% for group in user.groups.all %}
+                            {% if group.name == 'Management' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="managementDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                👔 Management
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="managementDropdown">
+                                <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📊 Enhanced Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
+                                <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                            </ul>
+                        </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if user.is_superuser %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="managementDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                👔 Management
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="managementDropdown">
+                                <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📊 Enhanced Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
+                                <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                            </ul>
+                        </li>
                         {% endif %}
+
+                        <!-- Notifications -->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold position-relative" href="#" id="notificationsDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🔔
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                                      style="font-size: 0.6em;">
+                                    3
+                                    <span class="visually-hidden">unread notifications</span>
+                                </span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown" style="width: 300px;">
+                                <li><h6 class="dropdown-header">Recent Notifications</h6></li>
+                                <li><a class="dropdown-item small" href="#">
+                                    <strong>Material Processed</strong><br>
+                                    <span class="text-muted">Cement ready for transport - 2 min ago</span>
+                                </a></li>
+                                <li><a class="dropdown-item small" href="#">
+                                    <strong>Site Receipt Required</strong><br>
+                                    <span class="text-muted">Materials delivered to Accra - 1 hour ago</span>
+                                </a></li>
+                                <li><a class="dropdown-item small" href="#">
+                                    <strong>BOQ Updated</strong><br>
+                                    <span class="text-muted">Package ABC-123 updated - 3 hours ago</span>
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-center" href="#">View All Notifications</a></li>
+                            </ul>
+                        </li>
+
                     {% else %}
                         <!-- Show limited menu for unassigned users -->
                         <li class="nav-item">
                             <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_receipt' %}">📦 Receive Material</a>
                         </li>
                     {% endif %}
 
@@ -72,6 +243,9 @@
                                     style="width: 35px; height: 35px; object-fit: cover;">
                             {% endif %}
                             <span class="ms-2">{{ user.username }}</span>
+                            {% if user.groups.all %}
+                                <small class="text-muted ms-1">({{ user.groups.all.0.name }})</small>
+                            {% endif %}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="{% url 'profile' %}">👤 Account Settings</a></li>

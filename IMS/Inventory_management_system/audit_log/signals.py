@@ -5,6 +5,14 @@ from django.utils.timezone import now
 from Inventory.models import InventoryItem, Category, Unit, MaterialOrder
 from .models import AuditLog
 import json
+from decimal import Decimal
+
+class DecimalEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Decimal objects"""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
 
 def get_client_ip(request):
     """Helper function to get IP address from request"""
@@ -15,12 +23,18 @@ def get_client_ip(request):
 
 def log_action(instance, action, user=None, ip_address=None, changes=None):
     """Log changes in AuditLog"""
+    try:
+        change_message = json.dumps(changes, cls=DecimalEncoder) if changes else ''
+    except (TypeError, ValueError) as e:
+        # Fallback: convert problematic objects to strings
+        change_message = str(changes) if changes else ''
+    
     AuditLog.objects.create(
         user=user if isinstance(user, User) else None,
         model_name=instance.__class__.__name__,
         object_id=instance.pk,
         action=action,
-        change_message=json.dumps(changes) if changes else '',
+        change_message=change_message,
         ip_address=ip_address
     )
 
@@ -69,4 +83,3 @@ def log_category_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Category)
 def log_category_delete(sender, instance, **kwargs):
     log_action(instance, 'Deleted', user=getattr(instance, 'user', None))
-
