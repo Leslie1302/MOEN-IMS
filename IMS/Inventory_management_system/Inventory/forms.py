@@ -19,7 +19,7 @@ class UserRegistration(UserCreationForm):
 class InventoryItemForm(forms.ModelForm):
     class Meta:
         model = InventoryItem
-        fields = ['name', 'quantity', 'category', 'unit', 'code']
+        fields = ['name', 'quantity', 'category', 'unit', 'code', 'warehouse']
 
 # Create a formset that allows an unlimited number of forms
 InventoryItemFormSet = formset_factory(InventoryItemForm, extra=1, can_delete=True)
@@ -56,7 +56,7 @@ class MaterialOrderForm(forms.ModelForm):
         model = MaterialOrder
         fields = [
             'name', 'quantity', 'region', 'district', 'community', 
-            'consultant', 'contractor', 'package_number'
+            'consultant', 'contractor', 'package_number', 'warehouse'
         ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
@@ -66,16 +66,14 @@ class MaterialOrderForm(forms.ModelForm):
             'consultant': forms.TextInput(attrs={'class': 'form-control'}),
             'contractor': forms.TextInput(attrs={'class': 'form-control'}),
             'package_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if user:
-            if not user.is_superuser:
-                self.fields['name'].queryset = InventoryItem.objects.filter(group__in=user.groups.all())
-            else:
-                self.fields['name'].queryset = InventoryItem.objects.all()
+        # Show all inventory items to all users for transparency
+        self.fields['name'].queryset = InventoryItem.objects.all()
     
     def save(self, commit=True):
         instance = super().save(commit=commit)
@@ -115,7 +113,7 @@ class ExcelUploadForm(forms.Form):
 class BulkMaterialRequestForm(forms.Form):
     file = forms.FileField(
         label='Excel File',
-        help_text='Upload an Excel file with material request data. Required columns: name, quantity, region, district, community, consultant, contractor, package_number',
+        help_text='Upload an Excel file with material request data. Required columns: name, quantity, region, district, community, consultant, contractor, package_number, warehouse',
         validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
     )
     request_type = forms.ChoiceField(
@@ -137,7 +135,7 @@ class BulkMaterialRequestForm(forms.Form):
                 
                 # Check required columns
                 required_columns = ['name', 'quantity', 'region', 'district', 'community', 
-                                  'consultant', 'contractor', 'package_number']
+                                  'consultant', 'contractor', 'package_number', 'warehouse']
                 missing_columns = [col for col in required_columns if col not in df.columns]
                 if missing_columns:
                     raise forms.ValidationError(
@@ -175,11 +173,8 @@ class MaterialReceiptForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if user:
-            if not user.is_superuser:
-                self.fields['name'].queryset = InventoryItem.objects.filter(group__in=user.groups.all())
-            else:
-                self.fields['name'].queryset = InventoryItem.objects.all()
+        # Show all inventory items to all users for transparency
+        self.fields['name'].queryset = InventoryItem.objects.all()
 
 MaterialReceiptFormSet = formset_factory(MaterialReceiptForm, extra=1, can_delete=True)
 

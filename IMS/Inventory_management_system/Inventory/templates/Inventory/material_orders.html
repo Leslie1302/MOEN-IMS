@@ -36,11 +36,14 @@
                     <th>Processed</th>
                     <th>Remaining</th>
                     <th>Status</th>
+                    <th>Processed By</th>
                     <th>Date</th>
                     <th>Release Letter</th>
-                    {% if user.is_superuser %}
+                    {% for group in user.groups.all %}
+                    {% if group.name == 'Storekeeper' %}
                     <th class="text-center">Actions</th>
                     {% endif %}
+                    {% endfor %}
                 </tr>
             </thead>
             <tbody>
@@ -74,6 +77,16 @@
                             <span class="badge bg-secondary">📝 Draft</span>
                         {% else %}
                             <span class="badge bg-secondary">{{ order.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if order.processed_by %}
+                            <div class="text-center">
+                                <div class="fw-bold">{{ order.processed_by.username }}</div>
+                                <small class="text-muted">{{ order.processed_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                     <td>{{ order.date_requested|date:"M d, Y" }}</td>

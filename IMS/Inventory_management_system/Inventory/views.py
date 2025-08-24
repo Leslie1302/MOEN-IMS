@@ -19,7 +19,7 @@ from django.forms import formset_factory
 from django.db import transaction
 from django.contrib import messages
 from django.urls import reverse_lazy
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q, Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, IntegerField, Prefetch
@@ -42,7 +42,7 @@ from .forms import (
 from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity,
     MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter,
-    SiteReceipt  # Add SiteReceipt
+    SiteReceipt, Warehouse  # Add Warehouse
 )
 
 # Other views
@@ -93,6 +93,15 @@ MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 class Index(TemplateView):
     template_name = 'Inventory/index.html'
 
+# Superuser-only access mixin that returns 404 for non-superusers
+class SuperuserOnlyMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        # Hide existence of the page from non-superusers
+        raise Http404()
+
 
 def generate_request_code():
     """Generate a unique request code in the format REQ-YYYYMMDD-XXXXXX"""
@@ -105,10 +114,8 @@ class RequestMaterialView(LoginRequiredMixin, View):
     template_name = 'Inventory/request_material.html'
 
     def get(self, request):
-        if request.user.is_superuser:
-            items = InventoryItem.objects.all()
-        else:
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+        # Show all inventory items to all users for transparency
+        items = InventoryItem.objects.all()
 
         formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
         bulk_form = BulkMaterialRequestForm()
@@ -185,10 +192,8 @@ class RequestMaterialView(LoginRequiredMixin, View):
             messages.error(request, "There was an error with your submission.")
 
         # Prepare context for re-rendering the form with errors
-        if request.user.is_superuser:
-            items = InventoryItem.objects.all()
-        else:
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+        # Show all inventory items to all users for transparency
+        items = InventoryItem.objects.all()
 
         return render(request, self.template_name, {
             'formset': formset,
@@ -365,26 +370,11 @@ class RequestMaterialView(LoginRequiredMixin, View):
         }
         return render(request, self.template_name, context)
 
-        # Prepare context for re-rendering the form with errors
-        if request.user.is_superuser:
-            items = InventoryItem.objects.all()
-        else:
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
-
-        return render(request, self.template_name, {
-            'formset': MaterialOrderFormSet(form_kwargs={'user': request.user}),
-            'bulk_form': bulk_form,
-            'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
-            'active_tab': 'bulk'
-        })
-
 
 class MaterialOrdersView(LoginRequiredMixin, ListView):
     """
     View for displaying material orders with proper fulfillment workflow.
-    - Storekeepers can see all orders
-    - Other users can only see their own orders
+    - All authenticated users can see all orders for transparency and collaboration
     """
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
@@ -396,16 +386,10 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         
         try:
             # Base queryset with proper ordering and select_related for performance
-            base_queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
+            # Show all orders to all authenticated users for transparency
+            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
             
-            # Storekeepers and superusers can see all orders
-            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
-                queryset = base_queryset
-                logger.info(f"User {user.username} (storekeeper/superuser) accessing {queryset.count()} total orders")
-            else:
-                # Regular users can only see their own orders
-                queryset = base_queryset.filter(user=user)
-                logger.info(f"User {user.username} (regular user) accessing {queryset.count()} personal orders")
+            logger.info(f"User {user.username} accessing {queryset.count()} total orders")
             
             # Ensure remaining_quantity is calculated correctly
             for order in queryset:
@@ -474,7 +458,7 @@ class UpdateMaterialStatusView(View):
                 # Parse request data
                 try:
                     logger.info("Parsing request body")
-                    data = json.loads(request.body) if request.body and request.body.strip() else {}
+                    data = json.loads(request.body.decode('utf-8'))
                     logger.info(f"Parsed data: {data}")
                 except json.JSONDecodeError as e:
                     logger.error(f"JSON decode error: {e}")
@@ -542,7 +526,13 @@ class UpdateMaterialStatusView(View):
                     # Process the quantity
                     order.processed_quantity = (order.processed_quantity or 0) + partial_quantity
                     order.remaining_quantity = max(0, order.quantity - order.processed_quantity)
+                    
+                    # Set processing tracking fields
+                    order.processed_by = request.user
+                    order.processed_at = timezone.now()
+                    
                     logger.info(f"New quantities - Processed: {order.processed_quantity}, Remaining: {order.remaining_quantity}")
+                    logger.info(f"Processed by: {request.user.username} at {order.processed_at}")
 
                     # Update inventory
                     try:
@@ -692,7 +682,7 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                 df = pd.read_excel(file, engine='openpyxl')
 
                 # Required columns in Excel
-                required_columns = ['name', 'quantity', 'category', 'code', 'unit']
+                required_columns = ['name', 'quantity', 'category', 'code', 'unit', 'warehouse']
                 if not all(col in df.columns for col in required_columns):
                     messages.error(request, "Excel file is missing required columns.")
                     return redirect('dashboard')
@@ -700,14 +690,16 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                 # Load category & unit mappings from DB
                 category_mapping = {c.name: c.id for c in Category.objects.all()}
                 unit_mapping = {u.name: u.id for u in Unit.objects.all()}
+                warehouse_mapping = {w.name: w.id for w in Warehouse.objects.all()}
 
                 for index, row in df.iterrows():
                     # Convert category & unit names to IDs
                     category_id = category_mapping.get(row['category'])
                     unit_id = unit_mapping.get(row['unit'])
+                    warehouse_id = warehouse_mapping.get(row['warehouse'])
 
-                    if not category_id or not unit_id:
-                        messages.error(request, f"Error: Invalid category or unit at row {index + 2}")
+                    if not category_id or not unit_id or not warehouse_id:
+                        messages.error(request, f"Error: Invalid category, unit, or warehouse at row {index + 2}")
                         continue
 
                     item, created = InventoryItem.objects.get_or_create(
@@ -717,11 +709,13 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                             'quantity': row['quantity'],
                             'category_id': category_id,
                             'unit_id': unit_id,
+                            'warehouse_id': warehouse_id,
                             'user': request.user
                         }
                     )
                     if not created:
                         item.quantity += row['quantity']
+                        item.warehouse_id = warehouse_id
                         item.save()
 
                 messages.success(request, "Inventory updated successfully!")
@@ -792,10 +786,8 @@ class MaterialReceiptView(LoginRequiredMixin, View):
     template_name = 'Inventory/receive_material.html'
 
     def get(self, request):
-        if request.user.is_superuser:
-            items = InventoryItem.objects.all()
-        else:
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+        # Show all inventory items to all users for transparency
+        items = InventoryItem.objects.all()
 
         inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
         formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
@@ -832,10 +824,8 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             print("Formset errors:", formset.errors)
             messages.error(request, "There was an error with your submission.")
 
-        if request.user.is_superuser:
-            items = InventoryItem.objects.all()
-        else:
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+        # Show all inventory items to all users for transparency
+        items = InventoryItem.objects.all()
         return render(request, self.template_name, {
             'formset': formset,
             'bulk_form': BulkMaterialRequestForm(),
@@ -852,13 +842,12 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             return item
 
     def _get_receipt_orders(self, user):
-        """Return MaterialOrder queryset for receipts with same visibility rules as orders page."""
+        """Return MaterialOrder queryset for receipts - show all to all users for transparency."""
         try:
-            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
-                return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
-            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
+            # Show all receipt orders to all users for transparency
+            return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
         except Exception:
-            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
+            return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
 
 
 class MaterialLegendView(LoginRequiredMixin, ListView):
@@ -867,15 +856,9 @@ class MaterialLegendView(LoginRequiredMixin, ListView):
     paginate_by = 25  # Show 25 items per page
 
     def get_queryset(self):
+        # Show all materials to all users for transparency
         queryset = InventoryItem.objects.all().order_by('code')
-        
-        # Apply group filter for non-superusers
-        if not self.request.user.is_superuser:
-            user_groups = self.request.user.groups.all()
-            if user_groups.exists():
-                queryset = queryset.filter(group__in=user_groups)
-        
-        return queryset.select_related('category', 'unit')
+        return queryset.select_related('category', 'unit', 'warehouse')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1037,12 +1020,9 @@ class MaterialHeatmapView(LoginRequiredMixin, View):
             return render(request, self.template_name, {'has_data': False})
 
     def post(self, request):
-        if request.user.is_superuser:
-            orders = MaterialOrder.objects.all()
-            items = InventoryItem.objects.all()
-        else:
-            orders = MaterialOrder.objects.filter(group__in=request.user.groups.all())
-            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
+        # Show all orders and items to all users for transparency
+        orders = MaterialOrder.objects.all()
+        items = InventoryItem.objects.all()
 
         period = request.POST.get('period', 'month')
         report_type = request.POST.get('type', 'release')
@@ -1113,13 +1093,13 @@ class LowInventorySummaryView(LoginRequiredMixin, ListView):
         Accessible to all authenticated users.
         """
         LOW_QUANTITY = 5  # Match the threshold used in Dashboard view
-        return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).order_by('name')
+        return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).select_related('category', 'unit', 'warehouse').order_by('name')
 
-class BillOfQuantityView(LoginRequiredMixin, ListView):
+class BillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     View for displaying Bill of Quantities.
-    Accessible to all authenticated users.
-    Shows all BOQ items regardless of group.
+    Accessible to superusers only.
+    Shows all BOQ items.
     """
     template_name = 'Inventory/bill_of_quantity.html'
     context_object_name = 'boq_items'
@@ -1127,25 +1107,20 @@ class BillOfQuantityView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         """
         Return all BOQ items.
-        Accessible to all authenticated users.
+        Accessible to superusers only.
         """
         return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
 
     
 logger = logging.getLogger(__name__)
 
-class UploadBillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, View):
-    def test_func(self):
-        return self.request.user.is_superuser
+class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
 
     def get(self, request):
         form = ExcelUploadForm()
         return render(request, 'Inventory/upload_bill_of_quantity.html', {'form': form})
 
     def post(self, request):
-        if not self.request.user.is_superuser:
-            return JsonResponse({'error': 'Unauthorized access'}, status=403)
-
         form = ExcelUploadForm(request.POST, request.FILES)
         if form.is_valid():
             file = request.FILES['file']
@@ -1393,10 +1368,8 @@ class ReportSubmissionListView(LoginRequiredMixin, ListView):
     context_object_name = 'reports'
     
     def get_queryset(self):
-        # Show reports based on user's group
-        if self.request.user.is_superuser:
-            return ReportSubmission.objects.all()
-        return ReportSubmission.objects.filter(group__in=self.request.user.groups.all())
+        # Show all reports to all users for transparency
+        return ReportSubmission.objects.all()
 
 class ReportSubmissionCreateView(LoginRequiredMixin, CreateView):
     model = ReportSubmission
@@ -1454,9 +1427,8 @@ class ReportSubmissionDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'report'
 
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return ReportSubmission.objects.all()
-        return ReportSubmission.objects.filter(group__in=self.request.user.groups.all())
+        # Show all reports to all users for transparency
+        return ReportSubmission.objects.all()
 
 def submit_report(request, pk):
     """View to handle report submission"""
@@ -1747,12 +1719,10 @@ class MaterialReceiptListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         try:
-            user = self.request.user
-            if user.groups.filter(name='Storekeeper').exists() or user.is_superuser:
-                return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
-            return MaterialOrder.objects.filter(user=user, request_type='Receipt').order_by('-date_requested')
+            # Show all receipt orders to all users for transparency
+            return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
         except Exception:
-            return MaterialOrder.objects.filter(user=self.request.user, request_type='Receipt').order_by('-date_requested')
+            return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
 
 class StaffProfileView(LoginRequiredMixin, View):
     """
@@ -1915,7 +1885,7 @@ class StaffProfileView(LoginRequiredMixin, View):
             return redirect('management_dashboard')
 
 
-class ConsultantDeliveriesView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ConsultantDeliveriesView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     View for consultants to see materials in transit to their project sites
     """
@@ -1924,9 +1894,7 @@ class ConsultantDeliveriesView(LoginRequiredMixin, UserPassesTestMixin, ListView
     context_object_name = 'transports'
     paginate_by = 20
     
-    def test_func(self):
-        from .utils import is_consultant
-        return is_consultant(self.request.user)
+    
     
     def get_queryset(self):
         # Show transports that are in transit or delivered but not yet logged as received
@@ -1937,17 +1905,14 @@ class ConsultantDeliveriesView(LoginRequiredMixin, UserPassesTestMixin, ListView
         ).select_related('material_order', 'transporter').order_by('-created_at')
 
 
-class SiteReceiptCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class SiteReceiptCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     """
     View for consultants to log site receipts
     """
     model = SiteReceipt
     form_class = SiteReceiptForm
     template_name = 'Inventory/site_receipt_form.html'
-    
-    def test_func(self):
-        from .utils import is_consultant
-        return is_consultant(self.request.user)
+
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -1986,7 +1951,7 @@ class SiteReceiptCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return context
 
 
-class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class SiteReceiptListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     View for consultants to see their logged site receipts
     """
@@ -1995,15 +1960,134 @@ class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     context_object_name = 'receipts'
     paginate_by = 20
     
-    def test_func(self):
-        from .utils import is_consultant, is_management
-        return is_consultant(self.request.user) or is_management(self.request.user)
-    
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return SiteReceipt.objects.all().select_related('material_transport', 'received_by').order_by('-received_date')
+        # Superusers see all receipts (others 404 via mixin)
+        return SiteReceipt.objects.all().select_related('material_transport', 'received_by').order_by('-received_date')
+
+
+
+class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
+    """
+    View for displaying material orders with proper fulfillment workflow.
+    - All authenticated users can see all orders for transparency and collaboration
+    """
+    template_name = 'Inventory/material_orders_offcicers.html'
+    context_object_name = 'orders'
+    paginate_by = 50
+
+    def get_queryset(self):
+        user = self.request.user
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Base queryset with proper ordering and select_related for performance
+            # Show all orders to all authenticated users for transparency
+            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
+            
+            logger.info(f"User {user.username} accessing {queryset.count()} total orders")
+            
+            # Ensure remaining_quantity is calculated correctly
+            for order in queryset:
+                if order.remaining_quantity is None or order.remaining_quantity < 0:
+                    order.remaining_quantity = max(0, order.quantity - (order.processed_quantity or 0))
+                    order.save(update_fields=['remaining_quantity'])
+            
+            return queryset
+            
+        except Exception as e:
+            logger.error(f"Error in MaterialOrdersOfficersView for user {user.username}: {str(e)}", exc_info=True)
+            # Fallback to empty queryset to prevent crashes
+            return MaterialOrder.objects.none()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get the full queryset for statistics (not paginated)
+        full_queryset = self.get_queryset()
+        
+        # Add summary statistics using the full queryset
+        if full_queryset.exists():
+            context.update({
+                'total_orders': full_queryset.count(),
+                'pending_orders': full_queryset.filter(status='Pending').count(),
+                'completed_orders': full_queryset.filter(status='Completed').count(),
+                'partial_orders': full_queryset.filter(status='Partially Fulfilled').count(),
+            })
         else:
-            # Consultants see only their own receipts
-            return SiteReceipt.objects.filter(
-                received_by=self.request.user
-            ).select_related('material_transport', 'received_by').order_by('-received_date')
+            context.update({
+                'total_orders': 0,
+                'pending_orders': 0,
+                'completed_orders': 0,
+                'partial_orders': 0,
+            })
+        
+        return context
+
+class DownloadSampleTemplateView(LoginRequiredMixin, View):
+    """View to download sample inventory template"""
+    
+    def get(self, request):
+        # Sample data for the template
+        sample_data = {
+            'name': [
+                'Portland Cement',
+                'Steel Reinforcement Bars',
+                'Sand',
+                'Gravel',
+                'Timber Planks'
+            ],
+            'quantity': [
+                1000,
+                500,
+                2000,
+                1500,
+                800
+            ],
+            'category': [
+                'Construction Materials',
+                'Steel Products',
+                'Aggregates',
+                'Aggregates',
+                'Timber Products'
+            ],
+            'code': [
+                'CEM-001',
+                'STEEL-001',
+                'SAND-001',
+                'GRAVEL-001',
+                'TIMBER-001'
+            ],
+            'unit': [
+                'Bags',
+                'Tons',
+                'Cubic Meters',
+                'Cubic Meters',
+                'Pieces'
+            ],
+            'warehouse': [
+                'Main Warehouse',
+                'Main Warehouse',
+                'Northern Regional Warehouse',
+                'Western Regional Warehouse',
+                'Eastern Regional Warehouse'
+            ]
+        }
+        
+        # Create DataFrame
+        df = pd.DataFrame(sample_data)
+        
+        # Create Excel file in memory
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Inventory Template')
+        
+        output.seek(0)
+        
+        # Create HTTP response
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="sample_inventory_template.xlsx"'
+        
+        return response

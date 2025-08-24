@@ -11,7 +11,7 @@ from .views import (
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView, 
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
-    StaffProfileView,
+    StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
 )
 
 # Import transporter views
@@ -57,12 +57,13 @@ urlpatterns = [
     path('staff-profile/<str:username>/', StaffProfileView.as_view(), name='staff_profile'),
     path('request-material/', RequestMaterialView.as_view(), name='request_material'),
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
-    
+    path('material-orders-officers/', MaterialOrdersOfficersView.as_view(), name='material_orders_officers'),
     # Parameterized routes
     path('update_material_status/<int:order_id>/<str:new_status>/', UpdateMaterialStatusView.as_view(), name='update_material_status'),
     path('delete-item/<int:pk>', DeleteItem.as_view(), name='delete-item'),
     path('edit-item/<int:pk>', EditItem.as_view(), name='edit-item'),
     path('upload-inventory/', UploadInventoryView.as_view(), name='upload_inventory'),
+    path('download-sample-template/', DownloadSampleTemplateView.as_view(), name='download_sample_template'),
     path('list-categories/', list_categories, name='list_categories'),
     path('list-units/', list_units, name='list_units'),
     path('upload-categories-units/', UploadCategoriesAndUnitsView.as_view(), name='upload_categories_units'),

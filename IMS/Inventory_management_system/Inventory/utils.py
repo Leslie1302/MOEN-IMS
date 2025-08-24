@@ -36,3 +36,10 @@ def is_consultant(user):
     A user is considered a consultant if they are in the 'Consultant' group.
     """
     return user.groups.filter(name='Consultant').exists() or user.is_superuser
+
+def is_transport_officer(user):
+    """
+    Check if the user is a transport officer.
+    A user is considered a transport officer if they are in the 'Transport Officer' group.
+    """
+    return user.groups.filter(name='Transport Officer').exists() or user.is_superuser

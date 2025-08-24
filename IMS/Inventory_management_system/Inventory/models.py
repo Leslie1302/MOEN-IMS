@@ -10,6 +10,33 @@ import uuid
 # Import transporter models
 from .transporter_models import Transporter, TransportVehicle
 
+class Warehouse(models.Model):
+    """
+    Model for representing warehouses where inventory items are stored.
+    """
+    name = models.CharField(max_length=200, help_text="Name of the warehouse")
+    code = models.CharField(max_length=50, unique=True, help_text="Unique warehouse code")
+    location = models.CharField(max_length=500, help_text="Physical address or location description")
+    contact_person = models.CharField(max_length=200, blank=True, null=True, help_text="Primary contact person")
+    contact_phone = models.CharField(max_length=20, blank=True, null=True, help_text="Contact phone number")
+    contact_email = models.EmailField(blank=True, null=True, help_text="Contact email address")
+    is_active = models.BooleanField(default=True, help_text="Whether this warehouse is currently active")
+    notes = models.TextField(blank=True, null=True, help_text="Additional notes about the warehouse")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Warehouse'
+        verbose_name_plural = 'Warehouses'
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('warehouse_detail', kwargs={'pk': self.pk})
+
 class ReleaseLetter(models.Model):
     """
     Model for storing release letters that authorize material releases.
@@ -66,6 +93,7 @@ class InventoryItem(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, help_text="Warehouse where this item is stored")
 
     def __str__(self):
         return self.name
@@ -134,6 +162,13 @@ class MaterialOrder(models.Model):
         null=True,
         related_name='material_orders'
     )
+    warehouse = models.ForeignKey(
+        Warehouse, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        help_text="Warehouse associated with this order"
+    )
     
     # Request tracking
     request_code = models.CharField(
@@ -159,11 +194,25 @@ class MaterialOrder(models.Model):
         ('Rejected', 'Rejected'),
         ('Cancelled', 'Cancelled')
     ]
-    
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default='Draft'
+    )
+    
+    # Processing tracking
+    processed_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='material_orders_processed',
+        help_text="User who processed the quantity for release"
+    )
+    processed_at = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        help_text="When the quantity was processed"
     )
     
     # Request type
@@ -343,6 +392,13 @@ class BillOfQuantity(models.Model):
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()  # Changed to FloatField
     quantity_received = models.FloatField(default=0.0)  # Changed to FloatField
+    warehouse = models.ForeignKey(
+        Warehouse, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        help_text="Warehouse associated with this BOQ item"
+    )
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
@@ -380,6 +436,13 @@ class ReportSubmission(models.Model):
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()
     quantity_received = models.FloatField(default=0.0)
+    warehouse = models.ForeignKey(
+        Warehouse, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        help_text="Warehouse associated with this report"
+    )
     executive_summary = models.TextField(help_text="Provide a summary of the report")
     submission_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
@@ -482,7 +545,14 @@ class MaterialTransport(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     unit = models.CharField(max_length=20, blank=True, null=True)
     
-    # Destination details
+    # Warehouse and destination details
+    warehouse = models.ForeignKey(
+        Warehouse, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        help_text="Warehouse where the material is being transported from"
+    )
     recipient = models.CharField(max_length=200)
     consultant = models.CharField(max_length=200)
     region = models.CharField(max_length=100, blank=True, null=True)

@@ -49,8 +49,8 @@ class Dashboard(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get all inventory items
-        items = InventoryItem.objects.all().select_related('category', 'unit').order_by('name')
+        # Get all inventory items with related data including warehouse
+        items = InventoryItem.objects.all().select_related('category', 'unit', 'warehouse').order_by('name')
         
         # Get low inventory items (quantity <= 10)
         low_inventory_items = items.filter(quantity__lte=10)

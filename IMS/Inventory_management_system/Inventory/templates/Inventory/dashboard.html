@@ -48,6 +48,7 @@
                         <th scope="col" data-sort>Unit</th>
                         <th scope="col" data-sort>Category</th>
                         <th scope="col" data-sort>Item Code</th>
+                        <th scope="col" data-sort>Warehouse</th>
                         {% if user.is_superuser %}
                         <th scope="col" colspan="2" class="text-center" data-no-filter>Actions</th>
                         {% endif %}
@@ -55,7 +56,7 @@
                 </thead>
                 <tbody>
                     {% if not items %}
-                        <tr><td colspan="8" class="text-center text-muted">No items available</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No items available</td></tr>
                     {% else %}
                         {% for item in items %}
                             <tr>
@@ -65,6 +66,14 @@
                                 <td>{{ item.unit.name }}</td>
                                 <td>{{ item.category.name }}</td>
                                 <td>{{ item.code }}</td>
+                                <td>
+                                    {% if item.warehouse %}
+                                        <span class="badge bg-info">{{ item.warehouse.name }}</span>
+                                        <small class="text-muted d-block">{{ item.warehouse.code }}</small>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
                                 {% if user.is_superuser %}
                                 <td class="text-center"><a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary btn-sm">Edit</a></td>
                                 <td class="text-center"><a href="{% url 'delete-item' item.id %}" class="btn btn-danger btn-sm">Delete</a></td>

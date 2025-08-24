@@ -1,14 +1,47 @@
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse
 
 # Register your models here.
 
 admin.site.register(InventoryItem)
 admin.site.register(Category)
 admin.site.register(Unit)
-admin.site.register(MaterialOrder)
+
+@admin.register(MaterialOrder)
+class MaterialOrderAdmin(admin.ModelAdmin):
+    list_display = ('request_code', 'name', 'quantity', 'status', 'request_type', 'user', 'processed_by', 'processed_at', 'date_requested')
+    list_filter = ('status', 'request_type', 'priority', 'date_requested', 'processed_at')
+    search_fields = ('request_code', 'name', 'user__username', 'processed_by__username')
+    readonly_fields = ('processed_by', 'processed_at', 'last_updated_by', 'date_requested')
+    date_hierarchy = 'date_requested'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'quantity', 'category', 'code', 'unit', 'request_type', 'priority')
+        }),
+        ('Location & Project', {
+            'fields': ('region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse')
+        }),
+        ('Request Details', {
+            'fields': ('date_requested', 'date_required', 'status', 'request_code')
+        }),
+        ('Processing Information', {
+            'fields': ('processed_quantity', 'remaining_quantity', 'processed_by', 'processed_at'),
+            'classes': ('collapse',)
+        }),
+        ('User & Group', {
+            'fields': ('user', 'group', 'last_updated_by'),
+            'classes': ('collapse',)
+        }),
+        ('Documents', {
+            'fields': ('release_letter_pdf', 'release_letter_title'),
+            'classes': ('collapse',)
+        })
+    )
+
 admin.site.register(Profile)
+admin.site.register(Warehouse)
 
 # Register LogEntry
 @admin.register(LogEntry)

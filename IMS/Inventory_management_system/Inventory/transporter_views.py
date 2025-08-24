@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -19,6 +19,15 @@ from .models import (
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
 from Inventory.utils import is_storekeeper, is_superuser
 
+# Superuser-only access mixin that returns 404 for non-superusers
+class SuperuserOnlyMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        # Hide existence of the page from non-superusers
+        raise Http404()
+
 class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
     View for storekeepers and superusers to see all release letters with their associated orders.
@@ -28,8 +37,7 @@ class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     context_object_name = 'release_letters'
     paginate_by = 20
     
-    def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+    
     
     def get_queryset(self):
         queryset = ReleaseLetter.objects.select_related('uploaded_by').prefetch_related('material_orders').all()
@@ -72,7 +80,7 @@ class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return context
 
 
-class TransporterAssignmentView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     View for storekeepers to assign transporters to material orders.
     """
@@ -360,7 +368,7 @@ def update_transport_status(request, pk):
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 
-class TransporterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TransporterListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """View for managing transport companies."""
     model = Transporter
     template_name = 'Inventory/transporter_list.html'
@@ -395,7 +403,7 @@ class TransporterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return context
 
 
-class TransporterCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class TransporterCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     """View for adding a new transport company."""
     model = Transporter
     form_class = TransporterForm
@@ -411,7 +419,7 @@ class TransporterCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return super().form_valid(form)
 
 
-class TransporterUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class TransporterUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateView):
     """View for editing a transport company."""
     model = Transporter
     form_class = TransporterForm
@@ -545,7 +553,7 @@ def import_transporters(request):
     return redirect('transporter_list')
 
 
-class TransportVehicleListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TransportVehicleListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """View for managing transport vehicles."""
     model = TransportVehicle
     template_name = 'Inventory/transport_vehicle_list.html'
@@ -582,7 +590,7 @@ class TransportVehicleListView(LoginRequiredMixin, UserPassesTestMixin, ListView
         return context
 
 
-class TransportVehicleCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class TransportVehicleCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     """View for adding a new transport vehicle."""
     model = TransportVehicle
     form_class = TransportVehicleForm
@@ -599,7 +607,7 @@ class TransportVehicleCreateView(LoginRequiredMixin, UserPassesTestMixin, Create
         return super().form_valid(form)
 
 
-class TransportVehicleUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class TransportVehicleUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateView):
     """View for editing a transport vehicle."""
     model = TransportVehicle
     form_class = TransportVehicleForm
@@ -632,7 +640,7 @@ class TransportVehicleDeleteView(LoginRequiredMixin, UserPassesTestMixin, Delete
         return super().delete(request, *args, **kwargs)
 
 
-class TransporterDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class TransporterDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailView):
     """View for displaying transporter details."""
     model = Transporter
     template_name = 'Inventory/transporter_detail.html'
@@ -661,7 +669,7 @@ class TransporterDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
         return super().delete(request, *args, **kwargs)
 
 
-class TransportVehicleDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class TransportVehicleDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailView):
     """View for displaying transport vehicle details."""
     model = TransportVehicle
     template_name = 'Inventory/transport_vehicle_detail.html'
@@ -671,7 +679,7 @@ class TransportVehicleDetailView(LoginRequiredMixin, UserPassesTestMixin, Detail
         return is_storekeeper(self.request.user) or is_superuser(self.request.user)
 
 
-class TransporterLegendView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TransporterLegendView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """View for displaying a legend of all transporters and their vehicles."""
     model = Transporter
     template_name = 'Inventory/transporter_legend.html'
@@ -689,7 +697,7 @@ class TransporterLegendView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return context
 
 
-class TransportationStatusView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     View for displaying transportation status - which transporter is handling which orders.
     Shows active transports with visual status indicators.

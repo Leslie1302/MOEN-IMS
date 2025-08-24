@@ -12,11 +12,29 @@
 
     <form method="POST" enctype="multipart/form-data" class="text-center">
         {% csrf_token %}
-        <input type="file" name="file" required class="form-control mb-3">
-        <button type="submit" class="btn btn-primary">Upload</button>
+        <input type="file" name="file" required class="form-control mb-3" accept=".xlsx,.xls">
+        <div class="d-flex gap-2 justify-content-center">
+            <button type="submit" class="btn btn-primary">Upload</button>
+            <a href="{% url 'download_sample_template' %}" class="btn btn-outline-secondary">
+                📥 Download Sample Template
+            </a>
+        </div>
     </form>
 
     <div class="mt-4">
+        <div class="alert alert-info">
+            <h5>📋 Required Excel Columns:</h5>
+            <ul class="mb-0">
+                <li><strong>name</strong> - Material name</li>
+                <li><strong>quantity</strong> - Quantity available</li>
+                <li><strong>category</strong> - Material category</li>
+                <li><strong>code</strong> - Material code</li>
+                <li><strong>unit</strong> - Unit of measurement</li>
+                <li><strong>warehouse</strong> - Warehouse name where material is stored</li>
+            </ul>
+            <p class="mb-0 mt-2"><small class="text-muted">Note: The warehouse name must match exactly with existing warehouse names in the system.</small></p>
+        </div>
+        
         <a href="{% url 'dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 </div>

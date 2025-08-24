@@ -77,22 +77,6 @@
                         {% endif %}
 
                         <!-- Transport Menu -->
-                        {% for group in user.groups.all %}
-                            {% if group.name == 'Storekeeper' %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
-                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                🚚 Transport
-                            </a>
-                            <ul class="dropdown-menu" aria-labelledby="transportDropdown">
-                                <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Transporters</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">📦 Assign Transport</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
-                            </ul>
-                        </li>
-                            {% endif %}
-                        {% endfor %}
                         {% if user.is_superuser %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="transportDropdown" 
@@ -108,21 +92,7 @@
                         </li>
                         {% endif %}
 
-                        <!-- Consultants Menu -->
-                        {% for group in user.groups.all %}
-                            {% if group.name == 'Consultant' %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown" 
-                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                👷 Site Work
-                            </a>
-                            <ul class="dropdown-menu" aria-labelledby="consultantDropdown">
-                                <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">📦 Pending Deliveries</a></li>
-                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-                            </ul>
-                        </li>
-                            {% endif %}
-                        {% endfor %}
+                        <!-- Site Work Menu -->
                         {% if user.is_superuser %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown" 
@@ -137,6 +107,7 @@
                         {% endif %}
 
                         <!-- Projects Menu -->
+                        {% if user.is_superuser %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="projectsDropdown" 
                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -144,18 +115,11 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="projectsDropdown">
                                 <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a></li>
-                                {% for group in user.groups.all %}
-                                    {% if group.name == 'Management' %}
                                 <li><a class="dropdown-item" href="#">🏗️ Project Management</a></li>
                                 <li><a class="dropdown-item" href="#">📊 Project Reports</a></li>
-                                    {% endif %}
-                                {% endfor %}
-                                {% if user.is_superuser %}
-                                <li><a class="dropdown-item" href="#">🏗️ Project Management</a></li>
-                                <li><a class="dropdown-item" href="#">📊 Project Reports</a></li>
-                                {% endif %}
                             </ul>
                         </li>
+                        {% endif %}
 
                         <!-- Management Menu -->
                         {% for group in user.groups.all %}
@@ -180,7 +144,7 @@
                                 👔 Management
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="managementDropdown">
-                                <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📊 Enhanced Dashboard</a></li>
+                                <li><a class="dropdown-item" href="#">📊 Enhanced Dashboard</a></li>
                                 <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
                                 <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
                             </ul>

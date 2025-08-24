@@ -1,0 +1,394 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}Material Orders - Inventory Manager{% endblock %}
+
+{% block full_width_content %}
+{% csrf_token %}
+{% if messages %}
+    <div class="container-fluid">
+        <div class="row mt-3">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">📦 Material Orders</h1>
+            <p class="text-muted">Manage and fulfill material requests</p>
+        </div>
+    </div>
+
+    {% if orders %}
+    <div class="table-responsive">
+        <table class="table table-hover table-striped enhanced-table" id="material-orders-table">
+            <thead class="table-dark">
+                <tr>
+                    <th>Request #</th>
+                    <th>User</th>
+                    <th>Material</th>
+                    <th>Type</th>
+                    <th>Requested</th>
+                    <th>Processed</th>
+                    <th>Remaining</th>
+                    <th>Status</th>
+                    <th>Processed By</th>
+                    <th>Date</th>
+                    <th>Release Letter</th>
+                    {% if user.is_superuser %}
+                    <th class="text-center">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr data-order-id="{{ order.id }}" data-request-type="{{ order.request_type }}">
+                    <td class="fw-bold">{{ order.request_code|default:"N/A" }}</td>
+                    <td>{{ order.user.username }}</td>
+                    <td>{{ order.name }}</td>
+                    <td>
+                        {% if order.request_type == "Release" %}
+                            <span class="badge bg-danger">📤 Release</span>
+                        {% else %}
+                            <span class="badge bg-success">📥 Receipt</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ order.quantity|floatformat:0|intcomma }}</td>
+                    <td class="processed-qty">{{ order.processed_quantity|floatformat:0|intcomma }}</td>
+                    <td class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
+                    <td class="status-cell">
+                        {% if order.status == "Pending" %}
+                            <span class="badge bg-warning text-dark">⏳ Pending</span>
+                        {% elif order.status == "Seen" %}
+                            <span class="badge bg-info">👀 In Progress</span>
+                        {% elif order.status == "Approved" %}
+                            <span class="badge bg-success">✅ Approved</span>
+                        {% elif order.status == "Partial" %}
+                            <span class="badge bg-primary">📏 Partial</span>
+                        {% elif order.status == "Completed" %}
+                            <span class="badge bg-success">✅ Completed</span>
+                        {% elif order.status == "Draft" %}
+                            <span class="badge bg-secondary">📝 Draft</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ order.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if order.processed_by %}
+                            <div class="text-center">
+                                <div class="fw-bold">{{ order.processed_by.username }}</div>
+                                <small class="text-muted">{{ order.processed_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ order.date_requested|date:"M d, Y" }}</td>
+                    <td>
+                        {% if order.release_letter %}
+                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
+                                <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"View PDF" }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    {% if user.is_superuser %}
+                    <td class="text-center">
+                        {% if order.remaining_quantity > 0 and order.status != "Completed" %}
+                            <div class="d-flex gap-2 align-items-center justify-content-center">
+                                <input type="number" 
+                                       class="form-control form-control-sm fulfill-qty-input" 
+                                       style="width: 80px;" 
+                                       min="1" 
+                                       max="{{ order.remaining_quantity }}" 
+                                       placeholder="Qty"
+                                       title="Enter quantity to fulfill">
+                                <button class="btn btn-primary btn-sm process-btn" 
+                                        data-order-id="{{ order.id }}"
+                                        title="Process partial fulfillment">
+                                    Process
+                                </button>
+                                <button class="btn btn-success btn-sm complete-btn" 
+                                        data-order-id="{{ order.id }}"
+                                        data-remaining="{{ order.remaining_quantity }}"
+                                        title="Complete full fulfillment">
+                                    Complete
+                                </button>
+                            </div>
+                        {% else %}
+                            <span class="text-success">
+                                <i class="fas fa-check-circle"></i> Fulfilled
+                            </span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="mb-3">
+            <i class="fas fa-inbox fa-3x text-muted"></i>
+        </div>
+        <h4 class="text-muted">No Material Orders Found</h4>
+        <p class="text-muted">There are currently no material orders to display.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Material orders page loaded');
+    
+    // Get CSRF token
+    function getCSRFToken() {
+        const tokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const tokenCookie = getCookie('csrftoken');
+        
+        const token = tokenInput?.value || tokenMeta?.getAttribute('content') || tokenCookie;
+        console.log('CSRF token found:', token ? 'Yes' : 'No');
+        return token;
+    }
+    
+    // Helper function to get cookie value
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Process partial fulfillment
+    const processButtons = document.querySelectorAll('.process-btn');
+    console.log('Found process buttons:', processButtons.length);
+    
+    processButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Process button clicked');
+            
+            const orderId = this.getAttribute('data-order-id');
+            const row = this.closest('tr');
+            const qtyInput = row.querySelector('.fulfill-qty-input');
+            const quantity = parseFloat(qtyInput.value);
+            const maxQty = parseFloat(qtyInput.getAttribute('max'));
+            
+            console.log('Process button data:', { orderId, quantity, maxQty });
+            
+            if (!quantity || quantity <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+            
+            if (quantity > maxQty) {
+                alert(`Quantity cannot exceed ${maxQty.toLocaleString()}`);
+                return;
+            }
+            
+            processFulfillment(orderId, quantity, false, row);
+        });
+    });
+    
+    // Complete full fulfillment
+    const completeButtons = document.querySelectorAll('.complete-btn');
+    console.log('Found complete buttons:', completeButtons.length);
+    
+    completeButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Complete button clicked');
+            
+            const orderId = this.getAttribute('data-order-id');
+            const quantity = parseFloat(this.getAttribute('data-remaining'));
+            const row = this.closest('tr');
+            
+            console.log('Complete button data:', { orderId, quantity });
+            
+            if (confirm(`Complete fulfillment of ${quantity.toLocaleString()} units?`)) {
+                processFulfillment(orderId, quantity, true, row);
+            }
+        });
+    });
+    
+    function processFulfillment(orderId, quantity, isComplete, row) {
+        console.log('Starting processFulfillment:', { orderId, quantity, isComplete });
+        
+        const buttons = row.querySelectorAll('button, input');
+        buttons.forEach(btn => btn.disabled = true);
+        
+        const csrfToken = getCSRFToken();
+        if (!csrfToken) {
+            alert('CSRF token not found. Please refresh the page.');
+            buttons.forEach(btn => btn.disabled = false);
+            return;
+        }
+        
+        const requestType = row.getAttribute('data-request-type');
+        const statusText = row.querySelector('.status-cell').textContent.trim();
+        
+        console.log('Processing fulfillment:', {
+            orderId,
+            quantity,
+            isComplete,
+            requestType,
+            statusText
+        });
+        
+        // Determine if we need to update status first
+        const needsStatusUpdate = statusText.includes('Pending') || statusText.includes('Draft');
+        const targetStatus = requestType === 'Release' ? 'Approved' : 'Seen';
+        
+        if (needsStatusUpdate) {
+            console.log('Need status update first:', targetStatus);
+            // First update status, then process fulfillment
+            updateOrderStatus(orderId, targetStatus, csrfToken)
+                .then(() => {
+                    return fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType);
+                })
+                .then(data => {
+                    updateUI(row, data);
+                    alert(`Successfully processed ${quantity.toLocaleString()} units.`);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error processing fulfillment: ' + error.message);
+                })
+                .finally(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                });
+        } else {
+            console.log('Processing fulfillment directly');
+            // Process fulfillment directly
+            fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType)
+                .then(data => {
+                    updateUI(row, data);
+                    alert(`Successfully processed ${quantity.toLocaleString()} units.`);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error processing fulfillment: ' + error.message);
+                })
+                .finally(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                });
+        }
+    }
+    
+    function updateOrderStatus(orderId, status, csrfToken) {
+        console.log('Updating order status:', { orderId, status });
+        
+        return fetch(`/update_material_status/${orderId}/${status}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            console.log('Status update response:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Status update error response:', text);
+                    throw new Error(`Status update failed: ${response.status} - ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Status update response data:', data);
+            if (!data.success) {
+                throw new Error(data.error || 'Status update failed');
+            }
+            return data;
+        });
+    }
+    
+    function fulfillOrder(orderId, quantity, isComplete, csrfToken, requestType) {
+        const endpoint = isComplete ? 'Full' : 'Partially Fulfilled';
+        const body = isComplete ? {} : { partial_quantity: quantity };
+        
+        // Use different URL based on request type
+        const baseUrl = requestType === 'Receipt' ? '/update_material_receipt' : '/update_material_status';
+        
+        console.log('Fulfilling order:', { orderId, endpoint, baseUrl, body });
+        
+        return fetch(`${baseUrl}/${orderId}/${endpoint}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(body)
+        })
+        .then(response => {
+            console.log('Fulfillment response:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Fulfillment error response:', text);
+                    throw new Error(`Fulfillment failed: ${response.status} - ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Fulfillment response data:', data);
+            if (!data.success) {
+                throw new Error(data.error || 'Fulfillment failed');
+            }
+            return data;
+        });
+    }
+    
+    function updateUI(row, data) {
+        console.log('Updating UI with data:', data);
+        
+        // Update quantities
+        row.querySelector('.processed-qty').textContent = parseFloat(data.processed_quantity || 0).toLocaleString();
+        row.querySelector('.remaining-qty').textContent = parseFloat(data.remaining_quantity || 0).toLocaleString();
+        
+        // Update status
+        const statusCell = row.querySelector('.status-cell');
+        const remainingQty = parseFloat(data.remaining_quantity || 0);
+        
+        if (remainingQty <= 0) {
+            statusCell.innerHTML = '<span class="badge bg-success">✅ Completed</span>';
+            // Replace action buttons with fulfilled message
+            const actionCell = row.querySelector('td:last-child');
+            actionCell.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Fulfilled</span>';
+        } else {
+            statusCell.innerHTML = '<span class="badge bg-primary">📏 Partial</span>';
+            // Update input max value
+            const qtyInput = row.querySelector('.fulfill-qty-input');
+            if (qtyInput) {
+                qtyInput.setAttribute('max', remainingQty);
+                qtyInput.value = '';
+            }
+            // Update complete button
+            const completeBtn = row.querySelector('.complete-btn');
+            if (completeBtn) {
+                completeBtn.setAttribute('data-remaining', remainingQty);
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

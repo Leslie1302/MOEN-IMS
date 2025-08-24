@@ -24,6 +24,7 @@
                             <th scope="col" data-sort>Unit</th>
                             <th scope="col" data-sort>Category</th>
                             <th scope="col" data-sort>Item Code</th>
+                            <th scope="col" data-sort>Warehouse</th>
                             {% if user.is_superuser %}
                             <th scope="col" class="text-center" data-no-filter>Action</th>
                             {% endif %}
@@ -38,6 +39,14 @@
                                 <td>{{ item.unit.name }}</td>
                                 <td>{{ item.category.name }}</td>
                                 <td>{{ item.code }}</td>
+                                <td>
+                                    {% if item.warehouse %}
+                                        <span class="badge bg-info">{{ item.warehouse.name }}</span>
+                                        <small class="text-muted d-block">{{ item.warehouse.code }}</small>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
                                 {% if user.is_superuser %}
                                 <td class="text-center">
                                     <a href="{% url 'edit-item' item.id %}" class="btn btn-outline-primary btn-sm">
