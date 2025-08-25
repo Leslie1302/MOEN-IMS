@@ -23,17 +23,37 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6z-jao9@c1iv5^98mp_kq8)kfqo82k_u5@2-nj@s3*#76l*b=^'
+# Prefer environment variable in production
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-6z-jao9@c1iv5^98mp_kq8)kfqo82k_u5@2-nj@s3*#76l*b=^'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = [
+# Hosts allowed to serve this site
+_default_hosts = [
     'localhost',
     '127.0.0.1',
     'inventory-management-system-1-1bbd774008d3.herokuapp.com',
+    'moen-ims-h7xyu.ondigitalocean.app',  # DigitalOcean App Platform default domain
     'testserver',
 ]
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
+
+# CSRF trusted origins (scheme required). Configure via env in production.
+_default_csrf = [
+    'https://localhost',
+    'https://127.0.0.1',
+    'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
+    'https://moen-ims-h7xyu.ondigitalocean.app',
+    'https://*.ondigitalocean.app',
+]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
+
+# Ensure request.is_secure() works behind proxies (DO App Platform / Heroku)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 
@@ -61,7 +81,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',  # Required for user authentication
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'Inventory.middleware.UserRoleMiddleware',  # Custom middleware for role-based access
 ]
@@ -138,9 +157,7 @@ STATICFILES_DIRS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 LOGIN_REDIRECT_URL = '/dashboard'
@@ -154,45 +171,14 @@ LOW_QUANTITY = 3
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-STATIC_URL = '/static/'
-
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'WARNING',  # Log warnings and above (ERROR, CRITICAL)
-            'class': 'logging.FileHandler',
-            'filename': 'django_logs.log',  # Log file
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['file'],
-            'level': 'WARNING',
-            'propagate': True,
-        },
-        'django.security': {
-            'handlers': ['file'],
-            'level': 'WARNING',
-            'propagate': True,
-        },
-    },
-}
+# Consolidated logging configured later
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Media files (user-uploaded files)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Ensure debug is True in development
-DEBUG = True
 
 logging.basicConfig(
     level=logging.ERROR,
@@ -207,12 +193,9 @@ LOGGING = {
             'class': 'logging.StreamHandler',
         },
     },
-    'loggers': {
-        '': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO' if not DEBUG else 'DEBUG',
     },
 }
 
