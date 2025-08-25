@@ -67,9 +67,11 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    # Share cookies across apex and subdomains (e.g., moen-ims.org and www.moen-ims.org)
-    SESSION_COOKIE_DOMAIN = '.moen-ims.org'
-    CSRF_COOKIE_DOMAIN = '.moen-ims.org'
+    # Optional: share cookies across apex and subdomains (set via env to avoid breaking other hosts)
+    _cookie_domain = os.getenv('COOKIE_DOMAIN', '').strip()
+    if _cookie_domain:
+        SESSION_COOKIE_DOMAIN = _cookie_domain
+        CSRF_COOKIE_DOMAIN = _cookie_domain
     # Strongly enforce HTTPS (optional but recommended)
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
