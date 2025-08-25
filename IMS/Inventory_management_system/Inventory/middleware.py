@@ -2,6 +2,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
+from django.http import HttpResponse
 
 class CanonicalHostRedirectMiddleware(MiddlewareMixin):
     """
@@ -21,7 +22,14 @@ class CanonicalHostRedirectMiddleware(MiddlewareMixin):
         # Build redirect URL preserving path and query, force https in production
         scheme = 'https' if not settings.DEBUG else ('https' if request.is_secure() else 'http')
         new_url = f"{scheme}://{canonical}{request.get_full_path()}"
-        return redirect(new_url, permanent=True)
+
+        # Use 301 for safe methods, 308 to preserve method/body for POST/PUT/PATCH/DELETE
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return redirect(new_url, permanent=True)
+        # 308 Permanent Redirect preserves method and body
+        response = HttpResponse(status=308)
+        response['Location'] = new_url
+        return response
 
 class UserRoleMiddleware(MiddlewareMixin):
     """
