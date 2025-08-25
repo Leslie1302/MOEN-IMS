@@ -40,6 +40,9 @@ _default_hosts = [
     'moen-ims-h7xyu.ondigitalocean.app',  # DigitalOcean App Platform default domain
     'testserver',
     'moen-ims.org',
+    'www.moen-ims.org',
+    '.moen-ims.org',            # allow all subdomains of moen-ims.org
+    '.ondigitalocean.app',      # allow any DO App Platform generated domain
 ]
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
@@ -51,11 +54,19 @@ _default_csrf = [
     'https://moen-ims-h7xyu.ondigitalocean.app',
     'https://*.ondigitalocean.app',
     'https://moen-ims.org',
+    'https://www.moen-ims.org',
+    'https://*.moen-ims.org',
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
 # Ensure request.is_secure() works behind proxies (DO App Platform / Heroku)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Enforce HTTPS and secure cookies in production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 
