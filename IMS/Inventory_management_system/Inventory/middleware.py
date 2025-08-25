@@ -3,6 +3,26 @@ from django.urls import reverse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 
+class CanonicalHostRedirectMiddleware(MiddlewareMixin):
+    """
+    Redirect all requests to a single canonical host if settings.CANONICAL_HOST is set.
+    This helps keep session cookies consistent across apex/www by forcing one host.
+    """
+    def process_request(self, request):
+        canonical = getattr(settings, 'CANONICAL_HOST', '').strip()
+        if not canonical:
+            return None
+
+        # Determine current host from request
+        host = request.get_host().split(':')[0]
+        if host == canonical:
+            return None
+
+        # Build redirect URL preserving path and query, force https in production
+        scheme = 'https' if not settings.DEBUG else ('https' if request.is_secure() else 'http')
+        new_url = f"{scheme}://{canonical}{request.get_full_path()}"
+        return redirect(new_url, permanent=True)
+
 class UserRoleMiddleware(MiddlewareMixin):
     """
     Middleware to handle role-based access control.

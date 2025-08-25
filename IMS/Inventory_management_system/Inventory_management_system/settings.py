@@ -62,6 +62,9 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGIN
 # Ensure request.is_secure() works behind proxies (DO App Platform / Heroku)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Optional: force a single canonical host (e.g., 'www.moen-ims.org') to avoid cross-host cookie issues
+CANONICAL_HOST = os.getenv('CANONICAL_HOST', '').strip()
+
 # Enforce HTTPS and secure cookies in production
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -96,6 +99,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'Inventory.middleware.CanonicalHostRedirectMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
