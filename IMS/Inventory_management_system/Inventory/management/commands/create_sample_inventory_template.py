@@ -82,3 +82,4 @@ class Command(BaseCommand):
         self.stdout.write('  2. Fill in their inventory data')
         self.stdout.write('  3. Upload the completed file')
         self.stdout.write('\n⚠️  Important: Warehouse names must match exactly with existing warehouses in the system.')
+
