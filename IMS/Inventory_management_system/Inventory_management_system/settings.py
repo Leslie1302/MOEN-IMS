@@ -67,6 +67,13 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    # Share cookies across apex and subdomains (e.g., moen-ims.org and www.moen-ims.org)
+    SESSION_COOKIE_DOMAIN = '.moen-ims.org'
+    CSRF_COOKIE_DOMAIN = '.moen-ims.org'
+    # Strongly enforce HTTPS (optional but recommended)
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 

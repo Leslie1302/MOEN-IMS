@@ -35,6 +35,10 @@ class UserRoleMiddleware(MiddlewareMixin):
         if request.path.startswith('/admin/'):
             return None
 
+        # Allow exact homepage without auth
+        if request.path == '/':
+            return None
+
         # Skip if URL is in the allowed list
         if any(request.path.startswith(allowed) for allowed in self.allowed_urls):
             return None
