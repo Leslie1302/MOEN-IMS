@@ -39,6 +39,7 @@ _default_hosts = [
     'inventory-management-system-1-1bbd774008d3.herokuapp.com',
     'moen-ims-h7xyu.ondigitalocean.app',  # DigitalOcean App Platform default domain
     'testserver',
+    'moen-ims.org',
 ]
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
