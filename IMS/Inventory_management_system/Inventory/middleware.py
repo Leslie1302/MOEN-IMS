@@ -14,6 +14,12 @@ class CanonicalHostRedirectMiddleware(MiddlewareMixin):
         if not canonical:
             return None
 
+        # Allow certificate validation and similar well-known endpoints without redirect
+        # This is required so CA bots (e.g., DigiCert/Let's Encrypt) can fetch
+        # HTTP validation files directly on the requested host.
+        if request.path.startswith('/.well-known/'):
+            return None
+
         # Determine current host from request
         host = request.get_host().split(':')[0]
         if host == canonical:
@@ -46,6 +52,7 @@ class UserRoleMiddleware(MiddlewareMixin):
             '/help/',
             '/profile/',
             '/awaiting-authorization/',
+            '/.well-known/',  # Allow CA validation endpoints without auth
         ]
         
         # Add static and media URLs to allowed paths

@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from pathlib import Path
 import logging
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -36,13 +37,10 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
 _default_hosts = [
     'localhost',
     '127.0.0.1',
-    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
-    'moen-ims-h7xyu.ondigitalocean.app',  # DigitalOcean App Platform default domain
     'testserver',
     'moen-ims.org',
     'www.moen-ims.org',
-    '.moen-ims.org',            # allow all subdomains of moen-ims.org
-    '.ondigitalocean.app',      # allow any DO App Platform generated domain
+    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
 ]
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
@@ -50,12 +48,9 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_
 _default_csrf = [
     'https://localhost',
     'https://127.0.0.1',
-    'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
-    'https://moen-ims-h7xyu.ondigitalocean.app',
-    'https://*.ondigitalocean.app',
     'https://moen-ims.org',
     'https://www.moen-ims.org',
-    'https://*.moen-ims.org',
+    'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
@@ -82,6 +77,12 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 
+# Exempt certificate validation path from HTTPS redirect so CA bots can fetch
+# HTTP-01 challenges without a valid certificate yet.
+# Django's SecurityMiddleware honors this list when SECURE_SSL_REDIRECT is True.
+SECURE_REDIRECT_EXEMPT = [r'^\.well-known/']
+
+
 
 # Application definition
 
@@ -102,13 +103,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'Inventory.middleware.CanonicalHostRedirectMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',  # Required for user authentication
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'Inventory.middleware.UserRoleMiddleware',  # Custom middleware for role-based access
 ]
 
@@ -139,10 +140,7 @@ WSGI_APPLICATION = 'Inventory_management_system.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
 }
 
 
@@ -207,10 +205,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-logging.basicConfig(
-    level=logging.ERROR,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
+# Removed basicConfig to rely on Django LOGGING dict for Heroku console output
 
 LOGGING = {
     'version': 1,
