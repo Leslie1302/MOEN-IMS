@@ -33,17 +33,15 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'false'
 
-# Default allowed hosts for development and production
-_default_hosts = [
+ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
+    'testserver',
     'moen-ims.org',
     'www.moen-ims.org',
-    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
     'moen-ims-28b53393a6a5.herokuapp.com',
 ]
-
-ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
 # CSRF trusted origins (scheme required). Configure via env in production.
 _default_csrf = [
