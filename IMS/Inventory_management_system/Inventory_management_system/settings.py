@@ -31,17 +31,8 @@ SECRET_KEY = os.getenv(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'false'
 
-# Hosts allowed to serve this site
-_default_hosts = [
-    'localhost',
-    '127.0.0.1',
-    'testserver',
-    'moen-ims.org',
-    'www.moen-ims.org',
-    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
-]
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
 # CSRF trusted origins (scheme required). Configure via env in production.
@@ -51,6 +42,7 @@ _default_csrf = [
     'https://moen-ims.org',
     'https://www.moen-ims.org',
     'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
+    'https://moen-ims-28b53393a6a5.herokuapp.com',
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
