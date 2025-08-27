@@ -33,6 +33,16 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'false'
 
+# Default allowed hosts for development and production
+_default_hosts = [
+    'localhost',
+    '127.0.0.1',
+    'moen-ims.org',
+    'www.moen-ims.org',
+    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
+    'moen-ims-28b53393a6a5.herokuapp.com',
+]
+
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', ','.join(_default_hosts)).split(',') if h.strip()]
 
 # CSRF trusted origins (scheme required). Configure via env in production.
@@ -131,9 +141,17 @@ WSGI_APPLICATION = 'Inventory_management_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# Default SQLite database configuration
 DATABASES = {
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
 }
+
+# If DATABASE_URL environment variable is set, use it to override the default
+if os.getenv('DATABASE_URL'):
+    DATABASES['default'] = dj_database_url.config(default=os.getenv('DATABASE_URL'))
 
 
 # Password validation
