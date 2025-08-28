@@ -1754,12 +1754,12 @@ class MaterialReceiptListView(LoginRequiredMixin, ListView):
 class StaffProfileView(LoginRequiredMixin, View):
     """
     Comprehensive staff profile view showing detailed metrics and activities for a specific user.
-    Accessible only to superusers for management purposes.
+    Accessible to superusers and management users.
     """
     
     def get(self, request, username):
-        # Ensure only superusers can access staff profiles
-        if not request.user.is_superuser:
+        # Ensure only superusers and management can access staff profiles
+        if not (request.user.is_superuser or request.user.groups.filter(name='Management').exists()):
             return redirect('dashboard')
         
         try:
