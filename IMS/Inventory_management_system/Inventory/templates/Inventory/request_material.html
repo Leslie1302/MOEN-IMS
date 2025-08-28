@@ -170,6 +170,22 @@
                                         <option value="Transfer">Transfer</option>
                                     </select>
                                 </div>
+
+                                <!-- Release Letter Upload Section -->
+                                <div id="release-letter-section" class="border-top pt-3 mt-3">
+                                    <div class="mb-3">
+                                        <label for="release_letter_title" class="form-label fw-semibold">Release Letter Title</label>
+                                        <input type="text" class="form-control" id="release_letter_title" 
+                                               name="release_letter_title" placeholder="Enter release letter title">
+                                        <div class="form-text">A title for the release letter (e.g., 'August 2024 Material Release')</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="release_letter_pdf" class="form-label fw-semibold">Release Letter (PDF)</label>
+                                        <input class="form-control" type="file" id="release_letter_pdf" 
+                                               name="release_letter_pdf" accept=".pdf">
+                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)</div>
+                                    </div>
+                                </div>
                                 
                                 <div class="d-grid gap-2 mt-4">
                                     <button type="submit" class="btn btn-primary">
@@ -196,6 +212,31 @@
 </div>
 
 <script>
+    // Initialize release letter section
+    document.addEventListener('DOMContentLoaded', function() {
+        const requestType = document.getElementById('request_type');
+        const releaseLetterSection = document.getElementById('release-letter-section');
+        
+        // Function to toggle release letter fields
+        function toggleReleaseLetterFields() {
+            const isRelease = requestType && requestType.value === 'Release';
+            if (releaseLetterSection) {
+                releaseLetterSection.style.display = isRelease ? 'block' : 'none';
+                const inputs = releaseLetterSection.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.required = isRelease;
+                });
+            }
+        }
+        
+        // Set up event listener for request type change
+        if (requestType) {
+            requestType.addEventListener('change', toggleReleaseLetterFields);
+            // Initialize on page load
+            toggleReleaseLetterFields();
+        }
+    });
+
     const inventoryItems = {{ inventory_items|safe }};
 
     document.addEventListener("DOMContentLoaded", function () {

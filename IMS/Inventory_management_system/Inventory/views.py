@@ -222,6 +222,8 @@ class RequestMaterialView(LoginRequiredMixin, View):
         try:
             df = bulk_form.cleaned_data['df']
             request_type = bulk_form.cleaned_data['request_type']
+            release_letter_pdf = bulk_form.cleaned_data.get('release_letter_pdf')
+            release_letter_title = bulk_form.cleaned_data.get('release_letter_title')
             
             logger.info(f"Processing bulk request with {len(df)} rows")
             
@@ -231,6 +233,23 @@ class RequestMaterialView(LoginRequiredMixin, View):
             
             # Add a request code column to the DataFrame
             df['request_code'] = [f"{base_request_code}-{i+1}" for i in range(len(df))]
+            
+            # Create release letter if PDF is uploaded
+            release_letter = None
+            if release_letter_pdf:
+                try:
+                    release_letter = ReleaseLetter.objects.create(
+                        title=release_letter_title or f"Release Letter - {base_request_code}",
+                        pdf_file=release_letter_pdf,
+                        uploaded_by=request.user,
+                        request_code=base_request_code
+                    )
+                    logger.info(f"Created release letter ID {release_letter.id} for request code {base_request_code}")
+                except Exception as e:
+                    error_msg = f"Error creating release letter: {str(e)}"
+                    messages.error(request, error_msg)
+                    logger.error(error_msg, exc_info=True)
+                    return self._render_request_form(request, bulk_form=bulk_form)
             
             # Process each row in the Excel file
             logger.info(f"Starting to process {len(df)} rows from Excel")
@@ -295,7 +314,15 @@ class RequestMaterialView(LoginRequiredMixin, View):
                             }
                             logger.info(f"Creating order with data: {order_data}")
                             
+                            # Create the order with release letter if available
                             order = MaterialOrder.objects.create(**order_data)
+                            
+                            # Associate with release letter if available
+                            if release_letter:
+                                order.release_letter = release_letter
+                                order.save(update_fields=['release_letter'])
+                                logger.info(f"Associated order ID {order.id} with release letter ID {release_letter.id}")
+                            
                             success_count += 1
                             logger.info(f"Successfully created order ID {order.id} for {item.name} with request code {row['request_code']}")
                             

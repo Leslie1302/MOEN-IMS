@@ -122,6 +122,24 @@ class BulkMaterialRequestForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-control'}),
         help_text='Type of request (Release/Return)'
     )
+    release_letter_pdf = forms.FileField(
+        required=False,
+        label="Release Letter (PDF)",
+        help_text="Upload the signed release letter for these material requests (optional)",
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': 'application/pdf',
+            'data-max-size': '10485760'  # 10MB limit
+        })
+    )
+    release_letter_title = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Release Letter Title",
+        help_text="Title for the release letter (optional, will auto-generate if not provided)",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
 
     def clean_file(self):
         file = self.cleaned_data.get('file')

@@ -54,6 +54,21 @@
                                         <option value="Transfer">Transfer</option>
                                     </select>
                                 </div>
+                                <!-- Release Letter Upload -->
+                                <div id="release-letter-section">
+                                    <div class="mb-3 release-letter-field">
+                                        <label for="release_letter_title" class="form-label">Release Letter Title</label>
+                                        <input type="text" class="form-control" id="release_letter_title" 
+                                               name="release_letter_title" placeholder="Enter release letter title">
+                                        <div class="form-text">A title for the release letter (e.g., 'August 2024 Material Release')</div>
+                                    </div>
+                                    <div class="mb-3 release-letter-field">
+                                        <label for="release_letter_pdf" class="form-label">Release Letter (PDF)</label>
+                                        <input class="form-control" type="file" id="release_letter_pdf" 
+                                               name="release_letter_pdf" accept=".pdf">
+                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)</div>
+                                    </div>
+                                </div>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-upload me-2"></i>Upload & Process
                                 </button>
@@ -98,6 +113,33 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('bulk-upload-form');
+        const requestType = document.getElementById('request_type');
+        const releaseLetterSection = document.getElementById('release-letter-section');
+        const releaseLetterFields = document.querySelectorAll('.release-letter-field');
+        
+        // Function to toggle release letter fields
+        function toggleReleaseLetterFields() {
+            const isRelease = requestType && requestType.value === 'Release';
+            releaseLetterSection.style.display = isRelease ? 'block' : 'none';
+            releaseLetterFields.forEach(field => {
+                const inputs = field.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    if (isRelease) {
+                        input.setAttribute('required', 'required');
+                    } else {
+                        input.removeAttribute('required');
+                    }
+                });
+            });
+        }
+        
+        // Set initial state
+        if (requestType) {
+            // Set up change event
+            requestType.addEventListener('change', toggleReleaseLetterFields);
+            // Initialize the fields
+            toggleReleaseLetterFields();
+        }
         
         form.addEventListener('submit', function() {
             const fileInput = document.getElementById('excel_file');
