@@ -381,6 +381,70 @@ class RequestMaterialView(LoginRequiredMixin, View):
             
         return self._render_request_form(request, bulk_form=bulk_form)
         
+    def _find_inventory_item(self, item_name, user):
+        """Helper method to find an inventory item by name with proper permissions
+        
+        Args:
+            item_name (str): Name of the item to find
+            user (User): The user making the request
+            
+        Returns:
+            InventoryItem or None: The found item or None if not found/not accessible
+        """
+        logger = logging.getLogger(__name__)
+        try:
+            # First try exact match
+            if user.is_superuser:
+                item = InventoryItem.objects.filter(name__iexact=item_name).first()
+            else:
+                item = InventoryItem.objects.filter(
+                    name__iexact=item_name,
+                    group__in=user.groups.all()
+                ).first()
+                
+            if item:
+                logger.info(f"Found exact match for item: {item_name}")
+                return item
+                
+            # If no exact match, try case-insensitive contains
+            if user.is_superuser:
+                item = InventoryItem.objects.filter(name__icontains=item_name).first()
+            else:
+                item = InventoryItem.objects.filter(
+                    name__icontains=item_name,
+                    group__in=user.groups.all()
+                ).first()
+                
+            if item:
+                logger.info(f"Found partial match for item: {item_name} -> {item.name}")
+                return item
+                
+            logger.warning(f"Item not found or not accessible: {item_name}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error finding inventory item {item_name}: {str(e)}", exc_info=True)
+            return None
+
+    def _get_order_group(self, user, item, item_name):
+        """Helper method to determine the appropriate group for an order"""
+        # First try to get the group from the item
+        if item.group:
+            return item.group
+            
+        # If item has no group, try to find a matching group from the user's groups
+        # that has the same name as the item's category
+        if item.category and user.groups.exists():
+            matching_group = user.groups.filter(name__iexact=item.category.name).first()
+            if matching_group:
+                return matching_group
+                
+        # Default to the user's first group if available
+        if user.groups.exists():
+            return user.groups.first()
+            
+        return None
+
     def _render_request_form(self, request, bulk_form=None):
         """Helper method to render the request form with the current context"""
         if request.user.is_superuser:
@@ -1224,10 +1288,159 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def management_dashboard(request):
-    # Check if user is in Management group or is superuser
-    if not (request.user.groups.filter(name='Management').exists() or request.user.is_superuser):
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('dashboard')
+    logger = logging.getLogger(__name__)
+    logger.info("Entering management_dashboard view")
+    
+    try:
+        # Check if user is in Management group or is superuser
+        if not (request.user.groups.filter(name='Management').exists() or request.user.is_superuser):
+            messages.error(request, 'You do not have permission to access this page.')
+            return redirect('dashboard')
+            
+        # Initialize context with default values
+        context = {
+            'total_orders': 0,
+            'total_received_by_consultants': 0,
+            'total_received_by_storekeepers': 0,
+            'total_released_by_storekeepers': 0,
+            'total_on_site': 0,
+            'pending_orders': 0,
+            'orders': [],
+            'audit_trail': [],
+            'notifications': [],
+            'user_grades': {},
+            'low_inventory_count': 0,
+            'profile': None,
+        }
+        
+        try:
+            # Get or create user profile
+            profile, created = Profile.objects.get_or_create(user=request.user)
+            context['profile'] = profile
+            
+            # Get all users with their groups and permissions
+            users = User.objects.prefetch_related('groups').all()
+            user_grades = {}
+            
+            # Calculate grades for each user
+            for user in users:
+                try:
+                    user_orders = MaterialOrder.objects.filter(user=user)
+                    total_orders = user_orders.count()
+                    completed_orders = user_orders.filter(status='Completed').count()
+                    
+                    if total_orders > 0:
+                        completion_rate = (completed_orders / total_orders) * 100
+                        if completion_rate >= 90:
+                            grade_letter = 'A'
+                            grade_color = 'success'
+                        elif completion_rate >= 80:
+                            grade_letter = 'B'
+                            grade_color = 'info'
+                        elif completion_rate >= 70:
+                            grade_letter = 'C'
+                            grade_color = 'warning'
+                        else:
+                            grade_letter = 'D'
+                            grade_color = 'danger'
+                    else:
+                        completion_rate = 0
+                        grade_letter = 'N/A'
+                        grade_color = 'secondary'
+                    
+                    user_grades[user.id] = {
+                        'username': user.username,
+                        'groups': ", ".join([g.name for g in user.groups.all()]),
+                        'grade': completion_rate,
+                        'grade_letter': grade_letter,
+                        'grade_color': grade_color,
+                        'total_orders': total_orders,
+                        'completed_orders': completed_orders
+                    }
+                except Exception as e:
+                    logger.error(f"Error calculating grade for user {user.username}: {str(e)}", exc_info=True)
+            
+            context['user_grades'] = user_grades
+            
+            # Get order statistics with error handling
+            try:
+                context['total_orders'] = MaterialOrder.objects.count()
+                logger.debug(f"Total Orders: {context['total_orders']}")
+                
+                # Received by Consultants
+                received_by_consultants = MaterialOrder.objects.filter(
+                    status='Received', 
+                    user__groups__name='Consultants'
+                )
+                context['total_received_by_consultants'] = received_by_consultants.aggregate(
+                    total=Sum('processed_quantity')
+                )['total'] or 0
+                
+                # Received by Storekeepers
+                received_by_storekeepers = MaterialOrder.objects.filter(
+                    status='Received', 
+                    user__groups__name='Storekeepers'
+                )
+                context['total_received_by_storekeepers'] = received_by_storekeepers.aggregate(
+                    total=Sum('processed_quantity')
+                )['total'] or 0
+                
+                # Released by Storekeepers
+                released_by_storekeepers = MaterialOrder.objects.filter(
+                    request_type='Release', 
+                    user__groups__name='Storekeepers'
+                )
+                context['total_released_by_storekeepers'] = released_by_storekeepers.aggregate(
+                    total=Sum('processed_quantity')
+                )['total'] or 0
+                
+                # Other metrics
+                context['total_on_site'] = MaterialOrder.objects.filter(status='On Site').count()
+                context['pending_orders'] = MaterialOrder.objects.filter(status='Pending').count()
+                
+                # Get recent orders and audit trail
+                context['orders'] = MaterialOrder.objects.all().order_by('-date_requested')[:10]
+                context['audit_trail'] = MaterialOrderAudit.objects.all().order_by('-date')[:10]
+                
+            except Exception as e:
+                logger.error(f"Error fetching order statistics: {str(e)}", exc_info=True)
+                messages.error(request, 'Error loading dashboard statistics. Please try again.')
+            
+            # Get low inventory count
+            try:
+                low_inventory = InventoryItem.objects.filter(quantity__lt=10)
+                context['low_inventory_count'] = low_inventory.count()
+                
+                # Add low inventory notification if needed
+                if low_inventory.exists():
+                    context['notifications'].append({
+                        'type': 'warning',
+                        'message': f'{low_inventory.count()} items are below reorder level',
+                        'url': reverse('low_inventory_summary')
+                    })
+                
+                # Add pending orders notification if needed
+                if context['pending_orders'] > 0:
+                    context['notifications'].append({
+                        'type': 'info',
+                        'message': f"{context['pending_orders']} pending material orders",
+                        'url': reverse('material_orders')
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error fetching inventory data: {str(e)}", exc_info=True)
+            
+            logger.info("Successfully prepared dashboard context")
+            return render(request, 'Inventory/management_dashboard.html', context)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in management dashboard: {str(e)}", exc_info=True)
+            messages.error(request, 'An unexpected error occurred while loading the dashboard.')
+            return render(request, 'Inventory/management_dashboard.html', context)
+            
+    except Exception as e:
+        logger.critical(f"Critical error in management dashboard: {str(e)}", exc_info=True)
+        return render(request, '500.html', status=500)
         
     # Log the total number of orders
     total_orders = MaterialOrder.objects.count()
@@ -1290,21 +1503,21 @@ def management_dashboard(request):
         status='Received', user__groups__name='Consultants'
     )
     logger.debug(f"Received Orders by Consultants: {received_by_consultants.count()}")
-    total_received_by_consultants = received_by_consultants.aggregate(total=Sum('quantity'))['total'] or 0
+    total_received_by_consultants = received_by_consultants.aggregate(total=Sum('processed_quantity'))['total'] or 0
     logger.debug(f"Total Received by Consultants (Sum): {total_received_by_consultants}")
 
     received_by_storekeepers = MaterialOrder.objects.filter(
         status='Received', user__groups__name='Storekeepers'
     )
     logger.debug(f"Received Orders by Storekeepers: {received_by_storekeepers.count()}")
-    total_received_by_storekeepers = received_by_storekeepers.aggregate(total=Sum('quantity'))['total'] or 0
+    total_received_by_storekeepers = received_by_storekeepers.aggregate(total=Sum('processed_quantity'))['total'] or 0
     logger.debug(f"Total Received by Storekeepers (Sum): {total_received_by_storekeepers}")
 
     released_by_storekeepers = MaterialOrder.objects.filter(
         request_type='Release', user__groups__name='Storekeepers'
     )
     logger.debug(f"Released Orders by Storekeepers: {released_by_storekeepers.count()}")
-    total_released_by_storekeepers = released_by_storekeepers.aggregate(total=Sum('quantity'))['total'] or 0
+    total_released_by_storekeepers = released_by_storekeepers.aggregate(total=Sum('processed_quantity'))['total'] or 0
     logger.debug(f"Total Released by Storekeepers (Sum): {total_released_by_storekeepers}")
 
     total_on_site = MaterialOrder.objects.filter(status='On Site').count()
@@ -1357,36 +1570,6 @@ def management_dashboard(request):
         'profile': profile,
     }
     return render(request, 'Inventory/management_dashboard.html', context)
-
-
-    if request.method == 'POST':
-        if new_status not in ['Received', 'On Site']:  # Restrict to valid statuses
-            return JsonResponse({'success': False, 'error': 'Invalid status.'}, status=400)
-
-        try:
-            order = MaterialOrder.objects.get(id=order_id)
-            # Validate status transition
-            if new_status == 'On Site' and order.status != 'Received':
-                return JsonResponse({'success': False, 'error': 'Order must be marked as Received before On Site.'}, status=400)
-
-            order.status = new_status
-            order.last_updated_by = request.user
-            order.save()
-
-            # Log the action
-            MaterialOrderAudit.objects.create(
-                order=order,
-                action=f'Set to {new_status}',
-                performed_by=request.user
-            )
-
-            return JsonResponse({
-                'success': True,
-                'new_status': new_status,
-                'last_updated_by': request.user.username
-            })
-        except MaterialOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
 class ReportSubmissionListView(LoginRequiredMixin, ListView):
