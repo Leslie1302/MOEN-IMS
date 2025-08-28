@@ -39,6 +39,7 @@ ALLOWED_HOSTS = [
     'inventory-management-system-1-1bbd774008d3.herokuapp.com',
     'testserver',
     'moen-ims.org',
+    '.moen-ims.org',
     'www.moen-ims.org',
     'moen-ims-28b53393a6a5.herokuapp.com',
 ]
