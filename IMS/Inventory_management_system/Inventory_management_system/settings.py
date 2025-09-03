@@ -52,6 +52,7 @@ _default_csrf = [
     'https://www.moen-ims.org',
     'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
     'https://moen-ims-28b53393a6a5.herokuapp.com',
+    'https://moen-ims-gqcci.ondigitalocean.app/',
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
