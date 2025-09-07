@@ -31,7 +31,7 @@ SECRET_KEY = os.getenv(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'false'
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -42,8 +42,23 @@ ALLOWED_HOSTS = [
     '.moen-ims.org',
     'www.moen-ims.org',
     'moen-ims-28b53393a6a5.herokuapp.com',
-    '.ondigitalocean.app',  # For DigitalOcean App Platform
 ]
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+    SESSION_COOKIE_SAMESITE = 'Lax'  # or 'None' if you need cross-site cookies
+    CSRF_COOKIE_SAMESITE = 'Lax'     # or 'None' if you need cross-site cookies
+    
+    # Only set cookie domain if we have a canonical host
+    if 'CANONICAL_HOST' in os.environ and os.environ['CANONICAL_HOST']:
+        domain = os.environ['CANONICAL_HOST']
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        SESSION_COOKIE_DOMAIN = f".{domain}"
+        CSRF_COOKIE_DOMAIN = f".{domain}"
 
 # CSRF trusted origins (scheme required). Configure via env in production.
 _default_csrf = [
@@ -55,18 +70,7 @@ _default_csrf = [
     'https://moen-ims-28b53393a6a5.herokuapp.com',
     'https://moen-ims-gqcci.ondigitalocean.app/',
 ]
-# Combine default CSRF trusted origins with any from environment
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
-if not CSRF_TRUSTED_ORIGINS:  # Fall back to defaults if none provided
-    CSRF_TRUSTED_ORIGINS = _default_csrf
-
-# Add the current domain if not present
-if 'CANONICAL_HOST' in os.environ and os.environ['CANONICAL_HOST']:
-    host = os.environ['CANONICAL_HOST']
-    for scheme in ('http://', 'https://'):
-        origin = f"{scheme}{host}"
-        if origin not in CSRF_TRUSTED_ORIGINS:
-            CSRF_TRUSTED_ORIGINS.append(origin)
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
 # Ensure request.is_secure() works behind proxies (DO App Platform / Heroku)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -75,35 +79,20 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Default to www.moen-ims.org in production if not provided via env. Empty in DEBUG.
 CANONICAL_HOST = os.getenv('CANONICAL_HOST', ('' if DEBUG else 'www.moen-ims.org')).strip()
 
-# Security settings for production
+# Enforce HTTPS and secure cookies in production
 if not DEBUG:
-    # HTTPS/SSL settings
     SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    
-    # Cookie settings
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    CSRF_COOKIE_HTTPONLY = False  # Required for AJAX/JS
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    CSRF_COOKIE_SAMESITE = 'Lax'
-    
-    # Set cookie domain if we have a canonical host
-    if CANONICAL_HOST:
-        domain = CANONICAL_HOST
-        if domain.startswith('www.'):
-            domain = domain[4:]
-        if domain:  # Only set if domain is not empty
-            SESSION_COOKIE_DOMAIN = f".{domain}"
-            CSRF_COOKIE_DOMAIN = f".{domain}"
-    
-    # Security headers
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    # Share cookies across apex and subdomains. Env can override the default.
+    _cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org').strip()
+    if _cookie_domain:
+        SESSION_COOKIE_DOMAIN = _cookie_domain
+        CSRF_COOKIE_DOMAIN = _cookie_domain
+    # Strongly enforce HTTPS (optional but recommended)
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
 
 
 # Exempt certificate validation path from HTTPS redirect so CA bots can fetch
