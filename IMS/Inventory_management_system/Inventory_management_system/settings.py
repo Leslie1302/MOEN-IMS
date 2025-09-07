@@ -44,6 +44,22 @@ ALLOWED_HOSTS = [
     'moen-ims-28b53393a6a5.herokuapp.com',
 ]
 
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+    SESSION_COOKIE_SAMESITE = 'Lax'  # or 'None' if you need cross-site cookies
+    CSRF_COOKIE_SAMESITE = 'Lax'     # or 'None' if you need cross-site cookies
+    
+    # Only set cookie domain if we have a canonical host
+    if 'CANONICAL_HOST' in os.environ and os.environ['CANONICAL_HOST']:
+        domain = os.environ['CANONICAL_HOST']
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        SESSION_COOKIE_DOMAIN = f".{domain}"
+        CSRF_COOKIE_DOMAIN = f".{domain}"
+
 # CSRF trusted origins (scheme required). Configure via env in production.
 _default_csrf = [
     'https://localhost',

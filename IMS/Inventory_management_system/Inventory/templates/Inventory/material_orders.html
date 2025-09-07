@@ -99,6 +99,8 @@
                             <span class="text-muted">—</span>
                         {% endif %}
                     </td>
+                    {% for group in user.groups.all %}
+                    {% if group.name == 'Storekeeper' %}
                     {% if user.is_superuser %}
                     <td class="text-center">
                         {% if order.remaining_quantity > 0 and order.status != "Completed" %}
@@ -128,6 +130,8 @@
                             </span>
                         {% endif %}
                     </td>
+                    {% endfor %}
+                    {% endif %}
                     {% endif %}
                 </tr>
                 {% endfor %}
