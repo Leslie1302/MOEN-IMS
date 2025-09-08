@@ -100,35 +100,36 @@
                         {% endif %}
                     </td>
                     {% for group in user.groups.all %}
-                    {% if group.name == 'Storekeeper' %}
-                    <td class="text-center">
-                        {% if order.remaining_quantity > 0 and order.status != "Completed" %}
-                            <div class="d-flex gap-2 align-items-center justify-content-center">
-                                <input type="number" 
-                                       class="form-control form-control-sm fulfill-qty-input" 
-                                       style="width: 80px;" 
-                                       min="1" 
-                                       max="{{ order.remaining_quantity }}" 
-                                       placeholder="Qty"
-                                       title="Enter quantity to fulfill">
-                                <button class="btn btn-primary btn-sm process-btn" 
-                                        data-order-id="{{ order.id }}"
-                                        title="Process partial fulfillment">
-                                    Process
-                                </button>
-                                <button class="btn btn-success btn-sm complete-btn" 
-                                        data-order-id="{{ order.id }}"
-                                        data-remaining="{{ order.remaining_quantity }}"
-                                        title="Complete full fulfillment">
-                                    Complete
-                                </button>
-                            </div>
-                        {% else %}
-                            <span class="text-success">
-                                <i class="fas fa-check-circle"></i> Fulfilled
-                            </span>
+                        {% if group.name == 'Storekeeper' %}
+                            <td class="text-center">
+                                {% if order.remaining_quantity > 0 and order.status != "Completed" %}
+                                    <div class="d-flex gap-2 align-items-center justify-content-center">
+                                        <input type="number" 
+                                               class="form-control form-control-sm fulfill-qty-input" 
+                                               style="width: 80px;" 
+                                               min="1" 
+                                               max="{{ order.remaining_quantity }}" 
+                                               placeholder="Qty"
+                                               title="Enter quantity to fulfill">
+                                        <button class="btn btn-primary btn-sm process-btn" 
+                                                data-order-id="{{ order.id }}"
+                                                title="Process partial fulfillment">
+                                            Process
+                                        </button>
+                                        <button class="btn btn-success btn-sm complete-btn" 
+                                                data-order-id="{{ order.id }}"
+                                                data-remaining="{{ order.remaining_quantity }}"
+                                                title="Complete full fulfillment">
+                                            Complete
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <span class="text-success">
+                                        <i class="fas fa-check-circle"></i> Fulfilled
+                                    </span>
+                                {% endif %}
+                            </td>
                         {% endif %}
-                    </td>
                     {% endfor %}
                 </tr>
                 {% endfor %}
