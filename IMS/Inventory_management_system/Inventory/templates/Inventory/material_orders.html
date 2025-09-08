@@ -99,9 +99,8 @@
                             <span class="text-muted">—</span>
                         {% endif %}
                     </td>
-                    {% for group in user.groups.all %}
-                        {% if group.name == 'Storekeeper' %}
-                            <td class="text-center">
+                    {% if user.is_superuser or user.groups.filter(name='Storekeeper').exists %}
+                        <td class="text-center">
                                 {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                                     <div class="d-flex gap-2 align-items-center justify-content-center">
                                         <input type="number" 
@@ -128,9 +127,8 @@
                                         <i class="fas fa-check-circle"></i> Fulfilled
                                     </span>
                                 {% endif %}
-                            </td>
-                        {% endif %}
-                    {% endfor %}
+                        </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
