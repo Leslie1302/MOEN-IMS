@@ -99,7 +99,7 @@
                             <span class="text-muted">—</span>
                         {% endif %}
                     </td>
-                    {% if user.is_superuser or user.groups.filter(name='Storekeeper').exists %}
+                    {% if user.is_superuser or 'Storekeeper' in user.groups.all|join:', ' %}
                         <td class="text-center">
                                 {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                                     <div class="d-flex gap-2 align-items-center justify-content-center">
