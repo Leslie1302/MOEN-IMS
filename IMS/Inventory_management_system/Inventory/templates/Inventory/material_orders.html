@@ -101,7 +101,6 @@
                     </td>
                     {% for group in user.groups.all %}
                     {% if group.name == 'Storekeeper' %}
-                    {% if user.is_superuser %}
                     <td class="text-center">
                         {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                             <div class="d-flex gap-2 align-items-center justify-content-center">
@@ -128,7 +127,6 @@
                             <span class="text-success">
                                 <i class="fas fa-check-circle"></i> Fulfilled
                             </span>
-                        {% endif %}
                         {% endif %}
                         {% endfor %}
                     </td>
