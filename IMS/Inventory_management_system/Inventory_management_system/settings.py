@@ -158,8 +158,7 @@ WSGI_APPLICATION = 'Inventory_management_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# Database configuration
-# Default SQLite database configuration for development
+# Default SQLite database configuration
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -167,26 +166,9 @@ DATABASES = {
     }
 }
 
-# Use PostgreSQL in production if DATABASE_URL is set
+# If DATABASE_URL environment variable is set, use it to override the default
 if os.getenv('DATABASE_URL'):
-    import dj_database_url
-    
-    # Parse the database URL from environment
-    db_from_env = dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
-        ssl_require=True
-    )
-    
-    # Update default database configuration
-    DATABASES['default'].update(db_from_env)
-    
-    # Configure SSL for Amazon RDS PostgreSQL
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'verify-full',
-        'sslrootcert': os.path.join(BASE_DIR, 'global-bundle.pem')  # We'll download this next
-    }
+    DATABASES['default'] = dj_database_url.config(default=os.getenv('DATABASE_URL'))
 
 
 # Password validation
