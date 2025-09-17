@@ -1,1 +1,2 @@
-web: bash start.sh
+release: python manage.py migrate
+web: gunicorn moen-ims.wsgi --log-file -

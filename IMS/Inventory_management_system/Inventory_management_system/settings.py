@@ -12,9 +12,12 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
-from pathlib import Path
 import logging
 import dj_database_url
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -166,8 +169,10 @@ DATABASES = {
     }
 }
 
-# If DATABASE_URL environment variable is set, use it to override the default
-if os.getenv('DATABASE_URL'):
+# Use SCHEMATOGO_URL if available, otherwise fall back to DATABASE_URL or SQLite
+if os.getenv('SCHEMATOGO_URL'):
+    DATABASES['default'] = dj_database_url.config(default=os.getenv('SCHEMATOGO_URL'))
+elif os.getenv('DATABASE_URL'):
     DATABASES['default'] = dj_database_url.config(default=os.getenv('DATABASE_URL'))
 
 
