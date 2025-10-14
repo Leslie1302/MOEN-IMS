@@ -59,34 +59,9 @@
                                                 {{ form.quantity.errors }}
                                             </div>
                                             <div>
-                                                <label class="fw-semibold">{{ form.region.label }}</label>
-                                                {{ form.region }}
-                                                {{ form.region.errors }}
-                                            </div>
-                                            <div>
-                                                <label class="fw-semibold">{{ form.district.label }}</label>
-                                                {{ form.district }}
-                                                {{ form.district.errors }}
-                                            </div>
-                                            <div>
-                                                <label class="fw-semibold">{{ form.community.label }}</label>
-                                                {{ form.community }}
-                                                {{ form.community.errors }}
-                                            </div>
-                                            <div>
-                                                <label class="fw-semibold">{{ form.consultant.label }}</label>
-                                                {{ form.consultant }}
-                                                {{ form.consultant.errors }}
-                                            </div>
-                                            <div>
-                                                <label class="fw-semibold">{{ form.contractor.label }}</label>
-                                                {{ form.contractor }}
-                                                {{ form.contractor.errors }}
-                                            </div>
-                                            <div>
-                                                <label class="fw-semibold">{{ form.package_number.label }}</label>
-                                                {{ form.package_number }}
-                                                {{ form.package_number.errors }}
+                                                <label class="fw-semibold">{{ form.warehouse.label }}</label>
+                                                {{ form.warehouse }}
+                                                {{ form.warehouse.errors }}
                                             </div>
                                             <!-- Readonly autofill fields -->
                                             <div>
@@ -185,7 +160,7 @@ document.addEventListener("DOMContentLoaded", function () {
             newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
             const select = newForm.querySelector(".material-select");
             if (select) select.selectedIndex = 0;
-            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number'].forEach(field => {
+            ['quantity', 'warehouse'].forEach(field => {
                 const el = newForm.querySelector(`[name$='${field}']`);
                 if (el) el.value = "";
             });

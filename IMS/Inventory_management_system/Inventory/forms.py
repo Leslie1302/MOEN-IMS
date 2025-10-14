@@ -60,12 +60,12 @@ class MaterialOrderForm(forms.ModelForm):
         ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'region': forms.TextInput(attrs={'class': 'form-control'}),
-            'district': forms.TextInput(attrs={'class': 'form-control'}),
-            'community': forms.TextInput(attrs={'class': 'form-control'}),
-            'consultant': forms.TextInput(attrs={'class': 'form-control'}),
-            'contractor': forms.TextInput(attrs={'class': 'form-control'}),
-            'package_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'region': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'district': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'community': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'consultant': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'contractor': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'package_number': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
@@ -74,6 +74,25 @@ class MaterialOrderForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Show all inventory items to all users for transparency
         self.fields['name'].queryset = InventoryItem.objects.all()
+        
+        # Populate dropdowns from BillOfQuantity data
+        from .models import BillOfQuantity
+        
+        # Get distinct values from BOQ
+        regions = BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')
+        districts = BillOfQuantity.objects.values_list('district', flat=True).distinct().order_by('district')
+        communities = BillOfQuantity.objects.values_list('community', flat=True).distinct().order_by('community')
+        consultants = BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')
+        contractors = BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')
+        package_numbers = BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')
+        
+        # Convert to choices format
+        self.fields['region'].widget.choices = [('', '-- Select Region --')] + [(r, r) for r in regions if r]
+        self.fields['district'].widget.choices = [('', '-- Select District --')] + [(d, d) for d in districts if d]
+        self.fields['community'].widget.choices = [('', '-- Select Community --')] + [(c, c) for c in communities if c]
+        self.fields['consultant'].widget.choices = [('', '-- Select Consultant --')] + [(c, c) for c in consultants if c]
+        self.fields['contractor'].widget.choices = [('', '-- Select Contractor --')] + [(c, c) for c in contractors if c]
+        self.fields['package_number'].widget.choices = [('', '-- Select Package Number --')] + [(p, p) for p in package_numbers if p]
     
     def save(self, commit=True):
         instance = super().save(commit=commit)
@@ -113,7 +132,7 @@ class ExcelUploadForm(forms.Form):
 class BulkMaterialRequestForm(forms.Form):
     file = forms.FileField(
         label='Excel File',
-        help_text='Upload an Excel file with material request data. Required columns: name, quantity, region, district, community, consultant, contractor, package_number, warehouse',
+        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse. For Receipt: name, quantity, warehouse',
         validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
     )
     request_type = forms.ChoiceField(
@@ -151,10 +170,11 @@ class BulkMaterialRequestForm(forms.Form):
                 else:
                     df = pd.read_excel(file)
                 
-                # Check required columns
-                required_columns = ['name', 'quantity', 'region', 'district', 'community', 
-                                  'consultant', 'contractor', 'package_number', 'warehouse']
-                missing_columns = [col for col in required_columns if col not in df.columns]
+                # Check required columns based on request type
+                # We'll validate this later when request_type is available
+                # For now, just check that 'name' and 'quantity' exist
+                basic_required = ['name', 'quantity']
+                missing_columns = [col for col in basic_required if col not in df.columns]
                 if missing_columns:
                     raise forms.ValidationError(
                         f"Missing required columns in Excel file: {', '.join(missing_columns)}"
@@ -171,6 +191,27 @@ class BulkMaterialRequestForm(forms.Form):
                 raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
         
         return file
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        df = cleaned_data.get('df')
+        request_type = cleaned_data.get('request_type')
+        
+        if df is not None and request_type:
+            # Validate columns based on request type
+            if request_type == 'Release':
+                required_columns = ['name', 'quantity', 'region', 'district', 'community', 
+                                  'consultant', 'contractor', 'package_number', 'warehouse']
+            else:  # Receipt
+                required_columns = ['name', 'quantity', 'warehouse']
+            
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                raise forms.ValidationError(
+                    f"Missing required columns for {request_type} request: {', '.join(missing_columns)}"
+                )
+        
+        return cleaned_data
 
 
 class MaterialReceiptForm(forms.ModelForm):
@@ -182,10 +223,11 @@ class MaterialReceiptForm(forms.ModelForm):
     )
 
     class Meta:
-        model = InventoryItem  # Using InventoryItem directly since we're updating it
-        fields = ['name', 'quantity']  # Only need name and quantity for input
+        model = MaterialOrder
+        fields = ['name', 'quantity', 'warehouse']  # Only Materials, Quantity, and Supplier (Warehouse)
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -193,8 +235,11 @@ class MaterialReceiptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Show all inventory items to all users for transparency
         self.fields['name'].queryset = InventoryItem.objects.all()
+        self.fields['warehouse'].label = 'Supplier'
+        self.fields['warehouse'].required = False
 
 MaterialReceiptFormSet = formset_factory(MaterialReceiptForm, extra=1, can_delete=True)
+
 
 class ReportSubmissionForm(forms.ModelForm):
     class Meta:

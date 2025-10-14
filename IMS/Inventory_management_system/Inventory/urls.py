@@ -6,7 +6,7 @@ from django.conf.urls import handler403, handler404, handler500
 from .views import (
     Index, RequestMaterialView, MaterialOrdersView, UpdateMaterialStatusView, 
     ProfileView, UploadInventoryView, UploadCategoriesAndUnitsView, list_categories, 
-    list_units, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView, 
+    list_units, get_boq_data, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView, 
     BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard, 
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView, 
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
@@ -66,6 +66,7 @@ urlpatterns = [
     path('download-sample-template/', DownloadSampleTemplateView.as_view(), name='download_sample_template'),
     path('list-categories/', list_categories, name='list_categories'),
     path('list-units/', list_units, name='list_units'),
+    path('get-boq-data/', get_boq_data, name='get_boq_data'),
     path('upload-categories-units/', UploadCategoriesAndUnitsView.as_view(), name='upload_categories_units'),
     path('receive-material/', MaterialReceiptView.as_view(), name='material_receipt'),
     path('material-heatmap/', MaterialHeatmapView.as_view(), name='material_heatmap'),

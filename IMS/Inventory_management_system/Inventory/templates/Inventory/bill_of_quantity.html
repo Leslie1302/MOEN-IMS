@@ -6,12 +6,43 @@
 {% block extra_head %}
 {{ block.super }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<style>
+    /* Critical fix: Prevent page content from blocking navbar */
+    .content {
+        pointer-events: none !important;
+    }
+    
+    .content * {
+        pointer-events: auto !important;
+    }
+    
+    /* Ensure navbar is always clickable and on top */
+    nav.navbar {
+        position: relative !important;
+        z-index: 9999 !important;
+        pointer-events: auto !important;
+    }
+    
+    nav.navbar * {
+        pointer-events: auto !important;
+    }
+    
+    /* Ensure dropdown menus work */
+    .dropdown-menu {
+        z-index: 10000 !important;
+        pointer-events: auto !important;
+    }
+    
+    /* Make interactive elements work */
+    button, a, input, select, textarea {
+        pointer-events: auto !important;
+    }
+</style>
 {% endblock %}
 
 {% block full_width_content %}
-<!-- Adjust for fixed navbar with padding-top -->
-<div class="w-100" style="padding-top: 60px; min-height: calc(100vh - 60px);">
-    <div class="bg-light py-2 sticky-top">
+<div class="container-fluid px-4">
+    <div class="bg-light py-3 mb-3">
         <h2 class="text-center fw-bold text-primary mb-0">📋 Bill of Quantity</h2>
         <p class="text-muted text-center mb-0">View and manage bill of quantity items</p>
     </div>
@@ -81,7 +112,7 @@
         </div>
     {% endif %}
 
-    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light fixed-bottom">
+    <div class="d-flex justify-content-between align-items-center px-3 py-3 bg-light mt-3 mb-5">
         {% if user.is_superuser %}
             <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
         {% else %}

@@ -22,8 +22,10 @@
                     <label for="file" class="form-label">Upload Excel File</label>
                     {{ form.file }}
                     <small class="form-text text-muted">
-                        File must include columns: region, district, community, consultant, contractor, 
-                        package_number, material_description, item_code, contract_quantity, quantity_received
+                        <strong>Required columns:</strong> region, district, community, consultant, contractor, 
+                        package_number, material_description, contract_quantity, quantity_received<br>
+                        <strong>Note:</strong> The <em>item_code</em> will be automatically generated from the material_description 
+                        by matching it with your inventory items. If no match is found, a code will be auto-generated.
                     </small>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Upload</button>

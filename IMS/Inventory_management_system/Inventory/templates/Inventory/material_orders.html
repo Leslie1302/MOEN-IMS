@@ -3,6 +3,70 @@
 
 {% block title %}Material Orders - Inventory Manager{% endblock %}
 
+{% block extra_head %}
+<style>
+    .expand-btn,
+    button.expand-btn,
+    .btn.expand-btn {
+        transition: all 0.3s ease !important;
+        background-color: #0d6efd !important;
+        color: #ffffff !important;
+        border: 2px solid #0d6efd !important;
+        padding: 0.4rem 0.6rem !important;
+        font-size: 0.95rem !important;
+        min-width: 36px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+    }
+    
+    .expand-btn:hover,
+    button.expand-btn:hover,
+    .btn.expand-btn:hover,
+    .expand-btn:focus,
+    button.expand-btn:focus,
+    .btn.expand-btn:focus {
+        transform: scale(1.1) !important;
+        background-color: #0b5ed7 !important;
+        border-color: #0a58ca !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+    }
+    
+    .expand-btn i,
+    .expand-btn .fas,
+    .expand-btn .fa {
+        font-size: 1rem !important;
+        color: #ffffff !important;
+    }
+    
+    .modal-body table th {
+        font-weight: 600;
+        color: #6c757d;
+    }
+    
+    .modal-body table td {
+        color: #212529;
+    }
+    
+    .modal-xl {
+        max-width: 1200px;
+    }
+    
+    /* Ensure table cells don't expand */
+    #material-orders-table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #material-orders-table td.action-cell {
+        white-space: normal;
+    }
+</style>
+{% endblock %}
+
 {% block full_width_content %}
 {% csrf_token %}
 {% if messages %}
@@ -28,6 +92,7 @@
         <table class="table table-hover table-striped enhanced-table" id="material-orders-table">
             <thead class="table-dark">
                 <tr>
+                    <th style="width: 50px;"></th>
                     <th>Request #</th>
                     <th>User</th>
                     <th>Material</th>
@@ -48,7 +113,16 @@
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr data-order-id="{{ order.id }}" data-request-type="{{ order.request_type }}">
+                <tr data-order-id="{{ order.id }}" data-request-type="{{ order.request_type }}" class="order-row">
+                    <td>
+                        <button class="btn btn-sm expand-btn" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#orderModal-{{ order.id }}" 
+                                title="View Details"
+                                style="background-color: #0d6efd !important; color: #ffffff !important; border: 2px solid #0d6efd !important; padding: 0.4rem 0.6rem !important;">
+                            <i class="fas fa-eye" style="color: #ffffff !important;"></i>
+                        </button>
+                    </td>
                     <td class="fw-bold">{{ order.request_code|default:"N/A" }}</td>
                     <td>{{ order.user.username }}</td>
                     <td>{{ order.name }}</td>
@@ -81,7 +155,7 @@
                     </td>
                     <td>
                         {% if order.processed_by %}
-                            <div class="text-center">
+                            <div>
                                 <div class="fw-bold">{{ order.processed_by.username }}</div>
                                 <small class="text-muted">{{ order.processed_at|date:"M d, Y H:i" }}</small>
                             </div>
@@ -93,14 +167,14 @@
                     <td>
                         {% if order.release_letter %}
                             <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
-                                <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"View PDF" }}
+                                <i class="fas fa-file-pdf text-danger me-1"></i>View PDF
                             </a>
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                     {% if user.is_superuser or 'Storekeeper' in user.groups.all|join:', ' %}
-                        <td class="text-center">
+                        <td class="text-center action-cell">
                                 {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                                     <div class="d-flex gap-2 align-items-center justify-content-center">
                                         <input type="number" 
@@ -134,6 +208,182 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Modals for order details (moved outside table) -->
+    {% for order in orders %}
+    <div class="modal fade" id="orderModal-{{ order.id }}" tabindex="-1" aria-labelledby="orderModalLabel-{{ order.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="orderModalLabel-{{ order.id }}">
+                        <i class="fas fa-info-circle me-2"></i>Order Details - {{ order.request_code|default:"N/A" }}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h5 class="card-title mb-3"><i class="fas fa-box text-primary"></i> Complete Order Information</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Material Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th style="width: 40%;">Material Name:</th>
+                                    <td>{{ order.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Material Code:</th>
+                                    <td>{{ order.code|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Category:</th>
+                                    <td>{{ order.category.name|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Unit:</th>
+                                    <td>{{ order.unit.name|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Warehouse:</th>
+                                    <td>{{ order.warehouse.name|default:"N/A" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Location & Project Details</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th style="width: 40%;">Region:</th>
+                                    <td>{{ order.region|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>District:</th>
+                                    <td>{{ order.district|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Community:</th>
+                                    <td>{{ order.community|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Consultant:</th>
+                                    <td>{{ order.consultant|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Contractor:</th>
+                                    <td>{{ order.contractor|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Package Number:</th>
+                                    <td>{{ order.package_number|default:"N/A" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Request Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th style="width: 40%;">Request Code:</th>
+                                    <td>{{ order.request_code|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Request Type:</th>
+                                    <td>
+                                        {% if order.request_type == "Release" %}
+                                            <span class="badge bg-danger">📤 Release</span>
+                                        {% else %}
+                                            <span class="badge bg-success">📥 Receipt</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Requested By:</th>
+                                    <td>{{ order.user.get_full_name|default:order.user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Date Requested:</th>
+                                    <td>{{ order.date_requested|date:"F d, Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Updated:</th>
+                                    <td>{{ order.last_updated|date:"F d, Y H:i"|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Updated By:</th>
+                                    <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Fulfillment Status</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th style="width: 40%;">Status:</th>
+                                    <td>
+                                        {% if order.status == "Pending" %}
+                                            <span class="badge bg-warning text-dark">⏳ Pending</span>
+                                        {% elif order.status == "Seen" %}
+                                            <span class="badge bg-info">👀 In Progress</span>
+                                        {% elif order.status == "Approved" %}
+                                            <span class="badge bg-success">✅ Approved</span>
+                                        {% elif order.status == "Partial" %}
+                                            <span class="badge bg-primary">📏 Partial</span>
+                                        {% elif order.status == "Completed" %}
+                                            <span class="badge bg-success">✅ Completed</span>
+                                        {% elif order.status == "Draft" %}
+                                            <span class="badge bg-secondary">📝 Draft</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ order.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Quantity Requested:</th>
+                                    <td>{{ order.quantity|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Quantity Processed:</th>
+                                    <td>{{ order.processed_quantity|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Quantity Remaining:</th>
+                                    <td>{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Processed By:</th>
+                                    <td>{{ order.processed_by.username|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Processed At:</th>
+                                    <td>{{ order.processed_at|date:"F d, Y H:i"|default:"N/A" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    {% if order.release_letter %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6 class="text-muted mb-3">Release Letter</h6>
+                            <div class="alert alert-info">
+                                <i class="fas fa-file-pdf text-danger me-2"></i>
+                                <strong>{{ order.release_letter.title }}</strong><br>
+                                <small>Uploaded by {{ order.release_letter.uploaded_by.username }} on {{ order.release_letter.upload_time|date:"F d, Y H:i" }}</small><br>
+                                <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                                    <i class="fas fa-download me-1"></i>Download PDF
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
     {% else %}
     <div class="text-center py-5">
         <div class="mb-3">

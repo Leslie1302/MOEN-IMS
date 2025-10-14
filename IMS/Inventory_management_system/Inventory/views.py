@@ -640,6 +640,24 @@ class UpdateMaterialStatusView(View):
                                 }, status=400)
                             inventory_item.quantity -= partial_quantity
                             logger.info(f"Reduced inventory by {partial_quantity}")
+                            
+                            # Update BOQ quantity_received when releasing materials
+                            try:
+                                # Find matching BOQ entry based on material code and package number
+                                boq_entry = BillOfQuantity.objects.filter(
+                                    item_code=order.code,
+                                    package_number=order.package_number
+                                ).first()
+                                
+                                if boq_entry:
+                                    boq_entry.quantity_received += partial_quantity
+                                    boq_entry.save()
+                                    logger.info(f"Updated BOQ quantity_received for {boq_entry.material_description}: {boq_entry.quantity_received}")
+                                else:
+                                    logger.warning(f"No BOQ entry found for code={order.code}, package={order.package_number}")
+                            except Exception as e:
+                                logger.error(f"Error updating BOQ quantity_received: {str(e)}", exc_info=True)
+                                
                         elif order.request_type == "Receipt":
                             inventory_item.quantity += partial_quantity
                             logger.info(f"Increased inventory by {partial_quantity}")
@@ -873,6 +891,33 @@ def list_units(request):
     return JsonResponse({'units': units})
 
 
+@login_required
+def get_boq_data(request):
+    """
+    Return BOQ data as JSON for populating cascading dropdowns.
+    Returns all unique values for region, district, community, consultant, contractor, and package_number.
+    """
+    try:
+        boq_data = {
+            'regions': list(BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')),
+            'districts': list(BillOfQuantity.objects.values_list('district', flat=True).distinct().order_by('district')),
+            'communities': list(BillOfQuantity.objects.values_list('community', flat=True).distinct().order_by('community')),
+            'consultants': list(BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')),
+            'contractors': list(BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')),
+            'package_numbers': list(BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')),
+        }
+        
+        # Filter out None values
+        for key in boq_data:
+            boq_data[key] = [item for item in boq_data[key] if item]
+        
+        return JsonResponse(boq_data)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching BOQ data: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 class MaterialReceiptView(LoginRequiredMixin, View):
     template_name = 'Inventory/receive_material.html'
 
@@ -881,7 +926,8 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         items = InventoryItem.objects.all()
 
         inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
-        formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
+        from .forms import MaterialReceiptFormSet
+        formset = MaterialReceiptFormSet(form_kwargs={'user': request.user})
         bulk_form = BulkMaterialRequestForm()
         orders = self._get_receipt_orders(request.user)
 
@@ -895,7 +941,15 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         })
 
     def post(self, request):
-        formset = MaterialOrderFormSet(request.POST, form_kwargs={'user': request.user})
+        # Check which form was submitted
+        if 'bulk_submit' in request.POST:
+            return self.handle_bulk_receipt(request)
+        else:
+            return self.handle_single_receipt(request)
+
+    def handle_single_receipt(self, request):
+        from .forms import MaterialReceiptFormSet
+        formset = MaterialReceiptFormSet(request.POST, form_kwargs={'user': request.user})
         if formset.is_valid():
             for form in formset:
                 if form.cleaned_data:
@@ -908,6 +962,9 @@ class MaterialReceiptView(LoginRequiredMixin, View):
                     material_order.user = request.user
                     material_order.group = request.user.groups.first() if request.user.groups.exists() else None
                     material_order.request_type = 'Receipt'  # Set as Receipt Request
+                    material_order.status = 'Draft'
+                    material_order.processed_quantity = 0
+                    material_order.remaining_quantity = material_order.quantity
                     material_order.save()
             messages.success(request, "Material receipts submitted successfully!")
             return redirect('material_receipt')
@@ -925,6 +982,134 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             'active_tab': 'single',
             'orders': self._get_receipt_orders(request.user),
         })
+
+    def handle_bulk_receipt(self, request):
+        """Handle bulk receipt uploads from Excel"""
+        logger = logging.getLogger(__name__)
+        logger.info("Starting bulk receipt processing...")
+        
+        bulk_form = BulkMaterialRequestForm(request.POST, request.FILES)
+        if not bulk_form.is_valid():
+            logger.error(f"Bulk form validation failed: {bulk_form.errors}")
+            for field, errors in bulk_form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+            return self._render_receipt_form(request, bulk_form=bulk_form)
+        
+        success_count = 0
+        error_messages = []
+        
+        try:
+            df = bulk_form.cleaned_data['df']
+            request_type = 'Receipt'  # Always Receipt for this view
+            
+            logger.info(f"Processing bulk receipt with {len(df)} rows")
+            
+            # Generate a base request code for reference
+            base_request_code = generate_request_code()
+            logger.info(f"Base request code for this batch: {base_request_code}")
+            
+            # Add a request code column to the DataFrame
+            df['request_code'] = [f"{base_request_code}-{i+1}" for i in range(len(df))]
+            
+            # Process each row in the Excel file
+            for idx, row in df.iterrows():
+                try:
+                    # Skip empty rows
+                    if not row.get('name'):
+                        logger.warning(f"Skipping empty row at index {idx}")
+                        continue
+                        
+                    # Find the inventory item
+                    item_name = str(row['name']).strip()
+                    logger.info(f"Looking up item: {item_name}")
+                    item = InventoryItem.objects.filter(name__iexact=item_name).first()
+                    
+                    if not item:
+                        error_msg = f"Item not found: {item_name}"
+                        error_messages.append(error_msg)
+                        logger.warning(error_msg)
+                        continue
+                        
+                    logger.info(f"Found item: {item.name} (ID: {item.id})")
+                    
+                    # Get warehouse if provided
+                    warehouse = None
+                    if 'warehouse' in row and pd.notna(row['warehouse']):
+                        from .models import Warehouse
+                        warehouse = Warehouse.objects.filter(name__iexact=str(row['warehouse']).strip()).first()
+                    
+                    # Create the receipt order
+                    try:
+                        with transaction.atomic():
+                            order_data = {
+                                'name': item.name,
+                                'quantity': row['quantity'],
+                                'category': item.category,
+                                'code': item.code,
+                                'unit': item.unit,
+                                'user': request.user,
+                                'group': request.user.groups.first() if request.user.groups.exists() else None,
+                                'request_type': request_type,
+                                'request_code': row['request_code'],
+                                'warehouse': warehouse,
+                                'status': 'Draft',
+                                'processed_quantity': 0,
+                                'remaining_quantity': row['quantity']
+                            }
+                            logger.info(f"Creating receipt order with data: {order_data}")
+                            
+                            order = MaterialOrder.objects.create(**order_data)
+                            success_count += 1
+                            logger.info(f"Successfully created receipt order ID {order.id} for {item.name}")
+                            
+                    except Exception as e:
+                        error_msg = f"Error saving order for {item_name}: {str(e)}"
+                        error_messages.append(error_msg)
+                        logger.error(error_msg, exc_info=True)
+                        continue
+                        
+                except Exception as e:
+                    error_msg = f"Error processing row for {row.get('name', 'unknown')}: {str(e)}"
+                    error_messages.append(error_msg)
+                    logger.error(error_msg, exc_info=True)
+                    continue
+            
+            # Show success/error messages
+            if success_count > 0:
+                msg = f"Successfully created {success_count} material receipt(s)"
+                messages.success(request, msg)
+                logger.info(msg)
+                return redirect('material_receipt')
+                
+            # If we got here, there were no successful saves
+            if error_messages:
+                for error in error_messages[:5]:
+                    messages.error(request, error)
+                if len(error_messages) > 5:
+                    messages.warning(request, f"... and {len(error_messages) - 5} more errors occurred.")
+                    
+            return self._render_receipt_form(request, bulk_form=bulk_form)
+                    
+        except Exception as e:
+            error_msg = f"Unexpected error processing bulk receipt: {str(e)}"
+            messages.error(request, error_msg)
+            logger.error(error_msg, exc_info=True)
+            return self._render_receipt_form(request, bulk_form=bulk_form)
+
+    def _render_receipt_form(self, request, bulk_form=None):
+        """Helper method to render the receipt form with the current context"""
+        items = InventoryItem.objects.all()
+        from .forms import MaterialReceiptFormSet
+        context = {
+            'formset': MaterialReceiptFormSet(form_kwargs={'user': request.user}),
+            'bulk_form': bulk_form or BulkMaterialRequestForm(),
+            'items': items,
+            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'active_tab': 'bulk' if bulk_form else 'single',
+            'orders': self._get_receipt_orders(request.user),
+        }
+        return render(request, self.template_name, context)
 
     def _find_inventory_item(self, item_name, user):
         logger = logging.getLogger(__name__)
@@ -1217,9 +1402,10 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
             file = request.FILES['file']
             try:
                 df = pd.read_excel(file, engine='openpyxl')
+                # item_code is now optional - will be auto-generated from material_description
                 required_columns = [
                     'region', 'district', 'community', 'consultant', 'contractor', 
-                    'package_number', 'material_description', 'item_code', 
+                    'package_number', 'material_description', 
                     'contract_quantity', 'quantity_received'
                 ]
                 if not all(col in df.columns for col in required_columns):
@@ -1227,12 +1413,39 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                     messages.error(request, f"Excel file is missing required columns: {', '.join(missing_cols)}")
                     return redirect('bill_of_quantity')
 
+                success_count = 0
+                error_count = 0
+                
                 for index, row in df.iterrows():
                     try:
                         # Handle NaN or empty values
                         contract_qty = int(float(row['contract_quantity'])) if pd.notna(row['contract_quantity']) else 0
                         qty_received = int(float(row['quantity_received'])) if pd.notna(row['quantity_received']) else 0
-                        item_code = str(row['item_code']) if pd.notna(row['item_code']) else f"Unknown-{index}"
+                        material_description = str(row['material_description']).strip() if pd.notna(row['material_description']) else None
+                        
+                        if not material_description:
+                            logger.warning(f"Row {index + 2}: Missing material_description, skipping")
+                            messages.warning(request, f"Row {index + 2}: Missing material description, skipped")
+                            error_count += 1
+                            continue
+                        
+                        # Auto-generate item_code from InventoryItem based on material_description
+                        # First try exact match, then case-insensitive match
+                        inventory_item = InventoryItem.objects.filter(name__iexact=material_description).first()
+                        
+                        if inventory_item:
+                            item_code = inventory_item.code
+                            logger.info(f"Row {index + 2}: Found matching inventory item '{inventory_item.name}' with code '{item_code}'")
+                        else:
+                            # If no match found, check if item_code column exists and use it, otherwise generate one
+                            if 'item_code' in df.columns and pd.notna(row.get('item_code')):
+                                item_code = str(row['item_code']).strip()
+                                logger.info(f"Row {index + 2}: No inventory match for '{material_description}', using provided code '{item_code}'")
+                            else:
+                                # Generate a code based on material description
+                                item_code = f"BOQ-{material_description[:10].upper().replace(' ', '-')}-{index}"
+                                logger.warning(f"Row {index + 2}: No inventory match for '{material_description}', generated code '{item_code}'")
+                                messages.info(request, f"Row {index + 2}: Material '{material_description}' not found in inventory. Generated code: {item_code}")
 
                         boq, created = BillOfQuantity.objects.get_or_create(
                             item_code=item_code,
@@ -1243,31 +1456,42 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                                 'community': row['community'] if pd.notna(row['community']) else None,
                                 'consultant': row['consultant'],
                                 'contractor': row['contractor'],
-                                'material_description': row['material_description'],
+                                'material_description': material_description,
                                 'contract_quantity': contract_qty,
                                 'quantity_received': qty_received,
                                 'user': request.user,
                             }
                         )
                         if not created:
+                            # Update existing record
                             boq.region = row['region']
                             boq.district = row['district']
                             boq.community = row['community'] if pd.notna(row['community']) else None
                             boq.consultant = row['consultant']
                             boq.contractor = row['contractor']
-                            boq.material_description = row['material_description']
+                            boq.material_description = material_description
                             boq.contract_quantity = contract_qty
                             boq.quantity_received = qty_received
                             boq.save()
+                            logger.info(f"Row {index + 2}: Updated existing BOQ item with code '{item_code}'")
+                        else:
+                            logger.info(f"Row {index + 2}: Created new BOQ item with code '{item_code}'")
+                        
+                        success_count += 1
 
                     except Exception as e:
-                        logger.error(f"Error processing row {index}: {str(e)}")
+                        error_count += 1
+                        logger.error(f"Error processing row {index + 2}: {str(e)}", exc_info=True)
                         messages.error(request, f"Error at row {index + 2}: {str(e)}")
                         continue  # Skip problematic rows but continue processing others
 
-                messages.success(request, "Bill of Quantity updated successfully!")
+                if success_count > 0:
+                    messages.success(request, f"Bill of Quantity updated successfully! {success_count} items processed.")
+                if error_count > 0:
+                    messages.warning(request, f"{error_count} rows had errors and were skipped.")
+                    
             except Exception as e:
-                logger.error(f"Error processing Excel file: {str(e)}")
+                logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
                 messages.error(request, f"Error processing file: {str(e)}")
             return redirect('bill_of_quantity')
 
