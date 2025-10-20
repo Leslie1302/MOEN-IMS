@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier
 
 # Register your models here.
 
@@ -21,7 +21,7 @@ class MaterialOrderAdmin(admin.ModelAdmin):
             'fields': ('name', 'quantity', 'category', 'code', 'unit', 'request_type', 'priority')
         }),
         ('Location & Project', {
-            'fields': ('region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse')
+            'fields': ('region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse', 'supplier')
         }),
         ('Request Details', {
             'fields': ('date_requested', 'date_required', 'status', 'request_code')
@@ -42,6 +42,26 @@ class MaterialOrderAdmin(admin.ModelAdmin):
 
 admin.site.register(Profile)
 admin.site.register(Warehouse)
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'contact_person', 'contact_phone', 'contact_email', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'code', 'contact_person', 'contact_email')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'code', 'is_active')
+        }),
+        ('Contact Information', {
+            'fields': ('contact_person', 'contact_phone', 'contact_email', 'address')
+        }),
+        ('Additional Information', {
+            'fields': ('notes', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
 
 # Register LogEntry
 @admin.register(LogEntry)

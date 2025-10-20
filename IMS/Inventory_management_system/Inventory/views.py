@@ -225,6 +225,11 @@ class RequestMaterialView(LoginRequiredMixin, View):
             release_letter_pdf = bulk_form.cleaned_data.get('release_letter_pdf')
             release_letter_title = bulk_form.cleaned_data.get('release_letter_title')
             
+            # Inform user if rows were filtered out
+            filtered_count = bulk_form.cleaned_data.get('filtered_rows', 0)
+            if filtered_count > 0:
+                messages.info(request, f"Note: {filtered_count} row(s) with zero or negative quantities were automatically skipped.")
+            
             logger.info(f"Processing bulk request with {len(df)} rows")
             
             # Generate a base request code for reference
@@ -478,7 +483,7 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         try:
             # Base queryset with proper ordering and select_related for performance
             # Show all orders to all authenticated users for transparency
-            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
+            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category', 'warehouse').order_by('-date_requested')
             
             logger.info(f"User {user.username} accessing {queryset.count()} total orders")
             
@@ -1002,6 +1007,11 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         try:
             df = bulk_form.cleaned_data['df']
             request_type = 'Receipt'  # Always Receipt for this view
+            
+            # Inform user if rows were filtered out
+            filtered_count = bulk_form.cleaned_data.get('filtered_rows', 0)
+            if filtered_count > 0:
+                messages.info(request, f"Note: {filtered_count} row(s) with zero or negative quantities were automatically skipped.")
             
             logger.info(f"Processing bulk receipt with {len(df)} rows")
             

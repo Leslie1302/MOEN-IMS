@@ -28,8 +28,22 @@
                                     {{ form.quantity.errors }}
                                 </div>
 
+                                <!-- Supplier -->
+                                <div class="col-md-2">
+                                    <label class="fw-semibold">{{ form.supplier.label }}</label>
+                                    {{ form.supplier }}
+                                    {{ form.supplier.errors }}
+                                </div>
+
+                                <!-- Warehouse -->
+                                <div class="col-md-2">
+                                    <label class="fw-semibold">{{ form.warehouse.label }}</label>
+                                    {{ form.warehouse }}
+                                    {{ form.warehouse.errors }}
+                                </div>
+
                                 <!-- Display Category (Readonly) -->
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="fw-semibold">Category</label>
                                     <input type="text" class="form-control category-field" readonly>
                                 </div>

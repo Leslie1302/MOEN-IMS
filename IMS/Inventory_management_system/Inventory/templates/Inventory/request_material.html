@@ -91,6 +91,11 @@
                                             {{ form.package_number }}
                                             {{ form.package_number.errors }}
                                         </div>
+                                        <div>
+                                            <label class="fw-semibold">{{ form.warehouse.label }}</label>
+                                            {{ form.warehouse }}
+                                            {{ form.warehouse.errors }}
+                                        </div>
                                         
                                         <!-- Release Letter Upload Section -->
                                         <div class="border-top pt-3 mt-2">
@@ -149,7 +154,7 @@
                         <div class="card-body">
                             <h5 class="card-title text-center mb-4">📊 Bulk Material Request</h5>
                             <p class="text-muted text-center mb-4">
-                                Upload an Excel file with your material requests. 
+                                Upload an Excel file with your material requests. Required columns: name, quantity, region, district, community, consultant, contractor, package_number, warehouse.
                                 <a href="https://limewire.com/d/3BnBH#jMcv7h9vRW" id="download-template" class="text-primary">Download template</a>
                             </p>
                             
@@ -275,8 +280,11 @@
             newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
             const select = newForm.querySelector(".material-select");
             select.selectedIndex = 0;
-            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number'].forEach(field => {
-                newForm.querySelector(`[name$='${field}']`).value = "";
+            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse'].forEach(field => {
+                const fieldElement = newForm.querySelector(`[name$='${field}']`);
+                if (fieldElement) {
+                    fieldElement.value = "";
+                }
             });
             newForm.querySelector(".category-field").value = "";
             newForm.querySelector(".material-code").value = "";

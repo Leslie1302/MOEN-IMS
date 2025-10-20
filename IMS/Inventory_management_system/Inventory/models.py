@@ -37,6 +37,33 @@ class Warehouse(models.Model):
         from django.urls import reverse
         return reverse('warehouse_detail', kwargs={'pk': self.pk})
 
+class Supplier(models.Model):
+    """
+    Model for representing suppliers who provide materials to the inventory.
+    """
+    name = models.CharField(max_length=200, help_text="Name of the supplier")
+    code = models.CharField(max_length=50, unique=True, help_text="Unique supplier code")
+    contact_person = models.CharField(max_length=200, blank=True, null=True, help_text="Primary contact person")
+    contact_phone = models.CharField(max_length=20, blank=True, null=True, help_text="Contact phone number")
+    contact_email = models.EmailField(blank=True, null=True, help_text="Contact email address")
+    address = models.TextField(blank=True, null=True, help_text="Physical address of the supplier")
+    is_active = models.BooleanField(default=True, help_text="Whether this supplier is currently active")
+    notes = models.TextField(blank=True, null=True, help_text="Additional notes about the supplier")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Supplier'
+        verbose_name_plural = 'Suppliers'
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('supplier_detail', kwargs={'pk': self.pk})
+
 class ReleaseLetter(models.Model):
     """
     Model for storing release letters that authorize material releases.
@@ -88,7 +115,7 @@ class InventoryItem(models.Model):
     name = models.CharField(max_length=200)
     quantity = models.IntegerField()
     category = models.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
-    code = models.CharField(max_length=200)
+    code = models.CharField(max_length=200, unique=True, help_text="Unique material code")
     unit = models.ForeignKey('Unit', on_delete=models.CASCADE) 
     date_created = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -168,6 +195,13 @@ class MaterialOrder(models.Model):
         null=True, 
         blank=True, 
         help_text="Warehouse associated with this order"
+    )
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Supplier for material receipts"
     )
     
     # Request tracking

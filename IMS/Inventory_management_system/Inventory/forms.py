@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt
+from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, Supplier, Warehouse
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
 import pandas as pd
@@ -20,6 +20,21 @@ class InventoryItemForm(forms.ModelForm):
     class Meta:
         model = InventoryItem
         fields = ['name', 'quantity', 'category', 'unit', 'code', 'warehouse']
+    
+    def clean_code(self):
+        """Validate that the material code is unique"""
+        code = self.cleaned_data.get('code')
+        if code:
+            # Check if editing an existing item (will have an instance with pk)
+            if self.instance and self.instance.pk:
+                # Exclude current instance from uniqueness check
+                if InventoryItem.objects.filter(code=code).exclude(pk=self.instance.pk).exists():
+                    raise forms.ValidationError(f"Material code '{code}' already exists. Please use a unique code.")
+            else:
+                # Creating new item
+                if InventoryItem.objects.filter(code=code).exists():
+                    raise forms.ValidationError(f"Material code '{code}' already exists. Please use a unique code.")
+        return code
 
 # Create a formset that allows an unlimited number of forms
 InventoryItemFormSet = formset_factory(InventoryItemForm, extra=1, can_delete=True)
@@ -180,12 +195,21 @@ class BulkMaterialRequestForm(forms.Form):
                         f"Missing required columns in Excel file: {', '.join(missing_columns)}"
                     )
                 
-                # Validate quantity is positive
-                if (df['quantity'] <= 0).any():
-                    raise forms.ValidationError("Quantity must be a positive number for all items.")
+                # Filter out rows with zero or negative quantities
+                initial_count = len(df)
+                df = df[df['quantity'] > 0]
+                
+                # Check if any valid rows remain after filtering
+                if len(df) == 0:
+                    raise forms.ValidationError("No items with positive quantities found in the Excel file.")
                 
                 # Store the cleaned data for later use
                 self.cleaned_data['df'] = df
+                
+                # Store info about filtered rows for user feedback
+                filtered_count = initial_count - len(df)
+                if filtered_count > 0:
+                    self.cleaned_data['filtered_rows'] = filtered_count
                 
             except Exception as e:
                 raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
@@ -224,9 +248,10 @@ class MaterialReceiptForm(forms.ModelForm):
 
     class Meta:
         model = MaterialOrder
-        fields = ['name', 'quantity', 'warehouse']  # Only Materials, Quantity, and Supplier (Warehouse)
+        fields = ['name', 'quantity', 'supplier', 'warehouse']  # Materials, Quantity, Supplier, and Warehouse
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'supplier': forms.Select(attrs={'class': 'form-control'}),
             'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
@@ -235,7 +260,9 @@ class MaterialReceiptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Show all inventory items to all users for transparency
         self.fields['name'].queryset = InventoryItem.objects.all()
-        self.fields['warehouse'].label = 'Supplier'
+        self.fields['supplier'].queryset = Supplier.objects.filter(is_active=True)
+        self.fields['warehouse'].queryset = Warehouse.objects.filter(is_active=True)
+        self.fields['supplier'].required = False
         self.fields['warehouse'].required = False
 
 MaterialReceiptFormSet = formset_factory(MaterialReceiptForm, extra=1, can_delete=True)
