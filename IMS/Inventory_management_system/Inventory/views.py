@@ -645,23 +645,7 @@ class UpdateMaterialStatusView(View):
                                 }, status=400)
                             inventory_item.quantity -= partial_quantity
                             logger.info(f"Reduced inventory by {partial_quantity}")
-                            
-                            # Update BOQ quantity_received when releasing materials
-                            try:
-                                # Find matching BOQ entry based on material code and package number
-                                boq_entry = BillOfQuantity.objects.filter(
-                                    item_code=order.code,
-                                    package_number=order.package_number
-                                ).first()
-                                
-                                if boq_entry:
-                                    boq_entry.quantity_received += partial_quantity
-                                    boq_entry.save()
-                                    logger.info(f"Updated BOQ quantity_received for {boq_entry.material_description}: {boq_entry.quantity_received}")
-                                else:
-                                    logger.warning(f"No BOQ entry found for code={order.code}, package={order.package_number}")
-                            except Exception as e:
-                                logger.error(f"Error updating BOQ quantity_received: {str(e)}", exc_info=True)
+                            # Note: BOQ quantity_received is updated when consultant confirms site receipt (SiteReceipt model)
                                 
                         elif order.request_type == "Receipt":
                             inventory_item.quantity += partial_quantity

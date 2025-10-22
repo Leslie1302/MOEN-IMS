@@ -21,20 +21,30 @@ class InventoryItemForm(forms.ModelForm):
         model = InventoryItem
         fields = ['name', 'quantity', 'category', 'unit', 'code', 'warehouse']
     
-    def clean_code(self):
-        """Validate that the material code is unique"""
-        code = self.cleaned_data.get('code')
-        if code:
+    def clean(self):
+        """Validate that the combination of material code and warehouse is unique"""
+        cleaned_data = super().clean()
+        code = cleaned_data.get('code')
+        warehouse = cleaned_data.get('warehouse')
+        
+        if code and warehouse:
             # Check if editing an existing item (will have an instance with pk)
             if self.instance and self.instance.pk:
                 # Exclude current instance from uniqueness check
-                if InventoryItem.objects.filter(code=code).exclude(pk=self.instance.pk).exists():
-                    raise forms.ValidationError(f"Material code '{code}' already exists. Please use a unique code.")
+                if InventoryItem.objects.filter(code=code, warehouse=warehouse).exclude(pk=self.instance.pk).exists():
+                    raise forms.ValidationError(
+                        f"An item with material code '{code}' already exists in warehouse '{warehouse.name}'. "
+                        "The combination of code and warehouse must be unique."
+                    )
             else:
                 # Creating new item
-                if InventoryItem.objects.filter(code=code).exists():
-                    raise forms.ValidationError(f"Material code '{code}' already exists. Please use a unique code.")
-        return code
+                if InventoryItem.objects.filter(code=code, warehouse=warehouse).exists():
+                    raise forms.ValidationError(
+                        f"An item with material code '{code}' already exists in warehouse '{warehouse.name}'. "
+                        "The combination of code and warehouse must be unique."
+                    )
+        
+        return cleaned_data
 
 # Create a formset that allows an unlimited number of forms
 InventoryItemFormSet = formset_factory(InventoryItemForm, extra=1, can_delete=True)
@@ -634,7 +644,7 @@ class SiteReceiptForm(forms.ModelForm):
     
     class Meta:
         model = SiteReceipt
-        fields = ['received_quantity', 'waybill_pdf', 'site_photos', 'condition', 'notes']
+        fields = ['received_quantity', 'waybill_pdf', 'acknowledgement_sheet', 'site_photos', 'condition', 'notes']
         widgets = {
             'received_quantity': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -644,6 +654,10 @@ class SiteReceiptForm(forms.ModelForm):
             'waybill_pdf': forms.FileInput(attrs={
                 'class': 'form-control',
                 'accept': 'application/pdf'
+            }),
+            'acknowledgement_sheet': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'application/pdf,image/*'
             }),
             'site_photos': forms.FileInput(attrs={
                 'class': 'form-control',

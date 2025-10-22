@@ -362,8 +362,16 @@
 
                     <!-- Action Button -->
                     <div style="text-align: center; margin-top: 15px;">
-                        <button class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;">
-                            <i class="fas fa-info-circle"></i> View Details
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm update-status-btn" 
+                                style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
+                                data-transport-id="{{ transport.id }}"
+                                data-current-status="{{ transport.status }}"
+                                data-material="{{ transport.material_name }}"
+                                data-transporter="{{ transport.transporter.name }}"
+                                data-driver="{{ transport.driver_name }}"
+                                data-order-code="{{ transport.material_order.request_code }}">
+                            <i class="fas fa-edit"></i> Update Status
                         </button>
                     </div>
                 </div>
@@ -507,33 +515,78 @@
 
 <!-- Status Update Modal -->
 <div class="modal fade" id="statusUpdateModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Update Transport Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-shipping-fast"></i> Update Transport Status
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="statusUpdateForm">
                 {% csrf_token %}
                 <input type="hidden" id="transportId" name="transport_id">
                 <div class="modal-body">
+                    <!-- Transport Info -->
+                    <div class="alert alert-info mb-3">
+                        <h6 class="mb-2"><strong>Transport Details</strong></h6>
+                        <p class="mb-1"><strong>Order:</strong> <span id="modalOrderCode"></span></p>
+                        <p class="mb-1"><strong>Material:</strong> <span id="modalMaterial"></span></p>
+                        <p class="mb-1"><strong>Transporter:</strong> <span id="modalTransporter"></span></p>
+                        <p class="mb-0"><strong>Driver:</strong> <span id="modalDriver"></span></p>
+                    </div>
+                    
+                    <!-- Current Status -->
                     <div class="mb-3">
-                        <label for="newStatus" class="form-label">New Status</label>
-                        <select class="form-select" id="newStatus" name="status" required>
-                            <option value="">Select Status</option>
-                            {% for status_code, status_display in status_choices %}
-                            <option value="{{ status_code }}">{{ status_display }}</option>
-                            {% endfor %}
+                        <label class="form-label"><strong>Current Status</strong></label>
+                        <div>
+                            <span id="currentStatusBadge" class="badge bg-secondary fs-6"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Status Workflow Guide -->
+                    <div class="alert alert-light border mb-3">
+                        <h6 class="mb-2"><i class="fas fa-route"></i> <strong>Status Workflow</strong></h6>
+                        <div class="d-flex align-items-center flex-wrap" style="gap: 8px; font-size: 0.85rem;">
+                            <span class="badge bg-secondary">Assigned</span>
+                            <i class="fas fa-arrow-right"></i>
+                            <span class="badge bg-warning text-dark">Loading</span>
+                            <i class="fas fa-arrow-right"></i>
+                            <span class="badge bg-info">Loaded</span>
+                            <i class="fas fa-arrow-right"></i>
+                            <span class="badge bg-primary">In Transit</span>
+                            <i class="fas fa-arrow-right"></i>
+                            <span class="badge bg-success">Delivered</span>
+                        </div>
+                    </div>
+                    
+                    <!-- New Status Selection -->
+                    <div class="mb-3">
+                        <label for="newStatus" class="form-label"><strong>Update Status To</strong> *</label>
+                        <select class="form-select form-select-lg" id="newStatus" name="status" required>
+                            <option value="">Select New Status...</option>
+                            <option value="Assigned">Assigned to Transporter</option>
+                            <option value="Loading">Loading in Progress</option>
+                            <option value="Loaded">Loaded on Truck</option>
+                            <option value="In Transit">In Transit</option>
+                            <option value="Delivered">Delivered to Site</option>
                         </select>
                     </div>
+                    
+                    <!-- Notes -->
                     <div class="mb-3">
                         <label for="statusNotes" class="form-label">Notes (Optional)</label>
-                        <textarea class="form-control" id="statusNotes" name="notes" rows="3"></textarea>
+                        <textarea class="form-control" id="statusNotes" name="notes" rows="3" placeholder="Add any additional notes about this status update..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="statusSubmitBtn">
+                        <i class="fas fa-save"></i> <span id="statusSubmitText">Update Status</span>
+                        <span id="statusSubmitSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -542,21 +595,82 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+// Debug: Check if jQuery is loaded
+console.log('jQuery loaded:', typeof jQuery !== 'undefined');
+console.log('Bootstrap loaded:', typeof bootstrap !== 'undefined');
+
 $(document).ready(function() {
-    // Handle status update button clicks
-    $('.update-status-btn').click(function() {
+    console.log('=== Transportation Status JS Loaded ===');
+    console.log('Number of update buttons:', $('.update-status-btn').length);
+    
+    // Handle status update button clicks using event delegation
+    // This ensures buttons work even if they're hidden/paginated
+    $(document).on('click', '.update-status-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('=== Update Status Button Clicked ===');
         var transportId = $(this).data('transport-id');
         var currentStatus = $(this).data('current-status');
+        var material = $(this).data('material');
+        var transporter = $(this).data('transporter');
+        var driver = $(this).data('driver');
+        var orderCode = $(this).data('order-code');
         
+        // Populate hidden field
         $('#transportId').val(transportId);
-        $('#newStatus').val(currentStatus);
-        $('#statusUpdateModal').modal('show');
+        
+        // Populate transport details
+        $('#modalOrderCode').text(orderCode);
+        $('#modalMaterial').text(material);
+        $('#modalTransporter').text(transporter);
+        $('#modalDriver').text(driver || 'N/A');
+        
+        // Show current status with appropriate badge color
+        var statusBadge = $('#currentStatusBadge');
+        statusBadge.removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
+        statusBadge.text(currentStatus);
+        
+        if (currentStatus === 'Assigned') statusBadge.addClass('bg-secondary');
+        else if (currentStatus === 'Loading') statusBadge.addClass('bg-warning text-dark');
+        else if (currentStatus === 'Loaded') statusBadge.addClass('bg-info');
+        else if (currentStatus === 'In Transit') statusBadge.addClass('bg-primary');
+        else if (currentStatus === 'Delivered') statusBadge.addClass('bg-success');
+        
+        // Set default new status (next in workflow)
+        var nextStatus = '';
+        if (currentStatus === 'Assigned') nextStatus = 'Loading';
+        else if (currentStatus === 'Loading') nextStatus = 'Loaded';
+        else if (currentStatus === 'Loaded') nextStatus = 'In Transit';
+        else if (currentStatus === 'In Transit') nextStatus = 'Delivered';
+        
+        $('#newStatus').val(nextStatus);
+        
+        console.log('All data populated, showing modal...');
+        
+        // Show modal using Bootstrap 5
+        try {
+            var modalElement = document.getElementById('statusUpdateModal');
+            var modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            console.log('Modal shown successfully');
+        } catch (error) {
+            console.error('Error showing modal:', error);
+            // Fallback to jQuery if Bootstrap 5 not available
+            $('#statusUpdateModal').modal('show');
+        }
     });
     
     // Handle status update form submission
     $('#statusUpdateForm').on('submit', function(e) {
         e.preventDefault();
+        
+        // Prevent double submission
+        var $submitBtn = $('#statusSubmitBtn');
+        if ($submitBtn.prop('disabled')) {
+            return false;
+        }
         
         var transportId = $('#transportId').val();
         var formData = $(this).serialize();
@@ -565,20 +679,66 @@ $(document).ready(function() {
             type: 'POST',
             url: '{% url "update_transport_status" 0 %}'.replace('0', transportId),
             data: formData,
+            beforeSend: function() {
+                // Disable button and show loading
+                $submitBtn.prop('disabled', true);
+                $('#statusSubmitText').text('Updating...');
+                $('#statusSubmitSpinner').removeClass('d-none');
+            },
             success: function(response) {
                 if (response.success) {
-                    $('#statusUpdateModal').modal('hide');
-                    location.reload();
+                    $('#statusSubmitText').text('Success!');
+                    $('#statusSubmitSpinner').addClass('d-none');
+                    setTimeout(function() {
+                        $('#statusUpdateModal').modal('hide');
+                        location.reload();
+                    }, 500);
                 } else {
                     alert('Error: ' + (response.error || 'Unknown error occurred'));
+                    // Re-enable button
+                    $submitBtn.prop('disabled', false);
+                    $('#statusSubmitText').text('Update Status');
+                    $('#statusSubmitSpinner').addClass('d-none');
                 }
             },
             error: function(xhr, status, error) {
                 console.error('AJAX error:', error);
                 alert('An error occurred. Please try again.');
+                // Re-enable button
+                $submitBtn.prop('disabled', false);
+                $('#statusSubmitText').text('Update Status');
+                $('#statusSubmitSpinner').addClass('d-none');
             }
         });
     });
+    
+    // Reset modal state when closed (Bootstrap 5 event)
+    var statusModal = document.getElementById('statusUpdateModal');
+    if (statusModal) {
+        statusModal.addEventListener('hidden.bs.modal', function () {
+            console.log('Modal closed, resetting state...');
+            $('#statusUpdateForm')[0].reset();
+            $('#transportId').val('');
+            $('#modalOrderCode').text('');
+            $('#modalMaterial').text('');
+            $('#modalTransporter').text('');
+            $('#modalDriver').text('');
+            $('#currentStatusBadge').text('').removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
+            
+            // Reset submit button
+            $('#statusSubmitBtn').prop('disabled', false);
+            $('#statusSubmitText').text('Update Status');
+            $('#statusSubmitSpinner').addClass('d-none');
+        });
+    }
+    
+    // Log final setup completion
+    setTimeout(function() {
+        console.log('=== Final Setup Check ===');
+        console.log('Update buttons with class:', $('.update-status-btn').length);
+        console.log('Modal element:', $('#statusUpdateModal').length > 0 ? 'Found' : 'NOT FOUND');
+        console.log('First button data:', $('.update-status-btn').first().data());
+    }, 500);
 });
 </script>
 {% endblock %}

@@ -256,6 +256,19 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                     if vehicle_id:
                         vehicle = get_object_or_404(TransportVehicle, id=vehicle_id)
                     
+                    # Check for duplicate assignments in the last 10 seconds (prevents double-clicking)
+                    from datetime import timedelta
+                    ten_seconds_ago = timezone.now() - timedelta(seconds=10)
+                    recent_duplicate = MaterialTransport.objects.filter(
+                        material_order=order,
+                        transporter=transporter,
+                        quantity=transport_quantity,
+                        date_assigned__gte=ten_seconds_ago
+                    ).exists()
+                    
+                    if recent_duplicate:
+                        raise ValueError('Duplicate assignment detected. This transporter was just assigned to this order.')
+                    
                     # Create a new MaterialTransport record for this specific quantity
                     transport = MaterialTransport.objects.create(
                         material_order=order,

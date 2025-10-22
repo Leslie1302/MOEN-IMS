@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity
 
 # Register your models here.
 
@@ -64,6 +64,39 @@ class SupplierAdmin(admin.ModelAdmin):
     )
 
 # Register LogEntry
+@admin.register(BillOfQuantity)
+class BillOfQuantityAdmin(admin.ModelAdmin):
+    list_display = ('material_description', 'item_code', 'package_number', 'region', 'district', 'contract_quantity', 'quantity_received', 'get_balance', 'warehouse', 'date_created')
+    list_filter = ('region', 'district', 'warehouse', 'date_created')
+    search_fields = ('material_description', 'item_code', 'package_number', 'consultant', 'contractor', 'region', 'district')
+    readonly_fields = ('date_created', 'get_balance')
+    date_hierarchy = 'date_created'
+    
+    fieldsets = (
+        ('Location Information', {
+            'fields': ('region', 'district', 'community')
+        }),
+        ('Project Details', {
+            'fields': ('consultant', 'contractor', 'package_number')
+        }),
+        ('Material Information', {
+            'fields': ('material_description', 'item_code', 'contract_quantity', 'quantity_received', 'get_balance', 'warehouse')
+        }),
+        ('User & Group', {
+            'fields': ('user', 'group'),
+            'classes': ('collapse',)
+        }),
+        ('System Information', {
+            'fields': ('date_created',),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_balance(self, obj):
+        """Display the balance (remaining quantity)"""
+        return obj.balance
+    get_balance.short_description = 'Balance'
+
 @admin.register(LogEntry)
 class LogEntryAdmin(admin.ModelAdmin):
     list_display = ('user', 'content_type', 'object_repr', 'action_flag', 'change_message', 'action_time')

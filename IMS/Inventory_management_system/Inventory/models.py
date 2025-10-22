@@ -115,12 +115,16 @@ class InventoryItem(models.Model):
     name = models.CharField(max_length=200)
     quantity = models.IntegerField()
     category = models.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
-    code = models.CharField(max_length=200, unique=True, help_text="Unique material code")
+    code = models.CharField(max_length=200, help_text="Material code")
     unit = models.ForeignKey('Unit', on_delete=models.CASCADE) 
     date_created = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, help_text="Warehouse where this item is stored")
+
+    class Meta:
+        unique_together = ['code', 'warehouse']
+        ordering = ['name']
 
     def __str__(self):
         return self.name
@@ -545,6 +549,11 @@ class ReportSubmission(models.Model):
             self.related_boq = boq
             self.save()
 
+    @property
+    def balance(self):
+        """Calculate the remaining balance (contract_quantity - quantity_received)"""
+        return self.contract_quantity - self.quantity_received
+
 class MaterialTransport(models.Model):
     """
     Model to track the transportation of materials from warehouse to destination.
@@ -731,6 +740,13 @@ class SiteReceipt(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
         help_text="Upload the endorsed waybill PDF"
     )
+    acknowledgement_sheet = models.FileField(
+        upload_to='site_receipts/acknowledgements/%Y/%m/%d/',
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Upload the signed acknowledgement sheet",
+        null=True,
+        blank=True
+    )
     site_photos = models.FileField(
         upload_to='site_receipts/photos/%Y/%m/%d/',
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
@@ -755,7 +771,10 @@ class SiteReceipt(models.Model):
         verbose_name_plural = 'Site Receipts'
     
     def save(self, *args, **kwargs):
-        """Update the related MaterialTransport status when site receipt is created"""
+        """Update the related MaterialTransport status and BOQ when site receipt is created"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         is_new = self.pk is None
         super().save(*args, **kwargs)
         
@@ -764,6 +783,54 @@ class SiteReceipt(models.Model):
             self.material_transport.status = 'Delivered'
             self.material_transport.date_delivered = self.received_date
             self.material_transport.save()
+            
+            # Update BOQ quantity_received based on site receipt
+            try:
+                material_order = self.material_transport.material_order
+                if material_order and material_order.package_number:
+                    # Try to find matching BOQ entry
+                    boq_entry = None
+                    
+                    # Strategy 1: Match by item_code and package_number
+                    if material_order.code and material_order.package_number:
+                        boq_entry = BillOfQuantity.objects.filter(
+                            item_code=material_order.code,
+                            package_number=material_order.package_number
+                        ).first()
+                        logger.info(f"BOQ lookup by code={material_order.code}, package={material_order.package_number}: {'Found' if boq_entry else 'Not found'}")
+                    
+                    # Strategy 2: Match by material_description and package_number
+                    if not boq_entry and material_order.name and material_order.package_number:
+                        boq_entry = BillOfQuantity.objects.filter(
+                            material_description__iexact=material_order.name,
+                            package_number=material_order.package_number
+                        ).first()
+                        logger.info(f"BOQ lookup by name={material_order.name}, package={material_order.package_number}: {'Found' if boq_entry else 'Not found'}")
+                    
+                    if boq_entry:
+                        # Update BOQ with received quantity from site receipt
+                        old_qty = boq_entry.quantity_received
+                        boq_entry.quantity_received += float(self.received_quantity)
+                        
+                        # Log if exceeding contract quantity
+                        if boq_entry.quantity_received > boq_entry.contract_quantity:
+                            logger.warning(
+                                f"BOQ quantity_received ({boq_entry.quantity_received}) exceeds contract_quantity "
+                                f"({boq_entry.contract_quantity}) for {boq_entry.material_description}"
+                            )
+                        
+                        boq_entry.save()
+                        logger.info(
+                            f"Site Receipt: Updated BOQ for '{boq_entry.material_description}' (Package: {boq_entry.package_number}): "
+                            f"quantity_received {old_qty} → {boq_entry.quantity_received}, balance: {boq_entry.balance}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Site Receipt: No BOQ entry found. "
+                            f"Order details - code: {material_order.code}, name: {material_order.name}, package: {material_order.package_number}"
+                        )
+            except Exception as e:
+                logger.error(f"Error updating BOQ from site receipt: {str(e)}", exc_info=True)
     
     def __str__(self):
         return f"Site Receipt: {self.material_transport.material_name} - {self.received_quantity} {self.material_transport.unit}"
