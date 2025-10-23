@@ -291,6 +291,21 @@ class RequestMaterialView(LoginRequiredMixin, View):
                     group = self._get_order_group(request.user, item, item_name)
                     logger.info(f"Assigned to group: {group.name if group else 'None'}")
                     
+                    # Handle warehouse lookup
+                    warehouse = None
+                    warehouse_name = row.get('warehouse')
+                    if warehouse_name and pd.notna(warehouse_name):
+                        warehouse_name_str = str(warehouse_name).strip()
+                        logger.info(f"Looking up warehouse: {warehouse_name_str}")
+                        try:
+                            warehouse = Warehouse.objects.filter(name__iexact=warehouse_name_str).first()
+                            if warehouse:
+                                logger.info(f"Found warehouse: {warehouse.name} (ID: {warehouse.id})")
+                            else:
+                                logger.warning(f"Warehouse not found: {warehouse_name_str}")
+                        except Exception as wh_error:
+                            logger.error(f"Error looking up warehouse: {str(wh_error)}")
+                    
                     # Create the order in a new transaction for each item
                     try:
                         with transaction.atomic():
@@ -302,6 +317,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                                 'unit': item.unit,
                                 'user': request.user,
                                 'group': group,
+                                'warehouse': warehouse,
                                 'request_type': request_type,
                                 'request_code': row['request_code'],  # Use the unique request code from the DataFrame
                                 'region': row.get('region', ''),
@@ -1396,7 +1412,7 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
             file = request.FILES['file']
             try:
                 df = pd.read_excel(file, engine='openpyxl')
-                # item_code is now optional - will be auto-generated from material_description
+                # material_description must exactly match existing InventoryItem names
                 required_columns = [
                     'region', 'district', 'community', 'consultant', 'contractor', 
                     'package_number', 'material_description', 
@@ -1423,23 +1439,23 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                             error_count += 1
                             continue
                         
-                        # Auto-generate item_code from InventoryItem based on material_description
-                        # First try exact match, then case-insensitive match
+                        # Require exact match with existing InventoryItem - no auto-generation allowed
                         inventory_item = InventoryItem.objects.filter(name__iexact=material_description).first()
                         
-                        if inventory_item:
-                            item_code = inventory_item.code
-                            logger.info(f"Row {index + 2}: Found matching inventory item '{inventory_item.name}' with code '{item_code}'")
-                        else:
-                            # If no match found, check if item_code column exists and use it, otherwise generate one
-                            if 'item_code' in df.columns and pd.notna(row.get('item_code')):
-                                item_code = str(row['item_code']).strip()
-                                logger.info(f"Row {index + 2}: No inventory match for '{material_description}', using provided code '{item_code}'")
-                            else:
-                                # Generate a code based on material description
-                                item_code = f"BOQ-{material_description[:10].upper().replace(' ', '-')}-{index}"
-                                logger.warning(f"Row {index + 2}: No inventory match for '{material_description}', generated code '{item_code}'")
-                                messages.info(request, f"Row {index + 2}: Material '{material_description}' not found in inventory. Generated code: {item_code}")
+                        if not inventory_item:
+                            # No match found - reject this row to maintain uniformity
+                            error_count += 1
+                            logger.error(f"Row {index + 2}: Material '{material_description}' not found in inventory system")
+                            messages.error(
+                                request, 
+                                f"Row {index + 2}: Material '{material_description}' does not match any existing inventory item. "
+                                f"Please ensure material descriptions exactly match items in your inventory."
+                            )
+                            continue
+                        
+                        # Use the matched inventory item's code
+                        item_code = inventory_item.code
+                        logger.info(f"Row {index + 2}: Matched inventory item '{inventory_item.name}' with code '{item_code}'")
 
                         boq, created = BillOfQuantity.objects.get_or_create(
                             item_code=item_code,

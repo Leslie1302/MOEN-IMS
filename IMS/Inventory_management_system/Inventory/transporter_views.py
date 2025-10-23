@@ -116,8 +116,10 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         
         # Only include orders that have processed quantities and are ready for transport
         # Include orders that are processed and ready for transport assignment
+        # Note: 'Completed' status included because an order might be marked completed for its 
+        # processed portion while still having remaining_quantity that needs future processing
         queryset = queryset.filter(
-            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled']
+            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed']
         ).filter(
             processed_quantity__isnull=False
         ).exclude(
@@ -136,23 +138,27 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         for order in all_release_orders[:5]:
             logger.info(f"Order {order.request_code}: Status={order.status}, Processed={order.processed_quantity} (type: {type(order.processed_quantity)})")
         
-        # Exclude orders that have been fully transported
-        # Allow partial transports to remain visible for additional assignments
-        fully_transported_orders = []
+        # Exclude orders that have been fully transported AND have no remaining quantity
+        # Keep orders visible if they have remaining_quantity > 0 (for future processing and transport)
+        fully_completed_orders = []
         for order in queryset:
             # Calculate total transported quantity for this order
             total_transported = order.transports.aggregate(
                 total=Sum('quantity')
             )['total'] or 0
             
-            # If fully transported, exclude from assignment table
-            if total_transported >= order.processed_quantity:
-                fully_transported_orders.append(order.id)
-                logger.info(f"Excluding fully transported order {order.request_code}: {total_transported}/{order.processed_quantity}")
+            # Only exclude if:
+            # 1. All processed quantity has been transported, AND
+            # 2. There is no remaining quantity to process
+            if total_transported >= order.processed_quantity and order.remaining_quantity <= 0:
+                fully_completed_orders.append(order.id)
+                logger.info(f"Excluding fully completed order {order.request_code}: transported={total_transported}, processed={order.processed_quantity}, remaining={order.remaining_quantity}")
+            elif total_transported >= order.processed_quantity and order.remaining_quantity > 0:
+                logger.info(f"Keeping order {order.request_code} visible: All processed quantity transported but {order.remaining_quantity} still unprocessed")
         
-        if fully_transported_orders:
-            queryset = queryset.exclude(id__in=fully_transported_orders)
-            logger.info(f"Excluded {len(fully_transported_orders)} fully transported orders")
+        if fully_completed_orders:
+            queryset = queryset.exclude(id__in=fully_completed_orders)
+            logger.info(f"Excluded {len(fully_completed_orders)} fully completed orders")
         
         # Debug: Log after transport exclusion
         after_transport_filter = queryset.count()

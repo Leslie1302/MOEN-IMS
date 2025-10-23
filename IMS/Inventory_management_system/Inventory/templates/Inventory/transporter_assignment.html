@@ -63,15 +63,21 @@
                         <div class="quantity-info">
                             <div class="main-quantity">
                                 <span class="badge bg-primary">{{ order.remaining_transport_quantity|floatformat:0 }} {{ order.unit }}</span>
-                                <small class="text-muted">available</small>
+                                <small class="text-muted">available for transport</small>
                             </div>
                             <div class="quantity-breakdown">
                                 <small class="text-muted">
-                                    Processed: {{ order.processed_quantity|floatformat:0 }} {{ order.unit }}
+                                    Requested: {{ order.quantity|floatformat:0 }} {{ order.unit }}
+                                    | Processed: {{ order.processed_quantity|floatformat:0 }} {{ order.unit }}
                                     {% if order.total_transported_quantity > 0 %}
                                         | Assigned: {{ order.total_transported_quantity|floatformat:0 }} {{ order.unit }}
                                     {% endif %}
                                 </small>
+                                {% if order.remaining_quantity > 0 %}
+                                <small class="text-warning d-block mt-1">
+                                    <i class="fas fa-info-circle"></i> <strong>{{ order.remaining_quantity|floatformat:0 }} {{ order.unit }}</strong> pending processing
+                                </small>
+                                {% endif %}
                             </div>
                         </div>
                     </td>
@@ -95,21 +101,27 @@
                         </span>
                     </td>
                     <td>
-                        <button class="btn btn-primary btn-sm assign-btn" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#assignModal"
-                                data-order-id="{{ order.id }}"
-                                data-order-code="{{ order.request_code }}"
-                                data-material="{{ order.name }} ({{ order.code }})"
-                                data-quantity="{{ order.quantity }}"
-                                data-processed="{{ order.processed_quantity|default:'0' }}"
-                                data-available="{{ order.remaining_transport_quantity|default:'0' }}"
-                                data-unit="{{ order.unit }}"
-                                data-status="{{ order.get_status_display }}"
-                                data-priority="{{ order.priority|default:'Normal' }}"
-                                data-destination="{{ order.region }}, {{ order.district }}">
-                            <i class="fas fa-truck me-1"></i>Assign
-                        </button>
+                        {% if order.remaining_transport_quantity > 0 %}
+                            <button class="btn btn-primary btn-sm assign-btn" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#assignModal"
+                                    data-order-id="{{ order.id }}"
+                                    data-order-code="{{ order.request_code }}"
+                                    data-material="{{ order.name }} ({{ order.code }})"
+                                    data-quantity="{{ order.quantity }}"
+                                    data-processed="{{ order.processed_quantity|default:'0' }}"
+                                    data-available="{{ order.remaining_transport_quantity|default:'0' }}"
+                                    data-unit="{{ order.unit }}"
+                                    data-status="{{ order.get_status_display }}"
+                                    data-priority="{{ order.priority|default:'Normal' }}"
+                                    data-destination="{{ order.region }}, {{ order.district }}">
+                                <i class="fas fa-truck me-1"></i>Assign
+                            </button>
+                        {% else %}
+                            <button class="btn btn-secondary btn-sm" disabled title="All processed quantity has been assigned. Process remaining quantity first.">
+                                <i class="fas fa-check me-1"></i>Assigned
+                            </button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
