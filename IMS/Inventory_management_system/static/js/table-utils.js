@@ -530,17 +530,25 @@ class TableUtils {
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0);
     }
 }
 
-// Initialize all tables with the 'enhanced-table' class
+// Auto-initialize tables with the 'enhanced-table' class
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.enhanced-table').forEach(table => {
-        new TableUtils(table.id, {
+    document.querySelectorAll('table.enhanced-table').forEach(table => {
+        // Check if Django pagination exists (look for pagination controls in the page)
+        const hasDjangoPagination = document.querySelector('.pagination');
+        
+        // If Django pagination exists, disable JavaScript pagination
+        new TableUtils(table.id, { 
             searchInputId: `${table.id}-search`,
-            pagination: true,
+            pagination: !hasDjangoPagination,  // Disable JS pagination if Django handles it
             exportButtons: true,
             columnFilters: true,
             stickyHeader: true,

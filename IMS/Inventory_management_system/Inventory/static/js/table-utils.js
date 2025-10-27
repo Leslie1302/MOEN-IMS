@@ -848,7 +848,14 @@ class EnhancedTable {
 // Auto-initialize tables with the 'enhanced-table' class
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('table.enhanced-table').forEach(table => {
-        new EnhancedTable({ table });
+        // Check if Django pagination exists (look for pagination controls in the page)
+        const hasDjangoPagination = document.querySelector('.pagination');
+        
+        // If Django pagination exists, disable JavaScript pagination
+        new EnhancedTable({ 
+            table,
+            pagination: !hasDjangoPagination  // Disable JS pagination if Django handles it
+        });
     });
 });
 
