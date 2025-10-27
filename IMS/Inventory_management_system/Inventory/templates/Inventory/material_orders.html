@@ -384,18 +384,6 @@
     </div>
     {% endfor %}
     
-    <!-- Debug: Check pagination variables -->
-    <div class="alert alert-info mt-3">
-        <strong>Debug Info:</strong><br>
-        Total orders in queryset: {{ total_orders }}<br>
-        Page object exists: {{ page_obj|yesno:"Yes,No" }}<br>
-        {% if page_obj %}
-            Current page: {{ page_obj.number }}<br>
-            Total pages: {{ page_obj.paginator.num_pages }}<br>
-            Has other pages: {{ page_obj.has_other_pages|yesno:"Yes,No" }}<br>
-        {% endif %}
-    </div>
-    
     <!-- Pagination Controls -->
     {% if page_obj.has_other_pages %}
     <nav aria-label="Material orders pagination" class="mt-4">
