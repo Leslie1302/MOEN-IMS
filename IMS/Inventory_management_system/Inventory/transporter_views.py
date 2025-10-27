@@ -730,9 +730,12 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         return is_storekeeper(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
-        # Get all active transports (not completed or cancelled)
+        # Get all active transports that haven't been logged as received on site
+        # Transports persist on this page until a site receipt is logged
         queryset = MaterialTransport.objects.filter(
             status__in=['Assigned', 'Loading', 'Loaded', 'In Transit', 'Delivered']
+        ).filter(
+            site_receipt__isnull=True  # Exclude transports with site receipts logged
         ).select_related(
             'material_order', 'transporter', 'vehicle', 'material_order__release_letter'
         ).order_by('-date_assigned', 'status')
