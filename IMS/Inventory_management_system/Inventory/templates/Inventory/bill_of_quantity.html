@@ -7,35 +7,20 @@
 {{ block.super }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
-    /* Critical fix: Prevent page content from blocking navbar */
-    .content {
-        pointer-events: none !important;
-    }
-    
-    .content * {
-        pointer-events: auto !important;
-    }
-    
     /* Ensure navbar is always clickable and on top */
     nav.navbar {
-        position: relative !important;
-        z-index: 9999 !important;
-        pointer-events: auto !important;
-    }
-    
-    nav.navbar * {
-        pointer-events: auto !important;
+        position: relative;
+        z-index: 1030;
     }
     
     /* Ensure dropdown menus work */
     .dropdown-menu {
-        z-index: 10000 !important;
-        pointer-events: auto !important;
+        z-index: 1040;
     }
     
-    /* Make interactive elements work */
-    button, a, input, select, textarea {
-        pointer-events: auto !important;
+    /* Ensure table is responsive */
+    .table-responsive {
+        overflow-x: auto;
     }
 </style>
 {% endblock %}
@@ -203,7 +188,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dropdown.style.display === 'block') {
                 dropdown.style.display = 'none';
             } else {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+                // Only close filter dropdowns, not navbar dropdowns
+                document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
                 dropdown.style.display = 'block';
             }
         };
@@ -214,8 +200,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('click', function(e) {
+        // Only close table filter dropdowns, not navbar dropdowns
         if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
         }
     });
 

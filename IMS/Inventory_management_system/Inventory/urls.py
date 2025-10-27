@@ -36,6 +36,13 @@ from .item_views import AddItem, EditItem, DeleteItem
 # Import consultant views
 from .views import ConsultantDeliveriesView, SiteReceiptCreateView, SiteReceiptListView
 
+# Import notification views
+from .notification_views import (
+    NotificationListView, notification_detail, mark_notification_read,
+    mark_all_notifications_read, get_unread_count, delete_notification,
+    notification_preferences
+)
+
 # Error handlers
 handler403 = custom_403_view
 handler404 = custom_404_view
@@ -125,4 +132,13 @@ urlpatterns = [
     # Release letter upload
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
     path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
+    
+    # Notification management
+    path('notifications/', NotificationListView.as_view(), name='notifications'),
+    path('notifications/<int:pk>/', notification_detail, name='notification_detail'),
+    path('notifications/<int:pk>/mark-read/', mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/unread-count/', get_unread_count, name='get_unread_count'),
+    path('notifications/<int:pk>/delete/', delete_notification, name='delete_notification'),
+    path('notifications/preferences/', notification_preferences, name='notification_preferences'),
 ]

@@ -1,0 +1,28 @@
+{% extends 'Inventory/base.html' %}
+
+{% block title %}Notification Preferences - MOEN IMS{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-gear"></i> Notification Preferences</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-tools text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3">Coming Soon</h4>
+                    <p class="text-muted">
+                        Notification preferences will be available in a future update.
+                        You'll be able to customize which notifications you receive and how you're notified.
+                    </p>
+                    <a href="{% url 'notifications' %}" class="btn btn-primary mt-3">
+                        <i class="bi bi-arrow-left"></i> Back to Notifications
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

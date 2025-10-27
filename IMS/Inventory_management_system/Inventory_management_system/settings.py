@@ -150,6 +150,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'Inventory.context_processors.user_profile',
+                'Inventory.context_processors.notifications_context',
             ],
         },
     },

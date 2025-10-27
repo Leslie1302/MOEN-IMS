@@ -10,6 +10,7 @@
             
             <!-- Tabs Navigation -->
             <ul class="nav nav-tabs nav-fill mb-4" id="requestTabs" role="tablist">
+                {% if user.is_superuser %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if active_tab == 'single' %}active{% endif %}" 
                             id="single-tab" 
@@ -22,6 +23,7 @@
                         Single Request
                     </button>
                 </li>
+                {% endif %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if active_tab == 'bulk' %}active{% endif %}" 
                             id="bulk-tab" 
@@ -43,7 +45,7 @@
                      id="single-request" 
                      role="tabpanel" 
                      aria-labelledby="single-tab">
-                    
+                    {% if user.is_superuser %}
                     <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}
                         {{ formset.management_form }}
@@ -142,6 +144,13 @@
                             <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
                         </div>
                     </form>
+                    {% else %}
+                    <div class="alert alert-warning text-center mt-4">
+                        <i class="fas fa-lock fa-2x mb-3"></i>
+                        <h5>Access Restricted</h5>
+                        <p class="mb-0">Only superusers can use the single request form. Please use the <strong>Bulk Request</strong> tab instead.</p>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Bulk Request Tab -->
@@ -149,7 +158,8 @@
                      id="bulk-request" 
                      role="tabpanel" 
                      aria-labelledby="bulk-tab">
-                    
+                    {% if user.is_authenticated %}
+                        {% if user.groups.exists or user.is_superuser %}
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-body">
                             <h5 class="card-title text-center mb-4">📊 Bulk Material Request</h5>
@@ -210,6 +220,18 @@
                             <li>Each request will be assigned a unique tracking code</li>
                         </ol>
                     </div>
+                        {% else %}
+                        <div class="alert alert-warning text-center mt-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <p class="mb-0">You need to be assigned to a group (e.g., Schedule Officer) to request materials.</p>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <div class="alert alert-warning text-center mt-4">
+                        <i class="fas fa-lock me-2"></i>
+                        <p class="mb-0">Please log in to request materials.</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

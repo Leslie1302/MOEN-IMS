@@ -121,12 +121,15 @@ class RequestMaterialView(LoginRequiredMixin, View):
         bulk_form = BulkMaterialRequestForm()
         inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
 
+        # Non-superusers default to bulk tab, superusers default to single tab
+        default_tab = 'single' if request.user.is_superuser else 'bulk'
+
         return render(request, self.template_name, {
             'formset': formset,
             'bulk_form': bulk_form,
             'items': items,
             'inventory_items': json.dumps(inventory_items),
-            'active_tab': 'single'  # Default to single request tab
+            'active_tab': default_tab
         })
 
     def post(self, request):
@@ -1545,266 +1548,436 @@ def management_dashboard(request):
             'user_grades': {},
             'low_inventory_count': 0,
             'profile': None,
+            # New metrics with defaults
+            'transport_in_transit': 0,
+            'transport_pending': 0,
+            'transport_completed_today': 0,
+            'boq_total_entries': 0,
+            'boq_active_projects': 0,
+            'boq_packages': 0,
+            'active_users': 0,
+            'today_activities': 0,
         }
         
+        # Get or create user profile
         try:
-            # Get or create user profile
             profile, created = Profile.objects.get_or_create(user=request.user)
             context['profile'] = profile
+        except Exception as e:
+            logger.error(f"Error getting user profile: {str(e)}", exc_info=True)
+        
+        # Calculate comprehensive user performance grades
+        try:
+            from datetime import timedelta
+            from django.db.models import Avg, Count, Q, F
+            from django.utils import timezone
             
-            # Get all users with their groups and permissions
             users = User.objects.prefetch_related('groups').all()
             user_grades = {}
             
-            # Calculate grades for each user
+            user_count = users.count()
+            logger.info(f"Calculating comprehensive grades for {user_count} users")
+            
+            if user_count == 0:
+                logger.warning("No users found in the system!")
+            
             for user in users:
                 try:
-                    user_orders = MaterialOrder.objects.filter(user=user)
-                    total_orders = user_orders.count()
-                    completed_orders = user_orders.filter(status='Completed').count()
+                    # Initialize metrics
+                    total_tasks = 0
+                    completed_tasks = 0
+                    avg_completion_days = 0
+                    role_name = ", ".join([g.name for g in user.groups.all()]) or "No Role"
                     
-                    if total_orders > 0:
-                        completion_rate = (completed_orders / total_orders) * 100
-                        if completion_rate >= 90:
-                            grade_letter = 'A'
-                            grade_color = 'success'
-                        elif completion_rate >= 80:
-                            grade_letter = 'B'
-                            grade_color = 'info'
-                        elif completion_rate >= 70:
-                            grade_letter = 'C'
-                            grade_color = 'warning'
-                        else:
-                            grade_letter = 'D'
-                            grade_color = 'danger'
+                    # Get user's primary role
+                    user_groups = [g.name for g in user.groups.all()]
+                    
+                    # Schedule Officers - Material requests they created
+                    # Completed = Site receipt logged for the order
+                    if 'Schedule Officers' in user_groups or not user_groups:
+                        requests_created = MaterialOrder.objects.filter(user=user)
+                        total_tasks += requests_created.count()
+                        
+                        # Count completed tasks: orders with site receipts
+                        completed_requests = requests_created.filter(
+                            site_receipt__isnull=False
+                        ).distinct()
+                        completed_tasks += completed_requests.count()
+                        
+                        # Calculate avg days to completion (request to site receipt)
+                        if completed_requests.exists():
+                            total_days = 0
+                            count_with_dates = 0
+                            for order in completed_requests:
+                                if order.date_requested:
+                                    # Get the site receipt for this order
+                                    receipt = SiteReceipt.objects.filter(material_order=order).order_by('-receipt_date').first()
+                                    if receipt and receipt.receipt_date:
+                                        days = (receipt.receipt_date - order.date_requested).days
+                                        total_days += days
+                                        count_with_dates += 1
+                            
+                            if count_with_dates > 0:
+                                avg_completion_days = total_days / count_with_dates
+                    
+                    # Storekeepers - Materials they processed
+                    # Completed = When transport status is "In Transit"
+                    if 'Storekeepers' in user_groups:
+                        processed_orders = MaterialOrder.objects.filter(last_updated_by=user)
+                        total_tasks += processed_orders.count()
+                        
+                        # Count completed: orders with transport in "In Transit" status
+                        completed_storekeeper_orders = processed_orders.filter(
+                            materialtransport__status='In Transit'
+                        ).distinct()
+                        completed_tasks += completed_storekeeper_orders.count()
+                        
+                        # Calculate processing efficiency (request to in transit)
+                        if completed_storekeeper_orders.exists():
+                            total_days = 0
+                            count_with_dates = 0
+                            for order in completed_storekeeper_orders:
+                                if order.date_requested:
+                                    # Get the transport for this order
+                                    transport = MaterialTransport.objects.filter(
+                                        material_order=order,
+                                        status='In Transit'
+                                    ).order_by('date_assigned').first()
+                                    if transport and transport.date_assigned:
+                                        days = (transport.date_assigned.date() - order.date_requested).days
+                                        total_days += days
+                                        count_with_dates += 1
+                            
+                            if count_with_dates > 0:
+                                avg_completion_days = total_days / count_with_dates
+                    
+                    # Transporters - Deliveries they were assigned
+                    # Completed = Status is "Delivered" AND site receipt is logged
+                    if 'Transporters' in user_groups:
+                        transports = MaterialTransport.objects.filter(transporter_name=user.username)
+                        total_tasks += transports.count()
+                        
+                        # Count completed: delivered with site receipt
+                        completed_transports = transports.filter(
+                            status='Delivered',
+                            site_receipt__isnull=False
+                        ).distinct()
+                        completed_tasks += completed_transports.count()
+                        
+                        # Calculate delivery efficiency (assignment to site receipt)
+                        if completed_transports.exists():
+                            total_days = 0
+                            count_with_dates = 0
+                            for transport in completed_transports:
+                                if transport.date_assigned:
+                                    # Get the site receipt for this transport
+                                    receipt = SiteReceipt.objects.filter(
+                                        material_transport=transport
+                                    ).order_by('-receipt_date').first()
+                                    if receipt and receipt.receipt_date:
+                                        days = (receipt.receipt_date - transport.date_assigned.date()).days
+                                        total_days += days
+                                        count_with_dates += 1
+                            
+                            if count_with_dates > 0:
+                                avg_completion_days = total_days / count_with_dates
+                    
+                    # Consultants - Site receipts they logged
+                    if 'Consultants' in user_groups:
+                        site_receipts = SiteReceipt.objects.filter(received_by=user.username)
+                        total_tasks += site_receipts.count()
+                        completed_tasks += site_receipts.filter(receipt_status='Received').count()
+                        
+                        # All logged receipts count as timely work
+                        if site_receipts.exists():
+                            avg_completion_days = 1  # Same-day logging is ideal
+                    
+                    # Management - Oversight and approvals
+                    if 'Management' in user_groups:
+                        # Count orders they've reviewed/updated
+                        managed_orders = MaterialOrder.objects.filter(last_updated_by=user)
+                        total_tasks += managed_orders.count()
+                        completed_tasks += managed_orders.filter(
+                            status__in=['Approved', 'Completed']
+                        ).count()
+                    
+                    # Calculate overall performance score
+                    # 1. Completion Rate (40%)
+                    completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                    completion_score = (completion_rate / 100) * 40
+                    
+                    # 2. Efficiency/Timeliness (30%) - lower days is better
+                    # Scoring: <2 days = 30pts, 2-5 days = 20pts, 5-10 days = 10pts, >10 days = 0pts
+                    if avg_completion_days == 0:
+                        efficiency_score = 15  # Neutral score if no data
+                    elif avg_completion_days < 2:
+                        efficiency_score = 30
+                    elif avg_completion_days < 5:
+                        efficiency_score = 20
+                    elif avg_completion_days < 10:
+                        efficiency_score = 10
                     else:
-                        completion_rate = 0
+                        efficiency_score = 0
+                    
+                    # 3. Volume/Productivity (30%)
+                    # Scoring: >50 tasks = 30pts, 30-50 = 25pts, 10-30 = 15pts, <10 = 5pts
+                    if completed_tasks >= 50:
+                        volume_score = 30
+                    elif completed_tasks >= 30:
+                        volume_score = 25
+                    elif completed_tasks >= 10:
+                        volume_score = 15
+                    elif completed_tasks > 0:
+                        volume_score = 5
+                    else:
+                        volume_score = 0
+                    
+                    # Total performance score (out of 100)
+                    performance_score = completion_score + efficiency_score + volume_score
+                    
+                    # Assign grade letter based on performance score
+                    if performance_score >= 90:
+                        grade_letter = 'A+'
+                        grade_color = 'success'
+                    elif performance_score >= 85:
+                        grade_letter = 'A'
+                        grade_color = 'success'
+                    elif performance_score >= 80:
+                        grade_letter = 'B+'
+                        grade_color = 'info'
+                    elif performance_score >= 75:
+                        grade_letter = 'B'
+                        grade_color = 'info'
+                    elif performance_score >= 70:
+                        grade_letter = 'C+'
+                        grade_color = 'warning'
+                    elif performance_score >= 65:
+                        grade_letter = 'C'
+                        grade_color = 'warning'
+                    elif performance_score >= 60:
+                        grade_letter = 'D'
+                        grade_color = 'danger'
+                    elif total_tasks > 0:
+                        grade_letter = 'F'
+                        grade_color = 'danger'
+                    else:
                         grade_letter = 'N/A'
                         grade_color = 'secondary'
+                        performance_score = 0
                     
                     user_grades[user.id] = {
                         'username': user.username,
-                        'groups': ", ".join([g.name for g in user.groups.all()]),
-                        'grade': completion_rate,
+                        'groups': role_name,
+                        'grade': performance_score,
                         'grade_letter': grade_letter,
                         'grade_color': grade_color,
-                        'total_orders': total_orders,
-                        'completed_orders': completed_orders
+                        'total_tasks': total_tasks,
+                        'completed_tasks': completed_tasks,
+                        'completion_rate': completion_rate,
+                        'avg_completion_days': round(avg_completion_days, 1),
+                        'efficiency_score': efficiency_score,
+                        'volume_score': volume_score,
                     }
+                    logger.info(f"✓ User {user.username}: Grade={grade_letter}, Score={performance_score:.1f}, Tasks={completed_tasks}/{total_tasks}, Efficiency={avg_completion_days:.1f} days")
                 except Exception as e:
-                    logger.error(f"Error calculating grade for user {user.username}: {str(e)}", exc_info=True)
-            
-            context['user_grades'] = user_grades
-            
-            # Get order statistics with error handling
-            try:
-                context['total_orders'] = MaterialOrder.objects.count()
-                logger.debug(f"Total Orders: {context['total_orders']}")
-                
-                # Received by Consultants
-                received_by_consultants = MaterialOrder.objects.filter(
-                    status='Received', 
-                    user__groups__name='Consultants'
-                )
-                context['total_received_by_consultants'] = received_by_consultants.aggregate(
-                    total=Sum('processed_quantity')
-                )['total'] or 0
-                
-                # Received by Storekeepers
-                received_by_storekeepers = MaterialOrder.objects.filter(
-                    status='Received', 
-                    user__groups__name='Storekeepers'
-                )
-                context['total_received_by_storekeepers'] = received_by_storekeepers.aggregate(
-                    total=Sum('processed_quantity')
-                )['total'] or 0
-                
-                # Released by Storekeepers
-                released_by_storekeepers = MaterialOrder.objects.filter(
-                    request_type='Release', 
-                    user__groups__name='Storekeepers'
-                )
-                context['total_released_by_storekeepers'] = released_by_storekeepers.aggregate(
-                    total=Sum('processed_quantity')
-                )['total'] or 0
-                
-                # Other metrics
-                context['total_on_site'] = MaterialOrder.objects.filter(status='On Site').count()
-                context['pending_orders'] = MaterialOrder.objects.filter(status='Pending').count()
-                
-                # Get recent orders and audit trail
-                context['orders'] = MaterialOrder.objects.all().order_by('-date_requested')[:10]
-                context['audit_trail'] = MaterialOrderAudit.objects.all().order_by('-date')[:10]
-                
-            except Exception as e:
-                logger.error(f"Error fetching order statistics: {str(e)}", exc_info=True)
-                messages.error(request, 'Error loading dashboard statistics. Please try again.')
-            
-            # Get low inventory count
-            try:
-                low_inventory = InventoryItem.objects.filter(quantity__lt=10)
-                context['low_inventory_count'] = low_inventory.count()
-                
-                # Add low inventory notification if needed
-                if low_inventory.exists():
-                    context['notifications'].append({
-                        'type': 'warning',
-                        'message': f'{low_inventory.count()} items are below reorder level',
-                        'url': reverse('low_inventory_summary')
-                    })
-                
-                # Add pending orders notification if needed
-                if context['pending_orders'] > 0:
-                    context['notifications'].append({
-                        'type': 'info',
-                        'message': f"{context['pending_orders']} pending material orders",
-                        'url': reverse('material_orders')
-                    })
+                    logger.error(f"✗ Error calculating grade for user {user.username}: {str(e)}", exc_info=True)
+                    # Still add user with default values - ALWAYS show users
+                    try:
+                        role_name = ", ".join([g.name for g in user.groups.all()]) or "No Role"
+                    except:
+                        role_name = "No Role"
                     
-            except Exception as e:
-                logger.error(f"Error fetching inventory data: {str(e)}", exc_info=True)
+                    user_grades[user.id] = {
+                        'username': user.username,
+                        'groups': role_name,
+                        'grade': 0,
+                        'grade_letter': 'N/A',
+                        'grade_color': 'secondary',
+                        'total_tasks': 0,
+                        'completed_tasks': 0,
+                        'completion_rate': 0,
+                        'avg_completion_days': 0,
+                        'efficiency_score': 0,
+                        'volume_score': 0,
+                    }
+                    logger.info(f"✓ User {user.username}: Added with default values (error occurred)")
             
-            logger.info("Successfully prepared dashboard context")
-            return render(request, 'Inventory/management_dashboard.html', context)
+            # Sort users by performance score for "Worker of the Month"
+            sorted_grades = sorted(
+                user_grades.items(), 
+                key=lambda x: x[1]['grade'], 
+                reverse=True
+            )
+            
+            # Mark top performer as "Worker of the Month"
+            if sorted_grades and sorted_grades[0][1]['grade'] > 0:
+                sorted_grades[0][1]['worker_of_month'] = True
+                logger.info(f"🏆 Worker of the Month: {sorted_grades[0][1]['username']} (Score: {sorted_grades[0][1]['grade']:.1f})")
+            
+            context['user_grades'] = dict(sorted_grades)
+            logger.info(f"✓ Successfully calculated grades for {len(user_grades)} users. Top score: {sorted_grades[0][1]['grade']:.1f if sorted_grades else 0}")
             
         except Exception as e:
-            logger.error(f"Unexpected error in management dashboard: {str(e)}", exc_info=True)
-            messages.error(request, 'An unexpected error occurred while loading the dashboard.')
-            return render(request, 'Inventory/management_dashboard.html', context)
+            logger.error(f"✗ CRITICAL: Error calculating user grades: {str(e)}", exc_info=True)
+            # Last resort - ensure ALL users are shown even if calculation completely fails
+            try:
+                users = User.objects.all()
+                user_grades = {}
+                for user in users:
+                    try:
+                        role_name = ", ".join([g.name for g in user.groups.all()]) or "No Role"
+                    except:
+                        role_name = "No Role"
+                    
+                    user_grades[user.id] = {
+                        'username': user.username,
+                        'groups': role_name,
+                        'grade': 0,
+                        'grade_letter': 'N/A',
+                        'grade_color': 'secondary',
+                        'total_tasks': 0,
+                        'completed_tasks': 0,
+                        'completion_rate': 0,
+                        'avg_completion_days': 0,
+                        'efficiency_score': 0,
+                        'volume_score': 0,
+                    }
+                context['user_grades'] = user_grades
+                logger.warning(f"⚠ Using fallback: Added {len(user_grades)} users with default values")
+            except Exception as fallback_error:
+                logger.critical(f"✗ FALLBACK FAILED: {str(fallback_error)}", exc_info=True)
+                context['user_grades'] = {}
+        
+        # Get order statistics with error handling
+        try:
+            context['total_orders'] = MaterialOrder.objects.count()
+            logger.debug(f"Total Orders: {context['total_orders']}")
+            
+            # Received by Consultants
+            received_by_consultants = MaterialOrder.objects.filter(
+                status='Received', 
+                user__groups__name='Consultants'
+            )
+            context['total_received_by_consultants'] = received_by_consultants.aggregate(
+                total=Sum('processed_quantity')
+            )['total'] or 0
+            
+            # Received by Storekeepers
+            received_by_storekeepers = MaterialOrder.objects.filter(
+                status='Received', 
+                user__groups__name='Storekeepers'
+            )
+            context['total_received_by_storekeepers'] = received_by_storekeepers.aggregate(
+                total=Sum('processed_quantity')
+            )['total'] or 0
+            
+            # Released by Storekeepers
+            released_by_storekeepers = MaterialOrder.objects.filter(
+                request_type='Release', 
+                user__groups__name='Storekeepers'
+            )
+            context['total_released_by_storekeepers'] = released_by_storekeepers.aggregate(
+                total=Sum('processed_quantity')
+            )['total'] or 0
+            
+            # Other metrics
+            context['total_on_site'] = MaterialOrder.objects.filter(status='On Site').count()
+            context['pending_orders'] = MaterialOrder.objects.filter(status='Pending').count()
+            
+            # Get recent orders and audit trail
+            context['orders'] = MaterialOrder.objects.all().order_by('-date_requested')[:10]
+            context['audit_trail'] = MaterialOrderAudit.objects.all().order_by('-date')[:10]
+            
+        except Exception as e:
+            logger.error(f"Error fetching order statistics: {str(e)}", exc_info=True)
+            messages.error(request, 'Error loading dashboard statistics. Please try again.')
+        
+        # Get low inventory count
+        try:
+            low_inventory = InventoryItem.objects.filter(quantity__lt=10)
+            context['low_inventory_count'] = low_inventory.count()
+            
+            # Add low inventory notification if needed
+            if low_inventory.exists():
+                context['notifications'].append({
+                    'type': 'warning',
+                    'message': f'{low_inventory.count()} items are below reorder level',
+                    'url': reverse('low_inventory_summary')
+                })
+            
+            # Add pending orders notification if needed
+            if context['pending_orders'] > 0:
+                context['notifications'].append({
+                    'type': 'info',
+                    'message': f"{context['pending_orders']} pending material orders",
+                    'url': reverse('material_orders')
+                })
+            
+        except Exception as e:
+            logger.error(f"Error fetching inventory data: {str(e)}", exc_info=True)
+        
+        # Add Transport metrics
+        try:
+            from .models import MaterialTransport
+            from datetime import datetime, timedelta
+            today = datetime.now().date()
+            
+            context['transport_in_transit'] = MaterialTransport.objects.filter(status='In Transit').count()
+            context['transport_pending'] = MaterialTransport.objects.filter(status='Pending').count()
+            context['transport_completed_today'] = MaterialTransport.objects.filter(
+                status='Delivered',
+                date_delivered=today  # Fixed: was delivery_date, should be date_delivered
+            ).count()
+        except Exception as e:
+            logger.error(f"Error fetching transport data: {str(e)}", exc_info=True)
+            context['transport_in_transit'] = 0
+            context['transport_pending'] = 0
+            context['transport_completed_today'] = 0
+        
+        # Add BOQ metrics
+        try:
+            from .models import BillOfQuantity
+            context['boq_total_entries'] = BillOfQuantity.objects.count()
+            context['boq_active_projects'] = BillOfQuantity.objects.values('district').distinct().count()
+            context['boq_packages'] = BillOfQuantity.objects.values('package_number').distinct().count()
+        except Exception as e:
+            logger.error(f"Error fetching BOQ data: {str(e)}", exc_info=True)
+            context['boq_total_entries'] = 0
+            context['boq_active_projects'] = 0
+            context['boq_packages'] = 0
+        
+        # Add System Health metrics
+        try:
+            from django.contrib.auth.models import User as DjangoUser
+            from audit_log.models import AuditLog
+            from datetime import datetime, timedelta
+            
+            today = datetime.now().date()
+            # Active users (users with activity in last 24 hours)
+            yesterday = datetime.now() - timedelta(days=1)
+            context['active_users'] = DjangoUser.objects.filter(
+                last_login__gte=yesterday
+            ).count()
+            
+            # Today's activities - use timestamp field, not date
+            today_start = datetime.combine(today, datetime.min.time())
+            today_end = datetime.combine(today, datetime.max.time())
+            context['today_activities'] = AuditLog.objects.filter(
+                timestamp__range=(today_start, today_end)
+            ).count()
+        except Exception as e:
+            logger.error(f"Error fetching system health data: {str(e)}", exc_info=True)
+            context['active_users'] = 0
+            context['today_activities'] = 0
+        
+        logger.info("Successfully prepared dashboard context")
+        return render(request, 'Inventory/management_dashboard.html', context)
             
     except Exception as e:
-        logger.critical(f"Critical error in management dashboard: {str(e)}", exc_info=True)
-        return render(request, '500.html', status=500)
-        
-    # Log the total number of orders
-    total_orders = MaterialOrder.objects.count()
-    logger.debug(f"Total Orders: {total_orders}")
-    
-    # Get all users with their groups and permissions
-    users = User.objects.prefetch_related('groups').all()
-    user_grades = {}
-    
-    # Calculate grades for each user (example: based on activity)
-    for user in users:
-        user_orders = MaterialOrder.objects.filter(user=user)
-        total_orders = user_orders.count()
-        completed_orders = user_orders.filter(status='Completed').count()
-        
-        # Performance Calculation (based on order completion rate)
-        if total_orders > 0:
-            completion_rate = (completed_orders / total_orders) * 100
-            if completion_rate >= 90:
-                grade_letter = 'A'
-                grade_color = 'success'
-            elif completion_rate >= 80:
-                grade_letter = 'B'
-                grade_color = 'info'
-            elif completion_rate >= 70:
-                grade_letter = 'C'
-                grade_color = 'warning'
-            else:
-                grade_letter = 'D'
-                grade_color = 'danger'
-        else:
-            completion_rate = 0
-            grade_letter = 'N/A'
-            grade_color = 'secondary'
-        
-        user_grades[user.id] = {
-            'username': user.username,
-            'groups': ", ".join([g.name for g in user.groups.all()]),
-            'grade': completion_rate,
-            'grade_letter': grade_letter,
-            'grade_color': grade_color,
-            'total_orders': total_orders,
-            'completed_orders': completed_orders
-        }
-    
-    # Debug: Check if groups exist
-    consultants_group = Group.objects.filter(name='Consultants').first()
-    storekeepers_group = Group.objects.filter(name='Storekeepers').first()
-    logger.debug(f"Consultants Group Exists: {consultants_group is not None}")
-    logger.debug(f"Storekeepers Group Exists: {storekeepers_group is not None}")
+        logger.error(f"Unexpected error in management dashboard: {str(e)}", exc_info=True)
+        messages.error(request, 'An unexpected error occurred while loading the dashboard.')
+        return render(request, 'Inventory/management_dashboard.html', context)
 
-    # Debug: Count users in each group
-    consultants_users = User.objects.filter(groups__name='Consultants').count()
-    storekeepers_users = User.objects.filter(groups__name='Storekeepers').count()
-    logger.debug(f"Users in Consultants Group: {consultants_users}")
-    logger.debug(f"Users in Storekeepers Group: {storekeepers_users}")
-
-    # Debug: Check orders for each condition
-    received_by_consultants = MaterialOrder.objects.filter(
-        status='Received', user__groups__name='Consultants'
-    )
-    logger.debug(f"Received Orders by Consultants: {received_by_consultants.count()}")
-    total_received_by_consultants = received_by_consultants.aggregate(total=Sum('processed_quantity'))['total'] or 0
-    logger.debug(f"Total Received by Consultants (Sum): {total_received_by_consultants}")
-
-    received_by_storekeepers = MaterialOrder.objects.filter(
-        status='Received', user__groups__name='Storekeepers'
-    )
-    logger.debug(f"Received Orders by Storekeepers: {received_by_storekeepers.count()}")
-    total_received_by_storekeepers = received_by_storekeepers.aggregate(total=Sum('processed_quantity'))['total'] or 0
-    logger.debug(f"Total Received by Storekeepers (Sum): {total_received_by_storekeepers}")
-
-    released_by_storekeepers = MaterialOrder.objects.filter(
-        request_type='Release', user__groups__name='Storekeepers'
-    )
-    logger.debug(f"Released Orders by Storekeepers: {released_by_storekeepers.count()}")
-    total_released_by_storekeepers = released_by_storekeepers.aggregate(total=Sum('processed_quantity'))['total'] or 0
-    logger.debug(f"Total Released by Storekeepers (Sum): {total_released_by_storekeepers}")
-
-    total_on_site = MaterialOrder.objects.filter(status='On Site').count()
-    logger.debug(f"Total On Site: {total_on_site}")
-
-    pending_orders = MaterialOrder.objects.filter(status='Pending').count()
-    logger.debug(f"Pending Orders: {pending_orders}")
-
-    orders = MaterialOrder.objects.all().order_by('-date_requested')
-    receipts = MaterialOrder.objects.filter(status__in=['Received', 'On Site']).order_by('-date_requested')
-    audit_trail = MaterialOrderAudit.objects.all().order_by('-date')
-    profile, created = Profile.objects.get_or_create(user=request.user)
-
-    # Get system-wide notifications
-    notifications = []
-    
-    # Low inventory items - using a default reorder level of 10 since the field doesn't exist
-    # TODO: Add reorder_level field to InventoryItem model for better inventory management
-    low_inventory = InventoryItem.objects.filter(quantity__lt=10)  # Default reorder level of 10
-    if low_inventory.exists():
-        notifications.append({
-            'type': 'warning',
-            'message': f'{low_inventory.count()} items are below reorder level',
-            'url': reverse('low_inventory_summary')
-        })
-    
-    # Pending orders
-    if pending_orders > 0:
-        notifications.append({
-            'type': 'info',
-            'message': f'{pending_orders} pending material orders',
-            'url': reverse('material_orders')
-        })
-    
-    # Recent activities (last 10)
-    recent_activities = MaterialOrderAudit.objects.all().order_by('-date')[:10]
-    
-    context = {
-        'total_orders': total_orders,
-        'total_received_by_consultants': total_received_by_consultants,
-        'total_received_by_storekeepers': total_received_by_storekeepers,
-        'total_released_by_storekeepers': total_released_by_storekeepers,
-        'total_on_site': total_on_site,
-        'pending_orders': pending_orders,
-        'orders': orders[:10],  # Only show recent 10 orders
-        'audit_trail': recent_activities,
-        'notifications': notifications,
-        'user_grades': user_grades,
-        'low_inventory_count': low_inventory.count(),
-        'profile': profile,
-    }
-    return render(request, 'Inventory/management_dashboard.html', context)
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
 class ReportSubmissionListView(LoginRequiredMixin, ListView):
     model = ReportSubmission

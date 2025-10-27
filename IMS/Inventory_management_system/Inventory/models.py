@@ -1,5 +1,6 @@
 # Inventory/models.py
 from django.db import models
+import auto_prefetch
 from django.contrib.auth.models import User, Group
 from django.dispatch import receiver
 from django.db.models.signals import post_save
@@ -10,7 +11,7 @@ import uuid
 # Import transporter models
 from .transporter_models import Transporter, TransportVehicle
 
-class Warehouse(models.Model):
+class Warehouse(auto_prefetch.Model):
     """
     Model for representing warehouses where inventory items are stored.
     """
@@ -25,7 +26,7 @@ class Warehouse(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['name']
         verbose_name = 'Warehouse'
         verbose_name_plural = 'Warehouses'
@@ -37,7 +38,7 @@ class Warehouse(models.Model):
         from django.urls import reverse
         return reverse('warehouse_detail', kwargs={'pk': self.pk})
 
-class Supplier(models.Model):
+class Supplier(auto_prefetch.Model):
     """
     Model for representing suppliers who provide materials to the inventory.
     """
@@ -52,7 +53,7 @@ class Supplier(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['name']
         verbose_name = 'Supplier'
         verbose_name_plural = 'Suppliers'
@@ -64,7 +65,7 @@ class Supplier(models.Model):
         from django.urls import reverse
         return reverse('supplier_detail', kwargs={'pk': self.pk})
 
-class ReleaseLetter(models.Model):
+class ReleaseLetter(auto_prefetch.Model):
     """
     Model for storing release letters that authorize material releases.
     Each letter is linked to a specific material order.
@@ -82,7 +83,7 @@ class ReleaseLetter(models.Model):
         upload_to='release_letters/%Y/%m/%d/',
         help_text="The signed release letter in PDF format"
     )
-    uploaded_by = models.ForeignKey(
+    uploaded_by = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL,
         null=True,
@@ -95,7 +96,7 @@ class ReleaseLetter(models.Model):
         help_text="Any additional notes or comments about this release letter"
     )
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['-upload_time']
         verbose_name = 'Release Letter'
         verbose_name_plural = 'Release Letters'
@@ -111,37 +112,37 @@ class ReleaseLetter(models.Model):
     def __str__(self):
         return f"{self.title} - {self.request_code}"
 
-class InventoryItem(models.Model):
+class InventoryItem(auto_prefetch.Model):
     name = models.CharField(max_length=200)
     quantity = models.IntegerField()
-    category = models.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
+    category = auto_prefetch.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, help_text="Material code")
-    unit = models.ForeignKey('Unit', on_delete=models.CASCADE) 
+    unit = auto_prefetch.ForeignKey('Unit', on_delete=models.CASCADE) 
     date_created = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, help_text="Warehouse where this item is stored")
+    user = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = auto_prefetch.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = auto_prefetch.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, help_text="Warehouse where this item is stored")
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         unique_together = ['code', 'warehouse']
         ordering = ['name']
 
     def __str__(self):
         return self.name
 
-class Category(models.Model):
+class Category(auto_prefetch.Model):
     name = models.CharField(max_length=200)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         verbose_name_plural = 'categories'
 
     def __str__(self):
         return self.name
 
-class Unit(models.Model):
+class Unit(auto_prefetch.Model):
     name = models.CharField(max_length=200)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         verbose_name_plural = 'units'
 
     def __str__(self):
@@ -153,16 +154,16 @@ def get_default_group():
 def get_default_unit():
     return Unit.objects.first().id
 
-class MaterialOrder(models.Model):
+class MaterialOrder(auto_prefetch.Model):
     """
     Model representing a material order request (release or receipt).
     """
     # Basic information
     name = models.CharField(max_length=200)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)  # Changed to DecimalField for precision
-    category = models.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
+    category = auto_prefetch.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, blank=False, default="Enter code")
-    unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
+    unit = auto_prefetch.ForeignKey(Unit, on_delete=models.CASCADE)
     
     # Request metadata
     date_requested = models.DateTimeField(auto_now_add=True)
@@ -179,28 +180,28 @@ class MaterialOrder(models.Model):
     )
     
     # User and group associations
-    user = models.ForeignKey(
+    user = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
         related_name='material_orders_created'
     )
-    group = models.ForeignKey(
+    group = auto_prefetch.ForeignKey(
         Group, 
         on_delete=models.SET_NULL, 
         blank=True, 
         null=True,
         related_name='material_orders'
     )
-    warehouse = models.ForeignKey(
+    warehouse = auto_prefetch.ForeignKey(
         Warehouse, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
         help_text="Warehouse associated with this order"
     )
-    supplier = models.ForeignKey(
+    supplier = auto_prefetch.ForeignKey(
         Supplier,
         on_delete=models.SET_NULL,
         null=True,
@@ -239,7 +240,7 @@ class MaterialOrder(models.Model):
     )
     
     # Processing tracking
-    processed_by = models.ForeignKey(
+    processed_by = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -284,7 +285,7 @@ class MaterialOrder(models.Model):
     is_urgent = models.BooleanField(default=False)
     
     # Relationships
-    release_letter = models.ForeignKey(
+    release_letter = auto_prefetch.ForeignKey(
         'ReleaseLetter',
         on_delete=models.SET_NULL,
         null=True,
@@ -294,14 +295,14 @@ class MaterialOrder(models.Model):
     )
     
     # Audit fields
-    created_by = models.ForeignKey(
+    created_by = auto_prefetch.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         related_name='created_material_orders',
         help_text="User who created this order"
     )
-    last_updated_by = models.ForeignKey(
+    last_updated_by = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -312,7 +313,7 @@ class MaterialOrder(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         verbose_name = 'Material Order'
         verbose_name_plural = 'Material Orders'
         ordering = ['-date_requested']
@@ -404,8 +405,8 @@ class MaterialOrder(models.Model):
         return reverse('material_order_detail', kwargs={'pk': self.pk})
 
 
-class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
+class Profile(auto_prefetch.Model):
+    user = auto_prefetch.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
 
     def __str__(self):
@@ -419,7 +420,7 @@ class Profile(models.Model):
 
 
     
-class BillOfQuantity(models.Model):
+class BillOfQuantity(auto_prefetch.Model):
     region = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
     community = models.CharField(max_length=100, null=True, blank=True)
@@ -430,18 +431,18 @@ class BillOfQuantity(models.Model):
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()  # Changed to FloatField
     quantity_received = models.FloatField(default=0.0)  # Changed to FloatField
-    warehouse = models.ForeignKey(
+    warehouse = auto_prefetch.ForeignKey(
         Warehouse, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
         help_text="Warehouse associated with this BOQ item"
     )
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
+    user = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = auto_prefetch.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         verbose_name_plural = 'bills of quantity'
 
     def __str__(self):
@@ -452,17 +453,17 @@ class BillOfQuantity(models.Model):
         return self.contract_quantity - self.quantity_received
     
 
-class MaterialOrderAudit(models.Model):
-    order = models.ForeignKey(MaterialOrder, on_delete=models.CASCADE)
+class MaterialOrderAudit(auto_prefetch.Model):
+    order = auto_prefetch.ForeignKey(MaterialOrder, on_delete=models.CASCADE)
     action = models.CharField(max_length=100)
-    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    performed_by = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.action} on {self.order.id} by {self.performed_by}"
     
 
-class ReportSubmission(models.Model):
+class ReportSubmission(auto_prefetch.Model):
     # Fields matching BillOfQuantity
     region = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
@@ -474,7 +475,7 @@ class ReportSubmission(models.Model):
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()
     quantity_received = models.FloatField(default=0.0)
-    warehouse = models.ForeignKey(
+    warehouse = auto_prefetch.ForeignKey(
         Warehouse, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -509,9 +510,9 @@ class ReportSubmission(models.Model):
     )
     
     # Foreign keys
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
-    related_boq = models.ForeignKey(
+    user = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    group = auto_prefetch.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
+    related_boq = auto_prefetch.ForeignKey(
         BillOfQuantity, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -519,7 +520,7 @@ class ReportSubmission(models.Model):
         related_name='report_submissions'
     )
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         verbose_name_plural = 'report submissions'
 
     def __str__(self):
@@ -554,7 +555,7 @@ class ReportSubmission(models.Model):
         """Calculate the remaining balance (contract_quantity - quantity_received)"""
         return self.contract_quantity - self.quantity_received
 
-class MaterialTransport(models.Model):
+class MaterialTransport(auto_prefetch.Model):
     """
     Model to track the transportation of materials from warehouse to destination.
     """
@@ -569,12 +570,12 @@ class MaterialTransport(models.Model):
         ('Cancelled', 'Cancelled')
     ]
 
-    material_order = models.ForeignKey(
+    material_order = auto_prefetch.ForeignKey(
         MaterialOrder, 
         on_delete=models.CASCADE,
         related_name='transports'
     )
-    release_letter = models.ForeignKey(
+    release_letter = auto_prefetch.ForeignKey(
         ReleaseLetter, 
         on_delete=models.SET_NULL,
         null=True,
@@ -589,7 +590,7 @@ class MaterialTransport(models.Model):
     unit = models.CharField(max_length=20, blank=True, null=True)
     
     # Warehouse and destination details
-    warehouse = models.ForeignKey(
+    warehouse = auto_prefetch.ForeignKey(
         Warehouse, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -606,14 +607,14 @@ class MaterialTransport(models.Model):
     destination_phone = models.CharField(max_length=20, blank=True, null=True)
     
     # Transporter and vehicle details
-    transporter = models.ForeignKey(
+    transporter = auto_prefetch.ForeignKey(
         'Transporter',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='transports'
     )
-    vehicle = models.ForeignKey(
+    vehicle = auto_prefetch.ForeignKey(
         'TransportVehicle',
         on_delete=models.SET_NULL,
         null=True,
@@ -644,7 +645,7 @@ class MaterialTransport(models.Model):
     notes = models.TextField(blank=True, null=True)
     
     # Audit fields
-    created_by = models.ForeignKey(
+    created_by = auto_prefetch.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
@@ -653,7 +654,7 @@ class MaterialTransport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['-created_at']
         verbose_name = 'Material Transport'
         verbose_name_plural = 'Material Transports'
@@ -718,12 +719,12 @@ class MaterialTransport(models.Model):
         from django.urls import reverse
         return reverse('transport_detail', kwargs={'pk': self.pk})
 
-class SiteReceipt(models.Model):
+class SiteReceipt(auto_prefetch.Model):
     """
     Model for consultants to log material receipts at project sites.
     Links to MaterialTransport to update delivery status.
     """
-    material_transport = models.OneToOneField(
+    material_transport = auto_prefetch.OneToOneField(
         MaterialTransport,
         on_delete=models.CASCADE,
         related_name='site_receipt'
@@ -732,7 +733,7 @@ class SiteReceipt(models.Model):
     # Receipt details
     received_quantity = models.DecimalField(max_digits=10, decimal_places=2)
     received_date = models.DateTimeField(auto_now_add=True)
-    received_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    received_by = auto_prefetch.ForeignKey(User, on_delete=models.CASCADE)
     
     # Documentation
     waybill_pdf = models.FileField(
@@ -765,7 +766,7 @@ class SiteReceipt(models.Model):
         default='Good'
     )
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['-received_date']
         verbose_name = 'Site Receipt'
         verbose_name_plural = 'Site Receipts'
@@ -835,7 +836,7 @@ class SiteReceipt(models.Model):
     def __str__(self):
         return f"Site Receipt: {self.material_transport.material_name} - {self.received_quantity} {self.material_transport.unit}"
 
-class Project(models.Model):
+class Project(auto_prefetch.Model):
     """
     Main project model that represents a construction/infrastructure project
     """
@@ -861,7 +862,7 @@ class Project(models.Model):
     status = models.CharField(max_length=50, choices=PROJECT_STATUS_CHOICES, default='Planning')
     
     # Project management details
-    project_manager = models.ForeignKey(
+    project_manager = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -882,11 +883,11 @@ class Project(models.Model):
     spent_budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
     
     # Administrative
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_projects')
+    created_by = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_projects')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['-created_at']
         permissions = [
             ('can_manage_projects', 'Can manage projects'),
@@ -896,7 +897,7 @@ class Project(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
-class ProjectSite(models.Model):
+class ProjectSite(auto_prefetch.Model):
     """
     Represents individual sites within a project
     """
@@ -907,7 +908,7 @@ class ProjectSite(models.Model):
         ('On Hold', 'On Hold'),
     ]
     
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='sites')
+    project = auto_prefetch.ForeignKey(Project, on_delete=models.CASCADE, related_name='sites')
     name = models.CharField(max_length=200, help_text="Site name or identifier")
     code = models.CharField(max_length=50, help_text="Site code")
     
@@ -918,7 +919,7 @@ class ProjectSite(models.Model):
     gps_coordinates = models.CharField(max_length=100, null=True, blank=True, help_text="GPS coordinates if available")
     
     # Site management
-    site_supervisor = models.ForeignKey(
+    site_supervisor = auto_prefetch.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -937,14 +938,14 @@ class ProjectSite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['project', 'name']
         unique_together = ['project', 'code']
     
     def __str__(self):
         return f"{self.project.code} - {self.name}"
 
-class ProjectPhase(models.Model):
+class ProjectPhase(auto_prefetch.Model):
     """
     Represents different phases within a project
     """
@@ -955,7 +956,7 @@ class ProjectPhase(models.Model):
         ('Delayed', 'Delayed'),
     ]
     
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='phases')
+    project = auto_prefetch.ForeignKey(Project, on_delete=models.CASCADE, related_name='phases')
     name = models.CharField(max_length=200, help_text="Phase name")
     description = models.TextField(help_text="Phase description")
     phase_order = models.PositiveIntegerField(help_text="Order of this phase in the project")
@@ -975,14 +976,14 @@ class ProjectPhase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['project', 'phase_order']
         unique_together = ['project', 'phase_order']
     
     def __str__(self):
         return f"{self.project.code} - Phase {self.phase_order}: {self.name}"
 
-class Notification(models.Model):
+class Notification(auto_prefetch.Model):
     """
     Model for system notifications between user groups
     """
@@ -1010,7 +1011,7 @@ class Notification(models.Model):
     
     # Recipients
     recipient_group = models.CharField(max_length=20, choices=RECIPIENT_GROUPS)
-    recipient_user = models.ForeignKey(
+    recipient_user = auto_prefetch.ForeignKey(
         User,
         on_delete=models.CASCADE,
         null=True,
@@ -1020,7 +1021,7 @@ class Notification(models.Model):
     )
     
     # Sender
-    sender = models.ForeignKey(
+    sender = auto_prefetch.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
@@ -1029,19 +1030,19 @@ class Notification(models.Model):
     )
     
     # Related objects (optional)
-    related_order = models.ForeignKey(
+    related_order = auto_prefetch.ForeignKey(
         MaterialOrder,
         on_delete=models.CASCADE,
         null=True,
         blank=True
     )
-    related_transport = models.ForeignKey(
+    related_transport = auto_prefetch.ForeignKey(
         MaterialTransport,
         on_delete=models.CASCADE,
         null=True,
         blank=True
     )
-    related_project = models.ForeignKey(
+    related_project = auto_prefetch.ForeignKey(
         Project,
         on_delete=models.CASCADE,
         null=True,
@@ -1053,7 +1054,7 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
     
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering = ['-created_at']
         
     def __str__(self):

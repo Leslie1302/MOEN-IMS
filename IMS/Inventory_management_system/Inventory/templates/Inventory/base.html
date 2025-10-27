@@ -251,6 +251,54 @@
             integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" 
             crossorigin="anonymous"></script>
     
+    <!-- Notification System JavaScript -->
+    <script>
+        function markAllRead(event) {
+            event.preventDefault();
+            
+            fetch("{% url 'mark_all_notifications_read' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                                   document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload page to update the badge
+                    window.location.reload();
+                } else {
+                    alert('Error marking notifications as read');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error marking notifications as read');
+            });
+        }
+        
+        // Optional: Auto-refresh notification count every 30 seconds
+        setInterval(function() {
+            fetch("{% url 'get_unread_count' %}")
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.querySelector('.badge.bg-danger');
+                    if (data.count > 0) {
+                        if (badge) {
+                            badge.textContent = data.count;
+                        }
+                    } else {
+                        if (badge) {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching notification count:', error));
+        }, 30000); // 30 seconds
+    </script>
+    
     {% block extra_js %}{% endblock %}
     
     <!-- Table Utilities -->

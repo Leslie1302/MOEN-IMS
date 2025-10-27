@@ -18,7 +18,7 @@
 
                         <!-- Schedule Officers Menu -->
                         {% for group in user.groups.all %}
-                            {% if group.name == 'Schedule Officer' %}
+                            {% if group.name == 'Schedule Officers' %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdown" 
                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -156,38 +156,50 @@
                             <a class="nav-link text-dark fw-semibold position-relative" href="#" id="notificationsDropdown" 
                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 🔔
+                                {% if unread_notifications_count > 0 %}
                                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                       style="font-size: 0.6em;">
-                                    3
+                                    {{ unread_notifications_count }}
                                     <span class="visually-hidden">unread notifications</span>
                                 </span>
+                                {% endif %}
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown" style="width: 300px;">
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
                                 <li><h6 class="dropdown-header">Recent Notifications</h6></li>
-                                <li><a class="dropdown-item small" href="#">
-                                    <strong>Material Processed</strong><br>
-                                    <span class="text-muted">Cement ready for transport - 2 min ago</span>
-                                </a></li>
-                                <li><a class="dropdown-item small" href="#">
-                                    <strong>Site Receipt Required</strong><br>
-                                    <span class="text-muted">Materials delivered to Accra - 1 hour ago</span>
-                                </a></li>
-                                <li><a class="dropdown-item small" href="#">
-                                    <strong>BOQ Updated</strong><br>
-                                    <span class="text-muted">Package ABC-123 updated - 3 hours ago</span>
-                                </a></li>
+                                {% if recent_notifications %}
+                                    {% for notification in recent_notifications %}
+                                    <li>
+                                        <a class="dropdown-item small py-2" href="{% url 'notification_detail' notification.id %}" 
+                                           style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
+                                            <strong>{{ notification.title }}</strong><br>
+                                            <span class="text-muted" style="font-size: 0.85em;">
+                                                {{ notification.message|truncatewords:15 }}
+                                            </span><br>
+                                            <span class="text-muted" style="font-size: 0.75em;">
+                                                <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
+                                            </span>
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                {% else %}
+                                    <li><span class="dropdown-item small text-muted">No new notifications</span></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-center" href="#">View All Notifications</a></li>
+                                <li><a class="dropdown-item text-center text-primary fw-semibold" href="{% url 'notifications' %}">
+                                    <i class="bi bi-list-ul"></i> View All Notifications
+                                </a></li>
+                                {% if unread_notifications_count > 0 %}
+                                <li><a class="dropdown-item text-center text-success fw-semibold" href="#" onclick="markAllRead(event)">
+                                    <i class="bi bi-check-all"></i> Mark All as Read
+                                </a></li>
+                                {% endif %}
                             </ul>
                         </li>
 
                     {% else %}
-                        <!-- Show limited menu for unassigned users -->
+                        <!-- Show message for unassigned users -->
                         <li class="nav-item">
                             <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="{% url 'material_receipt' %}">📦 Receive Material</a>
                         </li>
                     {% endif %}
 

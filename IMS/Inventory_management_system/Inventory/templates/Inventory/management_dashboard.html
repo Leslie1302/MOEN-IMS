@@ -15,17 +15,33 @@
                     <div class="dropdown">
                         <button class="btn btn-outline-primary position-relative" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             🔔 Notifications
-                            {% if notifications %}
+                            {% if unread_notifications_count > 0 %}
                             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                {{ notifications|length }}
+                                {{ unread_notifications_count }}
                             </span>
                             {% endif %}
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown">
-                            {% if notifications %}
-                                {% for notification in notifications %}
-                                <li><a class="dropdown-item text-{{ notification.type }}" href="{{ notification.url }}">{{ notification.message }}</a></li>
+                        <ul class="dropdown-menu dropdown-menu-end" style="width: 350px; max-height: 400px; overflow-y: auto;" aria-labelledby="notificationDropdown">
+                            <li><h6 class="dropdown-header">Recent Notifications</h6></li>
+                            {% if recent_notifications %}
+                                {% for notification in recent_notifications %}
+                                <li>
+                                    <a class="dropdown-item small py-2" href="{% url 'notification_detail' notification.id %}"
+                                       style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
+                                        <strong>{{ notification.title }}</strong><br>
+                                        <span class="text-muted" style="font-size: 0.85em;">
+                                            {{ notification.message|truncatewords:15 }}
+                                        </span><br>
+                                        <span class="text-muted" style="font-size: 0.75em;">
+                                            <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
+                                        </span>
+                                    </a>
+                                </li>
                                 {% endfor %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-center text-primary fw-semibold" href="{% url 'notifications' %}">
+                                    <i class="bi bi-list-ul"></i> View All Notifications
+                                </a></li>
                             {% else %}
                                 <li><span class="dropdown-item text-muted">No new notifications</span></li>
                             {% endif %}
@@ -51,34 +67,217 @@
     <div class="container py-3">
         <div class="row g-3">
             <div class="col-md-3">
-                <div class="card bg-primary text-white h-100">
+                <div class="card bg-primary text-white h-100 shadow">
                     <div class="card-body">
-                        <h5 class="card-title"><a href="{% url 'material_orders' %}" class="text-white text-decoration-none">Total Orders</a></h5>
-                        <h2 class="display-6">{{ total_orders }}</h2>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title"><a href="{% url 'material_orders' %}" class="text-white text-decoration-none">Total Orders</a></h5>
+                                <h2 class="display-6 mb-0">{{ total_orders }}</h2>
+                                <small class="opacity-75">All time</small>
+                            </div>
+                            <i class="bi bi-box-seam" style="font-size: 3rem; opacity: 0.3;"></i>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-success text-white h-100">
+                <div class="card bg-success text-white h-100 shadow">
                     <div class="card-body">
-                        <h5 class="card-title">Materials On Site</h5>
-                        <h2 class="display-6">{{ total_on_site }}</h2>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title">Materials On Site</h5>
+                                <h2 class="display-6 mb-0">{{ total_on_site }}</h2>
+                                <small class="opacity-75">Delivered</small>
+                            </div>
+                            <i class="bi bi-check-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-warning text-dark h-100">
+                <div class="card bg-warning text-dark h-100 shadow">
                     <div class="card-body">
-                        <h5 class="card-title">Pending Orders</h5>
-                        <h2 class="display-6">{{ pending_orders }}</h2>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title">Pending Orders</h5>
+                                <h2 class="display-6 mb-0">{{ pending_orders }}</h2>
+                                <small>Awaiting processing</small>
+                            </div>
+                            <i class="bi bi-hourglass-split" style="font-size: 3rem; opacity: 0.3;"></i>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-danger text-white h-100">
+                <div class="card bg-danger text-white h-100 shadow">
                     <div class="card-body">
-                        <h5 class="card-title"><a href="{% url 'low_inventory_summary' %}" class="text-white text-decoration-none">Low Stock Items</a></h5>
-                        <h2 class="display-6">{{ low_inventory_count }}</h2>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title"><a href="{% url 'low_inventory_summary' %}" class="text-white text-decoration-none">Low Stock Items</a></h5>
+                                <h2 class="display-6 mb-0">{{ low_inventory_count }}</h2>
+                                <small class="opacity-75">Need attention</small>
+                            </div>
+                            <i class="bi bi-exclamation-triangle" style="font-size: 3rem; opacity: 0.3;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Transport & BOQ Overview -->
+        <div class="row g-3 mt-2">
+            <div class="col-md-4">
+                <div class="card border-info h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="text-info mb-3"><i class="bi bi-truck"></i> Transport Status</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>In Transit:</span>
+                            <strong class="text-primary">{{ transport_in_transit|default:0 }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Pending Assignment:</span>
+                            <strong class="text-warning">{{ transport_pending|default:0 }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Completed Today:</span>
+                            <strong class="text-success">{{ transport_completed_today|default:0 }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-secondary h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="text-secondary mb-3"><i class="bi bi-file-earmark-text"></i> BOQ Overview</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total Entries:</span>
+                            <strong class="text-primary">{{ boq_total_entries|default:0 }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Active Projects:</span>
+                            <strong class="text-info">{{ boq_active_projects|default:0 }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Total Packages:</span>
+                            <strong class="text-success">{{ boq_packages|default:0 }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-success h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="text-success mb-3"><i class="bi bi-graph-up"></i> System Health</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Active Users:</span>
+                            <strong class="text-primary">{{ active_users|default:0 }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Unread Notifications:</span>
+                            <strong class="text-warning">{{ unread_notifications_count }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Today's Activities:</span>
+                            <strong class="text-info">{{ today_activities|default:0 }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Grading Workflow Info -->
+    <div class="container py-3">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> How Performance is Graded</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <div class="alert alert-light border">
+                            <strong>Performance Score = Completion (40%) + Efficiency (30%) + Volume (30%)</strong>
+                            <div class="mt-2 small">
+                                <span class="badge bg-success">A+ (90-100)</span>
+                                <span class="badge bg-success">A (85-89)</span>
+                                <span class="badge bg-info">B+ (80-84)</span>
+                                <span class="badge bg-info">B (75-79)</span>
+                                <span class="badge bg-warning">C+ (70-74)</span>
+                                <span class="badge bg-warning">C (65-69)</span>
+                                <span class="badge bg-danger">D (60-64)</span>
+                                <span class="badge bg-danger">F (<60)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <!-- Schedule Officers -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-primary">
+                            <div class="card-body">
+                                <h6 class="card-title text-primary">
+                                    <i class="bi bi-person-badge"></i> Schedule Officers
+                                </h6>
+                                <p class="small mb-2"><strong>Tasks:</strong> Material requests created</p>
+                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                    <span class="badge bg-success">Site Receipt Logged</span>
+                                </p>
+                                <p class="small mb-0 text-muted">
+                                    <i class="bi bi-clock"></i> Request → Receipt
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Storekeepers -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-warning">
+                            <div class="card-body">
+                                <h6 class="card-title text-warning">
+                                    <i class="bi bi-box-seam"></i> Storekeepers
+                                </h6>
+                                <p class="small mb-2"><strong>Tasks:</strong> Orders to process</p>
+                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                    <span class="badge bg-info">Transport In Transit</span>
+                                </p>
+                                <p class="small mb-0 text-muted">
+                                    <i class="bi bi-clock"></i> Request → In Transit
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Transporters -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-success">
+                            <div class="card-body">
+                                <h6 class="card-title text-success">
+                                    <i class="bi bi-truck"></i> Transporters
+                                </h6>
+                                <p class="small mb-2"><strong>Tasks:</strong> Transport assignments</p>
+                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                    <span class="badge bg-success">Delivered + Receipt</span>
+                                </p>
+                                <p class="small mb-0 text-muted">
+                                    <i class="bi bi-clock"></i> Assignment → Receipt
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Consultants -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-secondary">
+                            <div class="card-body">
+                                <h6 class="card-title text-secondary">
+                                    <i class="bi bi-clipboard-check"></i> Consultants
+                                </h6>
+                                <p class="small mb-2"><strong>Tasks:</strong> Site receipts to log</p>
+                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                    <span class="badge bg-success">Receipt Logged</span>
+                                </p>
+                                <p class="small mb-0 text-muted">
+                                    <i class="bi bi-clock"></i> Same-day ideal
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -88,25 +287,36 @@
     <!-- User Performance -->
     <div class="container py-3">
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">User Performance Grades</h4>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-trophy"></i> User Performance Grades</h4>
+                <small class="text-white-50">{{ user_grades|length }} users</small>
             </div>
             <div class="card-body">
+                {% if user_grades %}
                 <div class="table-responsive">
                     <table class="table table-hover" id="user-grades">
                         <thead>
                             <tr>
                                 <th>User</th>
                                 <th>Role</th>
+                                <th>Performance Score</th>
                                 <th>Grade</th>
-                                <th>Performance</th>
+                                <th>Tasks</th>
+                                <th>Efficiency</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for user_id, data in user_grades.items %}
-                            <tr>
-                                <td>{{ data.username }}</td>
+                            <tr {% if data.worker_of_month %}class="table-success"{% endif %}>
+                                <td>
+                                    <strong>{{ data.username }}</strong>
+                                    {% if data.worker_of_month %}
+                                    <span class="badge bg-warning text-dark ms-1" title="Top Performer">
+                                        🏆 Worker of the Month
+                                    </span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ data.groups|default:"No Role" }}</td>
                                 <td>
                                     <div class="progress" style="height: 25px;">
@@ -116,28 +326,37 @@
                                              aria-valuenow="{{ data.grade }}" 
                                              aria-valuemin="0" 
                                              aria-valuemax="100">
-                                            {{ data.grade|floatformat:1 }}% ({{ data.grade_letter }})
+                                            {{ data.grade|floatformat:0 }}%
                                         </div>
                                     </div>
+                                    <small class="text-muted">
+                                        Completion: {{ data.completion_rate|floatformat:0 }}% | 
+                                        Volume: {{ data.completed_tasks }}
+                                    </small>
                                 </td>
                                 <td>
-                                    {% if data.grade_letter == 'A' %}
-                                        <span class="badge bg-success">Excellent</span>
-                                    {% elif data.grade_letter == 'B' %}
-                                        <span class="badge bg-info">Good</span>
-                                    {% elif data.grade_letter == 'C' %}
-                                        <span class="badge bg-warning">Average</span>
-                                    {% elif data.grade_letter == 'D' %}
-                                        <span class="badge bg-danger">Needs Improvement</span>
-                                    {% elif data.grade_letter == 'N/A' %}
-                                        <span class="badge bg-secondary">No Orders</span>
+                                    <span class="badge bg-{{ data.grade_color }} fs-6">{{ data.grade_letter }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ data.completed_tasks }}</span> / 
+                                    <span class="text-muted">{{ data.total_tasks }}</span>
+                                    <br>
+                                    <small class="text-muted">completed</small>
+                                </td>
+                                <td>
+                                    {% if data.avg_completion_days > 0 %}
+                                        <span class="badge {% if data.avg_completion_days < 2 %}bg-success{% elif data.avg_completion_days < 5 %}bg-info{% elif data.avg_completion_days < 10 %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ data.avg_completion_days }} days
+                                        </span>
                                     {% else %}
-                                        <span class="badge bg-secondary">{{ data.grade_letter }}</span>
+                                        <span class="badge bg-secondary">N/A</span>
                                     {% endif %}
+                                    <br>
+                                    <small class="text-muted">avg time</small>
                                 </td>
                                 <td>
                                     <a href="{% url 'staff_profile' data.username %}" class="btn btn-sm btn-outline-primary">
-                                        View Details
+                                        <i class="bi bi-eye"></i> Details
                                     </a>
                                 </td>
                             </tr>
@@ -145,6 +364,24 @@
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">No User Performance Data Available</h5>
+                    <p class="text-muted">
+                        This could mean:
+                        <br>• No users exist in the system
+                        <br>• An error occurred while calculating grades
+                        <br>• Please check server logs for details
+                    </p>
+                    <p class="text-muted small">
+                        Expected user count: {{ user_grades|length }}
+                    </p>
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Page
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -315,10 +552,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto-refresh every 5 minutes
+    // Auto-refresh every 60 seconds for real-time data
     setTimeout(function() {
         location.reload();
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
 });
 </script>
 

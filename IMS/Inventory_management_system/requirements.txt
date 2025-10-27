@@ -1,0 +1,17 @@
+Django>=4.2
+django-auto-prefetch>=1.14.0
+dj-database-url
+python-dotenv
+openpyxl
+Pillow
+psycopg2-binary
+django-crispy-forms
+crispy-bootstrap4
+crispy-bootstrap5
+matplotlib
+pandas
+reportlab
+seaborn
+xlsxwriter
+gunicorn
+whitenoise

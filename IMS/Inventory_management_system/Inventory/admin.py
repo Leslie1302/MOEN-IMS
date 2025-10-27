@@ -1,12 +1,75 @@
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity
+from django.contrib.auth.models import User, Group
+from django.contrib.auth.admin import UserAdmin, GroupAdmin
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity, Notification
 
 # Register your models here.
 
 admin.site.register(InventoryItem)
 admin.site.register(Category)
 admin.site.register(Unit)
+
+# Unregister default User and Group admins to customize them
+admin.site.unregister(User)
+admin.site.unregister(Group)
+
+# Custom User Admin with Groups/Roles visible
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    list_display = ('username', 'email', 'first_name', 'last_name', 'get_groups', 'is_staff', 'is_active', 'date_joined')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups', 'date_joined')
+    search_fields = ('username', 'first_name', 'last_name', 'email')
+    ordering = ('-date_joined',)
+    
+    def get_groups(self, obj):
+        """Display user's groups/roles"""
+        groups = obj.groups.all()
+        if groups:
+            return ', '.join([group.name for group in groups])
+        return 'No Role'
+    get_groups.short_description = 'Roles/Groups'
+    
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
+        ('Roles & Permissions', {
+            'fields': ('groups', 'is_active', 'is_staff', 'is_superuser'),
+            'description': 'Assign user to groups/roles. Groups define what the user can do in the system.'
+        }),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+    
+    filter_horizontal = ('groups', 'user_permissions')
+
+# Custom Group Admin for managing roles
+@admin.register(Group)
+class CustomGroupAdmin(GroupAdmin):
+    list_display = ('name', 'get_user_count', 'get_permissions_count')
+    search_fields = ('name',)
+    
+    def get_user_count(self, obj):
+        """Display number of users in this group"""
+        return obj.user_set.count()
+    get_user_count.short_description = 'Number of Users'
+    
+    def get_permissions_count(self, obj):
+        """Display number of permissions"""
+        return obj.permissions.count()
+    get_permissions_count.short_description = 'Permissions'
+    
+    fieldsets = (
+        (None, {
+            'fields': ('name',),
+            'description': 'Groups represent user roles (e.g., Schedule Officers, Storekeepers, Transporters, Consultants)'
+        }),
+        ('Permissions', {
+            'fields': ('permissions',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    filter_horizontal = ('permissions',)
 
 @admin.register(MaterialOrder)
 class MaterialOrderAdmin(admin.ModelAdmin):
@@ -102,3 +165,46 @@ class LogEntryAdmin(admin.ModelAdmin):
     list_display = ('user', 'content_type', 'object_repr', 'action_flag', 'change_message', 'action_time')
     list_filter = ('action_flag', 'content_type')
     search_fields = ['user__username', 'object_repr', 'change_message']
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'notification_type', 'recipient_group', 'recipient_user', 'sender', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'recipient_group', 'is_read', 'created_at')
+    search_fields = ('title', 'message', 'recipient_user__username', 'sender__username')
+    readonly_fields = ('created_at', 'read_at')
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Notification Details', {
+            'fields': ('notification_type', 'title', 'message')
+        }),
+        ('Recipients', {
+            'fields': ('recipient_group', 'recipient_user', 'sender')
+        }),
+        ('Related Objects', {
+            'fields': ('related_order', 'related_transport', 'related_project'),
+            'classes': ('collapse',)
+        }),
+        ('Status', {
+            'fields': ('is_read', 'created_at', 'read_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def has_add_permission(self, request):
+        """Notifications should be created by the system, not manually"""
+        return request.user.is_superuser
+    
+    actions = ['mark_as_read', 'mark_as_unread']
+    
+    def mark_as_read(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.update(is_read=True, read_at=timezone.now())
+        self.message_user(request, f'{count} notification(s) marked as read.')
+    mark_as_read.short_description = 'Mark selected notifications as read'
+    
+    def mark_as_unread(self, request, queryset):
+        count = queryset.update(is_read=False, read_at=None)
+        self.message_user(request, f'{count} notification(s) marked as unread.')
+    mark_as_unread.short_description = 'Mark selected notifications as unread'
