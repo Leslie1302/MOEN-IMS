@@ -11,7 +11,33 @@
     .badge { font-size: 0.8rem; padding: 0.35em 0.65em; }
     .table th { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; color: #6c757d; }
     .select2-container { width: 100% !important; }
+    
+    /* CRITICAL FIX: Hide any stuck modal backdrops */
+    .modal-backdrop {
+        display: none !important;
+    }
+    
+    /* Ensure body doesn't get stuck with modal-open class */
+    body.modal-open {
+        overflow: auto !important;
+        padding-right: 0 !important;
+    }
 </style>
+
+<!-- Immediate backdrop cleanup script -->
+<script>
+    // Run immediately, don't wait for DOMContentLoaded
+    (function() {
+        // Remove any modal backdrops
+        var backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(function(el) { el.remove(); });
+        
+        // Clean body classes and styles
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    })();
+</script>
 {% endblock %}
 
 {% block full_width_content %}
@@ -480,6 +506,43 @@ $(document).ready(function() {
             });
         }
     }, 1000);
+    
+    // AGGRESSIVE BACKDROP CLEANUP - Run multiple times to catch any delayed backdrops
+    function cleanupBackdrops() {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 0) {
+            console.log('Found and removing', backdrops.length, 'modal backdrops');
+            backdrops.forEach(backdrop => backdrop.remove());
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+    
+    // Run cleanup immediately
+    cleanupBackdrops();
+    
+    // Run cleanup after a short delay
+    setTimeout(cleanupBackdrops, 100);
+    setTimeout(cleanupBackdrops, 500);
+    setTimeout(cleanupBackdrops, 1000);
+    
+    // Monitor for any new backdrops being added
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.classList && node.classList.contains('modal-backdrop')) {
+                    console.log('Detected new modal backdrop, removing immediately');
+                    node.remove();
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: false
+    });
 });
 </script>
 {% endblock %}

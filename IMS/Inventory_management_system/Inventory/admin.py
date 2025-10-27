@@ -96,10 +96,6 @@ class MaterialOrderAdmin(admin.ModelAdmin):
         ('User & Group', {
             'fields': ('user', 'group', 'last_updated_by'),
             'classes': ('collapse',)
-        }),
-        ('Documents', {
-            'fields': ('release_letter_pdf', 'release_letter_title'),
-            'classes': ('collapse',)
         })
     )
 

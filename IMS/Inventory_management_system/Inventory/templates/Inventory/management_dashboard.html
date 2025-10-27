@@ -568,6 +568,19 @@ document.addEventListener('DOMContentLoaded', function() {
         padding: 0;
     }
     
+    /* Fix z-index for sticky elements to not interfere with navbar dropdowns */
+    .sticky-top {
+        z-index: 10 !important;
+    }
+    
+    .bg-light.py-2.sticky-top {
+        z-index: 10 !important;
+    }
+    
+    thead.sticky-top {
+        z-index: 10 !important;
+    }
+    
     /* Card Styles */
     .card {
         border: none;
