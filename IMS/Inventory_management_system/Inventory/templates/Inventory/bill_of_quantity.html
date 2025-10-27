@@ -91,6 +91,49 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination Controls -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Bill of Quantity pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page=1">&laquo;&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.previous_page_number }}">&laquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">&laquo;&laquo;</span></li>
+                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.next_page_number }}">&raquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                <li class="page-item disabled"><span class="page-link">&raquo;&raquo;</span></li>
+                {% endif %}
+            </ul>
+            <div class="text-center text-muted">
+                <small>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} entries</small>
+            </div>
+        </nav>
+        {% endif %}
+        
     {% else %}
         <div class="alert alert-info mt-3">
             No bill of quantity items found.

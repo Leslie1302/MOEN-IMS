@@ -1405,6 +1405,8 @@ class BillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
     template_name = 'Inventory/bill_of_quantity.html'
     context_object_name = 'boq_items'
+    paginate_by = 50
+    paginate_orphans = 5
 
     def get_queryset(self):
         """
