@@ -209,10 +209,18 @@
         /* Bootstrap Modal z-index hierarchy (highest priority) */
         .modal-backdrop {
             z-index: 1040 !important;
+            /* CRITICAL FIX: Hide stuck modal backdrops globally */
+            display: none !important;
         }
         
         .modal {
             z-index: 1055 !important;
+        }
+        
+        /* Ensure body doesn't get stuck with modal-open class */
+        body.modal-open {
+            overflow: auto !important;
+            padding-right: 0 !important;
         }
         
         /* Ensure page content doesn't overlap navbar dropdowns */
@@ -287,21 +295,51 @@
             integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" 
             crossorigin="anonymous"></script>
     
-    <!-- Fix for stuck modal backdrops -->
+    <!-- Fix for stuck modal backdrops - AGGRESSIVE GLOBAL FIX -->
     <script>
-        // Clear any stuck modal backdrops on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Remove any leftover modal backdrops
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(backdrop => backdrop.remove());
+        // Immediate backdrop cleanup - run before DOMContentLoaded
+        (function() {
+            function cleanupBackdrops() {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length > 0) {
+                    console.log('[Backdrop Fix] Found and removing', backdrops.length, 'modal backdrops');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }
             
-            // Remove modal-open class from body if it exists
-            document.body.classList.remove('modal-open');
+            // Run cleanup immediately
+            cleanupBackdrops();
             
-            // Reset body padding that Bootstrap adds
-            document.body.style.paddingRight = '';
-            document.body.style.overflow = '';
-        });
+            // Run cleanup on DOMContentLoaded
+            document.addEventListener('DOMContentLoaded', function() {
+                cleanupBackdrops();
+                
+                // Run cleanup multiple times to catch delayed backdrops
+                setTimeout(cleanupBackdrops, 100);
+                setTimeout(cleanupBackdrops, 500);
+                setTimeout(cleanupBackdrops, 1000);
+                
+                // Monitor for any new backdrops being added and remove them immediately
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
+                                console.log('[Backdrop Fix] Detected new modal backdrop, removing immediately');
+                                node.remove();
+                            }
+                        });
+                    });
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: false
+                });
+            });
+        })();
     </script>
     
     <!-- Notification System JavaScript -->
