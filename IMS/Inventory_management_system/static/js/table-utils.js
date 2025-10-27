@@ -1,509 +1,716 @@
-// Enhanced table filtering and utilities
-class TableUtils {
-    constructor(tableId, options = {}) {
-        this.table = document.getElementById(tableId);
-        if (!this.table) {
-            console.error(`Table with ID '${tableId}' not found`);
-            return;
-        }
-
-        // Default options
-        this.options = {
-            searchInputId: options.searchInputId || 'table-search',
-            searchColumns: options.searchColumns || 'all', // 'all' or array of column indices
+/**
+ * EnhancedTable - A lightweight, dependency-free table enhancement library
+ * Provides sorting, filtering, pagination, and export functionality
+ */
+class EnhancedTable {
+    constructor(options) {
+        this.table = typeof options.table === 'string' 
+            ? document.querySelector(options.table) 
+            : options.table;
+            
+        this.config = {
+            searchable: options.searchable !== false,
+            sortable: options.sortable !== false,
             pagination: options.pagination !== false,
             rowsPerPage: options.rowsPerPage || 25,
-            exportButtons: options.exportButtons !== false,
-            columnFilters: options.columnFilters !== false,
-            stickyHeader: options.stickyHeader !== false,
-            ...options
+            exportable: options.exportable || false,
+            exportFormats: options.exportFormats || ['csv', 'excel', 'print'],
+            exportFileName: options.exportFileName || 'table_export',
+            exportOptions: {
+                title: options.exportOptions?.title || 'Table Export',
+                orientation: options.exportOptions?.orientation || 'portrait',
+                pageSize: options.exportOptions?.pageSize || 'A4',
+                margin: options.exportOptions?.margin || '1cm'
+            },
+            columnDefs: options.columnDefs || []
         };
 
-        this.rows = Array.from(this.table.querySelectorAll('tbody tr'));
         this.currentPage = 1;
-        this.filteredRows = [];
-        this.filters = {};
-        this.sortConfig = { column: null, direction: 'asc' };
+        this.sortColumn = null;
+        this.sortDirection = 'asc';
+        this.filteredData = [];
+        this.originalData = [];
 
         this.init();
     }
 
     init() {
-        // Initialize table features
-        if (this.options.stickyHeader) this.makeHeaderSticky();
-        if (this.options.columnFilters) this.initColumnFilters();
-        if (this.options.searchInputId) this.initGlobalSearch();
-        if (this.options.pagination) this.initPagination();
-        if (this.options.exportButtons) this.initExportButtons();
-        
-        // Initialize sorting
-        this.initSorting();
-        
-        // Initial filter
-        this.filterTable();
-    }
-
-    makeHeaderSticky() {
-        const thead = this.table.querySelector('thead');
-        if (thead) {
-            thead.classList.add('sticky-top', 'bg-light');
-            // Add a small shadow for better visibility
-            thead.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        }
-    }
-
-    initGlobalSearch() {
-        let searchInput = document.getElementById(this.options.searchInputId);
-        
-        // Create search input if it doesn't exist
-        if (!searchInput) {
-            const searchContainer = document.createElement('div');
-            searchContainer.className = 'mb-3';
-            searchContainer.innerHTML = `
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="bi bi-search"></i>
-                    </span>
-                    <input type="text" class="form-control" id="${this.options.searchInputId}" 
-                           placeholder="Search in table...">
-                    <button class="btn btn-outline-secondary clear-search" type="button">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-            `;
-            this.table.parentNode.insertBefore(searchContainer, this.table);
-            searchInput = document.getElementById(this.options.searchInputId);
+        if (!this.table) {
+            console.error('EnhancedTable: Table element not found');
+            return;
         }
 
-        // Add search event
+        // Add CSS for filter inputs if not already added
+        this.addFilterStyles();
+
+        // Store original data
+        this.cacheOriginalData();
+        this.filteredData = [...this.originalData];
+
+        // Initialize features
+        if (this.config.searchable) this.initSearch();
+        if (this.config.sortable) this.initSorting();
+        if (this.config.pagination) this.initPagination();
+        if (this.config.exportable) this.initExport();
+        
+        // Initialize column filters
+        this.initColumnFilters();
+
+        // Apply initial sort if specified
+        const initialSortCol = this.table.querySelector('th[data-sort-initial]');
+        if (initialSortCol) {
+            const colIndex = Array.from(initialSortCol.parentElement.children).indexOf(initialSortCol);
+            this.sortColumn = colIndex;
+            this.sortDirection = initialSortCol.getAttribute('data-sort-initial') || 'asc';
+            this.sortTable(colIndex, true);
+        }
+
+        // Initial render
+        this.render();
+    }
+
+    cacheOriginalData() {
+        const rows = Array.from(this.table.querySelectorAll('tbody tr'));
+        this.originalData = rows.map(row => ({
+            element: row,
+            cells: Array.from(row.cells).map(cell => ({
+                text: cell.textContent.trim(),
+                sortValue: cell.getAttribute('data-sort-value') || cell.textContent.trim(),
+                element: cell,
+                // Store original display style to restore when filters are cleared
+                originalDisplay: cell.style.display
+            }))
+        }));
+        
+        // Store unique values for each column for filter dropdowns
+        this.columnValues = {};
+        const headerCells = this.table.querySelectorAll('thead th');
+        headerCells.forEach((_, colIndex) => {
+            const values = new Set();
+            this.originalData.forEach(rowData => {
+                const cellValue = rowData.cells[colIndex]?.text || '';
+                if (cellValue) values.add(cellValue);
+            });
+            this.columnValues[colIndex] = Array.from(values).sort();
+        });
+    }
+
+    initSearch() {
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'mb-3';
+        searchContainer.innerHTML = `
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" class="form-control" id="table-search" placeholder="Search...">
+            </div>
+        `;
+        
+        const searchInput = searchContainer.querySelector('input');
         searchInput.addEventListener('input', (e) => {
-            this.searchTable(e.target.value);
+            this.filterTable(e.target.value);
+            this.currentPage = 1;
+            this.render();
         });
 
-        // Add clear search button event
-        const clearBtn = searchInput.closest('.input-group').querySelector('.clear-search');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                this.searchTable('');
-            });
-        }
-    }
-
-    initColumnFilters() {
-        const headers = this.table.querySelectorAll('th[data-column]');
-        headers.forEach(header => {
-            const colIndex = parseInt(header.getAttribute('data-column'));
-            
-            // Add filter icon
-            if (!header.querySelector('.filter-icon')) {
-                const filterIcon = document.createElement('span');
-                filterIcon.className = 'filter-icon ms-1';
-                filterIcon.innerHTML = '🔍';
-                filterIcon.style.cursor = 'pointer';
-                header.appendChild(filterIcon);
-
-                // Create filter dropdown
-                const dropdown = document.createElement('div');
-                dropdown.className = 'dropdown-menu p-2 filter-dropdown';
-                dropdown.style.minWidth = '200px';
-                dropdown.innerHTML = `
-                    <div class="mb-2">
-                        <input type="text" class="form-control form-control-sm mb-2" 
-                               placeholder="Filter..." data-filter-input>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" 
-                                   id="filterExactMatch${colIndex}" data-filter-exact>
-                            <label class="form-check-label small" for="filterExactMatch${colIndex}">
-                                Exact match
-                            </label>
-                        </div>
-                    </div>
-                    <div class="filter-options" style="max-height: 200px; overflow-y: auto;">
-                        <!-- Options will be populated here -->
-                    </div>
-                    <div class="d-flex justify-content-between mt-2">
-                        <button class="btn btn-sm btn-outline-secondary" data-filter-clear>
-                            Clear
-                        </button>
-                        <button class="btn btn-sm btn-primary" data-filter-apply>
-                            Apply
-                        </button>
-                    </div>
-                `;
-                document.body.appendChild(dropdown);
-
-                // Toggle dropdown
-                filterIcon.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleFilterDropdown(dropdown, header);
-                });
-
-                // Initialize filter functionality
-                this.initColumnFilterEvents(dropdown, colIndex);
-            }
-        });
-    }
-
-    initColumnFilterEvents(dropdown, colIndex) {
-        const filterInput = dropdown.querySelector('[data-filter-input]');
-        const exactMatch = dropdown.querySelector('[data-filter-exact]');
-        const clearBtn = dropdown.querySelector('[data-filter-clear]');
-        const applyBtn = dropdown.querySelector('[data-filter-apply]');
-        const optionsContainer = dropdown.querySelector('.filter-options');
-
-        // Populate filter options
-        this.populateFilterOptions(colIndex, optionsContainer);
-
-        // Filter options on input
-        filterInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const options = optionsContainer.querySelectorAll('.form-check');
-            
-            options.forEach(option => {
-                const text = option.textContent.trim().toLowerCase();
-                const matches = text.includes(searchTerm);
-                option.style.display = matches ? '' : 'none';
-            });
-        });
-
-        // Clear filter
-        clearBtn.addEventListener('click', () => {
-            optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            this.clearFilter(colIndex);
-            dropdown.style.display = 'none';
-        });
-
-        // Apply filter
-        applyBtn.addEventListener('click', () => {
-            const selectedOptions = [];
-            optionsContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
-                selectedOptions.push(checkbox.value);
-            });
-
-            if (selectedOptions.length > 0) {
-                this.filters[colIndex] = {
-                    values: selectedOptions,
-                    exact: exactMatch.checked
-                };
-                this.filterTable();
-            } else {
-                this.clearFilter(colIndex);
-            }
-
-            dropdown.style.display = 'none';
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target) && !e.target.closest('.filter-icon')) {
-                dropdown.style.display = 'none';
-            }
-        });
-    }
-
-    populateFilterOptions(colIndex, container) {
-        const values = new Set();
-        const rows = this.table.querySelectorAll('tbody tr');
-        
-        rows.forEach(row => {
-            const cell = row.cells[colIndex];
-            if (cell) {
-                values.add(cell.textContent.trim() || 'N/A');
-            }
-        });
-
-        container.innerHTML = '';
-        Array.from(values).sort().forEach(value => {
-            const option = document.createElement('div');
-            option.className = 'form-check';
-            option.innerHTML = `
-                <input class="form-check-input" type="checkbox" value="${value}" 
-                       id="filter-${colIndex}-${value.replace(/\s+/g, '-').toLowerCase()}">
-                <label class="form-check-label w-100" for="filter-${colIndex}-${value.replace(/\s+/g, '-').toLowerCase()}">
-                    ${value}
-                </label>
-            `;
-            container.appendChild(option);
-        });
-    }
-
-    toggleFilterDropdown(dropdown, header) {
-        // Hide all other dropdowns
-        document.querySelectorAll('.filter-dropdown').forEach(d => {
-            if (d !== dropdown) d.style.display = 'none';
-        });
-
-        // Toggle current dropdown
-        if (dropdown.style.display === 'block') {
-            dropdown.style.display = 'none';
-        } else {
-            // Position dropdown below header
-            const rect = header.getBoundingClientRect();
-            dropdown.style.position = 'absolute';
-            dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-            dropdown.style.left = `${rect.left + window.scrollX}px`;
-            dropdown.style.display = 'block';
-            
-            // Focus search input
-            const searchInput = dropdown.querySelector('input[type="text"]');
-            if (searchInput) searchInput.focus();
-        }
+        this.table.parentNode.insertBefore(searchContainer, this.table);
     }
 
     initSorting() {
         const headers = this.table.querySelectorAll('th[data-sort]');
-        headers.forEach(header => {
+        headers.forEach((header, index) => {
             header.style.cursor = 'pointer';
+            header.title = 'Click to sort';
+            
+            // Add sort indicator
+            const indicator = document.createElement('span');
+            indicator.className = 'sort-indicator ms-1';
+            header.appendChild(indicator);
+            
             header.addEventListener('click', () => {
-                const columnIndex = parseInt(header.getAttribute('data-sort')) || 
-                                  Array.from(header.parentNode.children).indexOf(header);
-                this.sortTable(columnIndex);
+                if (this.sortColumn === index) {
+                    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.sortColumn = index;
+                    this.sortDirection = 'asc';
+                }
+                this.sortTable(index);
+                this.render();
             });
         });
     }
 
-    sortTable(columnIndex) {
-        const direction = this.sortConfig.column === columnIndex && 
-                         this.sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    initPagination() {
+        const footer = this.table.createTFoot();
+        const row = footer.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = this.table.rows[0].cells.length;
+        cell.className = 'p-3';
         
-        this.sortConfig = { column: columnIndex, direction };
-        this.filteredRows.sort((a, b) => {
-            const aValue = a.cells[columnIndex]?.textContent.trim().toLowerCase() || '';
-            const bValue = b.cells[columnIndex]?.textContent.trim().toLowerCase() || '';
+        const pagination = document.createElement('div');
+        pagination.className = 'd-flex justify-content-between align-items-center';
+        
+        // Rows per page selector
+        const rowsPerPageDiv = document.createElement('div');
+        rowsPerPageDiv.className = 'd-flex align-items-center';
+        rowsPerPageDiv.innerHTML = `
+            <span class="me-2">Rows per page:</span>
+            <select class="form-select form-select-sm" style="width: auto;">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="0">All</option>
+            </select>
+        `;
+        
+        const rowsPerPageSelect = rowsPerPageDiv.querySelector('select');
+        rowsPerPageSelect.value = this.config.rowsPerPage;
+        rowsPerPageSelect.addEventListener('change', (e) => {
+            this.config.rowsPerPage = parseInt(e.target.value) || 0;
+            this.currentPage = 1;
+            this.render();
+        });
+        
+        // Page navigation
+        const pageNav = document.createElement('div');
+        pageNav.className = 'd-flex align-items-center';
+        pageNav.innerHTML = `
+            <button class="btn btn-sm btn-outline-secondary me-2" id="first-page">First</button>
+            <button class="btn btn-sm btn-outline-secondary me-2" id="prev-page">Previous</button>
+            <span id="page-info" class="mx-2">Page 1 of 1</span>
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="next-page">Next</button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="last-page">Last</button>
+        `;
+        
+        // Add event listeners for pagination
+        pageNav.querySelector('#first-page').addEventListener('click', () => {
+            this.currentPage = 1;
+            this.render();
+        });
+        
+        pageNav.querySelector('#prev-page').addEventListener('click', () => {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.render();
+            }
+        });
+        
+        pageNav.querySelector('#next-page').addEventListener('click', () => {
+            const totalPages = this.getTotalPages();
+            if (this.currentPage < totalPages) {
+                this.currentPage++;
+                this.render();
+            }
+        });
+        
+        pageNav.querySelector('#last-page').addEventListener('click', () => {
+            this.currentPage = this.getTotalPages();
+            this.render();
+        });
+        
+        // Assemble the pagination controls
+        pagination.appendChild(rowsPerPageDiv);
+        pagination.appendChild(pageNav);
+        cell.appendChild(pagination);
+    }
+
+    initExport() {
+        const exportContainer = document.createElement('div');
+        exportContainer.className = 'mb-3 d-flex justify-content-end';
+        
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'btn btn-primary';
+        exportBtn.innerHTML = '<i class="bi bi-download me-2"></i>Export';
+        
+        const dropdownMenu = document.createElement('div');
+        dropdownMenu.className = 'dropdown-menu dropdown-menu-end';
+        dropdownMenu.setAttribute('aria-labelledby', 'exportDropdown');
+        
+        // Add export options based on configuration
+        if (this.config.exportFormats.includes('csv')) {
+            const csvItem = document.createElement('a');
+            csvItem.className = 'dropdown-item';
+            csvItem.href = '#';
+            csvItem.innerHTML = '<i class="bi bi-filetype-csv me-2"></i>Export as CSV';
+            csvItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.exportToCSV();
+            });
+            dropdownMenu.appendChild(csvItem);
+        }
+        
+        if (this.config.exportFormats.includes('excel')) {
+            const excelItem = document.createElement('a');
+            excelItem.className = 'dropdown-item';
+            excelItem.href = '#';
+            excelItem.innerHTML = '<i class="bi bi-file-earmark-excel me-2"></i>Export as Excel';
+            excelItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.exportToExcel();
+            });
+            dropdownMenu.appendChild(excelItem);
+        }
+        
+        if (this.config.exportFormats.includes('pdf')) {
+            const pdfItem = document.createElement('a');
+            pdfItem.className = 'dropdown-item';
+            pdfItem.href = '#';
+            pdfItem.innerHTML = '<i class="bi bi-file-earmark-pdf me-2"></i>Export as PDF';
+            pdfItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.exportToPDF();
+            });
+            dropdownMenu.appendChild(pdfItem);
+        }
+        
+        if (this.config.exportFormats.includes('print')) {
+            const printItem = document.createElement('a');
+            printItem.className = 'dropdown-item';
+            printItem.href = '#';
+            printItem.innerHTML = '<i class="bi bi-printer me-2"></i>Print Table';
+            printItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.printTable();
+            });
+            dropdownMenu.appendChild(printItem);
+        }
+        
+        // Set up the dropdown button
+        const dropdownBtn = document.createElement('div');
+        dropdownBtn.className = 'dropdown';
+        dropdownBtn.innerHTML = `
+            <button class="btn btn-primary dropdown-toggle" type="button" id="exportDropdown" 
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download me-2"></i>Export
+            </button>
+        `;
+        dropdownBtn.appendChild(dropdownMenu);
+        exportContainer.appendChild(dropdownBtn);
+        
+        // Insert the export controls before the table
+        this.table.parentNode.insertBefore(exportContainer, this.table);
+    }
+
+    addFilterStyles() {
+        // Add styles for filter inputs if not already added
+        if (!document.getElementById('enhanced-table-styles')) {
+            const style = document.createElement('style');
+            style.id = 'enhanced-table-styles';
+            style.textContent = `
+                .filter-container {
+                    position: relative;
+                    display: inline-block;
+                    width: 100%;
+                }
+                .filter-input {
+                    width: 100%;
+                    padding: 4px 8px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    font-size: 0.875rem;
+                }
+                .filter-dropdown {
+                    position: absolute;
+                    z-index: 1000;
+                    background: white;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    display: none;
+                    min-width: 150px;
+                }
+                .filter-dropdown.show {
+                    display: block;
+                }
+                .filter-dropdown-item {
+                    padding: 6px 12px;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .filter-dropdown-item:hover {
+                    background-color: #f8f9fa;
+                }
+                .filter-dropdown-item input[type="checkbox"] {
+                    margin-right: 6px;
+                }
+                .filter-icon {
+                    position: absolute;
+                    right: 8px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: #6c757d;
+                    cursor: pointer;
+                }
+                .filter-active {
+                    color: #0d6efd;
+                }
+                .filter-clear {
+                    position: absolute;
+                    right: 28px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: #6c757d;
+                    cursor: pointer;
+                    display: none;
+                }
+                .filter-clear.visible {
+                    display: block;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    initColumnFilters() {
+        const headerCells = this.table.querySelectorAll('thead th');
+        console.log('Initializing column filters for', headerCells.length, 'columns');
+        
+        // Create a filter row if it doesn't exist
+        let filterRow = this.table.querySelector('thead tr.filter-row');
+        if (!filterRow) {
+            console.log('Creating new filter row');
+            filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
             
-            // Try to convert to numbers for numeric comparison
-            const aNum = parseFloat(aValue.replace(/[^0-9.-]+/g, ''));
-            const bNum = parseFloat(bValue.replace(/[^0-9.-]+/g, ''));
+            headerCells.forEach((headerCell, index) => {
+                const th = document.createElement('th');
+                th.style.padding = '0.5rem';
+                
+                // Skip if column has data-no-filter attribute
+                if (headerCell.hasAttribute('data-no-filter')) {
+                    th.innerHTML = '&nbsp;';
+                    filterRow.appendChild(th);
+                    return;
+                }
+                
+                // Get unique values for this column
+                const uniqueValues = this.columnValues[index] || [];
+                
+                // Create filter select dropdown
+                const filterSelect = document.createElement('select');
+                filterSelect.className = 'form-select form-select-sm filter-select';
+                filterSelect.dataset.columnIndex = index;
+                
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'All';
+                filterSelect.appendChild(defaultOption);
+                
+                // Add options for unique values
+                uniqueValues.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    filterSelect.appendChild(option);
+                });
+                
+                // Handle filter selection
+                filterSelect.addEventListener('change', (e) => {
+                    const selectedValue = e.target.value;
+                    if (selectedValue) {
+                        this.applyColumnFilter(index, selectedValue);
+                        filterSelect.style.backgroundColor = '#e7f3ff';
+                    } else {
+                        this.clearColumnFilter(index);
+                        filterSelect.style.backgroundColor = '';
+                    }
+                });
+                
+                th.appendChild(filterSelect);
+                filterRow.appendChild(th);
+            });
             
-            if (!isNaN(aNum) && !isNaN(bNum)) {
-                return direction === 'asc' ? aNum - bNum : bNum - aNum;
+            // Insert filter row after the header row
+            const thead = this.table.querySelector('thead');
+            const headerRow = thead.querySelector('tr');
+            thead.insertBefore(filterRow, headerRow.nextSibling);
+        }
+    }
+    
+    populateFilterDropdown(dropdown, columnIndex) {
+        const values = this.columnValues[columnIndex] || [];
+        dropdown.innerHTML = '';
+        
+        // Add search input for the dropdown
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-control form-control-sm mb-2';
+        searchInput.placeholder = 'Search values...';
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const items = dropdown.querySelectorAll('.filter-dropdown-item');
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+        dropdown.appendChild(searchInput);
+        
+        // Add select all/none buttons
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'd-flex justify-content-between mb-2';
+        
+        const selectAllBtn = document.createElement('button');
+        selectAllBtn.className = 'btn btn-sm btn-outline-secondary btn-sm';
+        selectAllBtn.textContent = 'Select All';
+        selectAllBtn.addEventListener('click', () => {
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+        
+        const selectNoneBtn = document.createElement('button');
+        selectNoneBtn.className = 'btn btn-sm btn-outline-secondary btn-sm';
+        selectNoneBtn.textContent = 'Select None';
+        selectNoneBtn.addEventListener('click', () => {
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+        
+        const applyBtn = document.createElement('button');
+        applyBtn.className = 'btn btn-sm btn-primary btn-sm';
+        applyBtn.textContent = 'Apply';
+        applyBtn.addEventListener('click', () => {
+            const selectedValues = [];
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+            checkboxes.forEach(checkbox => {
+                selectedValues.push(checkbox.value);
+            });
+            
+            if (selectedValues.length > 0) {
+                this.applyMultiSelectFilter(columnIndex, selectedValues);
+                const filterInput = this.table.querySelector(`.filter-input[data-column-index="${columnIndex}"]`);
+                const clearBtn = filterInput.nextElementSibling;
+                filterInput.value = `${selectedValues.length} selected`;
+                clearBtn.classList.add('visible');
             }
             
-            // Fall back to string comparison
-            return direction === 'asc' 
-                ? aValue.localeCompare(bValue) 
-                : bValue.localeCompare(aValue);
+            dropdown.classList.remove('show');
         });
         
-        this.updateTable();
-        this.updateSortIndicators(columnIndex, direction);
-    }
-
-    updateSortIndicators(columnIndex, direction) {
-        // Remove all sort indicators
-        this.table.querySelectorAll('th').forEach(th => {
-            th.classList.remove('sort-asc', 'sort-desc');
-            const icon = th.querySelector('.sort-icon');
-            if (icon) icon.remove();
+        buttonGroup.appendChild(selectAllBtn);
+        buttonGroup.appendChild(selectNoneBtn);
+        dropdown.appendChild(buttonGroup);
+        
+        // Add values to dropdown
+        const valuesContainer = document.createElement('div');
+        valuesContainer.className = 'dropdown-values';
+        valuesContainer.style.maxHeight = '150px';
+        valuesContainer.style.overflowY = 'auto';
+        
+        values.forEach(value => {
+            const item = document.createElement('div');
+            item.className = 'filter-dropdown-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = value;
+            checkbox.id = `filter-${columnIndex}-${value.replace(/\s+/g, '-')}`;
+            
+            const label = document.createElement('label');
+            label.htmlFor = checkbox.id;
+            label.textContent = value;
+            label.style.marginLeft = '5px';
+            label.style.cursor = 'pointer';
+            
+            item.appendChild(checkbox);
+            item.appendChild(label);
+            valuesContainer.appendChild(item);
         });
         
-        // Add sort indicator to current column
-        const header = this.table.querySelector(`th:nth-child(${columnIndex + 1})`);
-        if (header) {
-            const sortIcon = document.createElement('span');
-            sortIcon.className = 'sort-icon ms-1';
-            sortIcon.innerHTML = direction === 'asc' ? '↑' : '↓';
-            header.appendChild(sortIcon);
-            header.classList.add(`sort-${direction}`);
+        dropdown.appendChild(valuesContainer);
+        dropdown.appendChild(document.createElement('div'));
+        dropdown.appendChild(applyBtn);
+    }
+    
+    applyColumnFilter(columnIndex, filterValue) {
+        this.columnFilters = this.columnFilters || {};
+        this.columnFilters[columnIndex] = filterValue;
+        this.applyFilters();
+    }
+    
+    applyMultiSelectFilter(columnIndex, selectedValues) {
+        this.columnFilters = this.columnFilters || {};
+        this.columnFilters[columnIndex] = selectedValues;
+        this.applyFilters();
+    }
+    
+    clearColumnFilter(columnIndex) {
+        if (this.columnFilters && this.columnFilters[columnIndex]) {
+            delete this.columnFilters[columnIndex];
+            this.applyFilters();
         }
     }
-
-    searchTable(term) {
-        this.searchTerm = term.toLowerCase();
-        this.filterTable();
-    }
-
-    filterTable() {
-        this.filteredRows = Array.from(this.rows);
-        
-        // Apply search term filter
-        if (this.searchTerm) {
-            this.filteredRows = this.filteredRows.filter(row => {
-                return Array.from(row.cells).some(cell => {
-                    const cellText = cell.textContent.toLowerCase();
-                    return cellText.includes(this.searchTerm);
-                });
-            });
-        }
-        
-        // Apply column filters
-        Object.entries(this.filters).forEach(([colIndex, filter]) => {
-            const index = parseInt(colIndex);
-            this.filteredRows = this.filteredRows.filter(row => {
-                const cell = row.cells[index];
-                if (!cell) return false;
+    
+    applyFilters() {
+        this.filteredData = this.originalData.filter(row => {
+            // Check global search first
+            if (this.globalSearchTerm) {
+                const rowText = row.cells.map(c => c.text.toLowerCase()).join(' ');
+                if (!rowText.includes(this.globalSearchTerm)) {
+                    return false;
+                }
+            }
+            
+            // Check if row matches all column filters
+            for (const [columnIndex, filterValue] of Object.entries(this.columnFilters || {})) {
+                const colIndex = parseInt(columnIndex);
+                const cellValue = row.cells[colIndex]?.text || '';
                 
-                const cellValue = cell.textContent.trim();
-                return filter.values.some(value => 
-                    filter.exact 
-                        ? cellValue === value
-                        : cellValue.toLowerCase().includes(value.toLowerCase())
-                );
-            });
+                // Exact match for dropdown filters
+                if (cellValue !== filterValue) {
+                    return false;
+                }
+            }
+            return true;
         });
         
-        // Apply sorting if configured
-        if (this.sortConfig.column !== null) {
-            this.sortTable(this.sortConfig.column);
-        } else {
-            this.updateTable();
+        // Reset to first page when filters change
+        this.currentPage = 1;
+        this.render();
+    }
+    
+    filterTable(searchTerm) {
+        this.globalSearchTerm = searchTerm ? searchTerm.toLowerCase() : '';
+        this.applyFilters();
+    }
+
+    sortTable(columnIndex, initialSort = false) {
+        if (columnIndex === null || columnIndex === undefined) return;
+        
+        // Update sort indicators
+        const headers = this.table.querySelectorAll('th[data-sort]');
+        headers.forEach((header, index) => {
+            const indicator = header.querySelector('.sort-indicator');
+            if (!indicator) return;
+            
+            if (index === columnIndex) {
+                indicator.innerHTML = this.sortDirection === 'asc' ? '↑' : '↓';
+                header.setAttribute('data-sort-direction', this.sortDirection);
+            } else {
+                indicator.innerHTML = '';
+                header.removeAttribute('data-sort-direction');
+            }
+        });
+        
+        // Sort the data
+        this.filteredData.sort((a, b) => {
+            const aValue = a.cells[columnIndex]?.sortValue || '';
+            const bValue = b.cells[columnIndex]?.sortValue || '';
+            
+            // Check for numeric sorting
+            const isNumeric = !isNaN(parseFloat(aValue)) && isFinite(aValue) && 
+                             !isNaN(parseFloat(bValue)) && isFinite(bValue);
+            
+            let comparison = 0;
+            
+            if (isNumeric) {
+                comparison = parseFloat(aValue) - parseFloat(bValue);
+            } else if (aValue > bValue) {
+                comparison = 1;
+            } else if (aValue < bValue) {
+                comparison = -1;
+            }
+            
+            return this.sortDirection === 'asc' ? comparison : -comparison;
+        });
+        
+        if (!initialSort) {
+            this.currentPage = 1;
         }
     }
 
-    clearFilter(columnIndex) {
-        delete this.filters[columnIndex];
-        this.filterTable();
+    getTotalPages() {
+        if (this.config.rowsPerPage <= 0) return 1;
+        return Math.ceil(this.filteredData.length / this.config.rowsPerPage);
     }
 
-    updateTable() {
+    getCurrentPageData() {
+        if (this.config.rowsPerPage <= 0) {
+            return this.filteredData;
+        }
+        
+        const startIndex = (this.currentPage - 1) * this.config.rowsPerPage;
+        const endIndex = startIndex + this.config.rowsPerPage;
+        return this.filteredData.slice(startIndex, endIndex);
+    }
+
+    render() {
+        // Update pagination info
+        const totalPages = this.getTotalPages();
+        const pageInfo = this.table.querySelector('#page-info');
+        if (pageInfo) {
+            pageInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
+        }
+        
+        // Update pagination buttons
+        const firstPageBtn = this.table.querySelector('#first-page');
+        const prevPageBtn = this.table.querySelector('#prev-page');
+        const nextPageBtn = this.table.querySelector('#next-page');
+        const lastPageBtn = this.table.querySelector('#last-page');
+        
+        if (firstPageBtn) firstPageBtn.disabled = this.currentPage === 1;
+        if (prevPageBtn) prevPageBtn.disabled = this.currentPage === 1;
+        if (nextPageBtn) nextPageBtn.disabled = this.currentPage >= totalPages;
+        if (lastPageBtn) lastPageBtn.disabled = this.currentPage >= totalPages;
+        
+        // Show/hide rows based on pagination
         const tbody = this.table.querySelector('tbody');
         if (!tbody) return;
         
         // Clear existing rows
-        tbody.innerHTML = '';
-        
-        // Add filtered rows
-        this.filteredRows.forEach(row => {
-            tbody.appendChild(row);
-        });
-        
-        // Update row count display if it exists
-        const rowCountDisplay = document.getElementById('row-count');
-        if (rowCountDisplay) {
-            rowCountDisplay.textContent = `Showing ${this.filteredRows.length} of ${this.rows.length} rows`;
+        while (tbody.firstChild) {
+            tbody.removeChild(tbody.firstChild);
         }
         
-        // Update pagination if enabled
-        if (this.options.pagination) {
-            this.updatePagination();
+        // Add filtered and paginated rows
+        const currentPageData = this.getCurrentPageData();
+        currentPageData.forEach(rowData => {
+            tbody.appendChild(rowData.element);
+        });
+        
+        // Show a message if no data is available
+        if (this.filteredData.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = this.table.rows[0]?.cells.length || 1;
+            td.className = 'text-center py-4 text-muted';
+            td.textContent = 'No data available';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
         }
     }
 
-    initPagination() {
-        // Implementation for pagination
-        // This is a simplified version - you can expand it as needed
-        const paginationContainer = document.createElement('div');
-        paginationContainer.className = 'd-flex justify-content-between align-items-center mt-3';
-        paginationContainer.innerHTML = `
-            <div class="small text-muted" id="row-count">
-                Showing ${Math.min(this.filteredRows.length, this.options.rowsPerPage)} of ${this.filteredRows.length} rows
-            </div>
-            <div class="btn-group">
-                <button class="btn btn-sm btn-outline-secondary" id="prev-page" disabled>
-                    Previous
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" id="next-page" 
-                        ${this.filteredRows.length <= this.options.rowsPerPage ? 'disabled' : ''}>
-                    Next
-                </button>
-            </div>
-        `;
-        
-        this.table.parentNode.insertBefore(paginationContainer, this.table.nextSibling);
-        
-        // Add event listeners for pagination
-        document.getElementById('prev-page').addEventListener('click', () => {
-            if (this.currentPage > 1) {
-                this.currentPage--;
-                this.updateTable();
-            }
-        });
-        
-        document.getElementById('next-page').addEventListener('click', () => {
-            const maxPage = Math.ceil(this.filteredRows.length / this.options.rowsPerPage);
-            if (this.currentPage < maxPage) {
-                this.currentPage++;
-                this.updateTable();
-            }
-        });
-    }
-
-    updatePagination() {
-        const prevBtn = document.getElementById('prev-page');
-        const nextBtn = document.getElementById('next-page');
-        const maxPage = Math.ceil(this.filteredRows.length / this.options.rowsPerPage);
-        
-        if (prevBtn) {
-            prevBtn.disabled = this.currentPage === 1;
-        }
-        
-        if (nextBtn) {
-            nextBtn.disabled = this.currentPage >= maxPage || this.filteredRows.length <= this.options.rowsPerPage;
-        }
-        
-        // Update row count display
-        const rowCountDisplay = document.getElementById('row-count');
-        if (rowCountDisplay) {
-            const start = (this.currentPage - 1) * this.options.rowsPerPage + 1;
-            const end = Math.min(start + this.options.rowsPerPage - 1, this.filteredRows.length);
-            rowCountDisplay.textContent = `Showing ${start}-${end} of ${this.filteredRows.length} rows`;
-        }
-        
-        // Show only current page rows
-        const startIndex = (this.currentPage - 1) * this.options.rowsPerPage;
-        const endIndex = startIndex + this.options.rowsPerPage;
-        const rows = this.table.querySelectorAll('tbody tr');
-        
-        rows.forEach((row, index) => {
-            row.style.display = (index >= startIndex && index < endIndex) ? '' : 'none';
-        });
-    }
-
-    initExportButtons() {
-        // Implementation for export buttons (CSV, Excel, etc.)
-        // This is a placeholder - you can implement actual export functionality
-        const exportContainer = document.createElement('div');
-        exportContainer.className = 'd-flex justify-content-end mb-2';
-        exportContainer.innerHTML = `
-            <div class="btn-group">
-                <button class="btn btn-sm btn-outline-secondary" data-export="csv">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" data-export="excel">
-                    <i class="bi bi-file-earmark-excel"></i> Export Excel
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" data-export="print">
-                    <i class="bi bi-printer"></i> Print
-                </button>
-            </div>
-        `;
-        
-        this.table.parentNode.insertBefore(exportContainer, this.table);
-        
-        // Add export event listeners
-        exportContainer.querySelector('[data-export="csv"]').addEventListener('click', () => {
-            this.exportToCSV();
-        });
-        
-        exportContainer.querySelector('[data-export="excel"]').addEventListener('click', () => {
-            this.exportToExcel();
-        });
-        
-        exportContainer.querySelector('[data-export="print"]').addEventListener('click', () => {
-            window.print();
-        });
-    }
-
+    // Export methods
     exportToCSV() {
-        // Implementation for CSV export
         const headers = [];
         const rows = [];
         
         // Get headers
-        this.table.querySelectorAll('thead th').forEach(th => {
-            headers.push(`"${th.textContent.trim().replace(/"/g, '""')}"`);
+        this.table.querySelectorAll('thead th').forEach(header => {
+            if (header.style.display !== 'none') {
+                headers.push(`"${header.textContent.trim().replace(/"/g, '""')}"`);
+            }
         });
         
         // Get rows
-        this.filteredRows.forEach(row => {
-            const rowData = [];
-            row.querySelectorAll('td').forEach(cell => {
-                rowData.push(`"${cell.textContent.trim().replace(/"/g, '""')}"`);
+        this.filteredData.forEach(rowData => {
+            const row = [];
+            rowData.cells.forEach((cell, index) => {
+                const header = this.table.rows[0]?.cells[index];
+                if (header && header.style.display !== 'none') {
+                    row.push(`"${cell.text.replace(/"/g, '""')}"`);
+                }
             });
-            rows.push(rowData.join(','));
+            rows.push(row.join(','));
         });
         
         // Create CSV content
@@ -512,19 +719,82 @@ class TableUtils {
             ...rows
         ].join('\n');
         
-        // Download file
-        this.downloadFile(csvContent, 'table-export.csv', 'text/csv');
+        // Create and trigger download
+        this.downloadFile(csvContent, `${this.config.exportFileName}.csv`, 'text/csv;charset=utf-8;');
     }
 
     exportToExcel() {
-        // For Excel export, we'll use the same CSV content but with .xls extension
+        // For Excel export, we'll use the CSV method with an .xls extension
         // Note: For full Excel support, you might want to use a library like SheetJS
-        this.exportToCSV(); // For now, just export as CSV with .xls extension
+        this.exportToCSV();
+        return;
+        
+        // The following is a placeholder for actual Excel export implementation
+        /*
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.table_to_sheet(this.table);
+        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+        XLSX.writeFile(wb, `${this.config.exportFileName}.xlsx`);
+        */
+    }
+
+    exportToPDF() {
+        // For PDF export, we'll open a print dialog
+        // For more advanced PDF generation, consider using a library like jsPDF or pdfmake
+        this.printTable();
+    }
+
+    printTable() {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${this.config.exportOptions.title}</title>
+                <style>
+                    @media print {
+                        @page {
+                            size: ${this.config.exportOptions.pageSize} ${this.config.exportOptions.orientation};
+                            margin: ${this.config.exportOptions.margin};
+                        }
+                        body { font-family: Arial, sans-serif; }
+                        h1 { text-align: center; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #f2f2f2; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>${this.config.exportOptions.title}</h1>
+                <div id="table-container"></div>
+                <script>
+                    // Clone the table and clean it up for printing
+                    const table = window.opener.document.querySelector('table#${this.table.id}').cloneNode(true);
+                    
+                    // Remove action buttons and other non-essential elements
+                    table.querySelectorAll('.no-print, .dropdown, .btn, [data-bs-toggle]').forEach(el => el.remove());
+                    
+                    // Add to the print window
+                    document.getElementById('table-container').appendChild(table);
+                    
+                    // Print and close
+                    window.onload = function() {
+                        window.print();
+                        // window.onafterprint = function() { window.close(); };
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     }
 
     downloadFile(content, fileName, mimeType) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
+        
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
@@ -537,6 +807,13 @@ class TableUtils {
             window.URL.revokeObjectURL(url);
         }, 0);
     }
+
+    // Public methods
+    refresh() {
+        this.cacheOriginalData();
+        this.filteredData = [...this.originalData];
+        this.render();
+    }
 }
 
 // Auto-initialize tables with the 'enhanced-table' class
@@ -546,13 +823,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasDjangoPagination = document.querySelector('.pagination');
         
         // If Django pagination exists, disable JavaScript pagination
-        new TableUtils(table.id, { 
-            searchInputId: `${table.id}-search`,
-            pagination: !hasDjangoPagination,  // Disable JS pagination if Django handles it
-            exportButtons: true,
-            columnFilters: true,
-            stickyHeader: true,
-            rowsPerPage: 25
+        new EnhancedTable({ 
+            table,
+            pagination: !hasDjangoPagination  // Disable JS pagination if Django handles it
         });
     });
 });
+
+// Make EnhancedTable available globally
+window.EnhancedTable = EnhancedTable;

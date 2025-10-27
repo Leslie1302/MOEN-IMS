@@ -367,15 +367,18 @@ class EnhancedTable {
 
     initColumnFilters() {
         const headerCells = this.table.querySelectorAll('thead th');
+        console.log('Initializing column filters for', headerCells.length, 'columns');
         
         // Create a filter row if it doesn't exist
         let filterRow = this.table.querySelector('thead tr.filter-row');
         if (!filterRow) {
+            console.log('Creating new filter row');
             filterRow = document.createElement('tr');
             filterRow.className = 'filter-row';
             
             headerCells.forEach((headerCell, index) => {
                 const th = document.createElement('th');
+                th.style.padding = '0.5rem';
                 
                 // Skip if column has data-no-filter attribute
                 if (headerCell.hasAttribute('data-no-filter')) {
@@ -384,76 +387,41 @@ class EnhancedTable {
                     return;
                 }
                 
-                const filterContainer = document.createElement('div');
-                filterContainer.className = 'filter-container';
+                // Get unique values for this column
+                const uniqueValues = this.columnValues[index] || [];
                 
-                // Create filter input
-                const filterInput = document.createElement('input');
-                filterInput.type = 'text';
-                filterInput.className = 'filter-input';
-                filterInput.placeholder = 'Filter...';
-                filterInput.dataset.columnIndex = index;
+                // Create filter select dropdown
+                const filterSelect = document.createElement('select');
+                filterSelect.className = 'form-select form-select-sm filter-select';
+                filterSelect.dataset.columnIndex = index;
                 
-                // Create clear filter button
-                const clearBtn = document.createElement('span');
-                clearBtn.className = 'filter-clear';
-                clearBtn.innerHTML = '&times;';
-                clearBtn.title = 'Clear filter';
-                clearBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    filterInput.value = '';
-                    this.clearColumnFilter(index);
-                    clearBtn.classList.remove('visible');
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'All';
+                filterSelect.appendChild(defaultOption);
+                
+                // Add options for unique values
+                uniqueValues.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    filterSelect.appendChild(option);
                 });
                 
-                // Create filter dropdown button
-                const filterBtn = document.createElement('span');
-                filterBtn.className = 'filter-icon';
-                filterBtn.innerHTML = '\u25BE';
-                filterBtn.title = 'Filter options';
-                
-                // Create dropdown menu
-                const dropdown = document.createElement('div');
-                dropdown.className = 'filter-dropdown';
-                
-                // Populate dropdown with unique values
-                this.populateFilterDropdown(dropdown, index);
-                
-                // Toggle dropdown
-                filterBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    dropdown.classList.toggle('show');
-                });
-                
-                // Handle input filter
-                let filterTimeout;
-                filterInput.addEventListener('input', (e) => {
-                    clearTimeout(filterTimeout);
-                    filterTimeout = setTimeout(() => {
-                        const value = e.target.value.trim();
-                        if (value) {
-                            this.applyColumnFilter(index, value);
-                            clearBtn.classList.add('visible');
-                        } else {
-                            this.clearColumnFilter(index);
-                            clearBtn.classList.remove('visible');
-                        }
-                    }, 300);
-                });
-                
-                // Close dropdown when clicking outside
-                document.addEventListener('click', (e) => {
-                    if (!filterContainer.contains(e.target)) {
-                        dropdown.classList.remove('show');
+                // Handle filter selection
+                filterSelect.addEventListener('change', (e) => {
+                    const selectedValue = e.target.value;
+                    if (selectedValue) {
+                        this.applyColumnFilter(index, selectedValue);
+                        filterSelect.style.backgroundColor = '#e7f3ff';
+                    } else {
+                        this.clearColumnFilter(index);
+                        filterSelect.style.backgroundColor = '';
                     }
                 });
                 
-                // Add elements to container
-                filterContainer.appendChild(filterInput);
-                filterContainer.appendChild(clearBtn);
-                filterContainer.appendChild(filterBtn);
-                filterContainer.appendChild(dropdown);
-                th.appendChild(filterContainer);
+                th.appendChild(filterSelect);
                 filterRow.appendChild(th);
             });
             
@@ -565,7 +533,7 @@ class EnhancedTable {
     
     applyColumnFilter(columnIndex, filterValue) {
         this.columnFilters = this.columnFilters || {};
-        this.columnFilters[columnIndex] = filterValue.toLowerCase();
+        this.columnFilters[columnIndex] = filterValue;
         this.applyFilters();
     }
     
@@ -584,18 +552,21 @@ class EnhancedTable {
     
     applyFilters() {
         this.filteredData = this.originalData.filter(row => {
+            // Check global search first
+            if (this.globalSearchTerm) {
+                const rowText = row.cells.map(c => c.text.toLowerCase()).join(' ');
+                if (!rowText.includes(this.globalSearchTerm)) {
+                    return false;
+                }
+            }
+            
             // Check if row matches all column filters
             for (const [columnIndex, filterValue] of Object.entries(this.columnFilters || {})) {
                 const colIndex = parseInt(columnIndex);
-                const cellValue = row.cells[colIndex]?.text?.toLowerCase() || '';
+                const cellValue = row.cells[colIndex]?.text || '';
                 
-                if (Array.isArray(filterValue)) {
-                    // Multi-select filter
-                    if (!filterValue.some(val => cellValue === val.toLowerCase())) {
-                        return false;
-                    }
-                } else if (!cellValue.includes(filterValue)) {
-                    // Text filter
+                // Exact match for dropdown filters
+                if (cellValue !== filterValue) {
                     return false;
                 }
             }
