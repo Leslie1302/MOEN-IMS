@@ -312,6 +312,17 @@ class RequestMaterialView(LoginRequiredMixin, View):
                     # Create the order in a new transaction for each item
                     try:
                         with transaction.atomic():
+                            # Handle priority field (default to Medium if not specified or invalid)
+                            priority = row.get('priority', 'Medium')
+                            if pd.notna(priority):
+                                priority_str = str(priority).strip().title()  # Capitalize properly
+                                # Validate against allowed choices
+                                if priority_str not in ['Low', 'Medium', 'High', 'Urgent']:
+                                    logger.warning(f"Invalid priority '{priority}' for {item_name}, defaulting to Medium")
+                                    priority_str = 'Medium'
+                            else:
+                                priority_str = 'Medium'
+                            
                             order_data = {
                                 'name': item.name,
                                 'quantity': row['quantity'],
@@ -323,6 +334,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                                 'warehouse': warehouse,
                                 'request_type': request_type,
                                 'request_code': row['request_code'],  # Use the unique request code from the DataFrame
+                                'priority': priority_str,  # Add priority field
                                 'region': row.get('region', ''),
                                 'district': row.get('district', ''),
                                 'community': row.get('community', ''),

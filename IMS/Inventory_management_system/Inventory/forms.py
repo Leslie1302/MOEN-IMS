@@ -157,7 +157,7 @@ class ExcelUploadForm(forms.Form):
 class BulkMaterialRequestForm(forms.Form):
     file = forms.FileField(
         label='Excel File',
-        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse. For Receipt: name, quantity, warehouse',
+        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse, priority (optional: Low/Medium/High/Urgent). For Receipt: name, quantity, warehouse, priority (optional)',
         validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
     )
     request_type = forms.ChoiceField(

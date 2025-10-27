@@ -32,6 +32,7 @@
                     <th>User</th>
                     <th>Material</th>
                     <th>Type</th>
+                    <th>Priority</th>
                     <th>Requested</th>
                     <th>Processed</th>
                     <th>Remaining</th>
@@ -55,6 +56,19 @@
                             <span class="badge bg-danger">📤 Release</span>
                         {% else %}
                             <span class="badge bg-success">📥 Receipt</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if order.priority == "Urgent" %}
+                            <span class="badge bg-danger">🔴 Urgent</span>
+                        {% elif order.priority == "High" %}
+                            <span class="badge bg-warning text-dark">🟠 High</span>
+                        {% elif order.priority == "Medium" %}
+                            <span class="badge bg-info">🔵 Medium</span>
+                        {% elif order.priority == "Low" %}
+                            <span class="badge bg-secondary">⚪ Low</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ order.priority }}</span>
                         {% endif %}
                     </td>
                     <td>{{ order.quantity|floatformat:0|intcomma }}</td>
