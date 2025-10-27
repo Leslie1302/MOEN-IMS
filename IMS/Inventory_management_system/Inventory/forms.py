@@ -157,7 +157,7 @@ class ExcelUploadForm(forms.Form):
 class BulkMaterialRequestForm(forms.Form):
     file = forms.FileField(
         label='Excel File',
-        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse, priority (optional: Low/Medium/High/Urgent). For Receipt: name, quantity, warehouse, priority (optional)',
+        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse. For Receipt: name, quantity, warehouse. Note: Priority is set via the form field below and applies to all items.',
         validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
     )
     request_type = forms.ChoiceField(
@@ -165,6 +165,17 @@ class BulkMaterialRequestForm(forms.Form):
         initial='Release',
         widget=forms.Select(attrs={'class': 'form-control'}),
         help_text='Type of request (Release/Return)'
+    )
+    priority = forms.ChoiceField(
+        choices=[
+            ('Low', 'Low'),
+            ('Medium', 'Medium'),
+            ('High', 'High'),
+            ('Urgent', 'Urgent')
+        ],
+        initial='Medium',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Priority level for all items in this bulk upload'
     )
     release_letter_pdf = forms.FileField(
         required=False,

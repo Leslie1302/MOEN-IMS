@@ -225,6 +225,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
         try:
             df = bulk_form.cleaned_data['df']
             request_type = bulk_form.cleaned_data['request_type']
+            priority = bulk_form.cleaned_data['priority']  # Get priority from form
             release_letter_pdf = bulk_form.cleaned_data.get('release_letter_pdf')
             release_letter_title = bulk_form.cleaned_data.get('release_letter_title')
             
@@ -312,17 +313,6 @@ class RequestMaterialView(LoginRequiredMixin, View):
                     # Create the order in a new transaction for each item
                     try:
                         with transaction.atomic():
-                            # Handle priority field (default to Medium if not specified or invalid)
-                            priority = row.get('priority', 'Medium')
-                            if pd.notna(priority):
-                                priority_str = str(priority).strip().title()  # Capitalize properly
-                                # Validate against allowed choices
-                                if priority_str not in ['Low', 'Medium', 'High', 'Urgent']:
-                                    logger.warning(f"Invalid priority '{priority}' for {item_name}, defaulting to Medium")
-                                    priority_str = 'Medium'
-                            else:
-                                priority_str = 'Medium'
-                            
                             order_data = {
                                 'name': item.name,
                                 'quantity': row['quantity'],
@@ -334,7 +324,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                                 'warehouse': warehouse,
                                 'request_type': request_type,
                                 'request_code': row['request_code'],  # Use the unique request code from the DataFrame
-                                'priority': priority_str,  # Add priority field
+                                'priority': priority,  # Use priority from form (applies to all items)
                                 'region': row.get('region', ''),
                                 'district': row.get('district', ''),
                                 'community': row.get('community', ''),
@@ -1035,6 +1025,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         try:
             df = bulk_form.cleaned_data['df']
             request_type = 'Receipt'  # Always Receipt for this view
+            priority = bulk_form.cleaned_data['priority']  # Get priority from form
             
             # Inform user if rows were filtered out
             filtered_count = bulk_form.cleaned_data.get('filtered_rows', 0)
@@ -1091,6 +1082,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
                                 'request_type': request_type,
                                 'request_code': row['request_code'],
                                 'warehouse': warehouse,
+                                'priority': priority,  # Use priority from form
                                 'status': 'Draft',
                                 'processed_quantity': 0,
                                 'remaining_quantity': row['quantity']
