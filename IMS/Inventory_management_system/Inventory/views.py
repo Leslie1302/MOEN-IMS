@@ -504,13 +504,10 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
             # Show all orders to all authenticated users for transparency
             queryset = MaterialOrder.objects.select_related('user', 'unit', 'category', 'warehouse').order_by('-date_requested')
             
-            logger.info(f"User {user.username} accessing {queryset.count()} total orders")
+            logger.info(f"User {user.username} accessing material orders view")
             
-            # Ensure remaining_quantity is calculated correctly
-            for order in queryset:
-                if order.remaining_quantity is None or order.remaining_quantity < 0:
-                    order.remaining_quantity = max(0, order.quantity - (order.processed_quantity or 0))
-                    order.save(update_fields=['remaining_quantity'])
+            # Note: remaining_quantity calculation is now handled by model save() method
+            # We don't iterate through all orders on every page load - that's a performance killer!
             
             return queryset
             
