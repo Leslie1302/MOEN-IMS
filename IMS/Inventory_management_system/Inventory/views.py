@@ -494,17 +494,22 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
     paginate_by = 50
+    paginate_orphans = 5  # Include last page items if fewer than 5
+    allow_empty = True  # Allow empty querysets
 
     def get_queryset(self):
         user = self.request.user
         logger = logging.getLogger(__name__)
         
         try:
+            page_number = self.request.GET.get('page', '1')
+            logger.info(f"User {user.username} accessing material orders page {page_number}")
+            
             # Base queryset with proper ordering and select_related for performance
             # Show all orders to all authenticated users for transparency
             queryset = MaterialOrder.objects.select_related('user', 'unit', 'category', 'warehouse').order_by('-date_requested')
             
-            logger.info(f"User {user.username} accessing material orders view")
+            logger.info(f"Queryset count: {queryset.count()}")
             
             # Note: remaining_quantity calculation is now handled by model save() method
             # We don't iterate through all orders on every page load - that's a performance killer!
@@ -515,6 +520,24 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
             logger.error(f"Error in MaterialOrdersView for user {user.username}: {str(e)}", exc_info=True)
             # Fallback to empty queryset to prevent crashes
             return MaterialOrder.objects.none()
+
+    def paginate_queryset(self, queryset, page_size):
+        """Override to handle invalid page numbers gracefully"""
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        
+        paginator = Paginator(queryset, page_size, orphans=self.paginate_orphans)
+        page_number = self.request.GET.get('page', 1)
+        
+        try:
+            page = paginator.page(page_number)
+        except PageNotAnInteger:
+            # If page is not an integer, deliver first page
+            page = paginator.page(1)
+        except EmptyPage:
+            # If page is out of range, deliver last page
+            page = paginator.page(paginator.num_pages)
+        
+        return (paginator, page, page.object_list, page.has_other_pages())
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
