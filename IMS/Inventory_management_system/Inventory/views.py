@@ -542,24 +542,17 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get the full queryset for statistics (not paginated)
-        full_queryset = self.get_queryset()
+        # Use aggregation for statistics - much faster than multiple filter().count() calls
+        from django.db.models import Count, Q
         
-        # Add summary statistics using the full queryset
-        if full_queryset.exists():
-            context.update({
-                'total_orders': full_queryset.count(),
-                'pending_orders': full_queryset.filter(status='Pending').count(),
-                'completed_orders': full_queryset.filter(status='Completed').count(),
-                'partial_orders': full_queryset.filter(status='Partially Fulfilled').count(),
-            })
-        else:
-            context.update({
-                'total_orders': 0,
-                'pending_orders': 0,
-                'completed_orders': 0,
-                'partial_orders': 0,
-            })
+        stats = MaterialOrder.objects.aggregate(
+            total_orders=Count('id'),
+            pending_orders=Count('id', filter=Q(status='Pending')),
+            completed_orders=Count('id', filter=Q(status='Completed')),
+            partial_orders=Count('id', filter=Q(status='Partially Fulfilled'))
+        )
+        
+        context.update(stats)
         
         return context
 
