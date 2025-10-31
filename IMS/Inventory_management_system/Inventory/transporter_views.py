@@ -8,8 +8,16 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Q, Count, Sum, F
 from django.utils import timezone
+from django.template.loader import render_to_string
 import pandas as pd
 import json
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 from .models import (
     MaterialOrder, ReleaseLetter, MaterialTransport, Transporter, TransportVehicle, 
@@ -220,8 +228,150 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         
         return context
     
+    def generate_waybill_number(self):
+        """Generate a unique waybill number."""
+        from datetime import datetime
+        import uuid
+        
+        # Format: WB-YYYYMMDD-XXXXX (WB = Waybill)
+        date_str = datetime.now().strftime('%Y%m%d')
+        unique_id = str(uuid.uuid4())[:5].upper()
+        return f"WB-{date_str}-{unique_id}"
+    
+    def generate_consignment_number(self):
+        """Generate a unique consignment number for bulk shipments."""
+        from datetime import datetime
+        import uuid
+        
+        # Format: CN-YYYYMMDD-XXXXX (CN = Consignment)
+        date_str = datetime.now().strftime('%Y%m%d')
+        unique_id = str(uuid.uuid4())[:5].upper()
+        return f"CN-{date_str}-{unique_id}"
+    
+    def handle_bulk_assignment(self, request):
+        """Handle bulk assignment of transporter to multiple orders."""
+        # Get selected order IDs
+        order_ids = request.POST.getlist('selected_orders')
+        transporter_id = request.POST.get('bulk_transporter')
+        vehicle_id = request.POST.get('bulk_vehicle')
+        driver_name = request.POST.get('bulk_driver_name', '')
+        driver_phone = request.POST.get('bulk_driver_phone', '')
+        
+        if not order_ids:
+            messages.error(request, 'Please select at least one order to assign.')
+            return redirect('transport_assignment')
+        
+        if not transporter_id:
+            messages.error(request, 'Please select a transporter.')
+            return redirect('transport_assignment')
+        
+        try:
+            transporter = get_object_or_404(Transporter, id=transporter_id)
+            vehicle = None
+            if vehicle_id:
+                vehicle = get_object_or_404(TransportVehicle, id=vehicle_id)
+            assigned_count = 0
+            errors = []
+            
+            # Generate ONE consignment number AND ONE waybill number for all materials in this bulk assignment
+            consignment_number = self.generate_consignment_number()
+            waybill_number = self.generate_waybill_number()  # ONE waybill for entire bulk shipment
+            
+            with transaction.atomic():
+                for order_id in order_ids:
+                    try:
+                        order = MaterialOrder.objects.get(id=order_id)
+                        
+                        # Calculate available quantity for transport
+                        total_transported = order.transports.aggregate(
+                            total=Sum('quantity')
+                        )['total'] or 0
+                        
+                        available_quantity = (order.processed_quantity or 0) - total_transported
+                        
+                        if available_quantity <= 0:
+                            errors.append(f"Order {order.request_code}: No quantity available for transport")
+                            continue
+                        
+                        # Get release letter if exists
+                        release_letter = None
+                        try:
+                            release_letter = order.release_letter
+                        except ReleaseLetter.DoesNotExist:
+                            pass
+                        
+                        # Create transport record
+                        transport = MaterialTransport.objects.create(
+                            material_order=order,
+                            release_letter=release_letter,
+                            transporter=transporter,
+                            vehicle=vehicle,
+                            driver_name=driver_name,
+                            driver_phone=driver_phone,
+                            waybill_number=waybill_number,  # Same waybill for all materials in bulk assignment
+                            consignment_number=consignment_number,  # Same consignment for all in bulk assignment
+                            status='Assigned',
+                            
+                            # Material details
+                            material_name=order.name,
+                            material_code=order.code,
+                            quantity=available_quantity,
+                            unit=order.unit.name if order.unit else '',
+                            
+                            # Destination details
+                            recipient=order.contractor or '',
+                            consultant=order.consultant or '',
+                            region=order.region or '',
+                            district=order.district or '',
+                            community=order.community or '',
+                            package_number=order.package_number or '',
+                            
+                            date_assigned=timezone.now(),
+                            created_by=request.user
+                        )
+                        
+                        # Update order status
+                        order.status = 'In Progress'
+                        order.save()
+                        
+                        # Create audit log
+                        MaterialOrderAudit.objects.create(
+                            order=order,
+                            action=f'Bulk assigned to transporter: {transporter.name} (Consignment: {consignment_number}, Waybill: {waybill_number})',
+                            performed_by=request.user
+                        )
+                        
+                        assigned_count += 1
+                        
+                    except MaterialOrder.DoesNotExist:
+                        errors.append(f"Order ID {order_id}: Not found")
+                    except Exception as e:
+                        errors.append(f"Order ID {order_id}: {str(e)}")
+            
+            # Show results
+            if assigned_count > 0:
+                messages.success(request, f'Successfully assigned {assigned_count} order(s) to {transporter.name} under Consignment {consignment_number} with Waybill {waybill_number}')
+            
+            if errors:
+                for error in errors:
+                    messages.warning(request, error)
+            
+            return redirect('transport_assignment')
+            
+        except Transporter.DoesNotExist:
+            messages.error(request, 'Transporter not found.')
+            return redirect('transport_assignment')
+        except Exception as e:
+            messages.error(request, f'Error during bulk assignment: {str(e)}')
+            return redirect('transport_assignment')
+    
     def post(self, request, *args, **kwargs):
         """Handle form submissions for creating/updating transport assignments."""
+        # Handle bulk assignment
+        if 'bulk_assign_transporter' in request.POST:
+            return self.handle_bulk_assignment(request)
+        
+        # Handle single assignment
         if 'assign_transporter' in request.POST:
             order_id = request.POST.get('order_id')
             transporter_id = request.POST.get('transporter')
@@ -275,6 +425,9 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                     if recent_duplicate:
                         raise ValueError('Duplicate assignment detected. This transporter was just assigned to this order.')
                     
+                    # Generate waybill number automatically
+                    waybill_number = self.generate_waybill_number()
+                    
                     # Create a new MaterialTransport record for this specific quantity
                     transport = MaterialTransport.objects.create(
                         material_order=order,
@@ -283,7 +436,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         vehicle=vehicle,
                         driver_name=request.POST.get('driver_name', ''),
                         driver_phone=request.POST.get('driver_phone', ''),
-                        waybill_number=request.POST.get('waybill_number', ''),
+                        waybill_number=waybill_number,  # Auto-generated
                         status='Assigned',
                         
                         # Set material details from the order
@@ -317,7 +470,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                     # Create audit log entry
                     MaterialOrderAudit.objects.create(
                         order=order,
-                        action=f'Transporter assigned: {transporter.name}',
+                        action=f'Transporter assigned: {transporter.name} (Waybill: {waybill_number})',
                         performed_by=request.user
                     )
                 
@@ -618,7 +771,19 @@ class TransportVehicleCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateV
     def test_func(self):
         return is_storekeeper(self.request.user) or is_superuser(self.request.user)
     
+    def get_initial(self):
+        """Pre-select transporter if coming from transporter detail page."""
+        initial = super().get_initial()
+        transporter_id = self.kwargs.get('transporter_id')
+        if transporter_id:
+            initial['transporter'] = transporter_id
+        return initial
+    
     def get_success_url(self):
+        """Redirect to transporter detail if came from there, otherwise vehicle list."""
+        transporter_id = self.kwargs.get('transporter_id')
+        if transporter_id:
+            return reverse_lazy('transporter_detail', kwargs={'pk': transporter_id})
         return reverse_lazy('vehicle_list')
     
     def form_valid(self, form):
@@ -720,6 +885,7 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     """
     View for displaying transportation status - which transporter is handling which orders.
     Shows active transports with visual status indicators.
+    Accessible to storekeepers, schedule officers, and superusers.
     """
     model = MaterialTransport
     template_name = 'Inventory/transportation_status.html'
@@ -727,7 +893,7 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_storekeeper(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         # Get all active transports that haven't been logged as received on site
@@ -777,6 +943,20 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         # Add status choices for filter dropdown
         context['status_choices'] = MaterialTransport.STATUS_CHOICES
         
+        # Group transports by consignment for bulk shipments
+        from collections import defaultdict
+        consignments = defaultdict(list)
+        single_shipments = []
+        
+        for transport in context['transports']:
+            if transport.consignment_number:
+                consignments[transport.consignment_number].append(transport)
+            else:
+                single_shipments.append(transport)
+        
+        context['consignments'] = dict(consignments)  # Convert to regular dict
+        context['single_shipments'] = single_shipments
+        
         # Add summary statistics
         all_transports = MaterialTransport.objects.filter(
             status__in=['Assigned', 'Loading', 'Loaded', 'In Transit', 'Delivered']
@@ -787,6 +967,10 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         context['loading_count'] = all_transports.filter(status__in=['Loading', 'Loaded']).count()
         context['assigned_count'] = all_transports.filter(status='Assigned').count()
         context['delivered_count'] = all_transports.filter(status='Delivered').count()
+        
+        # Add user role information for template
+        context['is_schedule_officer'] = is_schedule_officer(self.request.user)
+        context['is_storekeeper'] = is_storekeeper(self.request.user)
         
         return context
 
@@ -935,3 +1119,328 @@ def debug_assignment_orders(request):
             debug_data['orders_without_processed_qty'].append(order_info)
     
     return JsonResponse(debug_data, indent=2)
+
+
+@login_required
+def download_waybill_pdf(request, transport_id):
+    """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments)."""
+    transport = get_object_or_404(MaterialTransport, id=transport_id)
+    
+    # For bulk assignments, fetch ALL transports with the same waybill number
+    if transport.waybill_number and transport.consignment_number:
+        # Bulk assignment - get all materials on this waybill
+        all_transports = MaterialTransport.objects.filter(
+            waybill_number=transport.waybill_number
+        ).select_related('material_order', 'transporter', 'vehicle').order_by('id')
+    else:
+        # Single assignment
+        all_transports = [transport]
+    
+    # Create PDF buffer
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.5*inch, leftMargin=0.5*inch, 
+                           topMargin=0.4*inch, bottomMargin=0.5*inch)
+    
+    # Container for the 'Flowable' objects
+    elements = []
+    
+    # Define styles
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=28,
+        textColor=colors.white,
+        spaceAfter=0,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold',
+        leading=32
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        fontName='Helvetica',
+        spaceAfter=0
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=13,
+        textColor=colors.HexColor('#1a5490'),
+        spaceAfter=6,
+        spaceBefore=10,
+        fontName='Helvetica-Bold',
+        borderPadding=5,
+        leftIndent=8
+    )
+    
+    normal_style = styles['Normal']
+    
+    small_text = ParagraphStyle(
+        'SmallText',
+        parent=styles['Normal'],
+        fontSize=8,
+        leading=10
+    )
+    
+    # Header Banner with gradient effect
+    header_data = [[
+        Paragraph("🚛 MATERIAL WAYBILL", title_style),
+    ]]
+    header_table = Table(header_data, colWidths=[7*inch])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#1a5490')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 15),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LINEABOVE', (0, 0), (-1, 0), 3, colors.HexColor('#0d3a6b')),
+        ('LINEBELOW', (0, -1), (-1, -1), 3, colors.HexColor('#2c5f8d')),
+    ]))
+    
+    elements.append(header_table)
+    
+    # Subtitle under banner
+    subtitle_data = [[
+        Paragraph("Ministry of Energy - Inventory Management System", subtitle_style),
+    ]]
+    subtitle_table = Table(subtitle_data, colWidths=[7*inch])
+    subtitle_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2c5f8d')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    
+    elements.append(subtitle_table)
+    elements.append(Spacer(1, 0.25*inch))
+    
+    # Waybill Information Box with colored accent
+    elements.append(Paragraph("📋 Waybill Information", heading_style))
+    
+    waybill_data = [
+        ['Waybill Number:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
+        ['Consignment Number:', Paragraph(f"<b>{transport.consignment_number or 'Single Shipment'}</b>", normal_style)],
+        ['Total Materials:', Paragraph(f"<b>{len(all_transports)}</b> item{'s' if len(all_transports) > 1 else ''}", normal_style)],
+        ['Date Assigned:', transport.date_assigned.strftime('%d %B %Y, %H:%M') if transport.date_assigned else 'N/A'],
+        ['Status:', Paragraph(f"<b><font color='#28a745'>{transport.get_status_display()}</font></b>", normal_style)],
+    ]
+    
+    waybill_table = Table(waybill_data, colWidths=[2*inch, 4.5*inch])
+    waybill_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f8ff')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING', (0, 0), (-1, -1), 10),
+        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#1a5490')),
+    ]))
+    
+    elements.append(waybill_table)
+    elements.append(Spacer(1, 0.25*inch))
+    
+    # Material Information - Show ALL materials on this waybill
+    elements.append(Paragraph("📦 Materials on This Waybill", heading_style))
+    
+    # Build table with all materials - Use Paragraph for text wrapping
+    material_data = [[
+        Paragraph('<b>#</b>', normal_style),
+        Paragraph('<b>Material Name</b>', normal_style),
+        Paragraph('<b>Code</b>', normal_style),
+        Paragraph('<b>Quantity</b>', normal_style),
+        Paragraph('<b>Request Code</b>', normal_style)
+    ]]
+    
+    for idx, t in enumerate(all_transports, 1):
+        # Use Paragraph to enable text wrapping
+        material_data.append([
+            Paragraph(f"<b>{idx}</b>", small_text),
+            Paragraph(t.material_name, small_text),  # Full name, will wrap
+            Paragraph(t.material_code or 'N/A', small_text),
+            Paragraph(f"<b>{t.quantity}</b> {t.unit or ''}", small_text),
+            Paragraph(t.material_order.request_code if t.material_order else 'N/A', small_text)
+        ])
+    
+    material_table = Table(material_data, colWidths=[0.35*inch, 2.5*inch, 0.9*inch, 1.1*inch, 1.15*inch])
+    material_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Center # column
+        ('ALIGN', (1, 0), (-1, -1), 'LEFT'),   # Left align rest
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for wrapping
+        ('PADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#0d3a6b')),
+    ]))
+    
+    elements.append(material_table)
+    elements.append(Spacer(1, 0.25*inch))
+    
+    # Transporter Information
+    elements.append(Paragraph("🚚 Transporter Information", heading_style))
+    
+    transporter_data = [
+        ['Transporter:', Paragraph(f"<b>{transport.transporter.name if transport.transporter else 'N/A'}</b>", normal_style)],
+        ['Vehicle:', Paragraph(f"<b>{transport.vehicle.registration_number}</b> ({transport.vehicle.vehicle_type})" 
+                    if transport.vehicle else 'N/A', normal_style)],
+        ['Driver Name:', Paragraph(transport.driver_name or 'N/A', normal_style)],
+        ['Driver Phone:', Paragraph(f"<font color='#1a5490'>{transport.driver_phone or 'N/A'}</font>", normal_style)],
+    ]
+    
+    transporter_table = Table(transporter_data, colWidths=[1.8*inch, 4.7*inch])
+    transporter_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#fff3cd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#ffc107')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING', (0, 0), (-1, -1), 10),
+        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#ffc107')),
+    ]))
+    
+    elements.append(transporter_table)
+    elements.append(Spacer(1, 0.25*inch))
+    
+    # Destination Information
+    elements.append(Paragraph("📍 Destination Information", heading_style))
+    
+    destination_data = [
+        ['Recipient:', Paragraph(f"<b>{transport.recipient or 'N/A'}</b>", normal_style)],
+        ['Consultant:', Paragraph(transport.consultant or 'N/A', normal_style)],
+        ['Region:', Paragraph(transport.region or 'N/A', normal_style)],
+        ['District:', Paragraph(transport.district or 'N/A', normal_style)],
+        ['Community:', Paragraph(f"<b>{transport.community or 'N/A'}</b>", normal_style)],
+        ['Package Number:', Paragraph(f"<font color='#dc3545'>{transport.package_number or 'N/A'}</font>", normal_style)],
+    ]
+    
+    destination_table = Table(destination_data, colWidths=[1.8*inch, 4.7*inch])
+    destination_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#d4edda')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#28a745')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING', (0, 0), (-1, -1), 10),
+        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#28a745')),
+    ]))
+    
+    elements.append(destination_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Signatures
+    elements.append(Paragraph("✍️ Signatures & Endorsements", heading_style))
+    elements.append(Spacer(1, 0.1*inch))
+    
+    signature_data = [
+        [
+            Paragraph('<b>Role</b>', normal_style),
+            Paragraph('<b>Name</b>', normal_style),
+            Paragraph('<b>Signature</b>', normal_style),
+            Paragraph('<b>Date</b>', normal_style)
+        ],
+        [
+            Paragraph('<b>Issued By</b><br/>(Storekeeper)', small_text),
+            '',
+            '',
+            ''
+        ],
+        [
+            Paragraph('<b>Received By</b><br/>(Driver)', small_text),
+            '',
+            '',
+            ''
+        ],
+        [
+            Paragraph('<b>Delivered To</b><br/>(Consultant)', small_text),
+            '',
+            '',
+            ''
+        ],
+    ]
+    
+    signature_table = Table(signature_data, colWidths=[1.8*inch, 1.6*inch, 1.6*inch, 1.0*inch])
+    signature_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#6c757d')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#6c757d')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 1), (-1, -1), 18),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 18),
+        ('PADDING', (0, 0), (-1, 0), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white]),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#495057')),
+    ]))
+    
+    elements.append(signature_table)
+    elements.append(Spacer(1, 0.25*inch))
+    
+    # Important Note Box
+    note_style = ParagraphStyle(
+        'Note',
+        parent=normal_style,
+        fontSize=9,
+        textColor=colors.HexColor('#856404'),
+        alignment=TA_LEFT,
+        leftIndent=10
+    )
+    
+    note_text = """
+    <b>Important:</b> This waybill must accompany the materials during transport. 
+    All parties must verify quantities before signing. Any discrepancies should be reported immediately.
+    """
+    
+    note_data = [[Paragraph(note_text, note_style)]]
+    note_table = Table(note_data, colWidths=[6.5*inch])
+    note_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fff3cd')),
+        ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#ffc107')),
+        ('PADDING', (0, 0), (-1, -1), 12),
+    ]))
+    
+    elements.append(note_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Footer
+    footer_text = f"""
+    <para align=center fontSize=8 textColor='#999999'>
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>
+    <b>Ministry of Energy - Inventory Management System</b><br/>
+    This is a computer-generated waybill. For verification or queries, contact IMS Support.<br/>
+    <font color='#666666'>Document Generated: {timezone.now().strftime('%d %B %Y at %H:%M:%S')}</font>
+    </para>
+    """
+    elements.append(Paragraph(footer_text, normal_style))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF data
+    pdf = buffer.getvalue()
+    buffer.close()
+    
+    # Return PDF response
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Waybill_{transport.waybill_number}.pdf"'
+    response.write(pdf)
+    
+    return response

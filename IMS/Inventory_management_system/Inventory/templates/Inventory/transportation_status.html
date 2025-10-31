@@ -176,27 +176,88 @@
         </div>
     </div>
 
-    <!-- Horizontal Scrollable Transport Cards Container -->
-    {% if transports %}
-    <div style="position: relative; margin: 20px 0;">
-        <!-- Pagination Controls -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="prevPage" class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 15px;">
-                    <i class="fas fa-chevron-left"></i> Previous
-                </button>
-                <span id="pageInfo" style="font-size: 0.9rem; color: #666; font-weight: 500;">
-                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
-                </span>
-                <button id="nextPage" class="btn btn-outline-primary btn-sm" style="border-radius: 20px; padding: 5px 15px;">
-                    Next <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
-            <div style="font-size: 0.85rem; color: #888;">
-                Showing <span id="showingCount">{{ transports|length }}</span> transport{{ transports|length|pluralize }} • Scroll horizontally or use pagination
+    <!-- Consignments and Transport Cards -->
+    {% if consignments or single_shipments %}
+    
+    <!-- Consignment Groups -->
+    {% if consignments %}
+    <h4 class="mt-4 mb-3"><i class="fas fa-boxes"></i> Bulk Shipments (Consignments)</h4>
+    {% for consignment_number, transports_in_consignment in consignments.items %}
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-shipping-fast"></i> Consignment: {{ consignment_number }}</h5>
+                    {% with first_transport=transports_in_consignment.0 %}
+                    <div class="mb-1"><strong>Waybill:</strong> <code class="text-white">{{ first_transport.waybill_number }}</code></div>
+                    {% endwith %}
+                    <small>{{ transports_in_consignment|length }} material{{ transports_in_consignment|length|pluralize }} in this shipment</small>
+                </div>
+                <div class="text-end">
+                    {% with first_transport=transports_in_consignment.0 %}
+                    <div><strong>Transporter:</strong> {{ first_transport.transporter.name }}</div>
+                    <div><strong>Driver:</strong> {{ first_transport.driver_name|default:"Not assigned" }}</div>
+                    {% if first_transport.vehicle %}
+                    <div><strong>Vehicle:</strong> {{ first_transport.vehicle.registration_number }}</div>
+                    {% endif %}
+                    <div class="mt-2">
+                        <a href="{% url 'download_waybill_pdf' first_transport.id %}" 
+                           class="btn btn-success btn-sm" target="_blank">
+                            <i class="fas fa-file-pdf"></i> Download Waybill (All Materials)
+                        </a>
+                    </div>
+                    {% endwith %}
+                </div>
             </div>
         </div>
+        <div class="card-body">
+            <div class="row">
+                {% for transport in transports_in_consignment %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 border-left-primary">
+                        <div class="card-body">
+                            <h6 class="text-primary">{{ transport.material_order.request_code }}</h6>
+                            <p class="mb-1"><strong>{{ transport.material_name }}</strong></p>
+                            <p class="mb-1"><small class="text-muted">{{ transport.material_code }}</small></p>
+                            <p class="mb-1">Quantity: <strong>{{ transport.quantity }} {{ transport.unit }}</strong></p>
+                            <p class="mb-2">
+                                <span class="badge 
+                                    {% if transport.status == 'Assigned' %}bg-secondary
+                                    {% elif transport.status == 'Loading' %}bg-warning
+                                    {% elif transport.status == 'Loaded' %}bg-info
+                                    {% elif transport.status == 'In Transit' %}bg-primary
+                                    {% elif transport.status == 'Delivered' %}bg-success
+                                    {% endif %}">
+                                    {{ transport.get_status_display }}
+                                </span>
+                            </p>
+                            {% if not is_schedule_officer or user.is_superuser %}
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-primary update-status-btn"
+                                        data-transport-id="{{ transport.id }}"
+                                        data-current-status="{{ transport.status }}"
+                                        data-material="{{ transport.material_name }}"
+                                        data-transporter="{{ transport.transporter.name }}"
+                                        data-driver="{{ transport.driver_name }}"
+                                        data-order-code="{{ transport.material_order.request_code }}">
+                                    <i class="fas fa-edit"></i> Update
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
 
+    <!-- Single Shipments -->
+    {% if single_shipments %}
+    <h4 class="mt-4 mb-3"><i class="fas fa-truck"></i> Single Shipments</h4>
+    <div style="position: relative; margin: 20px 0;">
         <!-- Horizontal Scrollable Container -->
         <div id="transportContainer" style="
             display: flex; 
@@ -208,7 +269,7 @@
             scrollbar-width: thin;
             scrollbar-color: #cbd5e0 #f7fafc;
         ">
-            {% for transport in transports %}
+            {% for transport in single_shipments %}
             <div class="transport-card-horizontal" style="
                 min-width: 380px;
                 max-width: 380px;
@@ -360,8 +421,15 @@
                         </div>
                     </div>
 
-                    <!-- Action Button -->
-                    <div style="text-align: center; margin-top: 15px;">
+                    <!-- Action Buttons -->
+                    <div style="text-align: center; margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                        <a href="{% url 'download_waybill_pdf' transport.id %}" 
+                           class="btn btn-success btn-sm"
+                           style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
+                           target="_blank">
+                            <i class="fas fa-file-pdf"></i> Download Waybill
+                        </a>
+                        {% if not is_schedule_officer or user.is_superuser %}
                         <button type="button"
                                 class="btn btn-outline-primary btn-sm update-status-btn" 
                                 style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
@@ -373,6 +441,7 @@
                                 data-order-code="{{ transport.material_order.request_code }}">
                             <i class="fas fa-edit"></i> Update Status
                         </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -470,6 +539,8 @@
             });
         </script>
     </div>
+    {% endif %}
+    
     {% else %}
     <div class="text-center py-5">
         <i class="fas fa-truck fa-3x text-muted mb-3"></i>

@@ -40,11 +40,28 @@
     </div>
     <!-- Add more stat cards as needed -->
 
+    <!-- Bulk Assignment Controls -->
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <button type="button" class="btn btn-primary" id="selectAllBtn">
+                <i class="fas fa-check-double"></i> Select All
+            </button>
+            <button type="button" class="btn btn-secondary" id="deselectAllBtn">
+                <i class="fas fa-times"></i> Deselect All
+            </button>
+            <span class="ml-3 badge badge-info" id="selectedCount">0 selected</span>
+        </div>
+        <button type="button" class="btn btn-success" id="bulkAssignBtn" data-bs-toggle="modal" data-bs-target="#bulkAssignModal" disabled>
+            <i class="fas fa-truck-loading"></i> Bulk Assign (<span id="bulkCount">0</span>)
+        </button>
+    </div>
+
     <!-- Orders Table -->
     <div class="table-responsive">
         <table class="table table-hover table-striped enhanced-table" id="ordersTable">
             <thead class="table-dark">
                 <tr>
+                    <th><input type="checkbox" id="selectAllCheckbox"></th>
                     <th>Request Code</th>
                     <th>Material</th>
                     <th>Quantity (Requested/Processed)</th>
@@ -57,6 +74,12 @@
             <tbody>
                 {% for order in material_orders %}
                 <tr>
+                    <td>
+                        {% if order.remaining_transport_quantity > 0 %}
+                        <input type="checkbox" class="order-checkbox" value="{{ order.id }}" 
+                               data-quantity="{{ order.remaining_transport_quantity }}">
+                        {% endif %}
+                    </td>
                     <td>{{ order.request_code }}</td>
                     <td>{{ order.name }} ({{ order.code }})</td>
                     <td>
@@ -126,7 +149,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center">No orders pending assignment</td>
+                    <td colspan="8" class="text-center">No orders pending assignment</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -201,14 +224,8 @@
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="waybill_number">Waybill Number</label>
-                        <input type="text" class="form-control" id="waybill_number" name="waybill_number">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="waybill_scan">Waybill Scan *</label>
-                        <input type="file" class="form-control" id="waybill_scan" name="waybill_scan" required>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Waybill number will be automatically generated upon assignment.
                     </div>
                 </div>
                 
@@ -217,6 +234,73 @@
                     <button type="submit" class="btn btn-primary" id="assignSubmitBtn">
                         <span id="submitBtnText">Assign Transporter</span>
                         <span id="submitBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Assign Transporter Modal -->
+<div class="modal fade" id="bulkAssignModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Bulk Assign Transporter</h5>
+                <button type="button" class="close text-white" data-bs-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="bulkAssignForm" method="post" action="{% url 'transport_assignment' %}">
+                {% csrf_token %}
+                <input type="hidden" name="bulk_assign_transporter" value="true">
+                
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> You are assigning <strong><span id="bulkModalCount">0</span> order(s)</strong> to a transporter. Waybill numbers will be automatically generated for each order.
+                    </div>
+                    
+                    <div id="selectedOrdersList" class="mb-3">
+                        <!-- Selected orders will be listed here -->
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bulk_transporter">Select Transporter *</label>
+                        <select class="form-control select2" id="bulk_transporter" name="bulk_transporter" required>
+                            <option value="">Choose a transporter...</option>
+                            {% for transporter in transporters %}
+                            <option value="{{ transporter.id }}">{{ transporter.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bulk_vehicle">Vehicle</label>
+                        <select class="form-control select2" id="bulk_vehicle" name="bulk_vehicle">
+                            <option value="">Select Vehicle (Optional)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="bulk_driver_name">Driver Name *</label>
+                                <input type="text" class="form-control" id="bulk_driver_name" name="bulk_driver_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="bulk_driver_phone">Driver Phone *</label>
+                                <input type="tel" class="form-control" id="bulk_driver_phone" name="bulk_driver_phone" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-truck-loading"></i> Assign All
                     </button>
                 </div>
             </form>
@@ -397,7 +481,14 @@ $(document).ready(function() {
                     $('#submitBtnText').text('Success!');
                     $('#submitBtnSpinner').addClass('d-none');
                     $('#assignModal').modal('hide');
-                    alert('Transporter assigned successfully!');
+                    
+                    // Show success message with download option
+                    var downloadUrl = '/download-waybill/' + response.transport_id + '/';
+                    var message = 'Transporter assigned successfully!\n\nWaybill generated. Click OK to download the waybill PDF.';
+                    if (confirm(message)) {
+                        window.open(downloadUrl, '_blank');
+                    }
+                    
                     location.reload();
                 } else {
                     console.error('Backend error:', response.error);
@@ -462,6 +553,114 @@ $(document).ready(function() {
             $('.select2').select2({
                 theme: 'bootstrap4'
             });
+        }
+    });
+    
+    // ========== BULK ASSIGNMENT FUNCTIONALITY ==========
+    
+    // Update selected count
+    function updateSelectedCount() {
+        var selectedCount = $('.order-checkbox:checked').length;
+        $('#selectedCount').text(selectedCount + ' selected');
+        $('#bulkCount').text(selectedCount);
+        $('#bulkModalCount').text(selectedCount);
+        
+        // Enable/disable bulk assign button
+        if (selectedCount > 0) {
+            $('#bulkAssignBtn').prop('disabled', false);
+        } else {
+            $('#bulkAssignBtn').prop('disabled', true);
+        }
+    }
+    
+    // Handle checkbox changes
+    $('.order-checkbox').on('change', function() {
+        updateSelectedCount();
+    });
+    
+    // Select all checkbox
+    $('#selectAllCheckbox').on('change', function() {
+        $('.order-checkbox').prop('checked', this.checked);
+        updateSelectedCount();
+    });
+    
+    // Select all button
+    $('#selectAllBtn').on('click', function() {
+        $('.order-checkbox').prop('checked', true);
+        $('#selectAllCheckbox').prop('checked', true);
+        updateSelectedCount();
+    });
+    
+    // Deselect all button
+    $('#deselectAllBtn').on('click', function() {
+        $('.order-checkbox').prop('checked', false);
+        $('#selectAllCheckbox').prop('checked', false);
+        updateSelectedCount();
+    });
+    
+    // Handle bulk assignment modal show
+    $('#bulkAssignModal').on('show.bs.modal', function() {
+        // Get selected orders
+        var selectedOrders = [];
+        $('.order-checkbox:checked').each(function() {
+            selectedOrders.push({
+                id: $(this).val(),
+                code: $(this).closest('tr').find('td:eq(1)').text(),
+                material: $(this).closest('tr').find('td:eq(2)').text(),
+                quantity: $(this).data('quantity')
+            });
+        });
+        
+        // Build list of selected orders
+        var html = '<div class="list-group">';
+        selectedOrders.forEach(function(order) {
+            html += '<div class="list-group-item">';
+            html += '<input type="hidden" name="selected_orders" value="' + order.id + '">';
+            html += '<strong>' + order.code + '</strong> - ' + order.material;
+            html += ' <span class="badge badge-primary float-right">' + order.quantity + ' units</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        
+        $('#selectedOrdersList').html(html);
+        
+        // Ensure Select2 is initialized
+        if (!$('#bulk_transporter').hasClass('select2-hidden-accessible')) {
+            $('#bulk_transporter, #bulk_vehicle').select2({
+                theme: 'bootstrap4',
+                dropdownParent: $('#bulkAssignModal')
+            });
+        }
+    });
+    
+    // Load vehicles for bulk transporter
+    $('#bulk_transporter').change(function() {
+        var transporterId = $(this).val();
+        var $vehicleSelect = $('#bulk_vehicle');
+        
+        if (transporterId) {
+            $.ajax({
+                url: '{% url "ajax_load_vehicles" %}',
+                data: {'transporter_id': transporterId},
+                method: 'GET',
+                success: function(data) {
+                    $vehicleSelect.html('<option value="">Select Vehicle (Optional)</option>');
+                    if (data.vehicles && data.vehicles.length > 0) {
+                        $.each(data.vehicles, function(index, vehicle) {
+                            $vehicleSelect.append(
+                                '<option value="' + vehicle.id + '">' + 
+                                vehicle.registration_number + ' (' + vehicle.vehicle_type + ')' +
+                                '</option>'
+                            );
+                        });
+                    }
+                },
+                error: function() {
+                    $vehicleSelect.html('<option value="">Error loading vehicles</option>');
+                }
+            });
+        } else {
+            $vehicleSelect.html('<option value="">Select Vehicle (Optional)</option>');
         }
     });
     

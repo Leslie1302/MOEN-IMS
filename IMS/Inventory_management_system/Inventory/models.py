@@ -723,6 +723,12 @@ class MaterialTransport(auto_prefetch.Model):
     driver_name = models.CharField(max_length=100, blank=True, null=True)
     driver_phone = models.CharField(max_length=20, blank=True, null=True)
     waybill_number = models.CharField(max_length=50, blank=True, null=True)
+    consignment_number = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text="Groups multiple materials assigned together as one shipment"
+    )
     
     # Status tracking
     status = models.CharField(

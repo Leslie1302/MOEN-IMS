@@ -405,8 +405,13 @@
         <div class="tab-pane fade" id="documents" role="tabpanel" aria-labelledby="documents-tab">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>Documents</h5>
+                {% comment %}
                 <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#uploadDocumentModal">
                     <i class="fas fa-upload"></i> Upload Document
+                </button>
+                {% endcomment %}
+                <button class="btn btn-sm btn-secondary" disabled title="Document upload feature coming soon">
+                    <i class="fas fa-upload"></i> Upload Document (Coming Soon)
                 </button>
             </div>
             
@@ -526,7 +531,8 @@
     </div>
 </div>
 
-<!-- Upload Document Modal -->
+<!-- Upload Document Modal - TODO: Implement document upload functionality -->
+{% comment %}
 <div class="modal fade" id="uploadDocumentModal" tabindex="-1" role="dialog" aria-labelledby="uploadDocumentModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -536,7 +542,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'transporter_upload_document' transporter.id %}" enctype="multipart/form-data">
+            <form method="post" action="" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
@@ -600,11 +606,13 @@
         </div>
     </div>
 </div>
+{% endcomment %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    /* Document upload/delete functionality - TODO: Implement
     // Initialize file input label
     $('.custom-file-input').on('change', function() {
         var fileName = $(this).val().split('\\').pop();
@@ -620,8 +628,9 @@ $(document).ready(function() {
         
         modal.find('#documentName').text(docName);
         modal.find('#documentId').val(docId);
-        modal.find('#deleteDocumentForm').attr('action', '{% url "transporter_delete_document" transporter.id 0 %}'.replace('0', docId));
+        modal.find('#deleteDocumentForm').attr('action', '');
     });
+    */
     
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();

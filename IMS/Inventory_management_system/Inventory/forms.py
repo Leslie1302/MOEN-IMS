@@ -53,7 +53,6 @@ InventoryItemFormSet = formset_factory(InventoryItemForm, extra=1, can_delete=Tr
 class MaterialOrderForm(forms.ModelForm):
     name = forms.ModelChoiceField(
         queryset=InventoryItem.objects.all(),
-        to_field_name="name",
         empty_label="-- Choose Material --",
         widget=forms.Select(attrs={'class': 'form-control material-select'})
     )
@@ -260,7 +259,6 @@ class BulkMaterialRequestForm(forms.Form):
 class MaterialReceiptForm(forms.ModelForm):
     name = forms.ModelChoiceField(
         queryset=InventoryItem.objects.all(),
-        to_field_name="name",
         empty_label="-- Choose Material --",
         widget=forms.Select(attrs={'class': 'form-control material-select'})
     )

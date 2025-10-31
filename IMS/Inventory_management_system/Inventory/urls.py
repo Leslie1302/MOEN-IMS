@@ -109,6 +109,7 @@ urlpatterns = [
     path('transporter-assignment/', transporter_views.TransporterAssignmentView.as_view(), name='transport_assignment'),
     path('transportation-status/', transporter_views.TransportationStatusView.as_view(), name='transportation_status'),
     path('update-transport-status/<int:pk>/', transporter_views.update_transport_status, name='update_transport_status'),
+    path('download-waybill/<int:transport_id>/', transporter_views.download_waybill_pdf, name='download_waybill_pdf'),
     path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
     path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
     path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
@@ -123,6 +124,7 @@ urlpatterns = [
     # Transport vehicle management
     path('vehicles/', transporter_views.TransportVehicleListView.as_view(), name='vehicle_list'),
     path('vehicles/add/', transporter_views.TransportVehicleCreateView.as_view(), name='vehicle_create'),
+    path('vehicles/add/<int:transporter_id>/', transporter_views.TransportVehicleCreateView.as_view(), name='vehicle_create'),
     path('vehicles/<int:pk>/', transporter_views.TransportVehicleDetailView.as_view(), name='vehicle_detail'),
     path('vehicles/<int:pk>/edit/', transporter_views.TransportVehicleUpdateView.as_view(), name='vehicle_edit'),
     path('vehicles/<int:pk>/delete/', transporter_views.TransportVehicleDeleteView.as_view(), name='vehicle_delete'),

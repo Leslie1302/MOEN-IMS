@@ -275,13 +275,13 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         function autofillFields(selectElement) {
-            const selectedName = selectElement.value;
+            const selectedId = selectElement.value;
             const formRow = selectElement.closest(".material-form");
             const categoryInput = formRow.querySelector(".category-field");
             const codeInput = formRow.querySelector(".material-code");
             const unitInput = formRow.querySelector(".unit-field");
 
-            const item = inventoryItems.find(i => i.name === selectedName);
+            const item = inventoryItems.find(i => i.id == selectedId);
             if (item) {
                 categoryInput.value = item.category__name || "";
                 codeInput.value = item.code || "";

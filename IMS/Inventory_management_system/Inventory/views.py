@@ -119,7 +119,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
 
         formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
         bulk_form = BulkMaterialRequestForm()
-        inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
+        inventory_items = list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))
 
         # Non-superusers default to bulk tab, superusers default to single tab
         default_tab = 'single' if request.user.is_superuser else 'bulk'
@@ -147,11 +147,32 @@ class RequestMaterialView(LoginRequiredMixin, View):
                 for form in formset:
                     if form.cleaned_data:
                         material_order = form.save(commit=False)
-                        selected_item = InventoryItem.objects.filter(name=form.cleaned_data['name']).first()
-                        if selected_item:
+                        selected_item = form.cleaned_data['name']  # This is an InventoryItem object
+                        selected_warehouse = form.cleaned_data.get('warehouse')
+                        
+                        # Look up the specific inventory item by name and warehouse
+                        if selected_item and selected_warehouse:
+                            try:
+                                inventory_item = InventoryItem.objects.get(
+                                    name=selected_item.name,
+                                    warehouse=selected_warehouse
+                                )
+                                material_order.name = inventory_item.name
+                                material_order.category = inventory_item.category
+                                material_order.code = inventory_item.code
+                                material_order.unit = inventory_item.unit
+                            except InventoryItem.DoesNotExist:
+                                # Fallback to selected item if specific warehouse combo doesn't exist
+                                material_order.name = selected_item.name
+                                material_order.category = selected_item.category
+                                material_order.code = selected_item.code
+                                material_order.unit = selected_item.unit
+                        elif selected_item:
+                            material_order.name = selected_item.name
                             material_order.category = selected_item.category
                             material_order.code = selected_item.code
                             material_order.unit = selected_item.unit
+                        
                         material_order.user = request.user
                         material_order.group = request.user.groups.first() if request.user.groups.exists() else None
                         material_order.request_type = 'Release'
@@ -202,7 +223,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
             'formset': formset,
             'bulk_form': BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'inventory_items': json.dumps(list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))),
             'active_tab': 'single'
         })
 
@@ -482,7 +503,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
             'formset': MaterialOrderFormSet(form_kwargs={'user': request.user}),
             'bulk_form': bulk_form or BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'inventory_items': json.dumps(list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))),
             'active_tab': 'bulk' if bulk_form else 'single'
         }
         return render(request, self.template_name, context)
@@ -964,7 +985,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
         # Show all inventory items to all users for transparency
         items = InventoryItem.objects.all()
 
-        inventory_items = list(items.values('name', 'category__name', 'unit__name', 'code'))
+        inventory_items = list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))
         from .forms import MaterialReceiptFormSet
         formset = MaterialReceiptFormSet(form_kwargs={'user': request.user})
         bulk_form = BulkMaterialRequestForm()
@@ -993,11 +1014,32 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             for form in formset:
                 if form.cleaned_data:
                     material_order = form.save(commit=False)
-                    selected_item = InventoryItem.objects.filter(name=form.cleaned_data['name']).first()
-                    if selected_item:
+                    selected_item = form.cleaned_data['name']  # This is an InventoryItem object
+                    selected_warehouse = form.cleaned_data.get('warehouse')
+                    
+                    # Look up the specific inventory item by name and warehouse
+                    if selected_item and selected_warehouse:
+                        try:
+                            inventory_item = InventoryItem.objects.get(
+                                name=selected_item.name,
+                                warehouse=selected_warehouse
+                            )
+                            material_order.name = inventory_item.name
+                            material_order.category = inventory_item.category
+                            material_order.code = inventory_item.code
+                            material_order.unit = inventory_item.unit
+                        except InventoryItem.DoesNotExist:
+                            # Fallback to selected item if specific warehouse combo doesn't exist
+                            material_order.name = selected_item.name
+                            material_order.category = selected_item.category
+                            material_order.code = selected_item.code
+                            material_order.unit = selected_item.unit
+                    elif selected_item:
+                        material_order.name = selected_item.name
                         material_order.category = selected_item.category
                         material_order.code = selected_item.code
                         material_order.unit = selected_item.unit
+                    
                     material_order.user = request.user
                     material_order.group = request.user.groups.first() if request.user.groups.exists() else None
                     material_order.request_type = 'Receipt'  # Set as Receipt Request
@@ -1017,7 +1059,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             'formset': formset,
             'bulk_form': BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'inventory_items': json.dumps(list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))),
             'active_tab': 'single',
             'orders': self._get_receipt_orders(request.user),
         })
@@ -1151,7 +1193,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             'formset': MaterialReceiptFormSet(form_kwargs={'user': request.user}),
             'bulk_form': bulk_form or BulkMaterialRequestForm(),
             'items': items,
-            'inventory_items': json.dumps(list(items.values('name', 'category__name', 'unit__name', 'code'))),
+            'inventory_items': json.dumps(list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))),
             'active_tab': 'bulk' if bulk_form else 'single',
             'orders': self._get_receipt_orders(request.user),
         }
@@ -1417,21 +1459,25 @@ class LowInventorySummaryView(LoginRequiredMixin, ListView):
         LOW_QUANTITY = 5  # Match the threshold used in Dashboard view
         return InventoryItem.objects.filter(quantity__lte=LOW_QUANTITY).select_related('category', 'unit', 'warehouse').order_by('name')
 
-class BillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
+class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
     View for displaying Bill of Quantities.
-    Accessible to superusers only.
+    Accessible to schedule officers and superusers.
     Shows all BOQ items.
     """
     template_name = 'Inventory/bill_of_quantity.html'
     context_object_name = 'boq_items'
     paginate_by = 50
     paginate_orphans = 5
+    
+    def test_func(self):
+        from .utils import is_schedule_officer, is_superuser
+        return is_schedule_officer(self.request.user) or is_superuser(self.request.user)
 
     def get_queryset(self):
         """
         Return all BOQ items.
-        Accessible to superusers only.
+        Accessible to schedule officers and superusers.
         """
         return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
 
@@ -2619,17 +2665,22 @@ class SiteReceiptCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
         return context
 
 
-class SiteReceiptListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
+class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
-    View for consultants to see their logged site receipts
+    View for consultants and schedule officers to see logged site receipts.
+    Schedule officers can view receipts to monitor delivery status.
     """
     model = SiteReceipt
     template_name = 'Inventory/site_receipts.html'
     context_object_name = 'receipts'
     paginate_by = 20
     
+    def test_func(self):
+        from .utils import is_schedule_officer, is_superuser
+        return is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+    
     def get_queryset(self):
-        # Superusers see all receipts (others 404 via mixin)
+        # Schedule officers and superusers see all receipts
         return SiteReceipt.objects.all().select_related('material_transport', 'received_by').order_by('-received_date')
 
 
