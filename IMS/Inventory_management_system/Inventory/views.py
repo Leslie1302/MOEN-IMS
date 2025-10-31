@@ -666,8 +666,18 @@ class UpdateMaterialStatusView(View):
 
                     # Update inventory
                     try:
-                        logger.info(f"Looking for inventory item: {order.name}")
-                        inventory_item = InventoryItem.objects.get(name__iexact=order.name)
+                        logger.info(f"Looking for inventory item: code={order.code}, warehouse={order.warehouse}")
+                        
+                        # Match by code and warehouse (unique_together constraint)
+                        if order.warehouse:
+                            inventory_item = InventoryItem.objects.get(
+                                code=order.code,
+                                warehouse=order.warehouse
+                            )
+                        else:
+                            # Fallback: match by code only if no warehouse specified
+                            inventory_item = InventoryItem.objects.get(code=order.code)
+                            
                         logger.info(f"Found inventory item: {inventory_item.name}, current quantity: {inventory_item.quantity}")
                         
                         if order.request_type == "Release":
@@ -689,7 +699,13 @@ class UpdateMaterialStatusView(View):
                         logger.info(f"Updated inventory for {inventory_item.name}: {inventory_item.quantity}")
                         
                     except InventoryItem.DoesNotExist:
-                        logger.warning(f"Inventory item '{order.name}' not found. Skipping inventory update.")
+                        logger.warning(f"Inventory item with code '{order.code}' not found in warehouse '{order.warehouse}'. Skipping inventory update.")
+                    except InventoryItem.MultipleObjectsReturned:
+                        logger.error(f"Multiple inventory items found with code '{order.code}'. Cannot determine which to update. Skipping inventory update.")
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Multiple inventory items found with code "{order.code}". Please contact administrator to resolve duplicate items.'
+                        }, status=500)
 
                     # Update order status based on remaining quantity
                     if order.remaining_quantity <= 0:
@@ -1482,10 +1498,10 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         boq, created = BillOfQuantity.objects.get_or_create(
                             item_code=item_code,
                             package_number=row['package_number'],
+                            community=row.get('community'),
                             defaults={
                                 'region': row['region'],
                                 'district': row['district'],
-                                'community': row['community'] if pd.notna(row['community']) else None,
                                 'consultant': row['consultant'],
                                 'contractor': row['contractor'],
                                 'material_description': material_description,
@@ -1498,7 +1514,7 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                             # Update existing record
                             boq.region = row['region']
                             boq.district = row['district']
-                            boq.community = row['community'] if pd.notna(row['community']) else None
+                            boq.community = row.get('community')
                             boq.consultant = row['consultant']
                             boq.contractor = row['contractor']
                             boq.material_description = material_description
@@ -2275,9 +2291,25 @@ def update_material_receipt(request, order_id, new_status):
             if is_partial and (partial_quantity <= 0 or partial_quantity > remaining_int):
                 return JsonResponse({"success": False, "error": "Invalid partial quantity."}, status=400)
 
-            inventory_item = InventoryItem.objects.filter(name=order.name).first()
-            if not inventory_item:
-                return JsonResponse({"success": False, "error": "No matching inventory item found for this order."}, status=400)
+            # Match inventory by code and warehouse (unique_together)
+            try:
+                if order.warehouse:
+                    inventory_item = InventoryItem.objects.get(
+                        code=order.code,
+                        warehouse=order.warehouse
+                    )
+                else:
+                    inventory_item = InventoryItem.objects.get(code=order.code)
+            except InventoryItem.DoesNotExist:
+                return JsonResponse({
+                    "success": False, 
+                    "error": f"No inventory item found with code '{order.code}' in warehouse '{order.warehouse}'."
+                }, status=400)
+            except InventoryItem.MultipleObjectsReturned:
+                return JsonResponse({
+                    "success": False, 
+                    "error": f"Multiple inventory items found with code '{order.code}'. Contact administrator."
+                }, status=500)
 
             # Initialize quantity if None
             if inventory_item.quantity is None:

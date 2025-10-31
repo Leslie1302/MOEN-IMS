@@ -1,0 +1,252 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Justification Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-file-earmark-text-fill"></i> Justification Details</h2>
+                <div>
+                    <a href="{% url 'boq_overissuance_justification_list' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to List
+                    </a>
+                    <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-list-ul"></i> Summary
+                    </a>
+                </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div class="alert alert-{{ justification.status|lower }} d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">
+                        <span class="badge bg-{{ justification.status|lower }} fs-6">
+                            {{ justification.status }}
+                        </span>
+                    </h5>
+                </div>
+                <small>
+                    Submitted: {{ justification.submitted_at|date:"M d, Y H:i" }}
+                </small>
+            </div>
+
+            <!-- Project Information -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-folder-fill"></i> Project Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Package Number:</strong> {{ justification.package_number }}</p>
+                            <p><strong>Project Name:</strong> {{ justification.project_name }}</p>
+                            <p><strong>Region:</strong> {{ justification.boq_item.region }}</p>
+                            <p><strong>District:</strong> {{ justification.boq_item.district }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Contractor:</strong> {{ justification.boq_item.contractor }}</p>
+                            <p><strong>Consultant:</strong> {{ justification.boq_item.consultant }}</p>
+                            <p><strong>Material:</strong> {{ justification.boq_item.material_description }}</p>
+                            <p><strong>Item Code:</strong> <code>{{ justification.boq_item.item_code }}</code></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overissuance Details -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Overissuance Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <h6 class="text-muted">Contract Quantity</h6>
+                                <h3 class="text-primary">{{ justification.boq_item.contract_quantity|floatformat:2 }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <h6 class="text-muted">Quantity Received</h6>
+                                <h3 class="text-danger">{{ justification.boq_item.quantity_received|floatformat:2 }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-danger text-white rounded">
+                                <h6>Overissuance Amount</h6>
+                                <h3>+{{ justification.overissuance_quantity|floatformat:2 }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Justification Content -->
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Justification</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Category:</label>
+                        <div>
+                            <span class="badge bg-secondary fs-6">{{ justification.justification_category }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reason:</label>
+                        <div class="p-3 bg-light rounded">
+                            {{ justification.reason|linebreaks }}
+                        </div>
+                    </div>
+
+                    {% if justification.supporting_documents %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Supporting Documents:</label>
+                        <div class="p-3 bg-light rounded">
+                            {{ justification.supporting_documents|linebreaks }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-0">
+                                <i class="bi bi-person"></i> 
+                                <strong>Submitted by:</strong> {{ justification.submitted_by.get_full_name|default:justification.submitted_by.username }}
+                            </p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <p class="mb-0">
+                                <i class="bi bi-calendar"></i> 
+                                <strong>Date:</strong> {{ justification.submitted_at|date:"F d, Y \a\t H:i" }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Review Section -->
+            {% if justification.reviewed_by or justification.review_comments %}
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-check-circle"></i> Review Information</h5>
+                </div>
+                <div class="card-body">
+                    {% if justification.review_comments %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reviewer Comments:</label>
+                        <div class="p-3 bg-light rounded">
+                            {{ justification.review_comments|linebreaks }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        {% if justification.reviewed_by %}
+                        <div class="col-md-6">
+                            <p class="mb-0">
+                                <i class="bi bi-person-check"></i> 
+                                <strong>Reviewed by:</strong> {{ justification.reviewed_by.get_full_name|default:justification.reviewed_by.username }}
+                            </p>
+                        </div>
+                        {% endif %}
+                        {% if justification.reviewed_at %}
+                        <div class="col-md-6 text-end">
+                            <p class="mb-0">
+                                <i class="bi bi-calendar-check"></i> 
+                                <strong>Review Date:</strong> {{ justification.reviewed_at|date:"F d, Y \a\t H:i" }}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Review Action Form (for authorized users) -->
+            {% if can_review and justification.status == 'Pending' or justification.status == 'Under Review' %}
+            <div class="card mb-4 shadow border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Review This Justification</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'review_overissuance_justification' justification.pk %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="review_comments" class="form-label fw-bold">Review Comments:</label>
+                            <textarea name="review_comments" id="review_comments" class="form-control" rows="4" 
+                                      placeholder="Enter your review comments here..." required></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" name="action" value="Under Review" class="btn btn-info">
+                                <i class="bi bi-hourglass-split"></i> Mark Under Review
+                            </button>
+                            <button type="submit" name="action" value="Rejected" class="btn btn-danger" 
+                                    onclick="return confirm('Are you sure you want to reject this justification?')">
+                                <i class="bi bi-x-circle"></i> Reject
+                            </button>
+                            <button type="submit" name="action" value="Approved" class="btn btn-success" 
+                                    onclick="return confirm('Are you sure you want to approve this justification?')">
+                                <i class="bi bi-check-circle"></i> Approve
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Related BoQ Item Link -->
+            <div class="text-center mt-4">
+                <a href="{% url 'bill_of_quantity' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> View Bill of Quantity
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .alert-pending {
+        background-color: #fff3cd;
+        border-color: #ffc107;
+        color: #000;
+    }
+    .alert-approved {
+        background-color: #d4edda;
+        border-color: #28a745;
+        color: #155724;
+    }
+    .alert-rejected {
+        background-color: #f8d7da;
+        border-color: #dc3545;
+        color: #721c24;
+    }
+    .alert-under {
+        background-color: #d1ecf1;
+        border-color: #17a2b8;
+        color: #0c5460;
+    }
+    .badge.bg-pending {
+        background-color: #ffc107 !important;
+        color: #000;
+    }
+    .badge.bg-approved {
+        background-color: #28a745 !important;
+    }
+    .badge.bg-rejected {
+        background-color: #dc3545 !important;
+    }
+    .badge.bg-under {
+        background-color: #17a2b8 !important;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Submit Overissuance Justification{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="bi bi-file-earmark-text"></i> 
+                        Submit Overissuance Justification
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- BoQ Item Information -->
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle"></i> Bill of Quantity Item Details</h5>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-2">
+                                    <strong>Package Number:</strong> {{ boq_item.package_number }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Material:</strong> {{ boq_item.material_description }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Item Code:</strong> <code>{{ boq_item.item_code }}</code>
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-2">
+                                    <strong>Contract Quantity:</strong> {{ boq_item.contract_quantity|floatformat:2 }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Quantity Received:</strong> 
+                                    <span class="text-danger">{{ boq_item.quantity_received|floatformat:2 }}</span>
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Overissuance:</strong> 
+                                    <span class="badge bg-danger">+{{ overissuance_amount|floatformat:2 }}</span>
+                                </p>
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>Location:</strong> {{ boq_item.region }}, {{ boq_item.district }}<br>
+                            <strong>Contractor:</strong> {{ boq_item.contractor }}<br>
+                            <strong>Consultant:</strong> {{ boq_item.consultant }}
+                        </p>
+                    </div>
+
+                    <!-- Justification Form -->
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.justification_category.id_for_label }}" class="form-label">
+                                <strong>{{ form.justification_category.label }}</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.justification_category }}
+                            <div class="form-text">{{ form.justification_category.help_text }}</div>
+                            {% if form.justification_category.errors %}
+                                <div class="text-danger mt-1">
+                                    {{ form.justification_category.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.reason.id_for_label }}" class="form-label">
+                                <strong>{{ form.reason.label }}</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.reason }}
+                            <div class="form-text">{{ form.reason.help_text }}</div>
+                            {% if form.reason.errors %}
+                                <div class="text-danger mt-1">
+                                    {{ form.reason.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.supporting_documents.id_for_label }}" class="form-label">
+                                <strong>{{ form.supporting_documents.label }}</strong>
+                            </label>
+                            {{ form.supporting_documents }}
+                            <div class="form-text">{{ form.supporting_documents.help_text }}</div>
+                            {% if form.supporting_documents.errors %}
+                                <div class="text-danger mt-1">
+                                    {{ form.supporting_documents.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Important:</strong> 
+                            Please provide a comprehensive explanation for the overissuance. 
+                            Your justification will be reviewed by authorized personnel.
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Submit Justification
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Previous Justifications (if any) -->
+            {% if boq_item.overissuance_justifications.all %}
+            <div class="card mt-4 shadow">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> Previous Justifications
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for justification in boq_item.overissuance_justifications.all %}
+                        <a href="{% url 'boq_overissuance_justification_detail' justification.pk %}" 
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ justification.justification_category }}</h6>
+                                <small>
+                                    <span class="badge bg-{{ justification.status|lower }}">{{ justification.status }}</span>
+                                </small>
+                            </div>
+                            <p class="mb-1 text-truncate">{{ justification.reason|truncatewords:20 }}</p>
+                            <small class="text-muted">
+                                Submitted by {{ justification.submitted_by.username }} on 
+                                {{ justification.submitted_at|date:"M d, Y" }}
+                            </small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .badge.bg-pending {
+        background-color: #ffc107 !important;
+        color: #000;
+    }
+    .badge.bg-approved {
+        background-color: #28a745 !important;
+    }
+    .badge.bg-rejected {
+        background-color: #dc3545 !important;
+    }
+    .badge.bg-under {
+        background-color: #17a2b8 !important;
+    }
+</style>
+{% endblock %}

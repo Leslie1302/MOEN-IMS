@@ -354,10 +354,10 @@ class MaterialOrder(auto_prefetch.Model):
             self.remaining_quantity = max(0.0, q - p)
             if p <= 0:
                 # Not yet processed
-                if self.status in ['Partially Fulfilled', 'Fulfilled', 'Completed']:
+                if self.status in ['Partially Fulfilled', 'Completed']:
                     self.status = 'Approved'
             elif p >= q > 0:
-                self.status = 'Fulfilled'
+                self.status = 'Completed'
                 self.remaining_quantity = 0
             else:
                 self.status = 'Partially Fulfilled'
@@ -369,7 +369,7 @@ class MaterialOrder(auto_prefetch.Model):
     
     @property
     def is_approved(self):
-        return self.status in ['Approved', 'In Progress', 'Partially Fulfilled', 'Fulfilled', 'Completed']
+        return self.status in ['Approved', 'In Progress', 'Partially Fulfilled', 'Completed']
     
     @property
     def is_completed(self):
@@ -421,6 +421,7 @@ class Profile(auto_prefetch.Model):
 
     
 class BillOfQuantity(auto_prefetch.Model):
+    """Bill of Quantity model - tracks material quantities by community"""
     region = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
     community = models.CharField(max_length=100, null=True, blank=True)
@@ -429,8 +430,8 @@ class BillOfQuantity(auto_prefetch.Model):
     package_number = models.CharField(max_length=50)
     material_description = models.CharField(max_length=200)
     item_code = models.CharField(max_length=200)
-    contract_quantity = models.FloatField()  # Changed to FloatField
-    quantity_received = models.FloatField(default=0.0)  # Changed to FloatField
+    contract_quantity = models.FloatField()
+    quantity_received = models.FloatField(default=0.0)
     warehouse = auto_prefetch.ForeignKey(
         Warehouse, 
         on_delete=models.SET_NULL, 
@@ -452,6 +453,105 @@ class BillOfQuantity(auto_prefetch.Model):
     def balance(self):
         return self.contract_quantity - self.quantity_received
     
+    @property
+    def has_overissuance(self):
+        """Check if this BoQ item has overissuance (negative balance)"""
+        return self.balance < 0
+    
+    @property
+    def overissuance_amount(self):
+        """Return the absolute value of overissuance if negative balance exists"""
+        return abs(self.balance) if self.has_overissuance else 0
+
+
+class BoQOverissuanceJustification(auto_prefetch.Model):
+    """
+    Tracks justifications for Bill of Quantity overissuances
+    (when quantity_received exceeds contract_quantity)
+    """
+    JUSTIFICATION_STATUS_CHOICES = [
+        ('Pending', 'Pending Review'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+        ('Under Review', 'Under Review'),
+    ]
+    
+    boq_item = auto_prefetch.ForeignKey(
+        BillOfQuantity, 
+        on_delete=models.CASCADE,
+        related_name='overissuance_justifications',
+        help_text="Bill of Quantity item with overissuance"
+    )
+    package_number = models.CharField(max_length=50, help_text="Project package number")
+    project_name = models.CharField(max_length=200, help_text="Project name/description")
+    overissuance_quantity = models.FloatField(help_text="Amount of overissuance")
+    
+    # Justification details
+    reason = models.TextField(help_text="Detailed reason for overissuance")
+    justification_category = models.CharField(
+        max_length=100,
+        choices=[
+            ('Design Change', 'Design Change'),
+            ('Site Condition', 'Site Condition'),
+            ('Measurement Error', 'Measurement Error'),
+            ('Emergency Need', 'Emergency Need'),
+            ('Variation Order', 'Variation Order'),
+            ('Other', 'Other'),
+        ],
+        help_text="Category of justification"
+    )
+    supporting_documents = models.TextField(
+        blank=True,
+        help_text="Reference to supporting documents or file paths"
+    )
+    
+    # Status tracking
+    status = models.CharField(
+        max_length=20,
+        choices=JUSTIFICATION_STATUS_CHOICES,
+        default='Pending',
+        help_text="Status of the justification"
+    )
+    
+    # User tracking
+    submitted_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='submitted_overissuance_justifications',
+        help_text="User who submitted the justification"
+    )
+    reviewed_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_overissuance_justifications',
+        help_text="User who reviewed the justification"
+    )
+    
+    # Timestamps
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Review comments
+    review_comments = models.TextField(
+        blank=True,
+        help_text="Comments from reviewer"
+    )
+    
+    class Meta(auto_prefetch.Model.Meta):
+        verbose_name = 'BoQ Overissuance Justification'
+        verbose_name_plural = 'BoQ Overissuance Justifications'
+        ordering = ['-submitted_at']
+        permissions = [
+            ('can_review_overissuance', 'Can review overissuance justifications'),
+            ('can_view_overissuance_summary', 'Can view overissuance summary'),
+        ]
+    
+    def __str__(self):
+        return f"{self.package_number} - {self.boq_item.material_description} (Overissuance: {self.overissuance_quantity})"
+
 
 class MaterialOrderAudit(auto_prefetch.Model):
     order = auto_prefetch.ForeignKey(MaterialOrder, on_delete=models.CASCADE)
@@ -533,14 +633,13 @@ class ReportSubmission(auto_prefetch.Model):
         if self.status == 'Approved':
             boq, created = BillOfQuantity.objects.get_or_create(
                 package_number=self.package_number,
+                item_code=self.item_code,
                 defaults={
                     'region': self.region,
                     'district': self.district,
-                    'community': self.community,
                     'consultant': self.consultant,
                     'contractor': self.contractor,
                     'material_description': self.material_description,
-                    'item_code': self.item_code,
                     'contract_quantity': self.contract_quantity,
                     'quantity_received': self.quantity_received,
                     'user': self.user,
@@ -672,7 +771,7 @@ class MaterialTransport(auto_prefetch.Model):
             self.consultant = self.material_order.consultant or ''
             self.region = self.material_order.region
             self.district = self.material_order.district
-            self.community = self.material_order.community
+            # community field removed - package-based tracking only
             self.package_number = self.material_order.package_number
             
             # If this is a new transport and has a release letter, set status to 'Assigned'
@@ -1065,4 +1164,4 @@ class Notification(auto_prefetch.Model):
         if not self.is_read:
             self.is_read = True
             self.read_at = timezone.now()
-            self.save()
+

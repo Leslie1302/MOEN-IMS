@@ -43,6 +43,14 @@ from .notification_views import (
     notification_preferences
 )
 
+# Import BoQ overissuance views
+from .boq_overissuance_views import (
+    BoQOverissuanceSummaryView, BoQOverissuanceJustificationCreateView,
+    BoQOverissuanceJustificationListView, BoQOverissuanceJustificationDetailView,
+    review_overissuance_justification, boq_overissuance_stats
+)
+
+
 # Error handlers
 handler403 = custom_403_view
 handler404 = custom_404_view
@@ -141,4 +149,12 @@ urlpatterns = [
     path('notifications/unread-count/', get_unread_count, name='get_unread_count'),
     path('notifications/<int:pk>/delete/', delete_notification, name='delete_notification'),
     path('notifications/preferences/', notification_preferences, name='notification_preferences'),
+    
+    # BoQ Overissuance Management
+    path('boq/overissuance/summary/', BoQOverissuanceSummaryView.as_view(), name='boq_overissuance_summary'),
+    path('boq/overissuance/<int:boq_id>/justify/', BoQOverissuanceJustificationCreateView.as_view(), name='boq_overissuance_justification_create'),
+    path('boq/overissuance/justifications/', BoQOverissuanceJustificationListView.as_view(), name='boq_overissuance_justification_list'),
+    path('boq/overissuance/justifications/<int:pk>/', BoQOverissuanceJustificationDetailView.as_view(), name='boq_overissuance_justification_detail'),
+    path('boq/overissuance/justifications/<int:pk>/review/', review_overissuance_justification, name='review_overissuance_justification'),
+    path('boq/overissuance/stats/', boq_overissuance_stats, name='boq_overissuance_stats'),
 ]

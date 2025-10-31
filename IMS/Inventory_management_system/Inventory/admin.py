@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity, Notification
+from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity, Notification, BoQOverissuanceJustification
 
 # Register your models here.
 
@@ -204,3 +204,61 @@ class NotificationAdmin(admin.ModelAdmin):
         count = queryset.update(is_read=False, read_at=None)
         self.message_user(request, f'{count} notification(s) marked as unread.')
     mark_as_unread.short_description = 'Mark selected notifications as unread'
+
+
+@admin.register(BoQOverissuanceJustification)
+class BoQOverissuanceJustificationAdmin(admin.ModelAdmin):
+    list_display = ('package_number', 'boq_item', 'overissuance_quantity', 'justification_category', 'status', 'submitted_by', 'submitted_at', 'reviewed_by')
+    list_filter = ('status', 'justification_category', 'submitted_at', 'reviewed_at')
+    search_fields = ('package_number', 'project_name', 'boq_item__material_description', 'reason', 'submitted_by__username', 'reviewed_by__username')
+    readonly_fields = ('submitted_at', 'reviewed_at', 'boq_item', 'package_number', 'project_name', 'overissuance_quantity')
+    date_hierarchy = 'submitted_at'
+    
+    fieldsets = (
+        ('Project Information', {
+            'fields': ('boq_item', 'package_number', 'project_name', 'overissuance_quantity')
+        }),
+        ('Justification Details', {
+            'fields': ('justification_category', 'reason', 'supporting_documents')
+        }),
+        ('Status & Review', {
+            'fields': ('status', 'review_comments', 'reviewed_by', 'reviewed_at')
+        }),
+        ('Submission Info', {
+            'fields': ('submitted_by', 'submitted_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    actions = ['approve_justifications', 'reject_justifications', 'mark_under_review']
+    
+    def approve_justifications(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.update(
+            status='Approved',
+            reviewed_by=request.user,
+            reviewed_at=timezone.now()
+        )
+        self.message_user(request, f'{count} justification(s) approved.')
+    approve_justifications.short_description = 'Approve selected justifications'
+    
+    def reject_justifications(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.update(
+            status='Rejected',
+            reviewed_by=request.user,
+            reviewed_at=timezone.now()
+        )
+        self.message_user(request, f'{count} justification(s) rejected.')
+    reject_justifications.short_description = 'Reject selected justifications'
+    
+    def mark_under_review(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.update(
+            status='Under Review',
+            reviewed_by=request.user,
+            reviewed_at=timezone.now()
+        )
+        self.message_user(request, f'{count} justification(s) marked as under review.')
+    mark_under_review.short_description = 'Mark as under review'
+

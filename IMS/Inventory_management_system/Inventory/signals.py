@@ -337,25 +337,25 @@ def handle_site_receipt_notifications(sender, instance, created, **kwargs):
             # Site receipt logged - notify Management and Storekeepers
             create_notification(
                 notification_type='site_receipt_logged',
-                title=f'Site Receipt Logged: {instance.transport.material_order.name if instance.transport and instance.transport.material_order else "Materials"}',
+                title=f'Site Receipt Logged: {instance.material_transport.material_order.name if instance.material_transport and instance.material_transport.material_order else "Materials"}',
                 message=f'{instance.received_by.username if instance.received_by else "Consultant"} confirmed receipt of materials on site. '
-                        f'Quantity: {instance.quantity_received} units. '
+                        f'Quantity: {instance.received_quantity} units. '
                         f'Condition: {instance.condition}. '
-                        f'Location: {instance.transport.destination_location if instance.transport else "Site"}',
+                        f'Location: {instance.material_transport.destination_location if instance.material_transport else "Site"}',
                 recipient_group='Management',
                 sender=instance.received_by,
-                related_transport=instance.transport
+                related_transport=instance.material_transport
             )
             
             # Notify Storekeepers
             create_notification(
                 notification_type='site_receipt_logged',
                 title=f'Materials Received on Site',
-                message=f'Site receipt confirmed for {instance.transport.material_order.name if instance.transport and instance.transport.material_order else "materials"}. '
-                        f'Quantity: {instance.quantity_received}, Condition: {instance.condition}',
+                message=f'Site receipt confirmed for {instance.material_transport.material_order.name if instance.material_transport and instance.material_transport.material_order else "materials"}. '
+                        f'Quantity: {instance.received_quantity}, Condition: {instance.condition}',
                 recipient_group='Storekeepers',
                 sender=instance.received_by,
-                related_transport=instance.transport
+                related_transport=instance.material_transport
             )
     
     except Exception as e:

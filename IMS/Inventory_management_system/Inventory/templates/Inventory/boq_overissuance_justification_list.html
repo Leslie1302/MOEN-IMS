@@ -1,0 +1,157 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Overissuance Justifications{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="bi bi-file-text-fill"></i> Overissuance Justifications</h2>
+                <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Summary
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Filter by Status</label>
+                    <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="package" class="form-label">Filter by Package</label>
+                    <input type="text" name="package" id="package" class="form-control" 
+                           value="{{ selected_package }}" placeholder="Enter package number">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                    <a href="{% url 'boq_overissuance_justification_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if justifications %}
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>Package Number</th>
+                    <th>Material</th>
+                    <th>Category</th>
+                    <th class="text-end">Overissuance Qty</th>
+                    <th>Status</th>
+                    <th>Submitted By</th>
+                    <th>Submitted Date</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for justification in justifications %}
+                <tr>
+                    <td><strong>{{ justification.package_number }}</strong></td>
+                    <td>{{ justification.boq_item.material_description }}</td>
+                    <td>
+                        <span class="badge bg-info">{{ justification.justification_category }}</span>
+                    </td>
+                    <td class="text-end">
+                        <span class="badge bg-danger">+{{ justification.overissuance_quantity|floatformat:2 }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-{{ justification.status|lower }}">
+                            {{ justification.status }}
+                        </span>
+                    </td>
+                    <td>{{ justification.submitted_by.username }}</td>
+                    <td>{{ justification.submitted_at|date:"M d, Y H:i" }}</td>
+                    <td class="text-center">
+                        <a href="{% url 'boq_overissuance_justification_detail' justification.pk %}" 
+                           class="btn btn-sm btn-primary" title="View Details">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Justifications pagination">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_package %}&package={{ selected_package }}{% endif %}">
+                        First
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_package %}&package={{ selected_package }}{% endif %}">
+                        Previous
+                    </a>
+                </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_package %}&package={{ selected_package }}{% endif %}">
+                        Next
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_package %}&package={{ selected_package }}{% endif %}">
+                        Last
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> 
+        No justifications found matching your criteria.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .badge.bg-pending {
+        background-color: #ffc107 !important;
+        color: #000;
+    }
+    .badge.bg-approved {
+        background-color: #28a745 !important;
+    }
+    .badge.bg-rejected {
+        background-color: #dc3545 !important;
+    }
+    .badge.bg-under {
+        background-color: #17a2b8 !important;
+    }
+</style>
+{% endblock %}

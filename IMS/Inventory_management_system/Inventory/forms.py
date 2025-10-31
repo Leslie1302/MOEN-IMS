@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, Supplier, Warehouse
+from .models import Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, Supplier, Warehouse, BoQOverissuanceJustification
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
 import pandas as pd
@@ -80,14 +80,13 @@ class MaterialOrderForm(forms.ModelForm):
     class Meta:
         model = MaterialOrder
         fields = [
-            'name', 'quantity', 'region', 'district', 'community', 
+            'name', 'quantity', 'region', 'district', 
             'consultant', 'contractor', 'package_number', 'warehouse'
         ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
             'region': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'district': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
-            'community': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'consultant': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'contractor': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'package_number': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
@@ -103,10 +102,9 @@ class MaterialOrderForm(forms.ModelForm):
         # Populate dropdowns from BillOfQuantity data
         from .models import BillOfQuantity
         
-        # Get distinct values from BOQ
+        # Get distinct values from BOQ (community field removed)
         regions = BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')
         districts = BillOfQuantity.objects.values_list('district', flat=True).distinct().order_by('district')
-        communities = BillOfQuantity.objects.values_list('community', flat=True).distinct().order_by('community')
         consultants = BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')
         contractors = BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')
         package_numbers = BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')
@@ -114,7 +112,6 @@ class MaterialOrderForm(forms.ModelForm):
         # Convert to choices format
         self.fields['region'].widget.choices = [('', '-- Select Region --')] + [(r, r) for r in regions if r]
         self.fields['district'].widget.choices = [('', '-- Select District --')] + [(d, d) for d in districts if d]
-        self.fields['community'].widget.choices = [('', '-- Select Community --')] + [(c, c) for c in communities if c]
         self.fields['consultant'].widget.choices = [('', '-- Select Consultant --')] + [(c, c) for c in consultants if c]
         self.fields['contractor'].widget.choices = [('', '-- Select Contractor --')] + [(c, c) for c in contractors if c]
         self.fields['package_number'].widget.choices = [('', '-- Select Package Number --')] + [(p, p) for p in package_numbers if p]
@@ -157,7 +154,7 @@ class ExcelUploadForm(forms.Form):
 class BulkMaterialRequestForm(forms.Form):
     file = forms.FileField(
         label='Excel File',
-        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse. For Receipt: name, quantity, warehouse. Note: Priority is set via the form field below and applies to all items.',
+        help_text='Upload an Excel file with material request data. For Release: name, quantity, region, district, community, consultant, contractor, package_number, warehouse. For Receipt: name, quantity, warehouse. Note: Priority is set via the form field below and applies to all items. The community field is required for proper tracking.',
         validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
     )
     request_type = forms.ChoiceField(
@@ -245,7 +242,8 @@ class BulkMaterialRequestForm(forms.Form):
         if df is not None and request_type:
             # Validate columns based on request type
             if request_type == 'Release':
-                required_columns = ['name', 'quantity', 'region', 'district', 'community', 
+                # community field removed - package-based tracking only
+                required_columns = ['name', 'quantity', 'region', 'district', 
                                   'consultant', 'contractor', 'package_number', 'warehouse']
             else:  # Receipt
                 required_columns = ['name', 'quantity', 'warehouse']
@@ -295,7 +293,6 @@ class ReportSubmissionForm(forms.ModelForm):
         fields = [
             'region',
             'district',
-            'community',
             'consultant',
             'contractor',
             'package_number',
@@ -691,3 +688,57 @@ class SiteReceiptForm(forms.ModelForm):
             self.fields['received_quantity'].initial = transport.quantity
             # Add transport info to help text
             self.fields['received_quantity'].help_text = f"Expected: {transport.quantity} {transport.unit}"
+
+
+class BoQOverissuanceJustificationForm(forms.ModelForm):
+    """
+    Form for submitting justification for Bill of Quantity overissuances
+    """
+    class Meta:
+        model = BoQOverissuanceJustification
+        fields = ['justification_category', 'reason', 'supporting_documents']
+        widgets = {
+            'justification_category': forms.Select(attrs={
+                'class': 'form-control',
+                'required': True
+            }),
+            'reason': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 5,
+                'placeholder': 'Provide a detailed explanation for the overissuance...',
+                'required': True
+            }),
+            'supporting_documents': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'List any supporting documents, file references, or related documentation...'
+            })
+        }
+        labels = {
+            'justification_category': 'Category of Justification',
+            'reason': 'Detailed Reason for Overissuance',
+            'supporting_documents': 'Supporting Documents/References'
+        }
+        help_texts = {
+            'justification_category': 'Select the category that best describes the reason for overissuance',
+            'reason': 'Provide a comprehensive explanation including when and why the overissuance occurred',
+            'supporting_documents': 'Optional: Reference any documents that support this justification'
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.boq_item = kwargs.pop('boq_item', None)
+        super().__init__(*args, **kwargs)
+        
+        # Make fields required
+        self.fields['justification_category'].required = True
+        self.fields['reason'].required = True
+        self.fields['supporting_documents'].required = False
+    
+    def clean_reason(self):
+        """Validate that the reason is sufficiently detailed"""
+        reason = self.cleaned_data.get('reason')
+        if reason and len(reason.strip()) < 20:
+            raise forms.ValidationError(
+                "Please provide a more detailed explanation (at least 20 characters)."
+            )
+        return reason
