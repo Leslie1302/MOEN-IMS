@@ -25,7 +25,7 @@ from .models import (
     # Note: Notification, Project, ProjectSite, ProjectPhase will be available after migration
 )
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
-from Inventory.utils import is_storekeeper, is_superuser
+from Inventory.utils import is_storekeeper, is_superuser, is_schedule_officer
 
 # Superuser-only access mixin that returns 404 for non-superusers
 class SuperuserOnlyMixin(UserPassesTestMixin):
