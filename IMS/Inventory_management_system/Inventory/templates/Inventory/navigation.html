@@ -25,9 +25,15 @@
                                 📋 Schedule
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
+                                <li><h6 class="dropdown-header">Material Requests</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'request_material' %}">📥 Request Material</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders' %}">📦 Material Orders</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Tracking & Monitoring</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
+                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+                                <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                             </ul>
                         </li>
                             {% endif %}
@@ -39,9 +45,15 @@
                                 📋 Schedule
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
+                                <li><h6 class="dropdown-header">Material Requests</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'request_material' %}">📥 Request Material</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders' %}">📦 Material Orders</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_heatmap' %}">🌡️ Heatmap Report</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Tracking & Monitoring</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
+                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+                                <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                             </ul>
                         </li>
                         {% endif %}
