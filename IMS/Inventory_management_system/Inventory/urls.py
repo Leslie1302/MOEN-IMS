@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls import handler403, handler404, handler500
 
@@ -159,4 +159,7 @@ urlpatterns = [
     path('boq/overissuance/justifications/<int:pk>/', BoQOverissuanceJustificationDetailView.as_view(), name='boq_overissuance_justification_detail'),
     path('boq/overissuance/justifications/<int:pk>/review/', review_overissuance_justification, name='review_overissuance_justification'),
     path('boq/overissuance/stats/', boq_overissuance_stats, name='boq_overissuance_stats'),
+    
+    # Supply Contract Management
+    path('supply/', include('Inventory.supply_contract_urls')),
 ]

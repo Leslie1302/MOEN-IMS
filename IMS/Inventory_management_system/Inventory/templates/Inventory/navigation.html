@@ -142,9 +142,16 @@
                                 👔 Management
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="managementDropdown">
+                                <li><h6 class="dropdown-header">Dashboards & Reports</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📊 Enhanced Dashboard</a></li>
                                 <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
                                 <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Supply Contracts</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'supplier_list' %}">👥 Suppliers</a></li>
+                                <li><a class="dropdown-item" href="{% url 'price_catalog_list' %}">💰 Price Catalog</a></li>
+                                <li><a class="dropdown-item" href="{% url 'contract_list' %}">📄 Contracts</a></li>
+                                <li><a class="dropdown-item" href="{% url 'invoice_list' %}">🧾 Invoices</a></li>
                             </ul>
                         </li>
                             {% endif %}
@@ -156,9 +163,16 @@
                                 👔 Management
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="managementDropdown">
+                                <li><h6 class="dropdown-header">Dashboards & Reports</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📊 Enhanced Dashboard</a></li>
                                 <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
                                 <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Supply Contracts</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'supplier_list' %}">👥 Suppliers</a></li>
+                                <li><a class="dropdown-item" href="{% url 'price_catalog_list' %}">💰 Price Catalog</a></li>
+                                <li><a class="dropdown-item" href="{% url 'contract_list' %}">📄 Contracts</a></li>
+                                <li><a class="dropdown-item" href="{% url 'invoice_list' %}">🧾 Invoices</a></li>
                             </ul>
                         </li>
                         {% endif %}

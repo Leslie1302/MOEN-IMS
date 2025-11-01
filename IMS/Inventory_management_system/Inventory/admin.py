@@ -2,7 +2,12 @@ from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from .models import InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, BillOfQuantity, Notification, BoQOverissuanceJustification
+from .models import (
+    InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, 
+    BillOfQuantity, Notification, BoQOverissuanceJustification,
+    SupplierPriceCatalog, SupplyContract, SupplyContractItem,
+    SupplierInvoice, SupplierInvoiceItem
+)
 
 # Register your models here.
 
@@ -102,25 +107,7 @@ class MaterialOrderAdmin(admin.ModelAdmin):
 admin.site.register(Profile)
 admin.site.register(Warehouse)
 
-@admin.register(Supplier)
-class SupplierAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'contact_person', 'contact_phone', 'contact_email', 'is_active', 'created_at')
-    list_filter = ('is_active', 'created_at')
-    search_fields = ('name', 'code', 'contact_person', 'contact_email')
-    readonly_fields = ('created_at', 'updated_at')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'code', 'is_active')
-        }),
-        ('Contact Information', {
-            'fields': ('contact_person', 'contact_phone', 'contact_email', 'address')
-        }),
-        ('Additional Information', {
-            'fields': ('notes', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        })
-    )
+# Supplier admin is registered below with enhanced features for supply contract management
 
 # Register LogEntry
 @admin.register(BillOfQuantity)
@@ -261,4 +248,218 @@ class BoQOverissuanceJustificationAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f'{count} justification(s) marked as under review.')
     mark_under_review.short_description = 'Mark as under review'
+
+
+# Supply Contract Management Admin
+
+class SupplierPriceCatalogInline(admin.TabularInline):
+    model = SupplierPriceCatalog
+    extra = 0
+    fields = ('material', 'unit_rate', 'currency', 'effective_date', 'expiry_date', 'is_active')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'contact_person', 'contact_phone', 'rating', 'is_active', 'created_at')
+    list_filter = ('is_active', 'rating', 'created_at')
+    search_fields = ('name', 'code', 'contact_person', 'contact_email', 'registration_number')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [SupplierPriceCatalogInline]
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'code', 'registration_number', 'rating')
+        }),
+        ('Contact Details', {
+            'fields': ('contact_person', 'contact_phone', 'contact_email', 'address')
+        }),
+        ('Status & Notes', {
+            'fields': ('is_active', 'notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(SupplierPriceCatalog)
+class SupplierPriceCatalogAdmin(admin.ModelAdmin):
+    list_display = ('supplier', 'material', 'unit_rate', 'currency', 'effective_date', 'expiry_date', 'is_valid', 'is_active')
+    list_filter = ('supplier', 'currency', 'is_active', 'effective_date')
+    search_fields = ('supplier__name', 'material__name', 'material__code')
+    readonly_fields = ('created_by', 'created_at', 'updated_at')
+    date_hierarchy = 'effective_date'
+    
+    fieldsets = (
+        ('Price Information', {
+            'fields': ('supplier', 'material', 'unit_rate', 'currency')
+        }),
+        ('Validity', {
+            'fields': ('effective_date', 'expiry_date', 'is_active')
+        }),
+        ('Delivery Details', {
+            'fields': ('warehouse', 'minimum_order_quantity', 'lead_time_days')
+        }),
+        ('Additional Info', {
+            'fields': ('notes', 'created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+class SupplyContractItemInline(admin.TabularInline):
+    model = SupplyContractItem
+    extra = 1
+    fields = ('material', 'quantity', 'unit_rate', 'total_amount', 'warehouse', 'notes')
+    readonly_fields = ('total_amount',)
+    
+    def total_amount(self, obj):
+        if obj.id:
+            return f"{obj.total_amount:,.2f}"
+        return "-"
+    total_amount.short_description = 'Total Amount'
+
+
+@admin.register(SupplyContract)
+class SupplyContractAdmin(admin.ModelAdmin):
+    list_display = ('contract_number', 'supplier', 'contract_type', 'status', 'start_date', 'end_date', 'total_estimated_value', 'actual_value', 'created_at')
+    list_filter = ('status', 'contract_type', 'supplier', 'start_date')
+    search_fields = ('contract_number', 'title', 'supplier__name')
+    readonly_fields = ('created_by', 'approved_by', 'approval_date', 'created_at', 'updated_at', 'actual_value')
+    date_hierarchy = 'start_date'
+    inlines = [SupplyContractItemInline]
+    
+    fieldsets = (
+        ('Contract Details', {
+            'fields': ('contract_number', 'title', 'supplier', 'contract_type', 'status')
+        }),
+        ('Dates', {
+            'fields': ('start_date', 'end_date')
+        }),
+        ('Financial', {
+            'fields': ('total_estimated_value', 'actual_value', 'currency')
+        }),
+        ('Terms', {
+            'fields': ('terms_and_conditions', 'notes'),
+            'classes': ('collapse',)
+        }),
+        ('Workflow', {
+            'fields': ('created_by', 'approved_by', 'approval_date', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    actions = ['approve_contracts', 'mark_as_completed']
+    
+    def approve_contracts(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.filter(status='pending_approval').update(
+            status='active',
+            approved_by=request.user,
+            approval_date=timezone.now()
+        )
+        self.message_user(request, f'{count} contract(s) approved and activated.')
+    approve_contracts.short_description = 'Approve and activate selected contracts'
+    
+    def mark_as_completed(self, request, queryset):
+        count = queryset.update(status='completed')
+        self.message_user(request, f'{count} contract(s) marked as completed.')
+    mark_as_completed.short_description = 'Mark selected contracts as completed'
+
+
+class SupplierInvoiceItemInline(admin.TabularInline):
+    model = SupplierInvoiceItem
+    extra = 1
+    fields = ('material', 'quantity_invoiced', 'unit_rate_invoiced', 'total_amount', 'quantity_received', 'has_discrepancy', 'warehouse')
+    readonly_fields = ('total_amount', 'has_discrepancy')
+    
+    def total_amount(self, obj):
+        if obj.id:
+            return f"{obj.total_amount:,.2f}"
+        return "-"
+    total_amount.short_description = 'Total Amount'
+
+
+@admin.register(SupplierInvoice)
+class SupplierInvoiceAdmin(admin.ModelAdmin):
+    list_display = ('invoice_number', 'supplier', 'invoice_date', 'due_date', 'total_amount', 'calculated_total', 'status', 'is_overdue', 'submitted_by')
+    list_filter = ('status', 'supplier', 'invoice_date', 'due_date')
+    search_fields = ('invoice_number', 'supplier__name', 'payment_reference')
+    readonly_fields = ('submitted_by', 'verified_by', 'approved_by', 'verified_date', 'approved_date', 'created_at', 'updated_at', 'calculated_total', 'is_overdue')
+    date_hierarchy = 'invoice_date'
+    inlines = [SupplierInvoiceItemInline]
+    
+    fieldsets = (
+        ('Invoice Information', {
+            'fields': ('invoice_number', 'supplier', 'contract', 'invoice_date', 'due_date')
+        }),
+        ('Financial', {
+            'fields': ('total_amount', 'calculated_total', 'currency', 'status')
+        }),
+        ('Payment', {
+            'fields': ('payment_reference', 'payment_date', 'is_overdue'),
+            'classes': ('collapse',)
+        }),
+        ('Documents & Notes', {
+            'fields': ('uploaded_document', 'discrepancy_notes', 'notes'),
+            'classes': ('collapse',)
+        }),
+        ('Workflow', {
+            'fields': ('submitted_by', 'verified_by', 'verified_date', 'approved_by', 'approved_date', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new
+            obj.submitted_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    actions = ['verify_invoices', 'approve_invoices', 'mark_as_paid', 'mark_as_disputed']
+    
+    def verify_invoices(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.filter(status='pending').update(
+            status='verified',
+            verified_by=request.user,
+            verified_date=timezone.now()
+        )
+        self.message_user(request, f'{count} invoice(s) verified.')
+    verify_invoices.short_description = 'Verify selected invoices'
+    
+    def approve_invoices(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.filter(status='verified').update(
+            status='approved',
+            approved_by=request.user,
+            approved_date=timezone.now()
+        )
+        self.message_user(request, f'{count} invoice(s) approved for payment.')
+    approve_invoices.short_description = 'Approve selected invoices for payment'
+    
+    def mark_as_paid(self, request, queryset):
+        from django.utils import timezone
+        count = queryset.filter(status='approved').update(
+            status='paid',
+            payment_date=timezone.now().date()
+        )
+        self.message_user(request, f'{count} invoice(s) marked as paid.')
+    mark_as_paid.short_description = 'Mark selected invoices as paid'
+    
+    def mark_as_disputed(self, request, queryset):
+        count = queryset.update(status='disputed')
+        self.message_user(request, f'{count} invoice(s) marked as disputed.')
+    mark_as_disputed.short_description = 'Mark selected invoices as disputed'
 

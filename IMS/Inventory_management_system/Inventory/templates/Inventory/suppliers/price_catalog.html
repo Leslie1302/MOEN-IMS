@@ -1,0 +1,230 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Supplier Price Catalog{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'management_dashboard' %}">Management</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Price Catalog</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-tag-fill text-success"></i> Supplier Price Catalog</h2>
+            <p class="text-muted mb-0">Track prices from external suppliers who supply materials for electrification projects</p>
+        </div>
+        <a href="{% url 'price_catalog_create' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Add New Price
+        </a>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filter Panel -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="supplier" class="form-label">Filter by Supplier</label>
+                    <select class="form-select" id="supplier" name="supplier">
+                        <option value="">All Suppliers</option>
+                        {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                {{ supplier.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="material" class="form-label">Filter by Material</label>
+                    <select class="form-select" id="material" name="material">
+                        <option value="">All Materials</option>
+                        {% for material in materials %}
+                            <option value="{{ material.id }}" {% if request.GET.material == material.id|stringformat:"s" %}selected{% endif %}>
+                                {{ material.name }} ({{ material.code }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="is_active" class="form-label">Status</label>
+                    <select class="form-select" id="is_active" name="is_active">
+                        <option value="">All</option>
+                        <option value="true" {% if request.GET.is_active == 'true' %}selected{% endif %}>Active Only</option>
+                        <option value="false" {% if request.GET.is_active == 'false' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Show Expired</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="show_expired" name="show_expired" 
+                               {% if request.GET.show_expired %}checked{% endif %}>
+                        <label class="form-check-label" for="show_expired">
+                            Include Expired
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="{% url 'price_catalog_list' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Price Catalog Table -->
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Price Catalog</h5>
+        </div>
+        <div class="card-body">
+            {% if prices %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Supplier</th>
+                                <th>Material</th>
+                                <th>Unit Rate</th>
+                                <th>Currency</th>
+                                <th>Effective Date</th>
+                                <th>Expiry Date</th>
+                                <th>MOQ</th>
+                                <th>Lead Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for price in prices %}
+                                <tr class="{% if price.is_expired %}table-secondary{% elif not price.is_active %}table-warning{% endif %}">
+                                    <td>
+                                        <a href="{% url 'supplier_detail' price.supplier.pk %}" class="text-decoration-none">
+                                            <strong>{{ price.supplier.name }}</strong>
+                                        </a>
+                                        <br><small class="text-muted">{{ price.supplier.code }}</small>
+                                    </td>
+                                    <td>
+                                        <strong>{{ price.material.name }}</strong>
+                                        <br><small class="text-muted">{{ price.material.code }}</small>
+                                        {% if price.warehouse %}
+                                            <br><span class="badge bg-info" title="Delivery Location">📍 {{ price.warehouse.name }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong class="text-success">{{ price.unit_rate|floatformat:2|intcomma }}</strong>
+                                    </td>
+                                    <td>{{ price.currency }}</td>
+                                    <td>
+                                        <small>{{ price.effective_date|date:"M d, Y" }}</small>
+                                    </td>
+                                    <td>
+                                        {% if price.expiry_date %}
+                                            <small {% if price.is_expired %}class="text-danger"{% endif %}>
+                                                {{ price.expiry_date|date:"M d, Y" }}
+                                            </small>
+                                        {% else %}
+                                            <span class="badge bg-success">No Expiry</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ price.minimum_order_quantity }}</span>
+                                    </td>
+                                    <td>
+                                        {% if price.lead_time_days > 0 %}
+                                            {{ price.lead_time_days }} days
+                                        {% else %}
+                                            <span class="text-muted">Same day</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if price.is_expired %}
+                                            <span class="badge bg-danger">Expired</span>
+                                        {% elif price.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'supplier_detail' price.supplier.pk %}" 
+                                           class="btn btn-sm btn-outline-primary" 
+                                           title="View Supplier">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.material %}&material={{ request.GET.material }}{% endif %}">First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.material %}&material={{ request.GET.material }}{% endif %}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.material %}&material={{ request.GET.material }}{% endif %}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.material %}&material={{ request.GET.material }}{% endif %}">Last</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+
+                <!-- Price Comparison Tip -->
+                <div class="alert alert-info mt-4">
+                    <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> 
+                    Filter by material to compare prices across different suppliers and find the best rates.
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-tags fs-1 text-muted"></i>
+                    <p class="text-muted mt-3">No prices found.</p>
+                    <a href="{% url 'price_catalog_create' %}" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i> Add First Price
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
