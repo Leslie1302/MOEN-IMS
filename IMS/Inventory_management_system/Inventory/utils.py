@@ -19,9 +19,9 @@ def is_superuser(user):
 def is_schedule_officer(user):
     """
     Check if the user is a schedule officer.
-    A user is considered a schedule officer if they are in the 'Schedule Officers' group.
+    A user is considered a schedule officer if they are in the 'Schedule Officer' group.
     """
-    return user.groups.filter(name='Schedule Officers').exists() or user.is_superuser
+    return user.groups.filter(name='Schedule Officer').exists() or user.is_superuser
 
 def is_management(user):
     """
