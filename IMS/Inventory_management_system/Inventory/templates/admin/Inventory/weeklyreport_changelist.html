@@ -1,0 +1,23 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="{% url 'admin:inventory_weeklyreport_generate' %}" class="addlink" style="background-color: #417690; padding: 10px 15px; border-radius: 4px;">
+            📊 Generate New Report
+        </a>
+    </li>
+{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <style>
+        .addlink {
+            font-weight: bold;
+        }
+        .object-tools li a:hover {
+            opacity: 0.9;
+        }
+    </style>
+{% endblock %}

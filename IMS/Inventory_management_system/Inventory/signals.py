@@ -1,15 +1,17 @@
 """
 Signals for automatic notification creation based on system events.
 Notifications are role-based - users only see notifications relevant to their group.
+
+Also handles automatic creation of user profiles and digital signature stamps.
 """
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import User, Group
 from django.db.models import F
 from .models import (
     MaterialOrder, MaterialTransport, SiteReceipt, 
-    InventoryItem, BillOfQuantity, Notification
+    InventoryItem, BillOfQuantity, Notification, Profile
 )
 import logging
 
@@ -443,3 +445,77 @@ def handle_boq_notifications(sender, instance, created, **kwargs):
     
     except Exception as e:
         logger.error(f"Error in BOQ notification handler: {str(e)}", exc_info=True)
+
+
+# ===== USER PROFILE & SIGNATURE STAMP SIGNALS =====
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """
+    Automatically create a Profile for new users.
+    This ensures every user has a profile with a digital signature stamp.
+    
+    Args:
+        sender: The User model class
+        instance: The actual User instance being saved
+        created: Boolean indicating if this is a new user
+        **kwargs: Additional keyword arguments
+    """
+    if created:
+        try:
+            # Create profile for the new user
+            profile = Profile.objects.create(user=instance)
+            logger.info(f"Created profile for new user: {instance.username}")
+        except Exception as e:
+            logger.error(f"Error creating profile for user {instance.username}: {str(e)}", exc_info=True)
+
+
+@receiver(post_save, sender=Profile)
+def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
+    """
+    Automatically generate a digital signature stamp for new profiles.
+    Also handles cases where existing profiles don't have stamps.
+    
+    This signal ensures that:
+    1. New profiles get a stamp immediately upon creation
+    2. Existing profiles without stamps get one when they're saved
+    3. Proper null checks prevent 'NoneType' errors
+    
+    Args:
+        sender: The Profile model class
+        instance: The actual Profile instance being saved
+        created: Boolean indicating if this is a new profile
+        **kwargs: Additional keyword arguments
+    """
+    try:
+        # Check if profile needs a signature stamp
+        if not instance.signature_stamp:
+            # Verify user exists and has a username
+            if instance.user and hasattr(instance.user, 'username') and instance.user.username:
+                try:
+                    # Generate the stamp
+                    stamp = instance.generate_signature_stamp()
+                    
+                    # Save only if we successfully generated a stamp
+                    if stamp:
+                        # Use update to avoid triggering the signal again
+                        Profile.objects.filter(pk=instance.pk).update(signature_stamp=stamp)
+                        logger.info(f"Generated signature stamp for profile: {instance.user.username}")
+                    else:
+                        logger.warning(f"Failed to generate stamp for profile {instance.pk}: Empty stamp returned")
+                        
+                except ValueError as ve:
+                    # This happens if user is None or has no username
+                    logger.warning(f"Cannot generate signature stamp for profile {instance.pk}: {str(ve)}")
+                except Exception as e:
+                    logger.error(f"Error generating signature stamp for profile {instance.pk}: {str(e)}", exc_info=True)
+            else:
+                # Profile has no user or user has no username
+                if not instance.user:
+                    logger.warning(f"Profile {instance.pk} has no associated user - cannot generate signature stamp")
+                else:
+                    logger.warning(f"User for profile {instance.pk} has no username - cannot generate signature stamp")
+    
+    except Exception as e:
+        # Catch-all to prevent signal from breaking the save operation
+        logger.error(f"Unexpected error in signature stamp signal for profile {instance.pk}: {str(e)}", exc_info=True)

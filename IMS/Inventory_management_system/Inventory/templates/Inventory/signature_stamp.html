@@ -1,0 +1,24 @@
+{% load static %}
+
+{% if has_stamp %}
+<div class="digital-signature-stamp signature-{{ size }}">
+    <div class="stamp-border">
+        <div class="stamp-header">AUTHORIZED SIGNATURE</div>
+        <div class="stamp-username">{{ full_name }}</div>
+        <div class="stamp-role">{{ user_role }}</div>
+        <div class="stamp-footer">
+            <span class="stamp-year">Since {{ year }}</span>
+            <span class="stamp-divider">|</span>
+            <span class="stamp-id">ID: {{ stamp_id }}</span>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="digital-signature-stamp signature-{{ size }} no-signature">
+    <div class="stamp-border">
+        <div class="stamp-header">NO SIGNATURE</div>
+        <div class="stamp-username">—</div>
+        <div class="stamp-role">Not Authorized</div>
+    </div>
+</div>
+{% endif %}

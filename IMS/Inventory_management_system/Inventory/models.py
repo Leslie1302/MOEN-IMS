@@ -409,17 +409,153 @@ class MaterialOrder(auto_prefetch.Model):
 
 
 class Profile(auto_prefetch.Model):
+    """
+    User profile model extending Django's built-in User model.
+    Stores additional user information including profile picture and digital signature stamp.
+    """
     user = auto_prefetch.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    signature_stamp = models.CharField(
+        max_length=500, 
+        blank=True, 
+        null=True,
+        help_text="Unique digital signature stamp for this user"
+    )
 
     def __str__(self):
-        return f"{self.user.username} Profile"
+        """String representation of the profile."""
+        if self.user:
+            return f"{self.user.username} Profile"
+        return "Profile (No User)"
 
     @property
     def profile_picture_url(self):
+        """
+        Returns the URL of the profile picture or a default image.
+        
+        Returns:
+            str: URL path to the profile picture
+        """
         if self.profile_picture:
             return self.profile_picture.url
         return '/static/images/default_profile.png'
+    
+    def generate_signature_stamp(self):
+        """
+        Generate a unique digital signature stamp for the user.
+        The stamp includes: full name (first + last), timestamp, and a unique identifier.
+        
+        Format: "SIGNED_BY:{first_name} {last_name}|TIMESTAMP:{iso_timestamp}|ID:{unique_id}"
+        
+        Returns:
+            str: The generated signature stamp
+            
+        Raises:
+            ValueError: If user is None or has no name
+        """
+        if not self.user:
+            raise ValueError("Cannot generate signature stamp: Profile has no associated user")
+        
+        # Get first and last name, fallback to username if names are not set
+        first_name = self.user.first_name.strip() if self.user.first_name else ""
+        last_name = self.user.last_name.strip() if self.user.last_name else ""
+        
+        # Construct full name
+        if first_name and last_name:
+            full_name = f"{first_name} {last_name}"
+        elif first_name:
+            full_name = first_name
+        elif last_name:
+            full_name = last_name
+        elif hasattr(self.user, 'username') and self.user.username:
+            # Fallback to username if no names are set
+            full_name = self.user.username
+        else:
+            raise ValueError("Cannot generate signature stamp: User has no name or username")
+        
+        try:
+            # Generate timestamp in ISO format
+            timestamp = timezone.now().isoformat()
+            
+            # Generate unique identifier using UUID
+            unique_id = uuid.uuid4().hex[:12].upper()
+            
+            # Create the signature stamp
+            stamp = f"SIGNED_BY:{full_name}|TIMESTAMP:{timestamp}|ID:{unique_id}"
+            
+            return stamp
+        except Exception as e:
+            # Log the error and re-raise with context
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generating signature stamp for user {full_name if 'full_name' in locals() else 'Unknown'}: {str(e)}")
+            raise
+    
+    def get_or_create_signature_stamp(self):
+        """
+        Get existing signature stamp or create a new one if it doesn't exist.
+        This method is safe to call multiple times and won't overwrite existing stamps.
+        
+        Returns:
+            str: The signature stamp (existing or newly created)
+        """
+        if self.signature_stamp:
+            return self.signature_stamp
+        
+        try:
+            self.signature_stamp = self.generate_signature_stamp()
+            self.save(update_fields=['signature_stamp'])
+            return self.signature_stamp
+        except ValueError as e:
+            # Return a placeholder if we can't generate a stamp
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not generate signature stamp: {str(e)}")
+            return None
+    
+    def display_signature_stamp(self):
+        """
+        Return a human-readable version of the signature stamp.
+        
+        Returns:
+            dict: Parsed components of the signature stamp or None if no stamp exists
+        """
+        if not self.signature_stamp:
+            return None
+        
+        try:
+            # Parse the stamp components
+            parts = self.signature_stamp.split('|')
+            stamp_data = {}
+            
+            for part in parts:
+                if ':' in part:
+                    key, value = part.split(':', 1)
+                    stamp_data[key] = value
+            
+            return stamp_data
+        except Exception:
+            return {'raw': self.signature_stamp}
+    
+    def regenerate_signature_stamp(self, force=False):
+        """
+        Regenerate the signature stamp. Use with caution as this will overwrite the existing stamp.
+        
+        Args:
+            force (bool): If True, regenerate even if a stamp already exists
+            
+        Returns:
+            str: The newly generated signature stamp
+            
+        Raises:
+            ValueError: If force=False and a stamp already exists
+        """
+        if self.signature_stamp and not force:
+            raise ValueError("Signature stamp already exists. Use force=True to regenerate.")
+        
+        self.signature_stamp = self.generate_signature_stamp()
+        self.save(update_fields=['signature_stamp'])
+        return self.signature_stamp
 
 
     
@@ -1175,6 +1311,7 @@ class Notification(auto_prefetch.Model):
             self.read_at = timezone.now()
 
 
+<<<<<<< Updated upstream
 class SupplierPriceCatalog(auto_prefetch.Model):
     """
     Model for tracking supplier prices for materials.
@@ -1608,4 +1745,96 @@ class SupplierInvoiceItem(auto_prefetch.Model):
         if self.quantity_received is not None:
             return abs(self.quantity_invoiced - self.quantity_received) > 0.01
         return False
+=======
+class WeeklyReport(auto_prefetch.Model):
+    """
+    Model to store generated weekly development reports.
+    Keeps a history of all reports sent for auditing and reference.
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+    ]
+    
+    # Report metadata
+    report_id = models.CharField(max_length=50, unique=True, editable=False, help_text="Unique report identifier")
+    generated_by = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='generated_reports')
+    generated_at = models.DateTimeField(auto_now_add=True)
+    
+    # Date range
+    start_date = models.DateField(help_text="Start date of the reporting period")
+    end_date = models.DateField(help_text="End date of the reporting period")
+    
+    # Report content
+    subject = models.CharField(max_length=500, help_text="Email subject line")
+    executive_summary = models.TextField(help_text="Brief overview of the week's activities")
+    new_features = models.TextField(blank=True, help_text="New features implemented")
+    bug_fixes = models.TextField(blank=True, help_text="Bug fixes and issues resolved")
+    database_changes = models.TextField(blank=True, help_text="Database migrations and schema changes")
+    code_improvements = models.TextField(blank=True, help_text="Code refactoring and improvements")
+    pending_tasks = models.TextField(blank=True, help_text="Pending tasks and known issues")
+    next_priorities = models.TextField(blank=True, help_text="Next week's priorities")
+    custom_notes = models.TextField(blank=True, help_text="Custom notes added by the generator")
+    
+    # Email details
+    recipients = models.TextField(help_text="Comma-separated list of recipient emails")
+    cc_recipients = models.TextField(blank=True, help_text="Comma-separated list of CC emails")
+    
+    # Status and tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    sent_at = models.DateTimeField(null=True, blank=True, help_text="When the report was sent")
+    error_message = models.TextField(blank=True, help_text="Error message if sending failed")
+    
+    # Statistics
+    commits_analyzed = models.IntegerField(default=0, help_text="Number of git commits analyzed")
+    files_scanned = models.IntegerField(default=0, help_text="Number of documentation files scanned")
+    migrations_found = models.IntegerField(default=0, help_text="Number of migrations found")
+    
+    # Full report content (for archival)
+    html_content = models.TextField(blank=True, help_text="Full HTML email content")
+    plain_text_content = models.TextField(blank=True, help_text="Plain text email content")
+    pdf_file = models.FileField(upload_to='weekly_reports/', blank=True, null=True, help_text="Generated PDF report")
+    
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['-generated_at']
+        verbose_name = 'Weekly Report'
+        verbose_name_plural = 'Weekly Reports'
+    
+    def __str__(self):
+        return f"Weekly Report {self.report_id} - {self.start_date} to {self.end_date}"
+    
+    def save(self, *args, **kwargs):
+        """Generate unique report ID if not set"""
+        if not self.report_id:
+            # Format: WR-YYYYMMDD-XXXX
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y%m%d')
+            random_suffix = str(uuid.uuid4())[:4].upper()
+            self.report_id = f"WR-{date_str}-{random_suffix}"
+        super().save(*args, **kwargs)
+    
+    def mark_as_sent(self):
+        """Mark report as successfully sent"""
+        self.status = 'sent'
+        self.sent_at = timezone.now()
+        self.error_message = ''
+        self.save()
+    
+    def mark_as_failed(self, error_message):
+        """Mark report as failed with error message"""
+        self.status = 'failed'
+        self.error_message = error_message
+        self.save()
+    
+    def get_recipients_list(self):
+        """Return list of recipient emails"""
+        return [email.strip() for email in self.recipients.split(',') if email.strip()]
+    
+    def get_cc_recipients_list(self):
+        """Return list of CC recipient emails"""
+        if self.cc_recipients:
+            return [email.strip() for email in self.cc_recipients.split(',') if email.strip()]
+        return []
+>>>>>>> Stashed changes
 

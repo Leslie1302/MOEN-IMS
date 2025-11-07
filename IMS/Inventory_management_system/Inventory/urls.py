@@ -50,6 +50,9 @@ from .boq_overissuance_views import (
     review_overissuance_justification, boq_overissuance_stats
 )
 
+# Import signature views
+from .signature_lookup_view import signature_lookup, signature_verify, signature_api_lookup
+from .signature_demo_view import signature_stamp_demo
 
 # Error handlers
 handler403 = custom_403_view
@@ -160,6 +163,14 @@ urlpatterns = [
     path('boq/overissuance/justifications/<int:pk>/review/', review_overissuance_justification, name='review_overissuance_justification'),
     path('boq/overissuance/stats/', boq_overissuance_stats, name='boq_overissuance_stats'),
     
+<<<<<<< Updated upstream
     # Supply Contract Management
     path('supply/', include('Inventory.supply_contract_urls')),
+=======
+    # Digital Signature Management
+    path('signatures/lookup/', signature_lookup, name='signature_lookup'),
+    path('signatures/verify/<int:user_id>/', signature_verify, name='signature_verify'),
+    path('signatures/api/lookup/', signature_api_lookup, name='signature_api_lookup'),
+    path('signatures/demo/', signature_stamp_demo, name='signature_demo'),
+>>>>>>> Stashed changes
 ]
