@@ -1313,6 +1313,7 @@ class Notification(auto_prefetch.Model):
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 class SupplierPriceCatalog(auto_prefetch.Model):
     """
     Model for tracking supplier prices for materials.
@@ -1749,6 +1750,8 @@ class SupplierInvoiceItem(auto_prefetch.Model):
 =======
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 class WeeklyReport(auto_prefetch.Model):
     """
     Model to store generated weekly development reports.
@@ -1840,6 +1843,9 @@ class WeeklyReport(auto_prefetch.Model):
             return [email.strip() for email in self.cc_recipients.split(',') if email.strip()]
         return []
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

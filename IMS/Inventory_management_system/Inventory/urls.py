@@ -165,9 +165,12 @@ urlpatterns = [
     
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     # Supply Contract Management
     path('supply/', include('Inventory.supply_contract_urls')),
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
     # Digital Signature Management
@@ -176,6 +179,9 @@ urlpatterns = [
     path('signatures/api/lookup/', signature_api_lookup, name='signature_api_lookup'),
     path('signatures/demo/', signature_stamp_demo, name='signature_demo'),
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

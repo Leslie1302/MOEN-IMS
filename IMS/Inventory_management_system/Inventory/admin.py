@@ -15,6 +15,9 @@ from .admin_weekly_report import WeeklyReportAdmin
 # Import weekly report admin
 from .admin_weekly_report import WeeklyReportAdmin
 
+# Import weekly report admin
+from .admin_weekly_report import WeeklyReportAdmin
+
 # Register your models here.
 
 admin.site.register(InventoryItem)
@@ -120,7 +123,10 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'signature_stamp')
     readonly_fields = ('signature_stamp', 'get_stamp_details')
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
     
     fieldsets = (
         ('User Information', {
