@@ -164,13 +164,19 @@ urlpatterns = [
     path('boq/overissuance/stats/', boq_overissuance_stats, name='boq_overissuance_stats'),
     
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     # Supply Contract Management
     path('supply/', include('Inventory.supply_contract_urls')),
 =======
+=======
+>>>>>>> Stashed changes
     # Digital Signature Management
     path('signatures/lookup/', signature_lookup, name='signature_lookup'),
     path('signatures/verify/<int:user_id>/', signature_verify, name='signature_verify'),
     path('signatures/api/lookup/', signature_api_lookup, name='signature_api_lookup'),
     path('signatures/demo/', signature_stamp_demo, name='signature_demo'),
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 ]

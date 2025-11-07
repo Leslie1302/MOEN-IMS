@@ -12,6 +12,9 @@ from .models import (
 # Import weekly report admin
 from .admin_weekly_report import WeeklyReportAdmin
 
+# Import weekly report admin
+from .admin_weekly_report import WeeklyReportAdmin
+
 # Register your models here.
 
 admin.site.register(InventoryItem)
@@ -116,6 +119,246 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ('user__is_active', 'user__is_staff')
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'signature_stamp')
     readonly_fields = ('signature_stamp', 'get_stamp_details')
+<<<<<<< Updated upstream
+=======
+    
+    fieldsets = (
+        ('User Information', {
+            'fields': ('user',)
+        }),
+        ('Profile Picture', {
+            'fields': ('profile_picture',)
+        }),
+        ('Digital Signature Stamp', {
+            'fields': ('signature_stamp', 'get_stamp_details'),
+            'description': 'Digital signature stamp is automatically generated. Use admin actions to regenerate if needed.'
+        }),
+    )
+    
+    def get_username(self, obj):
+        """Display username"""
+        return obj.user.username if obj.user else 'No User'
+    get_username.short_description = 'Username'
+    get_username.admin_order_field = 'user__username'
+    
+    def get_email(self, obj):
+        """Display email"""
+        return obj.user.email if obj.user else 'N/A'
+    get_email.short_description = 'Email'
+    get_email.admin_order_field = 'user__email'
+    
+    def has_signature_stamp(self, obj):
+        """Display if profile has a signature stamp"""
+        return bool(obj.signature_stamp)
+    has_signature_stamp.boolean = True
+    has_signature_stamp.short_description = 'Has Stamp'
+    
+    def get_stamp_details(self, obj):
+        """Display parsed signature stamp details"""
+        if not obj.signature_stamp:
+            return 'No signature stamp'
+        
+        stamp_data = obj.display_signature_stamp()
+        if stamp_data and isinstance(stamp_data, dict):
+            details = []
+            for key, value in stamp_data.items():
+                details.append(f"<strong>{key}:</strong> {value}")
+            return '<br>'.join(details)
+        return obj.signature_stamp
+    get_stamp_details.short_description = 'Stamp Details'
+    get_stamp_details.allow_tags = True
+    
+    # Admin actions
+    actions = ['regenerate_selected_stamps', 'regenerate_all_stamps', 'generate_missing_stamps']
+    
+    def regenerate_selected_stamps(self, request, queryset):
+        """
+        Regenerate signature stamps for selected profiles.
+        This will overwrite existing stamps.
+        """
+        success_count = 0
+        error_count = 0
+        skipped_count = 0
+        
+        for profile in queryset:
+            try:
+                # Check if profile has a user
+                if not profile.user:
+                    skipped_count += 1
+                    continue
+                
+                # Check if user has a username
+                if not hasattr(profile.user, 'username') or not profile.user.username:
+                    skipped_count += 1
+                    continue
+                
+                # Regenerate the stamp
+                profile.regenerate_signature_stamp(force=True)
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f'Error regenerating stamp for profile {profile.pk}: {str(e)}',
+                    level='error'
+                )
+        
+        # Success message
+        if success_count > 0:
+            self.message_user(
+                request,
+                f'Successfully regenerated {success_count} signature stamp(s).',
+                level='success'
+            )
+        
+        # Warning for skipped profiles
+        if skipped_count > 0:
+            self.message_user(
+                request,
+                f'Skipped {skipped_count} profile(s) without valid users.',
+                level='warning'
+            )
+        
+        # Error summary
+        if error_count > 0:
+            self.message_user(
+                request,
+                f'Failed to regenerate {error_count} stamp(s). Check error messages above.',
+                level='error'
+            )
+    
+    regenerate_selected_stamps.short_description = 'Regenerate signature stamps for selected profiles'
+    
+    def regenerate_all_stamps(self, request, queryset):
+        """
+        Regenerate signature stamps for ALL profiles in the database.
+        This action ignores the selection and processes all profiles.
+        """
+        from django.contrib import messages
+        
+        # Get all profiles
+        all_profiles = Profile.objects.all()
+        total_count = all_profiles.count()
+        success_count = 0
+        error_count = 0
+        skipped_count = 0
+        
+        for profile in all_profiles:
+            try:
+                # Check if profile has a user
+                if not profile.user:
+                    skipped_count += 1
+                    continue
+                
+                # Check if user has a username
+                if not hasattr(profile.user, 'username') or not profile.user.username:
+                    skipped_count += 1
+                    continue
+                
+                # Regenerate the stamp
+                profile.regenerate_signature_stamp(force=True)
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+        
+        # Comprehensive message
+        self.message_user(
+            request,
+            f'Processed {total_count} profile(s): '
+            f'{success_count} regenerated, '
+            f'{skipped_count} skipped (no user), '
+            f'{error_count} errors.',
+            level='success' if error_count == 0 else 'warning'
+        )
+    
+    regenerate_all_stamps.short_description = '⚠️ Regenerate ALL signature stamps (ignores selection)'
+    
+    def generate_missing_stamps(self, request, queryset):
+        """
+        Generate signature stamps only for profiles that don't have one.
+        This will not overwrite existing stamps.
+        """
+        success_count = 0
+        error_count = 0
+        skipped_no_user = 0
+        skipped_has_stamp = 0
+        
+        for profile in queryset:
+            try:
+                # Skip if already has a stamp
+                if profile.signature_stamp:
+                    skipped_has_stamp += 1
+                    continue
+                
+                # Check if profile has a user
+                if not profile.user:
+                    skipped_no_user += 1
+                    continue
+                
+                # Check if user has a username
+                if not hasattr(profile.user, 'username') or not profile.user.username:
+                    skipped_no_user += 1
+                    continue
+                
+                # Generate the stamp
+                stamp = profile.get_or_create_signature_stamp()
+                if stamp:
+                    success_count += 1
+                else:
+                    error_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f'Error generating stamp for profile {profile.pk}: {str(e)}',
+                    level='error'
+                )
+        
+        # Success message
+        if success_count > 0:
+            self.message_user(
+                request,
+                f'Successfully generated {success_count} signature stamp(s).',
+                level='success'
+            )
+        
+        # Info about skipped profiles
+        if skipped_has_stamp > 0:
+            self.message_user(
+                request,
+                f'{skipped_has_stamp} profile(s) already had stamps (not overwritten).',
+                level='info'
+            )
+        
+        if skipped_no_user > 0:
+            self.message_user(
+                request,
+                f'Skipped {skipped_no_user} profile(s) without valid users.',
+                level='warning'
+            )
+        
+        # Error summary
+        if error_count > 0:
+            self.message_user(
+                request,
+                f'Failed to generate {error_count} stamp(s). Check error messages above.',
+                level='error'
+            )
+    
+    generate_missing_stamps.short_description = 'Generate stamps for profiles without one'
+
+admin.site.register(Warehouse)
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'contact_person', 'contact_phone', 'contact_email', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'code', 'contact_person', 'contact_email')
+    readonly_fields = ('created_at', 'updated_at')
+>>>>>>> Stashed changes
     
     fieldsets = (
         ('User Information', {
