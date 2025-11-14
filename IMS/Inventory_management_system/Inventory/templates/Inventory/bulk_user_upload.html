@@ -1,0 +1,391 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block title %}Bulk User Upload{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 30px;
+    }
+    
+    .page-header {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 3px solid #417690;
+    }
+    
+    .page-header h1 {
+        color: #417690;
+        margin: 0 0 10px 0;
+    }
+    
+    .upload-form {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    
+    .info-box {
+        background: #e7f3fe;
+        border-left: 4px solid #2196F3;
+        padding: 20px;
+        margin-bottom: 25px;
+        border-radius: 4px;
+    }
+    
+    .info-box h4 {
+        margin-top: 0;
+        color: #1976D2;
+    }
+    
+    .info-box ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    
+    .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 20px;
+        margin-bottom: 25px;
+        border-radius: 4px;
+    }
+    
+    .warning-box h4 {
+        margin-top: 0;
+        color: #856404;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    
+    .form-group .help-text {
+        display: block;
+        margin-top: 5px;
+        font-size: 13px;
+        color: #666;
+        font-style: italic;
+    }
+    
+    .btn-upload {
+        background: #28a745;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .btn-upload:hover {
+        background: #218838;
+    }
+    
+    .btn-download {
+        background: #417690;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        font-size: 16px;
+        font-weight: bold;
+        text-decoration: none;
+        display: inline-block;
+        margin-bottom: 20px;
+    }
+    
+    .btn-download:hover {
+        background: #2e5266;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .results-section {
+        margin-top: 30px;
+    }
+    
+    .results-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 30px;
+    }
+    
+    .results-table h3 {
+        background: #417690;
+        color: white;
+        padding: 15px 20px;
+        margin: 0;
+    }
+    
+    .results-table.success h3 {
+        background: #28a745;
+    }
+    
+    .results-table.warning h3 {
+        background: #ffc107;
+        color: #333;
+    }
+    
+    .results-table.danger h3 {
+        background: #dc3545;
+    }
+    
+    .results-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        text-align: left;
+        font-weight: bold;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .results-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .results-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .password-display {
+        font-family: 'Courier New', monospace;
+        background: #f8f9fa;
+        padding: 5px 10px;
+        border-radius: 3px;
+        border: 1px solid #dee2e6;
+        font-size: 14px;
+    }
+    
+    .template-example {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 15px 0;
+        border: 1px solid #dee2e6;
+    }
+    
+    .template-example table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .template-example th,
+    .template-example td {
+        padding: 8px;
+        border: 1px solid #dee2e6;
+        text-align: left;
+    }
+    
+    .template-example th {
+        background: #417690;
+        color: white;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="page-header">
+        <h1>👥 Bulk User Upload</h1>
+        <p class="text-muted">Create multiple user accounts from an Excel file</p>
+    </div>
+    
+    {% if not show_results %}
+    <!-- Upload Form -->
+    <div class="upload-form">
+        <div class="info-box">
+            <h4>ℹ️ Instructions</h4>
+            <p>Upload an Excel file (.xlsx or .xls) with the following columns:</p>
+            <ul>
+                <li><strong>username</strong> - Unique username for login (required)</li>
+                <li><strong>name</strong> - Full name of the user (e.g., "John Doe")</li>
+                <li><strong>email</strong> - Email address (required)</li>
+            </ul>
+            <p><strong>Note:</strong> Passwords will be generated automatically and can be sent to users via email.</p>
+        </div>
+        
+        <div class="template-example">
+            <h5>📋 Excel File Format Example:</h5>
+            <table>
+                <thead>
+                    <tr>
+                        <th>username</th>
+                        <th>name</th>
+                        <th>email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>jdoe</td>
+                        <td>John Doe</td>
+                        <td>john.doe@example.com</td>
+                    </tr>
+                    <tr>
+                        <td>asmith</td>
+                        <td>Alice Smith</td>
+                        <td>alice.smith@example.com</td>
+                    </tr>
+                    <tr>
+                        <td>bwilson</td>
+                        <td>Bob Wilson</td>
+                        <td>bob.wilson@example.com</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="warning-box">
+            <h4>⚠️ Important Notes</h4>
+            <ul>
+                <li>Users with duplicate usernames or emails will be skipped automatically</li>
+                <li>Passwords are 12 characters long (letters and numbers)</li>
+                <li>If "Send welcome email" is checked, users will receive their credentials via email</li>
+                <li>All users will be created with standard user permissions unless assigned to a group</li>
+            </ul>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                {{ form.excel_file.label_tag }}
+                {{ form.excel_file }}
+                {% if form.excel_file.help_text %}
+                <span class="help-text">{{ form.excel_file.help_text }}</span>
+                {% endif %}
+                {% if form.excel_file.errors %}
+                <div class="text-danger">{{ form.excel_file.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                {{ form.user_group.label_tag }}
+                {{ form.user_group }}
+                {% if form.user_group.help_text %}
+                <span class="help-text">{{ form.user_group.help_text }}</span>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <div class="form-check">
+                    {{ form.send_welcome_email }}
+                    <label class="form-check-label" for="{{ form.send_welcome_email.id_for_label }}">
+                        {{ form.send_welcome_email.label }}
+                    </label>
+                </div>
+                {% if form.send_welcome_email.help_text %}
+                <span class="help-text">{{ form.send_welcome_email.help_text }}</span>
+                {% endif %}
+            </div>
+            
+            <button type="submit" class="btn-upload">
+                📤 Upload and Create Users
+            </button>
+        </form>
+    </div>
+    {% endif %}
+    
+    {% if show_results %}
+    <!-- Results Section -->
+    <div class="results-section">
+        {% if created_users %}
+        <div class="results-table success">
+            <h3>✅ Successfully Created Users ({{ created_users|length }})</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Generated Password</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in created_users %}
+                    <tr>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.email }}</td>
+                        <td><span class="password-display">{{ user.password }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        {% if skipped_users %}
+        <div class="results-table warning">
+            <h3>⚠️ Skipped Users ({{ skipped_users|length }})</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in skipped_users %}
+                    <tr>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        {% if failed_users %}
+        <div class="results-table danger">
+            <h3>❌ Failed to Create ({{ failed_users|length }})</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in failed_users %}
+                    <tr>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        <div style="margin-top: 30px;">
+            <a href="{% url 'bulk_user_upload' %}" class="btn-download">
+                ← Upload Another File
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

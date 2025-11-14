@@ -239,7 +239,8 @@
                                         data-material="{{ transport.material_name }}"
                                         data-transporter="{{ transport.transporter.name }}"
                                         data-driver="{{ transport.driver_name }}"
-                                        data-order-code="{{ transport.material_order.request_code }}">
+                                        data-order-code="{{ transport.material_order.request_code }}"
+                                        data-consignment-number="{{ transport.consignment_number|default:'' }}">
                                     <i class="fas fa-edit"></i> Update
                                 </button>
                             </div>
@@ -438,7 +439,8 @@
                                 data-material="{{ transport.material_name }}"
                                 data-transporter="{{ transport.transporter.name }}"
                                 data-driver="{{ transport.driver_name }}"
-                                data-order-code="{{ transport.material_order.request_code }}">
+                                data-order-code="{{ transport.material_order.request_code }}"
+                                data-consignment-number="{{ transport.consignment_number|default:'' }}">
                             <i class="fas fa-edit"></i> Update Status
                         </button>
                         {% endif %}
@@ -598,6 +600,13 @@
                 {% csrf_token %}
                 <input type="hidden" id="transportId" name="transport_id">
                 <div class="modal-body">
+                    <!-- Bulk Consignment Warning -->
+                    <div id="bulkConsignmentWarning" class="alert alert-warning mb-3" style="display: none;">
+                        <h6 class="mb-2"><i class="fas fa-boxes"></i> <strong>Bulk Consignment</strong></h6>
+                        <p class="mb-1">This transport is part of a bulk consignment: <strong><span id="modalConsignmentNumber"></span></strong></p>
+                        <p class="mb-0"><small><i class="fas fa-info-circle"></i> Updating this status will affect <strong>ALL</strong> transports in this consignment.</small></p>
+                    </div>
+                    
                     <!-- Transport Info -->
                     <div class="alert alert-info mb-3">
                         <h6 class="mb-2"><strong>Transport Details</strong></h6>
@@ -688,6 +697,7 @@ $(document).ready(function() {
         var transporter = $(this).data('transporter');
         var driver = $(this).data('driver');
         var orderCode = $(this).data('order-code');
+        var consignmentNumber = $(this).data('consignment-number');
         
         // Populate hidden field
         $('#transportId').val(transportId);
@@ -697,6 +707,14 @@ $(document).ready(function() {
         $('#modalMaterial').text(material);
         $('#modalTransporter').text(transporter);
         $('#modalDriver').text(driver || 'N/A');
+        
+        // Show/hide bulk consignment warning
+        if (consignmentNumber) {
+            $('#modalConsignmentNumber').text(consignmentNumber);
+            $('#bulkConsignmentWarning').show();
+        } else {
+            $('#bulkConsignmentWarning').hide();
+        }
         
         // Show current status with appropriate badge color
         var statusBadge = $('#currentStatusBadge');
@@ -760,6 +778,17 @@ $(document).ready(function() {
                 if (response.success) {
                     $('#statusSubmitText').text('Success!');
                     $('#statusSubmitSpinner').addClass('d-none');
+                    
+                    // Show success message with details
+                    if (response.is_bulk && response.updated_count > 1) {
+                        // Bulk consignment update
+                        var message = 'Bulk consignment updated! ' + response.updated_count + ' transport(s) updated to ' + response.status;
+                        if (response.updated_orders && response.updated_orders.length > 0) {
+                            message += '\n\nUpdated orders: ' + response.updated_orders.join(', ');
+                        }
+                        alert(message);
+                    }
+                    
                     setTimeout(function() {
                         $('#statusUpdateModal').modal('hide');
                         location.reload();

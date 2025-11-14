@@ -1,0 +1,244 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}Import Users from Excel{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+.import-instructions {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.import-instructions h4 {
+    color: #495057;
+    margin-top: 0;
+}
+
+.import-instructions ul {
+    margin-bottom: 0;
+}
+
+.preview-table {
+    margin-top: 15px;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.preview-table th,
+.preview-table td {
+    border: 1px solid #dee2e6;
+    padding: 8px;
+    text-align: left;
+}
+
+.preview-table th {
+    background-color: #e9ecef;
+    font-weight: bold;
+}
+
+.security-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    color: #856404;
+}
+
+.security-warning strong {
+    color: #721c24;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="security-warning">
+        <strong>⚠️ Security Notice:</strong> This function will create user accounts with automatically generated passwords. 
+        Make sure to save the generated passwords securely and share them with users through a secure channel.
+    </div>
+
+    <div class="import-instructions">
+        <h4>📋 Excel File Requirements</h4>
+        <ul>
+            <li><strong>File Format:</strong> Excel (.xlsx or .xls)</li>
+            <li><strong>Required Columns:</strong>
+                <ul>
+                    <li><code>username</code> - Unique username for login</li>
+                    <li><code>name</code> - Full name (will be split into first/last name)</li>
+                    <li><code>email</code> - Valid email address (must be unique)</li>
+                </ul>
+            </li>
+            <li><strong>File Size:</strong> Maximum 10MB</li>
+            <li><strong>Row Limit:</strong> Maximum 1000 users per import</li>
+            <li><strong>Data Validation:</strong> Duplicate usernames and emails will be rejected</li>
+        </ul>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="import-form">
+        {% csrf_token %}
+        
+        <fieldset class="module aligned">
+            <h2>Import Users from Excel</h2>
+            
+            {% if form.non_field_errors %}
+                <div class="errornote">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="form-row">
+                <div>
+                    <label for="{{ form.excel_file.id_for_label }}" class="required">{{ form.excel_file.label }}:</label>
+                    {{ form.excel_file }}
+                    {% if form.excel_file.help_text %}
+                        <p class="help">{{ form.excel_file.help_text }}</p>
+                    {% endif %}
+                    {% if form.excel_file.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.excel_file.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div>
+                    <label for="{{ form.default_group.id_for_label }}">{{ form.default_group.label }}:</label>
+                    {{ form.default_group }}
+                    {% if form.default_group.help_text %}
+                        <p class="help">{{ form.default_group.help_text }}</p>
+                    {% endif %}
+                    {% if form.default_group.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.default_group.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div>
+                    <label for="{{ form.send_email_notifications.id_for_label }}">
+                        {{ form.send_email_notifications }} {{ form.send_email_notifications.label }}
+                    </label>
+                    {% if form.send_email_notifications.help_text %}
+                        <p class="help">{{ form.send_email_notifications.help_text }}</p>
+                    {% endif %}
+                    {% if form.send_email_notifications.errors %}
+                        <ul class="errorlist">
+                            {% for error in form.send_email_notifications.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        </fieldset>
+        
+        <div class="submit-row">
+            <input type="submit" value="Import Users" class="default" />
+            <a href="{% url 'admin:auth_user_changelist' %}" class="button cancel-link">Cancel</a>
+        </div>
+    </form>
+
+    {% if available_groups %}
+    <div class="import-instructions">
+        <h4>📊 Available Groups</h4>
+        <p>You can assign imported users to one of these existing groups:</p>
+        <ul>
+            {% for group in available_groups %}
+                <li><strong>{{ group.name }}</strong> ({{ group.user_set.count }} users)</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="import-instructions">
+        <h4>📝 Sample Excel Format</h4>
+        <p>Your Excel file should look like this:</p>
+        <table class="preview-table">
+            <thead>
+                <tr>
+                    <th>username</th>
+                    <th>name</th>
+                    <th>email</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>john.doe</td>
+                    <td>John Doe</td>
+                    <td>john.doe@example.com</td>
+                </tr>
+                <tr>
+                    <td>jane.smith</td>
+                    <td>Jane Smith</td>
+                    <td>jane.smith@example.com</td>
+                </tr>
+                <tr>
+                    <td>mike.wilson</td>
+                    <td>Mike Wilson</td>
+                    <td>mike.wilson@example.com</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="import-instructions">
+        <h4>🔐 Password Generation</h4>
+        <p>The system will automatically generate secure passwords for each user with the following characteristics:</p>
+        <ul>
+            <li>12 characters long</li>
+            <li>Contains uppercase and lowercase letters</li>
+            <li>Contains numbers and special characters</li>
+            <li>Cryptographically secure random generation</li>
+        </ul>
+        <p><strong>Important:</strong> Generated passwords will be displayed after import. Make sure to save them securely!</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<div id="content-related">
+    <div class="module" id="recent-actions-module">
+        <h2>Quick Actions</h2>
+        <ul class="actionlist">
+            <li class="addlink">
+                <a href="{% url 'admin:auth_user_add' %}">Add single user</a>
+            </li>
+            <li class="changelink">
+                <a href="{% url 'admin:auth_user_changelist' %}">View all users</a>
+            </li>
+            <li class="changelink">
+                <a href="{% url 'admin:auth_group_changelist' %}">Manage groups</a>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="module">
+        <h2>Help & Documentation</h2>
+        <ul class="actionlist">
+            <li>
+                <a href="{% url 'download_user_import_template' %}" target="_blank">
+                    📥 Download Excel Template
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Excel file should have columns: username, name, email\\n\\nExample:\\nusername: john.doe\\nname: John Doe\\nemail: john.doe@example.com')">
+                    📖 Quick Help
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

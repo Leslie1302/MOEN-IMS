@@ -1,0 +1,459 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}My Assigned Orders - Stores Staff{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stats-card {
+        border-left: 4px solid #0d6efd;
+        transition: all 0.3s ease;
+    }
+    .stats-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .order-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #dee2e6;
+    }
+    .order-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-left-color: #0d6efd;
+    }
+    .order-card.in-progress {
+        border-left-color: #0dcaf0;
+        background-color: #f8f9fa;
+    }
+    .order-card.completed {
+        border-left-color: #198754;
+        opacity: 0.8;
+    }
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .status-Pending { background-color: #fff3cd; color: #856404; }
+    .status-Assigned { background-color: #cfe2ff; color: #084298; }
+    .status-In-Progress { background-color: #cff4fc; color: #055160; }
+    .status-Completed { background-color: #d1e7dd; color: #0f5132; }
+    .priority-urgent { color: #dc3545; font-weight: bold; }
+    .priority-high { color: #fd7e14; font-weight: bold; }
+    .priority-medium { color: #0dcaf0; }
+    .priority-low { color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block full_width_content %}
+{% csrf_token %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">📋 My Assigned Orders</h1>
+            <p class="text-muted">Orders assigned to you for processing</p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #0d6efd;">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Total Assigned</h6>
+                    <h3 class="mb-0">{{ total }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #ffc107;">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Pending Start</h6>
+                    <h3 class="mb-0">{{ assigned }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #0dcaf0;">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">In Progress</h6>
+                    <h3 class="mb-0">{{ in_progress }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #198754;">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Completed</h6>
+                    <h3 class="mb-0">{{ completed }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <label for="statusFilter" class="form-label">Status</label>
+                    <select class="form-select" id="statusFilter" name="status">
+                        <option value="">All Statuses</option>
+                        {% for status_code, status_name in status_choices %}
+                            <option value="{{ status_code }}" {% if selected_status == status_code %}selected{% endif %}>
+                                {{ status_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label for="searchInput" class="form-label">Search</label>
+                    <input type="text" class="form-control" id="searchInput" name="search" 
+                           placeholder="Request code, material name..." value="{{ search_query }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Orders List -->
+    {% if assignments %}
+        <div id="ordersList">
+            {% for assignment in assignments %}
+                <div class="card order-card mb-3 {% if assignment.status == 'In Progress' %}in-progress{% elif assignment.status == 'Completed' %}completed{% endif %}">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h5 class="mb-1">
+                                            <strong>{{ assignment.material_order.request_code }}</strong>
+                                            <span class="badge bg-danger ms-2">Release Request</span>
+                                        </h5>
+                                        <h6 class="mb-2 text-primary">{{ assignment.material_order.name }}</h6>
+                                    </div>
+                                    <span class="status-badge status-{{ assignment.status|cut:" " }}">
+                                        {{ assignment.get_status_display }}
+                                    </span>
+                                </div>
+
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <i class="fas fa-user"></i> Requested by: <strong>{{ assignment.material_order.user.username }}</strong>
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <i class="fas fa-user-shield"></i> Assigned by: <strong>{{ assignment.assigned_by.username|default:"System" }}</strong>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-2">
+                                    <div class="col-md-4">
+                                        <small><i class="fas fa-box"></i> Quantity: <strong>{{ assignment.material_order.quantity|floatformat:0|intcomma }}</strong> {{ assignment.material_order.unit }}</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small><i class="fas fa-warehouse"></i> {{ assignment.material_order.warehouse|default:"No warehouse" }}</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="priority-{{ assignment.material_order.priority|lower }}">
+                                            <i class="fas fa-flag"></i> {{ assignment.material_order.priority }} Priority
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> Requested: {{ assignment.material_order.date_requested|date:"M d, Y" }}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock"></i> Assigned: {{ assignment.assigned_at|date:"M d, Y H:i" }}
+                                        </small>
+                                    </div>
+                                </div>
+
+                                {% if assignment.material_order.region or assignment.material_order.district %}
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-map-marker-alt"></i> 
+                                            {% if assignment.material_order.region %}{{ assignment.material_order.region }}{% endif %}
+                                            {% if assignment.material_order.district %}, {{ assignment.material_order.district }}{% endif %}
+                                        </small>
+                                    </div>
+                                {% endif %}
+
+                                {% if assignment.assignment_notes %}
+                                    <div class="mt-3">
+                                        <div class="alert alert-info mb-0 py-2">
+                                            <strong><i class="fas fa-sticky-note"></i> Assignment Notes:</strong><br>
+                                            {{ assignment.assignment_notes }}
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                {% if assignment.completion_notes %}
+                                    <div class="mt-2">
+                                        <div class="alert alert-success mb-0 py-2">
+                                            <strong><i class="fas fa-check-circle"></i> Completion Notes:</strong><br>
+                                            {{ assignment.completion_notes }}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="d-grid gap-2">
+                                    {% if assignment.status == 'Assigned' %}
+                                        <button type="button" class="btn btn-primary btn-lg" 
+                                                onclick="updateStatus({{ assignment.id }}, 'In Progress')">
+                                            <i class="fas fa-play"></i> Start Working
+                                        </button>
+                                    {% elif assignment.status == 'In Progress' %}
+                                        <button type="button" class="btn btn-success btn-lg" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#completeModal{{ assignment.id }}">
+                                            <i class="fas fa-check-double"></i> Mark as Completed
+                                        </button>
+                                        <a href="{% url 'transport_assignment' %}?order_id={{ assignment.material_order.id }}" 
+                                           class="btn btn-outline-primary">
+                                            <i class="fas fa-truck"></i> Assign to Transporter
+                                        </a>
+                                    {% elif assignment.status == 'Completed' %}
+                                        <div class="alert alert-success mb-0">
+                                            <i class="fas fa-check-circle"></i> Completed
+                                            {% if assignment.completed_at %}
+                                                <br><small>{{ assignment.completed_at|date:"M d, Y H:i" }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    <button type="button" class="btn btn-outline-info" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#detailModal{{ assignment.id }}">
+                                        <i class="fas fa-info-circle"></i> View Full Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complete Modal -->
+                <div class="modal fade" id="completeModal{{ assignment.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title">Complete Assignment</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form onsubmit="completeAssignment(event, {{ assignment.id }})">
+                                <div class="modal-body">
+                                    <p>Mark this assignment as completed?</p>
+                                    <div class="mb-3">
+                                        <label for="completionNotes{{ assignment.id }}" class="form-label">Completion Notes (Optional)</label>
+                                        <textarea class="form-control" id="completionNotes{{ assignment.id }}" 
+                                                  rows="3" placeholder="Add any notes about completion..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-check"></i> Mark Completed
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detail Modal -->
+                <div class="modal fade" id="detailModal{{ assignment.id }}" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">Order Details - {{ assignment.material_order.request_code }}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted">Material Order</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <th>Request Code:</th>
+                                                <td>{{ assignment.material_order.request_code }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Material:</th>
+                                                <td>{{ assignment.material_order.name }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Quantity:</th>
+                                                <td>{{ assignment.material_order.quantity|floatformat:0|intcomma }} {{ assignment.material_order.unit }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Category:</th>
+                                                <td>{{ assignment.material_order.category }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Warehouse:</th>
+                                                <td>{{ assignment.material_order.warehouse|default:"N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Priority:</th>
+                                                <td><span class="priority-{{ assignment.material_order.priority|lower }}">{{ assignment.material_order.priority }}</span></td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted">Location & Project</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <th>Region:</th>
+                                                <td>{{ assignment.material_order.region|default:"N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>District:</th>
+                                                <td>{{ assignment.material_order.district|default:"N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Consultant:</th>
+                                                <td>{{ assignment.material_order.consultant|default:"N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Contractor:</th>
+                                                <td>{{ assignment.material_order.contractor|default:"N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Package:</th>
+                                                <td>{{ assignment.material_order.package_number|default:"N/A" }}</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">No assigned orders</h5>
+                <p class="text-muted">
+                    {% if selected_status or search_query %}
+                        Try adjusting your filters.
+                    {% else %}
+                        You don't have any orders assigned to you yet.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function updateStatus(assignmentId, newStatus) {
+    if (!confirm('Are you sure you want to start working on this order?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('status', newStatus);
+
+    fetch(`/stores/assignment/${assignmentId}/update-status/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error updating status: ' + error);
+    });
+}
+
+function completeAssignment(event, assignmentId) {
+    event.preventDefault();
+
+    const notes = document.getElementById(`completionNotes${assignmentId}`).value;
+    const formData = new FormData();
+    formData.append('status', 'Completed');
+    formData.append('notes', notes);
+
+    fetch(`/stores/assignment/${assignmentId}/update-status/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+</script>
+{% endblock %}

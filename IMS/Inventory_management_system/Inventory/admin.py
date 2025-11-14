@@ -2,12 +2,21 @@ from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
+from django.urls import path
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.http import HttpResponse
+from django.utils.html import format_html
 from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, 
     BillOfQuantity, Notification, BoQOverissuanceJustification,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem
+    SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment
 )
+from .forms import ExcelUserImportForm
+from .user_import import ExcelUserImporter
+import tempfile
+import os
 
 # Import weekly report admin
 from .admin_weekly_report import WeeklyReportAdmin
@@ -55,6 +64,130 @@ class CustomUserAdmin(UserAdmin):
     )
     
     filter_horizontal = ('groups', 'user_permissions')
+    
+    def get_urls(self):
+        """Add custom URLs for user import functionality"""
+        urls = super().get_urls()
+        custom_urls = [
+            path('import-users/', self.import_users_view, name='admin_import_users'),
+            path('download-import-report/', self.download_report_view, name='download_import_report'),
+        ]
+        return custom_urls + urls
+    
+    def import_users_view(self, request):
+        """Handle Excel user import through admin interface"""
+        if not request.user.is_superuser:
+            messages.error(request, 'Only superusers can import users.')
+            return redirect('admin:index')
+        
+        if request.method == 'POST':
+            form = ExcelUserImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                return self.process_excel_import(request, form)
+        else:
+            form = ExcelUserImportForm()
+        
+        context = {
+            'title': 'Import Users from Excel',
+            'form': form,
+            'opts': User._meta,
+            'has_change_permission': True,
+            'available_groups': Group.objects.all(),
+        }
+        
+        return render(request, 'admin/auth/user/import_users.html', context)
+    
+    def process_excel_import(self, request, form):
+        """Process the Excel file and import users"""
+        excel_file = form.cleaned_data['excel_file']
+        default_group = form.cleaned_data.get('default_group')
+        
+        # Save uploaded file temporarily
+        temp_file_path = None
+        try:
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                for chunk in excel_file.chunks():
+                    temp_file.write(chunk)
+                temp_file_path = temp_file.name
+            
+            # Import users
+            importer = ExcelUserImporter()
+            results = importer.import_users_from_excel(
+                temp_file_path, 
+                default_group.name if default_group else None
+            )
+            
+            # Display results
+            if results['success_count'] > 0:
+                success_msg = f"Successfully imported {results['success_count']} users."
+                if results['created_users']:
+                    # Create detailed success message with passwords
+                    user_details = []
+                    for user_info in results['created_users']:
+                        user_details.append(
+                            f"• {user_info['username']} ({user_info['email']}) - Password: {user_info['password']}"
+                        )
+                    
+                    detailed_msg = success_msg + "\\n\\nCreated users:\\n" + "\\n".join(user_details)
+                    detailed_msg += "\\n\\nIMPORTANT: Save these passwords and share them securely with users."
+                    
+                    messages.success(request, detailed_msg)
+                else:
+                    messages.success(request, success_msg)
+            
+            if results['error_count'] > 0:
+                error_msg = f"Encountered {results['error_count']} errors during import."
+                if results['errors']:
+                    error_details = "\\n".join([f"• {error}" for error in results['errors']])
+                    error_msg += f"\\n\\nErrors:\\n{error_details}"
+                messages.error(request, error_msg)
+            
+            # Generate and store report for download
+            if results['success_count'] > 0 or results['error_count'] > 0:
+                report_content = importer.generate_import_report()
+                request.session['import_report'] = report_content
+                request.session['import_report_filename'] = f"user_import_report.txt"
+                
+                # Add download link message
+                messages.info(request, format_html(
+                    'Import completed. <a href="{}" class="button">Download Detailed Report</a>',
+                    '/admin/auth/user/download-import-report/'
+                ))
+            
+            return redirect('admin:auth_user_changelist')
+            
+        except Exception as e:
+            messages.error(request, f'Import failed: {str(e)}')
+            return redirect('admin:admin_import_users')
+            
+        finally:
+            # Clean up temporary file
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except OSError:
+                    pass
+    
+    def download_report_view(self, request):
+        """Download the import report"""
+        report_content = request.session.get('import_report')
+        filename = request.session.get('import_report_filename', 'user_import_report.txt')
+        
+        if not report_content:
+            messages.error(request, 'No report available for download.')
+            return redirect('admin:index')
+        
+        response = HttpResponse(report_content, content_type='text/plain')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        # Clear report from session after download
+        if 'import_report' in request.session:
+            del request.session['import_report']
+        if 'import_report_filename' in request.session:
+            del request.session['import_report_filename']
+        
+        return response
 
 # Custom Group Admin for managing roles
 @admin.register(Group)
@@ -87,10 +220,10 @@ class CustomGroupAdmin(GroupAdmin):
 
 @admin.register(MaterialOrder)
 class MaterialOrderAdmin(admin.ModelAdmin):
-    list_display = ('request_code', 'name', 'quantity', 'status', 'request_type', 'user', 'processed_by', 'processed_at', 'date_requested')
-    list_filter = ('status', 'request_type', 'priority', 'date_requested', 'processed_at')
-    search_fields = ('request_code', 'name', 'user__username', 'processed_by__username')
-    readonly_fields = ('processed_by', 'processed_at', 'last_updated_by', 'date_requested')
+    list_display = ('request_code', 'name', 'quantity', 'status', 'request_type', 'user', 'assigned_to', 'processed_by', 'processed_at', 'date_requested')
+    list_filter = ('status', 'request_type', 'priority', 'date_requested', 'processed_at', 'assigned_to')
+    search_fields = ('request_code', 'name', 'user__username', 'processed_by__username', 'assigned_to__username')
+    readonly_fields = ('processed_by', 'processed_at', 'assigned_to', 'assigned_at', 'assigned_by', 'last_updated_by', 'date_requested')
     date_hierarchy = 'date_requested'
     
     fieldsets = (
@@ -102,6 +235,10 @@ class MaterialOrderAdmin(admin.ModelAdmin):
         }),
         ('Request Details', {
             'fields': ('date_requested', 'date_required', 'status', 'request_code')
+        }),
+        ('Assignment Information', {
+            'fields': ('assigned_to', 'assigned_by', 'assigned_at'),
+            'classes': ('collapse',)
         }),
         ('Processing Information', {
             'fields': ('processed_quantity', 'remaining_quantity', 'processed_by', 'processed_at'),
@@ -122,11 +259,6 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ('user__is_active', 'user__is_staff')
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'signature_stamp')
     readonly_fields = ('signature_stamp', 'get_stamp_details')
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
     
     fieldsets = (
         ('User Information', {
@@ -357,246 +489,6 @@ class ProfileAdmin(admin.ModelAdmin):
     generate_missing_stamps.short_description = 'Generate stamps for profiles without one'
 
 admin.site.register(Warehouse)
-
-@admin.register(Supplier)
-class SupplierAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'contact_person', 'contact_phone', 'contact_email', 'is_active', 'created_at')
-    list_filter = ('is_active', 'created_at')
-    search_fields = ('name', 'code', 'contact_person', 'contact_email')
-    readonly_fields = ('created_at', 'updated_at')
->>>>>>> Stashed changes
-    
-    fieldsets = (
-        ('User Information', {
-            'fields': ('user',)
-        }),
-        ('Profile Picture', {
-            'fields': ('profile_picture',)
-        }),
-        ('Digital Signature Stamp', {
-            'fields': ('signature_stamp', 'get_stamp_details'),
-            'description': 'Digital signature stamp is automatically generated. Use admin actions to regenerate if needed.'
-        }),
-    )
-    
-    def get_username(self, obj):
-        """Display username"""
-        return obj.user.username if obj.user else 'No User'
-    get_username.short_description = 'Username'
-    get_username.admin_order_field = 'user__username'
-    
-    def get_email(self, obj):
-        """Display email"""
-        return obj.user.email if obj.user else 'N/A'
-    get_email.short_description = 'Email'
-    get_email.admin_order_field = 'user__email'
-    
-    def has_signature_stamp(self, obj):
-        """Display if profile has a signature stamp"""
-        return bool(obj.signature_stamp)
-    has_signature_stamp.boolean = True
-    has_signature_stamp.short_description = 'Has Stamp'
-    
-    def get_stamp_details(self, obj):
-        """Display parsed signature stamp details"""
-        if not obj.signature_stamp:
-            return 'No signature stamp'
-        
-        stamp_data = obj.display_signature_stamp()
-        if stamp_data and isinstance(stamp_data, dict):
-            details = []
-            for key, value in stamp_data.items():
-                details.append(f"<strong>{key}:</strong> {value}")
-            return '<br>'.join(details)
-        return obj.signature_stamp
-    get_stamp_details.short_description = 'Stamp Details'
-    get_stamp_details.allow_tags = True
-    
-    # Admin actions
-    actions = ['regenerate_selected_stamps', 'regenerate_all_stamps', 'generate_missing_stamps']
-    
-    def regenerate_selected_stamps(self, request, queryset):
-        """
-        Regenerate signature stamps for selected profiles.
-        This will overwrite existing stamps.
-        """
-        success_count = 0
-        error_count = 0
-        skipped_count = 0
-        
-        for profile in queryset:
-            try:
-                # Check if profile has a user
-                if not profile.user:
-                    skipped_count += 1
-                    continue
-                
-                # Check if user has a username
-                if not hasattr(profile.user, 'username') or not profile.user.username:
-                    skipped_count += 1
-                    continue
-                
-                # Regenerate the stamp
-                profile.regenerate_signature_stamp(force=True)
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                self.message_user(
-                    request,
-                    f'Error regenerating stamp for profile {profile.pk}: {str(e)}',
-                    level='error'
-                )
-        
-        # Success message
-        if success_count > 0:
-            self.message_user(
-                request,
-                f'Successfully regenerated {success_count} signature stamp(s).',
-                level='success'
-            )
-        
-        # Warning for skipped profiles
-        if skipped_count > 0:
-            self.message_user(
-                request,
-                f'Skipped {skipped_count} profile(s) without valid users.',
-                level='warning'
-            )
-        
-        # Error summary
-        if error_count > 0:
-            self.message_user(
-                request,
-                f'Failed to regenerate {error_count} stamp(s). Check error messages above.',
-                level='error'
-            )
-    
-    regenerate_selected_stamps.short_description = 'Regenerate signature stamps for selected profiles'
-    
-    def regenerate_all_stamps(self, request, queryset):
-        """
-        Regenerate signature stamps for ALL profiles in the database.
-        This action ignores the selection and processes all profiles.
-        """
-        from django.contrib import messages
-        
-        # Get all profiles
-        all_profiles = Profile.objects.all()
-        total_count = all_profiles.count()
-        success_count = 0
-        error_count = 0
-        skipped_count = 0
-        
-        for profile in all_profiles:
-            try:
-                # Check if profile has a user
-                if not profile.user:
-                    skipped_count += 1
-                    continue
-                
-                # Check if user has a username
-                if not hasattr(profile.user, 'username') or not profile.user.username:
-                    skipped_count += 1
-                    continue
-                
-                # Regenerate the stamp
-                profile.regenerate_signature_stamp(force=True)
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-        
-        # Comprehensive message
-        self.message_user(
-            request,
-            f'Processed {total_count} profile(s): '
-            f'{success_count} regenerated, '
-            f'{skipped_count} skipped (no user), '
-            f'{error_count} errors.',
-            level='success' if error_count == 0 else 'warning'
-        )
-    
-    regenerate_all_stamps.short_description = '⚠️ Regenerate ALL signature stamps (ignores selection)'
-    
-    def generate_missing_stamps(self, request, queryset):
-        """
-        Generate signature stamps only for profiles that don't have one.
-        This will not overwrite existing stamps.
-        """
-        success_count = 0
-        error_count = 0
-        skipped_no_user = 0
-        skipped_has_stamp = 0
-        
-        for profile in queryset:
-            try:
-                # Skip if already has a stamp
-                if profile.signature_stamp:
-                    skipped_has_stamp += 1
-                    continue
-                
-                # Check if profile has a user
-                if not profile.user:
-                    skipped_no_user += 1
-                    continue
-                
-                # Check if user has a username
-                if not hasattr(profile.user, 'username') or not profile.user.username:
-                    skipped_no_user += 1
-                    continue
-                
-                # Generate the stamp
-                stamp = profile.get_or_create_signature_stamp()
-                if stamp:
-                    success_count += 1
-                else:
-                    error_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                self.message_user(
-                    request,
-                    f'Error generating stamp for profile {profile.pk}: {str(e)}',
-                    level='error'
-                )
-        
-        # Success message
-        if success_count > 0:
-            self.message_user(
-                request,
-                f'Successfully generated {success_count} signature stamp(s).',
-                level='success'
-            )
-        
-        # Info about skipped profiles
-        if skipped_has_stamp > 0:
-            self.message_user(
-                request,
-                f'{skipped_has_stamp} profile(s) already had stamps (not overwritten).',
-                level='info'
-            )
-        
-        if skipped_no_user > 0:
-            self.message_user(
-                request,
-                f'Skipped {skipped_no_user} profile(s) without valid users.',
-                level='warning'
-            )
-        
-        # Error summary
-        if error_count > 0:
-            self.message_user(
-                request,
-                f'Failed to generate {error_count} stamp(s). Check error messages above.',
-                level='error'
-            )
-    
-    generate_missing_stamps.short_description = 'Generate stamps for profiles without one'
-
-admin.site.register(Warehouse)
-
-# Supplier admin is registered below with enhanced features for supply contract management
 
 # Register LogEntry
 @admin.register(BillOfQuantity)
@@ -951,4 +843,61 @@ class SupplierInvoiceAdmin(admin.ModelAdmin):
         count = queryset.update(status='disputed')
         self.message_user(request, f'{count} invoice(s) marked as disputed.')
     mark_as_disputed.short_description = 'Mark selected invoices as disputed'
+
+
+@admin.register(StoreOrderAssignment)
+class StoreOrderAssignmentAdmin(admin.ModelAdmin):
+    """
+    Admin interface for managing store order assignments.
+    """
+    list_display = ('material_order', 'get_request_code', 'assigned_to', 'assigned_by', 'status', 'assigned_at', 'completed_at')
+    list_filter = ('status', 'assigned_at', 'completed_at', 'assigned_to', 'assigned_by')
+    search_fields = ('material_order__request_code', 'material_order__name', 'assigned_to__username', 'assigned_by__username')
+    readonly_fields = ('assigned_at', 'started_at', 'completed_at', 'updated_at')
+    date_hierarchy = 'assigned_at'
+    
+    fieldsets = (
+        ('Order Information', {
+            'fields': ('material_order',)
+        }),
+        ('Assignment', {
+            'fields': ('assigned_to', 'assigned_by', 'assigned_at', 'status')
+        }),
+        ('Progress Tracking', {
+            'fields': ('started_at', 'completed_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+        ('Notes', {
+            'fields': ('assignment_notes', 'completion_notes'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_request_code(self, obj):
+        """Display the material order request code"""
+        return obj.material_order.request_code if obj.material_order else 'N/A'
+    get_request_code.short_description = 'Request Code'
+    get_request_code.admin_order_field = 'material_order__request_code'
+    
+    actions = ['mark_in_progress', 'mark_completed']
+    
+    def mark_in_progress(self, request, queryset):
+        """Mark selected assignments as in progress"""
+        count = 0
+        for assignment in queryset:
+            if assignment.status in ['Pending', 'Assigned']:
+                assignment.mark_in_progress(user=request.user)
+                count += 1
+        self.message_user(request, f'{count} assignment(s) marked as in progress.')
+    mark_in_progress.short_description = 'Mark selected as in progress'
+    
+    def mark_completed(self, request, queryset):
+        """Mark selected assignments as completed"""
+        count = 0
+        for assignment in queryset:
+            if assignment.status in ['Assigned', 'In Progress']:
+                assignment.mark_completed(user=request.user)
+                count += 1
+        self.message_user(request, f'{count} assignment(s) marked as completed.')
+    mark_completed.short_description = 'Mark selected as completed'
 

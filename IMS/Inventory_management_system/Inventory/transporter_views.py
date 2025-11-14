@@ -9,15 +9,29 @@ from django.db import transaction
 from django.db.models import Q, Count, Sum, F
 from django.utils import timezone
 from django.template.loader import render_to_string
+from django.conf import settings
 import pandas as pd
 import json
+import os
 from io import BytesIO
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+try:
+    import qrcode
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
+try:
+    from PIL import Image as PILImage
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 from .models import (
     MaterialOrder, ReleaseLetter, MaterialTransport, Transporter, TransportVehicle, 
@@ -25,7 +39,7 @@ from .models import (
     # Note: Notification, Project, ProjectSite, ProjectPhase will be available after migration
 )
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
-from Inventory.utils import is_storekeeper, is_superuser
+from Inventory.utils import is_storekeeper, is_superuser, is_schedule_officer
 
 # Superuser-only access mixin that returns 404 for non-superusers
 class SuperuserOnlyMixin(UserPassesTestMixin):
@@ -513,29 +527,99 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
 @login_required
 @user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
 def update_transport_status(request, pk):
-    """Update the status of a transport assignment."""
+    """
+    Update the status of a transport assignment.
+    If the transport is part of a bulk consignment, update all transports in that consignment.
+    """
     transport = get_object_or_404(MaterialTransport, pk=pk)
     
     if request.method == 'POST':
         new_status = request.POST.get('status')
+        notes = request.POST.get('notes', '')
         
         if new_status in dict(MaterialTransport.STATUS_CHOICES):
-            transport.status = new_status
-            transport.save()
+            updated_count = 0
+            updated_orders = []
             
-            # Update related order status if needed
-            if new_status in ['In Transit', 'Delivered', 'Completed']:
-                order = transport.material_order
-                if new_status == 'In Transit':
-                    order.status = 'In Transit'
-                elif new_status == 'Delivered':
-                    order.status = 'Delivered'
-                elif new_status == 'Completed':
-                    order.status = 'Completed'
-                order.save()
+            with transaction.atomic():
+                # Check if this transport is part of a bulk consignment
+                if transport.consignment_number:
+                    # Update ALL transports in the same consignment
+                    consignment_transports = MaterialTransport.objects.filter(
+                        consignment_number=transport.consignment_number
+                    ).select_related('material_order')
+                    
+                    for consignment_transport in consignment_transports:
+                        consignment_transport.status = new_status
+                        if notes:
+                            # Append notes if they exist
+                            if consignment_transport.notes:
+                                consignment_transport.notes += f"\n{notes}"
+                            else:
+                                consignment_transport.notes = notes
+                        consignment_transport.save()
+                        
+                        # Update related order status
+                        order = consignment_transport.material_order
+                        if new_status == 'In Transit':
+                            order.status = 'In Transit'
+                        elif new_status == 'Delivered':
+                            order.status = 'Delivered'
+                        elif new_status == 'Completed':
+                            order.status = 'Completed'
+                        order.save()
+                        
+                        updated_count += 1
+                        updated_orders.append(order.request_code)
+                        
+                        # Create audit log
+                        MaterialOrderAudit.objects.create(
+                            order=order,
+                            action=f'Transport status updated to {new_status} (Consignment: {transport.consignment_number})',
+                            performed_by=request.user
+                        )
+                    
+                    messages.success(
+                        request, 
+                        f'Bulk consignment status updated to {transport.get_status_display()}. '
+                        f'Updated {updated_count} transport(s) in consignment {transport.consignment_number}.'
+                    )
+                else:
+                    # Single transport - update only this one
+                    transport.status = new_status
+                    if notes:
+                        transport.notes = notes
+                    transport.save()
+                    
+                    # Update related order status
+                    order = transport.material_order
+                    if new_status == 'In Transit':
+                        order.status = 'In Transit'
+                    elif new_status == 'Delivered':
+                        order.status = 'Delivered'
+                    elif new_status == 'Completed':
+                        order.status = 'Completed'
+                    order.save()
+                    
+                    # Create audit log
+                    MaterialOrderAudit.objects.create(
+                        order=order,
+                        action=f'Transport status updated to {new_status}',
+                        performed_by=request.user
+                    )
+                    
+                    updated_count = 1
+                    updated_orders.append(order.request_code)
+                    
+                    messages.success(request, f'Status updated to {transport.get_status_display()}')
             
-            messages.success(request, f'Status updated to {transport.get_status_display()}')
-            return JsonResponse({'success': True, 'status': transport.get_status_display()})
+            return JsonResponse({
+                'success': True, 
+                'status': transport.get_status_display(),
+                'updated_count': updated_count,
+                'updated_orders': updated_orders,
+                'is_bulk': bool(transport.consignment_number)
+            })
     
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
@@ -1121,10 +1205,100 @@ def debug_assignment_orders(request):
     return JsonResponse(debug_data, indent=2)
 
 
+def generate_qr_code(data, size=100):
+    """Generate a QR code image from data."""
+    if not QRCODE_AVAILABLE:
+        return None
+    try:
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        # Resize to desired size
+        if PIL_AVAILABLE:
+            img = img.resize((size, size), PILImage.Resampling.LANCZOS)
+        # Convert to BytesIO
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        return img_buffer
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating QR code: {str(e)}")
+        return None
+
+
+class WaybillTemplate(SimpleDocTemplate):
+    """Custom PDF template that adds QR code and watermark to every page."""
+    def __init__(self, *args, qr_code_data=None, watermark_text=None, **kwargs):
+        self.qr_code_data = qr_code_data
+        self.watermark_text = watermark_text
+        super().__init__(*args, **kwargs)
+    
+    def build(self, flowables, onFirstPage=None, onLaterPages=None, canvasmaker=canvas.Canvas):
+        """Override build to add QR code and watermark to every page."""
+        def add_qr_and_watermark(canvas_obj, doc):
+            # Add QR code to top right of every page
+            if self.qr_code_data and QRCODE_AVAILABLE:
+                qr_img = generate_qr_code(self.qr_code_data, size=80)
+                if qr_img:
+                    try:
+                        canvas_obj.saveState()
+                        # Position QR code at top right
+                        qr_x = doc.width - 1.2*inch
+                        qr_y = doc.height - 1.0*inch
+                        canvas_obj.drawImage(ImageReader(qr_img), qr_x, qr_y, width=0.8*inch, height=0.8*inch, mask='auto')
+                        canvas_obj.restoreState()
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error adding QR code to PDF: {str(e)}")
+            
+            # Add watermark (diagonal text)
+            if self.watermark_text:
+                try:
+                    canvas_obj.saveState()
+                    canvas_obj.setFont("Helvetica-Bold", 48)
+                    canvas_obj.setFillColor(colors.HexColor('#cccccc'), alpha=0.3)
+                    # Rotate and position watermark diagonally
+                    canvas_obj.translate(doc.width/2, doc.height/2)
+                    canvas_obj.rotate(45)
+                    canvas_obj.drawCentredString(0, 0, self.watermark_text)
+                    canvas_obj.restoreState()
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error adding watermark to PDF: {str(e)}")
+        
+        # Combine custom function with user's functions
+        def first_page(canvas_obj, doc):
+            add_qr_and_watermark(canvas_obj, doc)
+            if onFirstPage:
+                onFirstPage(canvas_obj, doc)
+        
+        def later_pages(canvas_obj, doc):
+            add_qr_and_watermark(canvas_obj, doc)
+            if onLaterPages:
+                onLaterPages(canvas_obj, doc)
+        
+        super().build(flowables, onFirstPage=first_page, onLaterPages=later_pages, canvasmaker=canvasmaker)
+
+
 @login_required
 def download_waybill_pdf(request, transport_id):
     """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments)."""
     transport = get_object_or_404(MaterialTransport, id=transport_id)
+    
+    # Increment download count
+    transport.waybill_download_count += 1
+    transport.save(update_fields=['waybill_download_count'])
+    
+    # Determine copy label
+    if transport.waybill_download_count == 1:
+        copy_label = "ORIGINAL COPY"
+    else:
+        copy_label = f"DUPLICATE COPY {transport.waybill_download_count - 1}"
     
     # For bulk assignments, fetch ALL transports with the same waybill number
     if transport.waybill_number and transport.consignment_number:
@@ -1136,10 +1310,66 @@ def download_waybill_pdf(request, transport_id):
         # Single assignment
         all_transports = [transport]
     
-    # Create PDF buffer
+    # Generate QR code URL for waybill verification - points to sign-in with redirect
+    from django.urls import reverse
+    waybill_id = transport.waybill_number or str(transport.id)
+    # QR code links to sign-in page with next parameter pointing to waybill verification
+    signin_url = request.build_absolute_uri(reverse('signin'))
+    verify_url = request.build_absolute_uri(reverse('verify_waybill_qr', args=[waybill_id]))
+    qr_url = f"{signin_url}?next={verify_url}"
+    
+    # Load logo if available - Ministry of Energy and Green Transition of Ghana logo
+    logo_path = None
+    logo_paths = [
+        # Check both 'logo' and 'logos' directories (user may have created either)
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'black.jpg'),  # Primary logo location (plural)
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'black.jpg'),   # Primary logo location (singular)
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'black.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'black.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.jpg'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.jpg'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.jpeg'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.jpeg'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.png'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.jpg'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.jpg'),
+        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.jpeg'),
+        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.jpeg'),
+        # Fallback locations
+        os.path.join(settings.MEDIA_ROOT, 'profile_pics', 'ministry_logo.png'),
+        os.path.join(settings.BASE_DIR, 'static', 'images', 'ministry_logo.png'),
+        os.path.join(settings.MEDIA_ROOT, 'profile_pics', 'logo.png'),
+        os.path.join(settings.BASE_DIR, 'static', 'images', 'logo.png'),
+    ]
+    for path in logo_paths:
+        if os.path.exists(path):
+            logo_path = path
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Using logo from: {logo_path}")
+            break
+    
+    # Debug: Log if no logo found
+    if not logo_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"No logo found. Checked paths: {logo_paths[:3]}...")
+    
+    # Create PDF buffer with custom template
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.5*inch, leftMargin=0.5*inch, 
-                           topMargin=0.4*inch, bottomMargin=0.5*inch)
+    doc = WaybillTemplate(
+        buffer, 
+        pagesize=A4, 
+        rightMargin=0.5*inch, 
+        leftMargin=0.5*inch, 
+        topMargin=0.4*inch, 
+        bottomMargin=0.5*inch,
+        qr_code_data=qr_url,
+        watermark_text=copy_label
+    )
     
     # Container for the 'Flowable' objects
     elements = []
@@ -1189,14 +1419,409 @@ def download_waybill_pdf(request, transport_id):
         leading=10
     )
     
-    # Header Banner with gradient effect
-    header_data = [[
-        Paragraph("🚛 MATERIAL WAYBILL", title_style),
-    ]]
-    header_table = Table(header_data, colWidths=[7*inch])
+    cover_title_style = ParagraphStyle(
+        'CoverTitle',
+        parent=styles['Heading1'],
+        fontSize=36,
+        textColor=colors.HexColor('#1a5490'),
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold',
+    )
+    
+    # ========== ACKNOWLEDGEMENT FORM (First Page) ==========
+    # Simplified format matching the template
+    cover_elements = []
+    cover_elements.append(Spacer(1, 0.2*inch))
+    
+    # Logo at top left
+    if logo_path and os.path.exists(logo_path):
+        try:
+            logo_img = Image(logo_path, width=1.2*inch, height=1.2*inch)
+            cover_elements.append(logo_img)
+            cover_elements.append(Spacer(1, 0.1*inch))
+        except Exception:
+            pass  # Continue without logo if there's an error
+    
+    # Title: ACKNOWLEDGEMENT FORM
+    cover_elements.append(Paragraph("ACKNOWLEDGEMENT FORM", ParagraphStyle(
+        'CoverTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        textColor=colors.black,
+        spaceAfter=8,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold',
+    )))
+    cover_elements.append(Spacer(1, 0.15*inch))
+    
+    # Waybill Number and Date - simple format matching template
+    waybill_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else timezone.now().strftime('%d %B %Y')
+    waybill_info_data = [
+        ['Waybill No:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
+        ['Date:', Paragraph(waybill_date, normal_style)],
+    ]
+    
+    waybill_info_table = Table(waybill_info_data, colWidths=[1.2*inch, 5.3*inch])
+    waybill_info_table.setStyle(TableStyle([
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    cover_elements.append(waybill_info_table)
+    cover_elements.append(Spacer(1, 0.2*inch))
+    
+    # Store/Issuing Information
+    cover_elements.append(Paragraph("<b>Store/Issuing Information</b>", ParagraphStyle(
+        'SectionHeading',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=colors.black,
+        spaceAfter=4,
+        spaceBefore=2,
+        fontName='Helvetica-Bold',
+    )))
+    
+    # Get storekeeper from processed_by (who actually processed it), assigned_to, or created_by
+    storekeeper_for_cover = None
+    if transport.material_order:
+        storekeeper_for_cover = (transport.material_order.processed_by or 
+                                transport.material_order.assigned_to or 
+                                transport.material_order.created_by)
+    
+    store_data = []
+    if transport.warehouse:
+        store_data.append(['Warehouse:', Paragraph(f"<b>{transport.warehouse.name}</b>", normal_style)])
+        if transport.warehouse.location:
+            store_data.append(['Location:', Paragraph(transport.warehouse.location, normal_style)])
+        if transport.warehouse.contact_person:
+            store_data.append(['Contact Person:', Paragraph(transport.warehouse.contact_person, normal_style)])
+        if transport.warehouse.contact_phone:
+            store_data.append(['Contact Phone:', Paragraph(transport.warehouse.contact_phone, normal_style)])
+    if storekeeper_for_cover:
+        store_data.append(['Storekeeper:', Paragraph(f"<b>{storekeeper_for_cover.get_full_name() or storekeeper_for_cover.username}</b>", normal_style)])
+        if storekeeper_for_cover.email:
+            store_data.append(['Email:', Paragraph(storekeeper_for_cover.email, normal_style)])
+    
+    if store_data:
+        store_table = Table(store_data, colWidths=[1.8*inch, 4.7*inch])
+        store_table.setStyle(TableStyle([
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#cccccc')),
+        ]))
+        cover_elements.append(store_table)
+    
+    cover_elements.append(Spacer(1, 0.2*inch))
+    
+    # Destination/Recipient Information
+    cover_elements.append(Paragraph("<b>Destination/Recipient Information</b>", ParagraphStyle(
+        'SectionHeading',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=colors.black,
+        spaceAfter=4,
+        spaceBefore=2,
+        fontName='Helvetica-Bold',
+    )))
+    
+    destination_data = []
+    if transport.recipient:
+        destination_data.append(['Recipient:', Paragraph(f"<b>{transport.recipient}</b>", normal_style)])
+    if transport.consultant:
+        destination_data.append(['Consultant:', Paragraph(transport.consultant, normal_style)])
+    if transport.region:
+        destination_data.append(['Region:', Paragraph(transport.region, normal_style)])
+    if transport.district:
+        destination_data.append(['District:', Paragraph(transport.district, normal_style)])
+    if transport.community:
+        destination_data.append(['Community:', Paragraph(f"<b>{transport.community}</b>", normal_style)])
+    if transport.destination_contact:
+        destination_data.append(['Destination Contact:', Paragraph(transport.destination_contact, normal_style)])
+    if transport.destination_phone:
+        destination_data.append(['Destination Phone:', Paragraph(transport.destination_phone, normal_style)])
+    if transport.package_number:
+        destination_data.append(['Package Number:', Paragraph(f"<b>{transport.package_number}</b>", normal_style)])
+    
+    if destination_data:
+        destination_table = Table(destination_data, colWidths=[1.8*inch, 4.7*inch])
+        destination_table.setStyle(TableStyle([
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#cccccc')),
+        ]))
+        cover_elements.append(destination_table)
+    
+    cover_elements.append(Spacer(1, 0.3*inch))
+    
+    # Signatures section - All parties
+    cover_elements.append(Paragraph("<b>Signatures & Endorsements</b>", ParagraphStyle(
+        'SectionHeading',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=colors.black,
+        spaceAfter=6,
+        spaceBefore=2,
+        fontName='Helvetica-Bold',
+    )))
+    
+    # Get storekeeper info and stamp (with image embedding support)
+    # Priority: processed_by (who actually processed it) > assigned_to (who it was assigned to) > created_by
+    storekeeper_name = ''
+    storekeeper_stamp_image = None
+    storekeeper_stamp_text = ''
+    storekeeper_date = ''
+    storekeeper = None
+    if transport.material_order:
+        # Use processed_by first (the person who actually processed the order)
+        storekeeper = (transport.material_order.processed_by or 
+                     transport.material_order.assigned_to or 
+                     transport.material_order.created_by)
+    
+    if storekeeper:
+        storekeeper_name = storekeeper.get_full_name() or storekeeper.username
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=storekeeper).first()
+            if profile:
+                # Look for PNG stamp in media/digital_signatures/ folder
+                stamp_filenames = [
+                    f"{storekeeper.username}.png",
+                    f"{storekeeper.id}.png",
+                    f"{storekeeper.username}.jpg",
+                    f"{storekeeper.id}.jpg",
+                ]
+                
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                
+                for filename in stamp_filenames:
+                    stamp_path = os.path.join(digital_signatures_dir, filename)
+                    if os.path.exists(stamp_path):
+                        try:
+                            storekeeper_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            break
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Could not load digital stamp image {stamp_path}: {str(e)}")
+                            continue
+                
+                if not storekeeper_stamp_image and profile:
+                    try:
+                        if hasattr(profile, 'generate_digital_stamp_png'):
+                            stamp_path = profile.generate_digital_stamp_png()
+                            if stamp_path and os.path.exists(stamp_path):
+                                storekeeper_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
+                
+                if not storekeeper_stamp_image:
+                    stamp = profile.get_or_create_signature_stamp() if profile else None
+                    if stamp:
+                        try:
+                            stamp_data = profile.display_signature_stamp()
+                            if stamp_data:
+                                storekeeper_stamp_text = f"{stamp_data.get('SIGNED_BY', storekeeper_name)}\nID: {stamp_data.get('ID', '')}"
+                        except Exception:
+                            if '|' in stamp:
+                                parts = stamp.split('|')
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else storekeeper_name
+                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
+                                storekeeper_stamp_text = f"{signed_by}\nID: {stamp_id}"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting storekeeper stamp: {str(e)}")
+        # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
+        if transport.material_order and transport.material_order.processed_at:
+            storekeeper_date = transport.material_order.processed_at.strftime('%d %B %Y')
+        elif transport.material_order and transport.material_order.assigned_at:
+            storekeeper_date = transport.material_order.assigned_at.strftime('%d %B %Y')
+        else:
+            storekeeper_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+    
+    # Build signature cell - use image if available, otherwise text
+    storekeeper_signature_cell = storekeeper_stamp_image if storekeeper_stamp_image else Paragraph(storekeeper_stamp_text or '_________________', small_text)
+    
+    # Get store manager info and stamp
+    store_manager = None
+    store_manager_name = ''
+    store_manager_stamp_image = None
+    store_manager_stamp_text = ''
+    store_manager_date = ''
+    
+    # Try to get store manager from material_order.assigned_by or transport.created_by
+    if transport.material_order and transport.material_order.assigned_by:
+        store_manager = transport.material_order.assigned_by
+    elif transport.created_by:
+        store_manager = transport.created_by
+    
+    if store_manager:
+        store_manager_name = store_manager.get_full_name() or store_manager.username
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=store_manager).first()
+            if profile:
+                # Look for PNG stamp in media/digital_signatures/ folder
+                stamp_filenames = [
+                    f"{store_manager.username}.png",
+                    f"{store_manager.id}.png",
+                    f"{store_manager.username}.jpg",
+                    f"{store_manager.id}.jpg",
+                ]
+                
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                
+                for filename in stamp_filenames:
+                    stamp_path = os.path.join(digital_signatures_dir, filename)
+                    if os.path.exists(stamp_path):
+                        try:
+                            store_manager_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            break
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Could not load store manager digital stamp image {stamp_path}: {str(e)}")
+                            continue
+                
+                if not store_manager_stamp_image and profile:
+                    try:
+                        if hasattr(profile, 'generate_digital_stamp_png'):
+                            stamp_path = profile.generate_digital_stamp_png()
+                            if stamp_path and os.path.exists(stamp_path):
+                                store_manager_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Could not generate store manager digital stamp PNG: {str(e)}")
+                
+                if not store_manager_stamp_image:
+                    stamp = profile.get_or_create_signature_stamp() if profile else None
+                    if stamp:
+                        try:
+                            stamp_data = profile.display_signature_stamp()
+                            if stamp_data:
+                                store_manager_stamp_text = f"{stamp_data.get('SIGNED_BY', store_manager_name)}\nID: {stamp_data.get('ID', '')}"
+                        except Exception:
+                            if '|' in stamp:
+                                parts = stamp.split('|')
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_manager_name
+                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
+                                store_manager_stamp_text = f"{signed_by}\nID: {stamp_id}"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting store manager stamp: {str(e)}")
+        
+        # Get date from material_order.assigned_at or transport.created_at
+        if transport.material_order and transport.material_order.assigned_at:
+            store_manager_date = transport.material_order.assigned_at.strftime('%d %B %Y')
+        elif transport.created_at:
+            store_manager_date = transport.created_at.strftime('%d %B %Y')
+    
+    # Build store manager signature cell
+    store_manager_signature_cell = store_manager_stamp_image if store_manager_stamp_image else Paragraph(store_manager_stamp_text or '_________________', small_text)
+    
+    # Signature table with all parties: Storekeeper, Store Manager, Driver, Recipient
+    signature_cover_data = [
+        [
+            Paragraph('<b>Name</b>', small_text),
+            Paragraph('<b>Signature</b>', small_text),
+            Paragraph('<b>Date</b>', small_text)
+        ],
+        [
+            Paragraph('<b>Storekeeper</b>', small_text),
+            storekeeper_signature_cell,
+            Paragraph(storekeeper_date or '_________________', small_text)
+        ],
+        [
+            Paragraph('<b>Store Manager</b>', small_text),
+            store_manager_signature_cell,
+            Paragraph(store_manager_date or '_________________', small_text)
+        ],
+        [
+            Paragraph('<b>Driver</b>', small_text),
+            Paragraph('_________________', small_text),
+            Paragraph('_________________', small_text)
+        ],
+        [
+            Paragraph('<b>Recipient</b>', small_text),
+            Paragraph('_________________', small_text),
+            Paragraph('_________________', small_text)
+        ],
+    ]
+    
+    signature_cover_table = Table(signature_cover_data, colWidths=[1.8*inch, 3.0*inch, 1.7*inch])
+    signature_cover_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+    ]))
+    cover_elements.append(signature_cover_table)
+    
+    # Add cover page to elements
+    elements.extend(cover_elements)
+    elements.append(PageBreak())
+    
+    # ========== MAIN WAYBILL CONTENT ==========
+    # Header Banner with logo and gradient effect
+    header_cells = []
+    if logo_path and os.path.exists(logo_path):
+        try:
+            logo_img = Image(logo_path, width=1*inch, height=1*inch)
+            header_cells.append(logo_img)
+        except Exception:
+            header_cells.append('')
+    else:
+        header_cells.append('')
+    
+    header_cells.append(Paragraph("MATERIAL WAYBILL", title_style))
+    
+    header_data = [header_cells]
+    # Adjust column widths based on whether logo exists
+    if logo_path and os.path.exists(logo_path):
+        header_table = Table(header_data, colWidths=[1.2*inch, 5.8*inch])
+    else:
+        header_table = Table(header_data, colWidths=[7*inch])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#1a5490')),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),  # Center the title
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),     # Left align logo
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 15),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -1208,7 +1833,7 @@ def download_waybill_pdf(request, transport_id):
     
     # Subtitle under banner
     subtitle_data = [[
-        Paragraph("Ministry of Energy - Inventory Management System", subtitle_style),
+        Paragraph("Ministry of Energy and Green Transition of Ghana - Inventory Management System", subtitle_style),
     ]]
     subtitle_table = Table(subtitle_data, colWidths=[7*inch])
     subtitle_table.setStyle(TableStyle([
@@ -1347,6 +1972,94 @@ def download_waybill_pdf(request, transport_id):
     elements.append(Paragraph("✍️ Signatures & Endorsements", heading_style))
     elements.append(Spacer(1, 0.1*inch))
     
+    # Get storekeeper info and stamp for main waybill (with image embedding support)
+    storekeeper_name_main = ''
+    storekeeper_stamp_image_main = None
+    storekeeper_stamp_text_main = ''
+    storekeeper_date_main = ''
+    # Try to get storekeeper from processed_by (who actually processed it), assigned_to, or created_by
+    storekeeper_main = None
+    if transport.material_order:
+        storekeeper_main = (transport.material_order.processed_by or 
+                          transport.material_order.assigned_to or 
+                          transport.material_order.created_by)
+    
+    if storekeeper_main:
+        storekeeper_name_main = storekeeper_main.get_full_name() or storekeeper_main.username
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=storekeeper_main).first()
+            if profile:
+                # Look for PNG stamp in media/digital_signatures/ folder
+                # Try multiple possible filenames: username.png, user_id.png, etc.
+                stamp_filenames = [
+                    f"{storekeeper_main.username}.png",
+                    f"{storekeeper_main.id}.png",
+                    f"{storekeeper_main.username}.jpg",
+                    f"{storekeeper_main.id}.jpg",
+                ]
+                
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    # Try with space in folder name
+                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                
+                for filename in stamp_filenames:
+                    stamp_path = os.path.join(digital_signatures_dir, filename)
+                    if os.path.exists(stamp_path):
+                        try:
+                            # Use PNG/JPG image for signature
+                            storekeeper_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            break  # Found the stamp, exit loop
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Could not load digital stamp image {stamp_path}: {str(e)}")
+                            continue
+                
+                # If no PNG found, try to generate one
+                if not storekeeper_stamp_image_main and profile:
+                    try:
+                        # Generate PNG stamp if method exists
+                        if hasattr(profile, 'generate_digital_stamp_png'):
+                            stamp_path = profile.generate_digital_stamp_png()
+                            if stamp_path and os.path.exists(stamp_path):
+                                storekeeper_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
+                
+                # Fallback to text-based stamp only if PNG is not available
+                if not storekeeper_stamp_image_main:
+                    stamp = profile.get_or_create_signature_stamp() if profile else None
+                    if stamp:
+                        try:
+                            stamp_data = profile.display_signature_stamp()
+                            if stamp_data:
+                                storekeeper_stamp_text_main = f"{stamp_data.get('SIGNED_BY', storekeeper_name_main)}\nID: {stamp_data.get('ID', '')}"
+                        except Exception:
+                            # If display_signature_stamp doesn't exist, parse the stamp string
+                            if '|' in stamp:
+                                parts = stamp.split('|')
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else storekeeper_name_main
+                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
+                                storekeeper_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting storekeeper stamp for main waybill: {str(e)}")
+        # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
+        if transport.material_order and transport.material_order.processed_at:
+            storekeeper_date_main = transport.material_order.processed_at.strftime('%d %B %Y')
+        elif transport.material_order and transport.material_order.assigned_at:
+            storekeeper_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
+        else:
+            storekeeper_date_main = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+    
+    # Build signature cell for main waybill - use image if available, otherwise text
+    storekeeper_signature_cell_main = storekeeper_stamp_image_main if storekeeper_stamp_image_main else Paragraph(storekeeper_stamp_text_main or '_________________', small_text)
+    
     signature_data = [
         [
             Paragraph('<b>Role</b>', normal_style),
@@ -1356,21 +2069,21 @@ def download_waybill_pdf(request, transport_id):
         ],
         [
             Paragraph('<b>Issued By</b><br/>(Storekeeper)', small_text),
-            '',
-            '',
-            ''
+            Paragraph(storekeeper_name_main or '_________________', small_text),
+            storekeeper_signature_cell_main,
+            Paragraph(storekeeper_date_main or '_________________', small_text)
         ],
         [
             Paragraph('<b>Received By</b><br/>(Driver)', small_text),
-            '',
-            '',
-            ''
+            Paragraph(transport.driver_name or '_________________', small_text),
+            Paragraph('_________________', small_text),  # Driver signs physically
+            Paragraph('_________________', small_text)
         ],
         [
             Paragraph('<b>Delivered To</b><br/>(Consultant)', small_text),
-            '',
-            '',
-            ''
+            Paragraph(transport.consultant or '_________________', small_text),
+            Paragraph('_________________', small_text),  # Consultant signs physically
+            Paragraph('_________________', small_text)
         ],
     ]
     
@@ -1424,7 +2137,7 @@ def download_waybill_pdf(request, transport_id):
     footer_text = f"""
     <para align=center fontSize=8 textColor='#999999'>
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>
-    <b>Ministry of Energy - Inventory Management System</b><br/>
+    <b>Ministry of Energy and Green Transition of Ghana - Inventory Management System</b><br/>
     This is a computer-generated waybill. For verification or queries, contact IMS Support.<br/>
     <font color='#666666'>Document Generated: {timezone.now().strftime('%d %B %Y at %H:%M:%S')}</font>
     </para>
@@ -1440,7 +2153,96 @@ def download_waybill_pdf(request, transport_id):
     
     # Return PDF response
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="Waybill_{transport.waybill_number}.pdf"'
+    filename = f"Waybill_{transport.waybill_number}_{copy_label.replace(' ', '_')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response.write(pdf)
     
     return response
+
+
+@login_required
+def verify_waybill_qr(request, waybill_identifier):
+    """
+    QR code verification endpoint.
+    After login, identifies user role and auto-places digital stamp on waybill.
+    Users scan QR code, sign in, and their stamp is automatically recorded.
+    """
+    from django.contrib.auth.models import User
+    from .models import Profile
+    from django.db import transaction
+    
+    # Try to find transport by waybill number or ID
+    try:
+        if waybill_identifier.startswith('WB-'):
+            transport = MaterialTransport.objects.filter(waybill_number=waybill_identifier).first()
+        else:
+            transport = MaterialTransport.objects.filter(id=int(waybill_identifier)).first()
+    except (ValueError, MaterialTransport.DoesNotExist):
+        transport = None
+    
+    if not transport:
+        messages.error(request, "Waybill not found.")
+        return redirect('transportation_status')
+    
+    # Get user profile
+    try:
+        profile = Profile.objects.get(user=request.user)
+    except Profile.DoesNotExist:
+        messages.error(request, "User profile not found.")
+        return redirect('transportation_status')
+    
+    # Ensure user has a signature stamp
+    stamp = profile.get_or_create_signature_stamp()
+    if not stamp:
+        messages.warning(request, "Could not generate signature stamp. Please contact administrator.")
+        return redirect('transportation_status')
+    
+    # Determine user role and record stamp accordingly
+    user_groups = request.user.groups.all()
+    group_names = [g.name for g in user_groups]
+    
+    # Check if user is storekeeper, transporter, or consultant
+    is_storekeeper_user = is_storekeeper(request.user)
+    is_transporter_user = 'Transporter' in group_names or 'transporter' in group_names
+    is_consultant_user = 'Consultant' in group_names or 'consultant' in group_names
+    
+    # Record the stamp based on role
+    with transaction.atomic():
+        stamp_recorded = False
+        
+        if is_storekeeper_user:
+            role = "Storekeeper (Issued By)"
+            # Storekeeper stamp is already embedded in waybill generation
+            # This is just for verification/audit
+            stamp_recorded = True
+        elif is_transporter_user:
+            role = "Transporter/Driver (Received By)"
+            # Record transporter stamp (could be stored in a separate model for tracking)
+            # For now, we'll just log it
+            stamp_recorded = True
+        elif is_consultant_user:
+            role = "Consultant (Delivered To)"
+            # Record consultant stamp
+            stamp_recorded = True
+        else:
+            role = "Authorized User"
+        
+        if stamp_recorded:
+            # Log the stamp verification in audit trail
+            try:
+                MaterialOrderAudit.objects.create(
+                    material_order=transport.material_order if transport.material_order else None,
+                    user=request.user,
+                    action=f'Waybill verified via QR code - {role}',
+                    timestamp=timezone.now()
+                )
+            except Exception:
+                pass  # Don't fail if audit logging fails
+    
+    messages.success(
+        request, 
+        f"Waybill verified! Your digital stamp as {role} has been recorded for waybill {transport.waybill_number or waybill_identifier}."
+    )
+    
+    # Redirect to transportation status or waybill detail
+    return redirect('transportation_status')

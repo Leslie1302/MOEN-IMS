@@ -1,0 +1,252 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block title %}Generate Weekly Report{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-form {
+        max-width: 800px;
+        margin: 20px auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .form-section {
+        margin-bottom: 30px;
+    }
+    .form-section h3 {
+        color: #417690;
+        border-bottom: 2px solid #417690;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .form-row {
+        margin-bottom: 20px;
+    }
+    .form-row label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    .form-row input[type="number"],
+    .form-row input[type="text"],
+    .form-row textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .form-row textarea {
+        min-height: 100px;
+        font-family: inherit;
+    }
+    .form-row .help-text {
+        display: block;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #666;
+        font-style: italic;
+    }
+    .checkbox-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .checkbox-row input[type="checkbox"] {
+        margin-right: 10px;
+        width: 20px;
+        height: 20px;
+    }
+    .checkbox-row label {
+        margin: 0;
+        font-weight: normal;
+    }
+    .info-box {
+        background: #e7f3fe;
+        border-left: 4px solid #2196F3;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+    .info-box h4 {
+        margin-top: 0;
+        color: #1976D2;
+    }
+    .info-box ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+    .warning-box h4 {
+        margin-top: 0;
+        color: #856404;
+    }
+    .button-row {
+        display: flex;
+        gap: 15px;
+        margin-top: 30px;
+    }
+    .btn {
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .btn-primary {
+        background: #417690;
+        color: white;
+    }
+    .btn-primary:hover {
+        background: #2e5266;
+    }
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    .btn-secondary:hover {
+        background: #545b62;
+    }
+    .date-range {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    .date-range strong {
+        color: #417690;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-form">
+    <h1>📊 Generate Weekly Development Report</h1>
+    
+    <div class="info-box">
+        <h4>ℹ️ About This Report</h4>
+        <p>This tool automatically generates a comprehensive weekly development report by analyzing:</p>
+        <ul>
+            <li>Git commit history and messages</li>
+            <li>Documentation files (README, CHANGELOG, etc.)</li>
+            <li>Database migrations</li>
+            <li>TODO/FIXME comments in code</li>
+            <li>Code statistics (insertions, deletions, files changed)</li>
+        </ul>
+    </div>
+    
+    <div class="date-range">
+        <strong>Report Period:</strong> {{ start_date|date:"F d, Y" }} to {{ end_date|date:"F d, Y" }} (7 days)
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <!-- Configuration Section -->
+        <div class="form-section">
+            <h3>⚙️ Report Configuration</h3>
+            
+            <div class="form-row">
+                <label for="days">Number of Days to Include:</label>
+                <input type="number" id="days" name="days" value="7" min="1" max="30">
+                <span class="help-text">How many days back to analyze (default: 7)</span>
+            </div>
+            
+            <div class="form-row">
+                <label for="custom_notes">Custom Notes (Optional):</label>
+                <textarea id="custom_notes" name="custom_notes" placeholder="Add any additional notes or highlights you want to include in the report..."></textarea>
+                <span class="help-text">These notes will appear in a special section of the report</span>
+            </div>
+        </div>
+        
+        <!-- Email Configuration Section -->
+        <div class="form-section">
+            <h3>📧 Email Configuration</h3>
+            
+            <div class="form-row">
+                <label for="recipients">Recipients:</label>
+                <input type="text" id="recipients" name="recipients" value="{{ default_recipients }}" placeholder="email1@example.com, email2@example.com">
+                <span class="help-text">Comma-separated list of email addresses. Leave empty to use default from settings.</span>
+            </div>
+            
+            <div class="form-row">
+                <label for="cc_recipients">CC Recipients (Optional):</label>
+                <input type="text" id="cc_recipients" name="cc_recipients" placeholder="cc1@example.com, cc2@example.com">
+                <span class="help-text">Comma-separated list of CC email addresses</span>
+            </div>
+        </div>
+        
+        <!-- Options Section -->
+        <div class="form-section">
+            <h3>🔧 Options</h3>
+            
+            <div class="checkbox-row">
+                <input type="checkbox" id="dry_run" name="dry_run" checked>
+                <label for="dry_run">
+                    <strong>Dry Run (Preview Only)</strong> - Generate report without sending email
+                </label>
+            </div>
+            
+            <div class="warning-box">
+                <h4>⚠️ Important</h4>
+                <p>It's recommended to do a dry run first to preview the report before sending it to recipients. 
+                   Uncheck the "Dry Run" option above when you're ready to send the actual email.</p>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="button-row">
+            <button type="submit" class="btn btn-primary">
+                🚀 Generate Report
+            </button>
+            <a href="{% url 'weekly_reports_list' %}" class="btn btn-secondary">
+                ← Back to Reports List
+            </a>
+        </div>
+    </form>
+    
+    <!-- Help Section -->
+    <div class="form-section" style="margin-top: 40px;">
+        <h3>❓ Help & Tips</h3>
+        
+        <h4>Email Configuration</h4>
+        <p>Make sure your Django email settings are configured in <code>settings.py</code>:</p>
+        <ul>
+            <li><code>EMAIL_BACKEND</code> - Email backend to use</li>
+            <li><code>EMAIL_HOST</code> - SMTP server address</li>
+            <li><code>EMAIL_PORT</code> - SMTP port (usually 587 or 465)</li>
+            <li><code>EMAIL_HOST_USER</code> - SMTP username</li>
+            <li><code>EMAIL_HOST_PASSWORD</code> - SMTP password</li>
+            <li><code>EMAIL_USE_TLS</code> - Whether to use TLS</li>
+            <li><code>DEFAULT_FROM_EMAIL</code> - Sender email address</li>
+        </ul>
+        
+        <h4>Default Recipients</h4>
+        <p>Set default recipients in <code>settings.py</code>:</p>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">WEEKLY_REPORT_RECIPIENTS = ['manager@example.com', 'supervisor@example.com']</pre>
+        
+        <h4>CLI Usage</h4>
+        <p>You can also generate reports from the command line:</p>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">python manage.py generate_weekly_report --dry-run
+python manage.py generate_weekly_report --days 7 --recipients email@example.com</pre>
+        
+        <h4>Scheduling</h4>
+        <p>To send reports automatically every week, set up a cron job:</p>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">0 9 * * 1 cd /path/to/project && python manage.py generate_weekly_report</pre>
+        <p><small>(This runs every Monday at 9:00 AM)</small></p>
+    </div>
+</div>
+{% endblock %}

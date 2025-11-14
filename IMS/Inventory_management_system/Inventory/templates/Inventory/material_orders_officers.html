@@ -37,6 +37,7 @@
                     <th>Processed</th>
                     <th>Remaining</th>
                     <th>Status</th>
+                    <th>Assigned To</th>
                     <th>Processed By</th>
                     <th>Date</th>
                     <th>Release Letter</th>
@@ -89,6 +90,18 @@
                             <span class="badge bg-secondary">📝 Draft</span>
                         {% else %}
                             <span class="badge bg-secondary">{{ order.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if order.assigned_to %}
+                            <div class="text-center">
+                                <div class="fw-bold">{{ order.assigned_to.username }}</div>
+                                {% if order.assigned_at %}
+                                    <small class="text-muted">{{ order.assigned_at|date:"M d, Y H:i" }}</small>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                     <td>

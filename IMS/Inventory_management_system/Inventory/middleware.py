@@ -53,6 +53,10 @@ class UserRoleMiddleware(MiddlewareMixin):
             '/profile/',
             '/awaiting-authorization/',
             '/.well-known/',  # Allow CA validation endpoints without auth
+            '/password-reset/',  # Password reset request form
+            '/password-reset/done/',  # Password reset email sent confirmation
+            '/password-reset-confirm/',  # Password reset confirmation (accepts uidb64/token)
+            '/password-reset-complete/',  # Password reset complete page
         ]
         
         # Add static and media URLs to allowed paths

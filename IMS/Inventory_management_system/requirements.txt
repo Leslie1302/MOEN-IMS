@@ -13,5 +13,6 @@ pandas
 reportlab
 seaborn
 xlsxwriter
+qrcode[pil]>=7.4.2
 gunicorn
 whitenoise

@@ -1,0 +1,257 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block title %}Weekly Reports{% endblock %}
+
+{% block extra_css %}
+<style>
+    .reports-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 30px;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 3px solid #417690;
+    }
+    
+    .page-header h1 {
+        color: #417690;
+        margin: 0;
+    }
+    
+    .btn-generate {
+        background: #28a745;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        font-size: 16px;
+        font-weight: bold;
+        text-decoration: none;
+        display: inline-block;
+        cursor: pointer;
+    }
+    
+    .btn-generate:hover {
+        background: #218838;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .reports-table {
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .reports-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .reports-table th {
+        background: #417690;
+        color: white;
+        padding: 15px;
+        text-align: left;
+        font-weight: bold;
+        font-size: 14px;
+        text-transform: uppercase;
+    }
+    
+    .reports-table td {
+        padding: 15px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .reports-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        color: white;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+    
+    .status-draft { background-color: #6c757d; }
+    .status-sent { background-color: #28a745; }
+    .status-failed { background-color: #dc3545; }
+    
+    .btn-view {
+        background: #417690;
+        color: white;
+        padding: 8px 20px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+    }
+    
+    .btn-view:hover {
+        background: #2e5266;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-download {
+        background: #ffc107;
+        color: #333;
+        padding: 8px 20px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+        margin-left: 5px;
+    }
+    
+    .btn-download:hover {
+        background: #e0a800;
+        color: #333;
+        text-decoration: none;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .empty-state h3 {
+        color: #666;
+        margin-bottom: 20px;
+    }
+    
+    .empty-state p {
+        color: #999;
+        margin-bottom: 30px;
+    }
+    
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    .stat-number {
+        font-size: 36px;
+        font-weight: bold;
+        color: #417690;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 14px;
+        text-transform: uppercase;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reports-container">
+    <div class="page-header">
+        <h1>📊 Weekly Development Reports</h1>
+        <a href="{% url 'generate_weekly_report' %}" class="btn-generate">
+            🚀 Generate New Report
+        </a>
+    </div>
+    
+    {% if reports %}
+        <!-- Statistics -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-number">{{ reports.count }}</div>
+                <div class="stat-label">Total Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ reports|length }}</div>
+                <div class="stat-label">Sent Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{% for r in reports %}{% if r.status == 'draft' %}1{% endif %}{% endfor %}</div>
+                <div class="stat-label">Draft Reports</div>
+            </div>
+        </div>
+        
+        <!-- Reports Table -->
+        <div class="reports-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Report ID</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                        <th>Generated By</th>
+                        <th>Generated At</th>
+                        <th>Recipients</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td><strong>{{ report.report_id }}</strong></td>
+                        <td>{{ report.start_date|date:"M d" }} - {{ report.end_date|date:"M d, Y" }}</td>
+                        <td>
+                            <span class="status-badge status-{{ report.status }}">
+                                {{ report.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ report.generated_by.username }}</td>
+                        <td>{{ report.generated_at|date:"M d, Y g:i A" }}</td>
+                        <td>
+                            {{ report.recipients|truncatewords:3 }}
+                        </td>
+                        <td>
+                            <a href="{% url 'weeklyreport_detail' report.id %}" class="btn-view">
+                                👁️ View
+                            </a>
+                            {% if report.pdf_file %}
+                            <a href="{{ report.pdf_file.url }}" class="btn-download" download>
+                                📄 PDF
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <!-- Empty State -->
+        <div class="empty-state">
+            <h3>No Reports Yet</h3>
+            <p>You haven't generated any weekly reports yet. Click the button below to create your first report.</p>
+            <a href="{% url 'generate_weekly_report' %}" class="btn-generate">
+                🚀 Generate Your First Report
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

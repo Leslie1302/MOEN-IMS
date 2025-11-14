@@ -6,7 +6,16 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+from django.conf import settings
 import uuid
+import os
+
+# Try to import PIL for image generation
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 # Import transporter models
 from .transporter_models import Transporter, TransportVehicle
@@ -255,6 +264,29 @@ class MaterialOrder(auto_prefetch.Model):
         null=True, 
         blank=True, 
         help_text="When the quantity was processed"
+    )
+    
+    # Assignment tracking (for stores workflow)
+    assigned_to = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_material_orders',
+        help_text="Storekeeper assigned to process this order"
+    )
+    assigned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the order was assigned to a storekeeper"
+    )
+    assigned_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='material_orders_assigned',
+        help_text="Manager who assigned this order"
     )
     
     # Request type
@@ -556,6 +588,137 @@ class Profile(auto_prefetch.Model):
         self.signature_stamp = self.generate_signature_stamp()
         self.save(update_fields=['signature_stamp'])
         return self.signature_stamp
+    
+    def generate_digital_stamp_png(self):
+        """
+        Generate a PNG digital signature stamp image for the user.
+        Creates a professional-looking stamp with user name, role, and unique ID.
+        Saves to media/digital_signatures/ folder.
+        
+        Returns:
+            str: Path to the generated PNG file, or None if generation failed
+        """
+        if not self.user:
+            return None
+        
+        if not PIL_AVAILABLE:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("PIL/Pillow not available. Cannot generate PNG stamps.")
+            return None
+        
+        try:
+            # Get user information
+            full_name = self.user.get_full_name() or self.user.username
+            username = self.user.username
+            
+            # Get user's role/group
+            user_groups = self.user.groups.all()
+            role = user_groups[0].name if user_groups.exists() else "User"
+            
+            # Get registration year
+            registration_year = self.user.date_joined.year if self.user.date_joined else timezone.now().year
+            
+            # Generate unique ID (use existing signature_stamp ID if available, otherwise create new)
+            unique_id = None
+            if self.signature_stamp and 'ID:' in self.signature_stamp:
+                try:
+                    parts = self.signature_stamp.split('|')
+                    for part in parts:
+                        if 'ID:' in part:
+                            unique_id = part.split('ID:')[1].strip()
+                            break
+                except Exception:
+                    pass
+            
+            if not unique_id:
+                unique_id = uuid.uuid4().hex[:12].upper()
+            
+            # Create digital_signatures directory if it doesn't exist
+            digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+            if not os.path.exists(digital_signatures_dir):
+                # Try with space in folder name
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    os.makedirs(digital_signatures_dir, exist_ok=True)
+            
+            # Create stamp image (300x150 pixels)
+            width, height = 300, 150
+            img = Image.new('RGB', (width, height), color='white')
+            draw = ImageDraw.Draw(img)
+            
+            # Draw border
+            border_color = '#1a5490'  # Navy blue
+            draw.rectangle([(0, 0), (width-1, height-1)], outline=border_color, width=3)
+            
+            # Draw inner border
+            draw.rectangle([(5, 5), (width-6, height-6)], outline='#dc3545', width=2)
+            
+            # Try to use a nice font, fallback to default
+            try:
+                # Try to use system fonts
+                if os.name == 'nt':  # Windows
+                    title_font = ImageFont.truetype("arial.ttf", 14)
+                    name_font = ImageFont.truetype("arial.ttf", 16)
+                    text_font = ImageFont.truetype("arial.ttf", 10)
+                else:  # Linux/Mac
+                    title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+                    name_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+                    text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
+            except:
+                # Fallback to default font
+                title_font = ImageFont.load_default()
+                name_font = ImageFont.load_default()
+                text_font = ImageFont.load_default()
+            
+            # Helper function to get text width (works with both default and truetype fonts)
+            def get_text_width(text, font):
+                try:
+                    bbox = draw.textbbox((0, 0), text, font=font)
+                    return bbox[2] - bbox[0]
+                except:
+                    # Fallback for older PIL versions
+                    try:
+                        return draw.textlength(text, font=font)
+                    except:
+                        # Last resort: estimate width
+                        return len(text) * 6
+            
+            # Draw "AUTHORIZED SIGNATURE" at top
+            title_text = "AUTHORIZED SIGNATURE"
+            title_width = get_text_width(title_text, title_font)
+            draw.text(((width - title_width) / 2, 12), title_text, fill=border_color, font=title_font)
+            
+            # Draw user's full name (centered)
+            name_width = get_text_width(full_name, name_font)
+            draw.text(((width - name_width) / 2, 45), full_name, fill='black', font=name_font)
+            
+            # Draw role
+            role_width = get_text_width(role, text_font)
+            draw.text(((width - role_width) / 2, 70), role, fill='#666666', font=text_font)
+            
+            # Draw "Since YEAR" and "ID: XXXXXX" at bottom
+            since_text = f"Since {registration_year}"
+            id_text = f"ID: {unique_id}"
+            
+            since_width = get_text_width(since_text, text_font)
+            id_width = get_text_width(id_text, text_font)
+            
+            draw.text((15, height - 30), since_text, fill='#666666', font=text_font)
+            draw.text((width - id_width - 15, height - 30), id_text, fill='#666666', font=text_font)
+            
+            # Save the image
+            filename = f"{username}.png"
+            filepath = os.path.join(digital_signatures_dir, filename)
+            img.save(filepath, 'PNG')
+            
+            return filepath
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generating PNG digital stamp for user {self.user.username if self.user else 'Unknown'}: {str(e)}")
+            return None
 
 
     
@@ -887,6 +1050,7 @@ class MaterialTransport(auto_prefetch.Model):
     # Tracking and documentation
     tracking_url = models.URLField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
+    waybill_download_count = models.IntegerField(default=0, help_text="Number of times this waybill has been downloaded")
     
     # Audit fields
     created_by = auto_prefetch.ForeignKey(
@@ -1311,9 +1475,6 @@ class Notification(auto_prefetch.Model):
             self.read_at = timezone.now()
 
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 class SupplierPriceCatalog(auto_prefetch.Model):
     """
     Model for tracking supplier prices for materials.
@@ -1747,11 +1908,8 @@ class SupplierInvoiceItem(auto_prefetch.Model):
         if self.quantity_received is not None:
             return abs(self.quantity_invoiced - self.quantity_received) > 0.01
         return False
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
+
 class WeeklyReport(auto_prefetch.Model):
     """
     Model to store generated weekly development reports.
@@ -1842,11 +2000,133 @@ class WeeklyReport(auto_prefetch.Model):
         if self.cc_recipients:
             return [email.strip() for email in self.cc_recipients.split(',') if email.strip()]
         return []
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
+
+class StoreOrderAssignment(auto_prefetch.Model):
+    """
+    Model for tracking assignment of material orders to stores staff by stores management.
+    Implements the stores management workflow where:
+    1. All material release requests first come to stores management
+    2. Store managers assign requests to specific stores staff
+    3. Assigned staff can then process the orders for transportation
+    """
+    # The material order being assigned
+    material_order = auto_prefetch.ForeignKey(
+        MaterialOrder,
+        on_delete=models.CASCADE,
+        related_name='store_assignments',
+        help_text="Material order being assigned to stores staff"
+    )
+    
+    # Assignment details
+    assigned_to = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='assigned_store_orders',
+        help_text="Stores staff member this order is assigned to"
+    )
+    assigned_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='store_assignments_made',
+        help_text="Store manager who made the assignment"
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    
+    # Status tracking
+    STATUS_CHOICES = [
+        ('Pending', 'Pending Assignment'),
+        ('Assigned', 'Assigned to Staff'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+        ('Reassigned', 'Reassigned'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Pending',
+        help_text="Current status of this assignment"
+    )
+    
+    # Notes
+    assignment_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes from store manager about this assignment"
+    )
+    completion_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes from stores staff upon completion"
+    )
+    
+    # Timestamps
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the stores staff started working on this"
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the assignment was completed"
+    )
+    
+    # Tracking
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['-assigned_at']
+        verbose_name = 'Store Order Assignment'
+        verbose_name_plural = 'Store Order Assignments'
+        permissions = [
+            ('can_assign_orders', 'Can assign orders to stores staff'),
+            ('can_view_all_assignments', 'Can view all order assignments'),
+        ]
+    
+    def __str__(self):
+        if self.assigned_to:
+            return f"Order {self.material_order.request_code} → {self.assigned_to.username}"
+        return f"Order {self.material_order.request_code} (Unassigned)"
+    
+    def mark_in_progress(self, user=None):
+        """Mark assignment as in progress"""
+        self.status = 'In Progress'
+        self.started_at = timezone.now()
+        if user:
+            self.material_order.last_updated_by = user
+            self.material_order.save()
+        self.save()
+    
+    def mark_completed(self, notes=None, user=None):
+        """Mark assignment as completed"""
+        self.status = 'Completed'
+        self.completed_at = timezone.now()
+        if notes:
+            self.completion_notes = notes
+        if user:
+            self.material_order.last_updated_by = user
+            self.material_order.save()
+        self.save()
+    
+    def reassign(self, new_staff, reassigned_by, notes=None):
+        """Reassign to a different stores staff member"""
+        old_staff = self.assigned_to
+        self.assigned_to = new_staff
+        self.assigned_by = reassigned_by
+        self.status = 'Reassigned'
+        
+        # Add reassignment note
+        reassignment_note = f"Reassigned from {old_staff.username if old_staff else 'unassigned'} to {new_staff.username} by {reassigned_by.username}"
+        if notes:
+            reassignment_note += f"\nReason: {notes}"
+        
+        if self.assignment_notes:
+            self.assignment_notes += f"\n\n{reassignment_note}"
+        else:
+            self.assignment_notes = reassignment_note
+        
+        self.save()
 

@@ -70,7 +70,11 @@ __all__ = [
     'TransportVehicleListView', 'TransportVehicleCreateView', 'TransportVehicleUpdateView', 'TransportVehicleDetailView', 'TransportVehicleDeleteView',
     'TransporterAssignmentView', 'ReleaseLetterListView', 'TransporterLegendView', 'import_transporters', 'update_transport_status',
     'MaterialReceiptListView', 'StaffProfileView',
-    'ConsultantDeliveriesView', 'SiteReceiptCreateView', 'SiteReceiptListView'  # Add consultant views
+    'ConsultantDeliveriesView', 'SiteReceiptCreateView', 'SiteReceiptListView',  # Add consultant views
+    # Weekly report views
+    'generate_weekly_report', 'weeklyreport_changelist',
+    # Bulk user upload
+    'bulk_user_upload',
 ]
 
 # Third-party imports
@@ -629,6 +633,14 @@ class UpdateMaterialStatusView(View):
                 # Handle quantity processing (Partial/Full)
                 elif new_status in ["Partially Fulfilled", "Full"]:
                     logger.info(f"Processing quantity for status: {new_status}")
+                    
+                    # SECURITY: Check if order is assigned to current user
+                    if order.assigned_to and order.assigned_to != request.user:
+                        logger.warning(f"User {request.user.username} attempted to process order {order_id} assigned to {order.assigned_to.username}")
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'This order is assigned to {order.assigned_to.get_full_name() or order.assigned_to.username}. Only the assigned user can process this order.'
+                        }, status=403)
                     
                     # Validate current status allows quantity processing
                     required_status = 'Approved' if order.request_type == 'Release' else 'Seen'
@@ -2690,7 +2702,7 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
     View for displaying material orders with proper fulfillment workflow.
     - All authenticated users can see all orders for transparency and collaboration
     """
-    template_name = 'Inventory/material_orders_offcicers.html'
+    template_name = 'Inventory/material_orders_officers.html'
     context_object_name = 'orders'
     paginate_by = 50
 
@@ -2699,9 +2711,14 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
         logger = logging.getLogger(__name__)
         
         try:
-            # Base queryset with proper ordering and select_related for performance
-            # Show all orders to all authenticated users for transparency
-            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category').order_by('-date_requested')
+            # Base queryset: Show orders that have been assigned OR are in processing/completed states
+            # This handles both new workflow (assigned) and legacy orders (no assignment)
+            # Exclude only Draft and Pending (awaiting assignment)
+            queryset = MaterialOrder.objects.select_related(
+                'user', 'unit', 'category', 'assigned_to', 'assigned_by'
+            ).exclude(
+                status__in=['Draft', 'Pending']
+            ).order_by('-date_requested')
             
             logger.info(f"User {user.username} accessing {queryset.count()} total orders")
             
@@ -2810,3 +2827,315 @@ class DownloadSampleTemplateView(LoginRequiredMixin, View):
         response['Content-Disposition'] = 'attachment; filename="sample_inventory_template.xlsx"'
         
         return response
+
+
+# ==================== Weekly Report Views ====================
+
+@login_required
+@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+def generate_weekly_report(request):
+    """
+    View for generating weekly development reports.
+    Accessible to staff and superuser roles.
+    """
+    if request.method == 'POST':
+        # Get form data
+        days = int(request.POST.get('days', 7))
+        custom_notes = request.POST.get('custom_notes', '')
+        recipients = request.POST.get('recipients', '').strip()
+        cc_recipients = request.POST.get('cc_recipients', '').strip()
+        dry_run = request.POST.get('dry_run') == 'on'
+        
+        # Parse recipients
+        recipients_list = [email.strip() for email in recipients.split(',') if email.strip()] if recipients else None
+        cc_list = [email.strip() for email in cc_recipients.split(',') if email.strip()] if cc_recipients else None
+        
+        try:
+            # Import WeeklyReportGenerator
+            from .utils.report_generator import WeeklyReportGenerator
+            
+            # Generate report
+            generator = WeeklyReportGenerator(days=days)
+            report = generator.generate_report(
+                user=request.user,
+                custom_notes=custom_notes,
+                recipients=recipients_list,
+                cc_recipients=cc_list,
+                dry_run=dry_run
+            )
+            
+            if dry_run:
+                messages.success(
+                    request,
+                    f'Report {report.report_id} generated successfully (DRY RUN - not sent). '
+                    f'View it in the reports list.'
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Report {report.report_id} generated and sent successfully!'
+                )
+            
+            # Redirect to the report detail page
+            return redirect('weeklyreport_changelist', report_id=report.pk)
+        
+        except Exception as e:
+            messages.error(request, f'Failed to generate report: {str(e)}')
+    
+    # GET request - show form
+    from django.conf import settings
+    
+    # Get default recipients from settings
+    default_recipients = getattr(settings, 'WEEKLY_REPORT_RECIPIENTS', [])
+    if not default_recipients and settings.ADMINS:
+        default_recipients = [settings.ADMINS[0][1]]
+    
+    # Calculate default date range
+    start_date = datetime.now().date() - timedelta(days=7)
+    end_date = datetime.now().date()
+    
+    context = {
+        'title': 'Generate Weekly Development Report',
+        'default_recipients': ', '.join(default_recipients),
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+    
+    return render(request, 'Inventory/generate_weekly_report.html', context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+def weeklyreport_changelist(request, report_id=None):
+    """
+    View for displaying weekly report details or list.
+    Accessible to staff and superuser roles.
+    """
+    from .models import WeeklyReport
+    
+    if report_id:
+        # Show specific report detail
+        report = get_object_or_404(WeeklyReport, pk=report_id)
+        
+        context = {
+            'title': f'Weekly Report - {report.report_id}',
+            'report': report,
+            'object': report,
+        }
+        
+        return render(request, 'Inventory/weeklyreport_detail.html', context)
+    else:
+        # Show list of all reports
+        reports = WeeklyReport.objects.all().order_by('-generated_at')
+        
+        context = {
+            'title': 'Weekly Reports',
+            'reports': reports,
+            'object_list': reports,
+        }
+        
+        return render(request, 'Inventory/weekly_reports_list.html', context)
+
+
+# ==================== Bulk User Upload View ====================
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def bulk_user_upload(request):
+    """
+    View for bulk creating user accounts via Excel file.
+    Only accessible to superusers.
+    """
+    import secrets
+    import string
+    from django.core.mail import send_mail
+    from django.conf import settings
+    from .forms import BulkUserUploadForm
+    
+    if request.method == 'POST':
+        form = BulkUserUploadForm(request.POST, request.FILES)
+        
+        if form.is_valid():
+            df = form.cleaned_data['df']
+            user_group = form.cleaned_data.get('user_group')
+            send_welcome_email = form.cleaned_data.get('send_welcome_email', False)
+            
+            # Track results
+            created_users = []
+            skipped_users = []
+            failed_users = []
+            
+            logger = logging.getLogger(__name__)
+            
+            try:
+                with transaction.atomic():
+                    for index, row in df.iterrows():
+                        username = str(row['username']).strip()
+                        name = str(row.get('name', '')).strip()
+                        email = str(row['email']).strip()
+                        
+                        # Check if user already exists
+                        if User.objects.filter(username=username).exists():
+                            skipped_users.append({
+                                'username': username,
+                                'reason': 'Username already exists'
+                            })
+                            continue
+                        
+                        if User.objects.filter(email=email).exists():
+                            skipped_users.append({
+                                'username': username,
+                                'reason': 'Email already exists'
+                            })
+                            continue
+                        
+                        # Generate random password (12 characters)
+                        alphabet = string.ascii_letters + string.digits
+                        password = ''.join(secrets.choice(alphabet) for i in range(12))
+                        
+                        try:
+                            # Create user
+                            user = User.objects.create_user(
+                                username=username,
+                                email=email,
+                                password=password
+                            )
+                            
+                            # Set first and last name from 'name' field
+                            if name:
+                                name_parts = name.split(' ', 1)
+                                user.first_name = name_parts[0]
+                                if len(name_parts) > 1:
+                                    user.last_name = name_parts[1]
+                                user.save()
+                            
+                            # Add to group if specified
+                            if user_group:
+                                user.groups.add(user_group)
+                            
+                            # Create profile if it doesn't exist
+                            from .models import Profile
+                            Profile.objects.get_or_create(user=user)
+                            
+                            created_users.append({
+                                'username': username,
+                                'email': email,
+                                'password': password,
+                                'name': name
+                            })
+                            
+                            logger.info(f"Created user: {username}")
+                            
+                        except Exception as e:
+                            failed_users.append({
+                                'username': username,
+                                'reason': str(e)
+                            })
+                            logger.error(f"Failed to create user {username}: {str(e)}")
+                
+                # Send welcome emails if requested
+                if send_welcome_email and created_users:
+                    for user_info in created_users:
+                        try:
+                            subject = 'Welcome to MOEN IMS - Your Account Credentials'
+                            message = f"""
+Hello {user_info['name'] or user_info['username']},
+
+Your account has been created in the MOEN Inventory Management System.
+
+Login Credentials:
+Username: {user_info['username']}
+Password: {user_info['password']}
+
+Please login and change your password immediately.
+
+Login URL: {request.build_absolute_uri('/signin/')}
+
+Best regards,
+MOEN IMS Team
+                            """
+                            
+                            send_mail(
+                                subject,
+                                message,
+                                settings.DEFAULT_FROM_EMAIL,
+                                [user_info['email']],
+                                fail_silently=True
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to send email to {user_info['email']}: {str(e)}")
+                
+                # Display results
+                if created_users:
+                    messages.success(
+                        request,
+                        f"Successfully created {len(created_users)} user account(s)!"
+                    )
+                
+                if skipped_users:
+                    messages.warning(
+                        request,
+                        f"Skipped {len(skipped_users)} user(s) due to existing usernames/emails."
+                    )
+                
+                if failed_users:
+                    messages.error(
+                        request,
+                        f"Failed to create {len(failed_users)} user(s). Check the details below."
+                    )
+                
+                # Store results in context for display
+                context = {
+                    'form': BulkUserUploadForm(),  # New empty form
+                    'created_users': created_users,
+                    'skipped_users': skipped_users,
+                    'failed_users': failed_users,
+                    'show_results': True
+                }
+                
+                return render(request, 'Inventory/bulk_user_upload.html', context)
+                
+            except Exception as e:
+                messages.error(request, f"Error processing upload: {str(e)}")
+                logger.error(f"Bulk user upload error: {str(e)}", exc_info=True)
+    else:
+        form = BulkUserUploadForm()
+    
+    context = {
+        'form': form,
+        'title': 'Bulk User Upload',
+        'show_results': False
+    }
+    
+    return render(request, 'Inventory/bulk_user_upload.html', context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def download_user_template(request):
+    """Download sample Excel template for bulk user upload"""
+    # Sample data for the template
+    sample_data = {
+        'username': ['jdoe', 'asmith', 'bwilson'],
+        'name': ['John Doe', 'Alice Smith', 'Bob Wilson'],
+        'email': ['john.doe@example.com', 'alice.smith@example.com', 'bob.wilson@example.com']
+    }
+    
+    # Create DataFrame
+    df = pd.DataFrame(sample_data)
+    
+    # Create Excel file in memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Users')
+    
+    output.seek(0)
+    
+    # Create HTTP response
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="user_upload_template.xlsx"'
+    
+    return response

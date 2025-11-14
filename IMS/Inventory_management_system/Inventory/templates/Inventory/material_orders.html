@@ -190,26 +190,34 @@
                     {% if user.is_superuser or 'Storekeeper' in user.groups.all|join:', ' %}
                         <td class="text-center action-cell">
                                 {% if order.remaining_quantity > 0 and order.status != "Completed" %}
-                                    <div class="d-flex gap-2 align-items-center justify-content-center">
-                                        <input type="number" 
-                                               class="form-control form-control-sm fulfill-qty-input" 
-                                               style="width: 80px;" 
-                                               min="1" 
-                                               max="{{ order.remaining_quantity }}" 
-                                               placeholder="Qty"
-                                               title="Enter quantity to fulfill">
-                                        <button class="btn btn-primary btn-sm process-btn" 
-                                                data-order-id="{{ order.id }}"
-                                                title="Process partial fulfillment">
-                                            Process
-                                        </button>
-                                        <button class="btn btn-success btn-sm complete-btn" 
-                                                data-order-id="{{ order.id }}"
-                                                data-remaining="{{ order.remaining_quantity }}"
-                                                title="Complete full fulfillment">
-                                            Complete
-                                        </button>
-                                    </div>
+                                    {% if order.assigned_to == user or user.is_superuser or not order.assigned_to %}
+                                        {# Only show process buttons if order is assigned to current user, user is superuser, or order is unassigned #}
+                                        <div class="d-flex gap-2 align-items-center justify-content-center">
+                                            <input type="number" 
+                                                   class="form-control form-control-sm fulfill-qty-input" 
+                                                   style="width: 80px;" 
+                                                   min="1" 
+                                                   max="{{ order.remaining_quantity }}" 
+                                                   placeholder="Qty"
+                                                   title="Enter quantity to fulfill">
+                                            <button class="btn btn-primary btn-sm process-btn" 
+                                                    data-order-id="{{ order.id }}"
+                                                    title="Process partial fulfillment">
+                                                Process
+                                            </button>
+                                            <button class="btn btn-success btn-sm complete-btn" 
+                                                    data-order-id="{{ order.id }}"
+                                                    data-remaining="{{ order.remaining_quantity }}"
+                                                    title="Complete full fulfillment">
+                                                Complete
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        {# Order is assigned to someone else - show message #}
+                                        <span class="text-muted small" title="This order is assigned to {{ order.assigned_to.get_full_name|default:order.assigned_to.username }}">
+                                            <i class="fas fa-lock"></i> Assigned to {{ order.assigned_to.get_full_name|default:order.assigned_to.username }}
+                                        </span>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-success">
                                         <i class="fas fa-check-circle"></i> Fulfilled

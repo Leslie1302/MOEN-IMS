@@ -1,0 +1,399 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}Pending Orders - Stores Management{% endblock %}
+
+{% block extra_head %}
+<style>
+    .card-stats {
+        border-left: 4px solid #0d6efd;
+    }
+    .order-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #dee2e6;
+    }
+    .order-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-left-color: #0d6efd;
+    }
+    .order-card.selected {
+        border-left-color: #198754;
+        background-color: #f8f9fa;
+    }
+    .priority-urgent { color: #dc3545; font-weight: bold; }
+    .priority-high { color: #fd7e14; font-weight: bold; }
+    .priority-medium { color: #0dcaf0; }
+    .priority-low { color: #6c757d; }
+    
+    .assignment-panel {
+        position: sticky;
+        top: 20px;
+    }
+    
+    .btn-assign {
+        background-color: #198754;
+        color: white;
+        padding: 12px 24px;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    .btn-assign:hover {
+        background-color: #157347;
+        color: white;
+    }
+    
+    .selected-count {
+        display: inline-block;
+        background-color: #198754;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block full_width_content %}
+{% csrf_token %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">📋 Pending Orders - Awaiting Assignment</h1>
+            <p class="text-muted">Assign material release requests to stores staff</p>
+        </div>
+        <a href="{% url 'stores_assigned_orders' %}" class="btn btn-outline-primary">
+            <i class="fas fa-list"></i> View Assigned Orders
+        </a>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card card-stats">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-clipboard-list fa-3x text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-0">Total Pending</h6>
+                            <h3 class="mb-0">{{ total_pending }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Orders List (Left Column) -->
+        <div class="col-lg-8">
+            <!-- Search Bar -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-10">
+                            <input type="text" name="search" class="form-control" 
+                                   placeholder="Search by request code, material name, or user..." 
+                                   value="{{ search_query }}">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Bulk Actions -->
+            <div class="card mb-3">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllBtn">
+                            <i class="fas fa-check-square"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAllBtn">
+                            <i class="fas fa-square"></i> Deselect All
+                        </button>
+                        <span class="ms-3">Selected: <span class="selected-count" id="selectedCount">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders List -->
+            {% if orders %}
+                <div id="ordersList">
+                    {% for order in orders %}
+                        <div class="card order-card mb-3" data-order-id="{{ order.id }}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <input type="checkbox" class="form-check-input order-checkbox" 
+                                               value="{{ order.id }}" style="width: 24px; height: 24px;">
+                                    </div>
+                                    <div class="col">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h5 class="mb-1">
+                                                    <strong>{{ order.request_code }}</strong>
+                                                    <span class="badge bg-danger ms-2">Release Request</span>
+                                                </h5>
+                                                <h6 class="mb-2 text-primary">{{ order.name }}</h6>
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-user"></i> Requested by: <strong>{{ order.user.username }}</strong>
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-calendar"></i> {{ order.date_requested|date:"M d, Y H:i" }}
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                <div class="row mt-2">
+                                                    <div class="col-md-4">
+                                                        <small><i class="fas fa-box"></i> Quantity: <strong>{{ order.quantity|floatformat:0|intcomma }}</strong> {{ order.unit }}</small>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <small><i class="fas fa-warehouse"></i> {{ order.warehouse|default:"No warehouse" }}</small>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <small class="priority-{{ order.priority|lower }}">
+                                                            <i class="fas fa-flag"></i> {{ order.priority }} Priority
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                {% if order.region or order.district %}
+                                                    <div class="mt-2">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-map-marker-alt"></i> 
+                                                            {% if order.region %}{{ order.region }}{% endif %}
+                                                            {% if order.district %}, {{ order.district }}{% endif %}
+                                                        </small>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}">First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}">Last</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">No pending orders</h5>
+                        <p class="text-muted">All orders have been assigned to stores staff.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Assignment Panel (Right Column) -->
+        <div class="col-lg-4">
+            <div class="assignment-panel">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-users"></i> Assign to Stores Staff</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="assignmentForm">
+                            {% csrf_token %}
+                            
+                            <div class="mb-3">
+                                <label for="staffSelect" class="form-label">Select Stores Staff</label>
+                                <select class="form-select" id="staffSelect" name="staff_id" required>
+                                    <option value="">-- Choose Staff Member --</option>
+                                    {% for staff in stores_staff %}
+                                        <option value="{{ staff.id }}">{{ staff.username }} - {{ staff.get_full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="assignmentNotes" class="form-label">Assignment Notes (Optional)</label>
+                                <textarea class="form-control" id="assignmentNotes" name="notes" rows="3" 
+                                          placeholder="Add any special instructions or notes..."></textarea>
+                            </div>
+
+                            <div class="alert alert-info">
+                                <strong>Selected Orders:</strong> <span id="selectedCountDisplay">0</span>
+                            </div>
+
+                            <button type="submit" class="btn btn-assign w-100" id="assignBtn" disabled>
+                                <i class="fas fa-user-check"></i> Assign Selected Orders
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> Instructions</h6>
+                    </div>
+                    <div class="card-body">
+                        <ol class="mb-0 small">
+                            <li>Select one or more orders from the list</li>
+                            <li>Choose a stores staff member to assign to</li>
+                            <li>Add optional notes for the staff member</li>
+                            <li>Click "Assign Selected Orders"</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    const selectedCountEl = document.getElementById('selectedCount');
+    const selectedCountDisplayEl = document.getElementById('selectedCountDisplay');
+    const assignBtn = document.getElementById('assignBtn');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const assignmentForm = document.getElementById('assignmentForm');
+
+    function updateSelectedCount() {
+        const selectedCount = document.querySelectorAll('.order-checkbox:checked').length;
+        selectedCountEl.textContent = selectedCount;
+        selectedCountDisplayEl.textContent = selectedCount;
+        assignBtn.disabled = selectedCount === 0;
+
+        // Update card styling
+        checkboxes.forEach(checkbox => {
+            const card = checkbox.closest('.order-card');
+            if (checkbox.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+
+    // Checkbox change event
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+    });
+
+    // Select all button
+    selectAllBtn.addEventListener('click', function() {
+        checkboxes.forEach(checkbox => checkbox.checked = true);
+        updateSelectedCount();
+    });
+
+    // Deselect all button
+    deselectAllBtn.addEventListener('click', function() {
+        checkboxes.forEach(checkbox => checkbox.checked = false);
+        updateSelectedCount();
+    });
+
+    // Form submission
+    assignmentForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const staffId = document.getElementById('staffSelect').value;
+        const notes = document.getElementById('assignmentNotes').value;
+        const selectedOrders = Array.from(document.querySelectorAll('.order-checkbox:checked'))
+            .map(cb => cb.value);
+
+        if (!staffId) {
+            alert('Please select a staff member');
+            return;
+        }
+
+        if (selectedOrders.length === 0) {
+            alert('Please select at least one order');
+            return;
+        }
+
+        // Disable button
+        assignBtn.disabled = true;
+        assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Assigning...';
+
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('staff_id', staffId);
+        formData.append('notes', notes);
+        selectedOrders.forEach(orderId => {
+            formData.append('order_ids[]', orderId);
+        });
+
+        // CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        // Submit via AJAX
+        fetch('{% url "stores_assign_orders" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+                assignBtn.disabled = false;
+                assignBtn.innerHTML = '<i class="fas fa-user-check"></i> Assign Selected Orders';
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+            assignBtn.disabled = false;
+            assignBtn.innerHTML = '<i class="fas fa-user-check"></i> Assign Selected Orders';
+        });
+    });
+});
+</script>
+{% endblock %}

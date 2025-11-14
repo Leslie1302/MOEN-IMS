@@ -493,7 +493,7 @@ def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
             # Verify user exists and has a username
             if instance.user and hasattr(instance.user, 'username') and instance.user.username:
                 try:
-                    # Generate the stamp
+                    # Generate the text-based stamp (for database record)
                     stamp = instance.generate_signature_stamp()
                     
                     # Save only if we successfully generated a stamp
@@ -501,6 +501,15 @@ def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
                         # Use update to avoid triggering the signal again
                         Profile.objects.filter(pk=instance.pk).update(signature_stamp=stamp)
                         logger.info(f"Generated signature stamp for profile: {instance.user.username}")
+                        
+                        # Also generate PNG stamp image
+                        try:
+                            if hasattr(instance, 'generate_digital_stamp_png'):
+                                png_path = instance.generate_digital_stamp_png()
+                                if png_path:
+                                    logger.info(f"Generated PNG digital stamp for profile: {instance.user.username} at {png_path}")
+                        except Exception as png_error:
+                            logger.warning(f"Could not generate PNG stamp for {instance.user.username}: {str(png_error)}")
                     else:
                         logger.warning(f"Failed to generate stamp for profile {instance.pk}: Empty stamp returned")
                         

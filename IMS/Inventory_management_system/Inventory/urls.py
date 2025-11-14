@@ -1,6 +1,7 @@
-from django.urls import path, include
+from django.urls import path, include, reverse_lazy
 from django.conf import settings
 from django.conf.urls import handler403, handler404, handler500
+from django.contrib.auth import views as auth_views
 
 # Import views from their respective modules
 from .views import (
@@ -12,6 +13,7 @@ from .views import (
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
     StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
+    generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
 )
 
 # Import transporter views
@@ -29,6 +31,12 @@ from .views_help import HelpView
 # Import auth views
 from .auth_views import SignUpView, SignInView, CustomLogoutView, Dashboard
 from .views_auth import AwaitingAuthorizationView, custom_403_view, custom_404_view, custom_500_view
+
+# Import 2FA views
+from .views_2fa import (
+    setup_2fa, setup_2fa_qr, confirm_2fa, disable_2fa,
+    backup_codes, regenerate_backup_codes, verify_2fa
+)
 
 # Import item views
 from .item_views import AddItem, EditItem, DeleteItem
@@ -54,6 +62,13 @@ from .boq_overissuance_views import (
 from .signature_lookup_view import signature_lookup, signature_verify, signature_api_lookup
 from .signature_demo_view import signature_stamp_demo
 
+# Import stores management views
+from .stores_management_views import (
+    PendingOrdersView, AssignedOrdersView, AssignOrderView,
+    MyAssignedOrdersView, update_assignment_status, bulk_assign_orders,
+    StorekeeperPerformanceDashboard
+)
+
 # Error handlers
 handler403 = custom_403_view
 handler404 = custom_404_view
@@ -67,6 +82,42 @@ urlpatterns = [
     path('logout/', CustomLogoutView.as_view(template_name='Inventory/logout.html'), name='logout'),
     path('awaiting-authorization/', AwaitingAuthorizationView.as_view(), name='awaiting_authorization'),
     path('help/', HelpView.as_view(), name='help'),
+    
+    # Password Reset URLs
+    path('password-reset/', 
+         auth_views.PasswordResetView.as_view(
+             template_name='Inventory/password_reset_form.html',
+             email_template_name='Inventory/emails/password_reset_email.txt',
+             html_email_template_name='Inventory/emails/password_reset_email.html',
+             subject_template_name='Inventory/emails/password_reset_subject.txt',
+             success_url=reverse_lazy('password_reset_done')
+         ),
+         name='password_reset'),
+    path('password-reset/done/', 
+         auth_views.PasswordResetDoneView.as_view(
+             template_name='Inventory/password_reset_done.html'
+         ),
+         name='password_reset_done'),
+    path('password-reset-confirm/<uidb64>/<token>/', 
+         auth_views.PasswordResetConfirmView.as_view(
+             template_name='Inventory/password_reset_confirm.html',
+             success_url=reverse_lazy('password_reset_complete')
+         ),
+         name='password_reset_confirm'),
+    path('password-reset-complete/', 
+         auth_views.PasswordResetCompleteView.as_view(
+             template_name='Inventory/password_reset_complete.html'
+         ),
+         name='password_reset_complete'),
+    
+    # Two-Factor Authentication URLs
+    path('2fa/setup/', setup_2fa, name='setup_2fa'),
+    path('2fa/setup/qr/', setup_2fa_qr, name='2fa_qr'),
+    path('2fa/confirm/', confirm_2fa, name='confirm_2fa'),
+    path('2fa/verify/', verify_2fa, name='verify_2fa'),
+    path('2fa/disable/', disable_2fa, name='disable_2fa'),
+    path('2fa/backup-codes/', backup_codes, name='2fa_backup_codes'),
+    path('2fa/regenerate-backup-codes/', regenerate_backup_codes, name='regenerate_backup_codes'),
     
     # Authenticated routes
     path('dashboard/', Dashboard.as_view(), name='dashboard'),
@@ -113,6 +164,7 @@ urlpatterns = [
     path('transportation-status/', transporter_views.TransportationStatusView.as_view(), name='transportation_status'),
     path('update-transport-status/<int:pk>/', transporter_views.update_transport_status, name='update_transport_status'),
     path('download-waybill/<int:transport_id>/', transporter_views.download_waybill_pdf, name='download_waybill_pdf'),
+    path('verify-waybill-qr/<str:waybill_identifier>/', transporter_views.verify_waybill_qr, name='verify_waybill_qr'),
     path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
     path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
     path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
@@ -163,26 +215,34 @@ urlpatterns = [
     path('boq/overissuance/justifications/<int:pk>/review/', review_overissuance_justification, name='review_overissuance_justification'),
     path('boq/overissuance/stats/', boq_overissuance_stats, name='boq_overissuance_stats'),
     
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
     # Supply Contract Management
     path('supply/', include('Inventory.supply_contract_urls')),
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+    
     # Digital Signature Management
     path('signatures/lookup/', signature_lookup, name='signature_lookup'),
     path('signatures/verify/<int:user_id>/', signature_verify, name='signature_verify'),
     path('signatures/api/lookup/', signature_api_lookup, name='signature_api_lookup'),
     path('signatures/demo/', signature_stamp_demo, name='signature_demo'),
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+    
+    # Stores Management URLs
+    path('stores/pending-orders/', PendingOrdersView.as_view(), name='stores_pending_orders'),
+    path('stores/assigned-orders/', AssignedOrdersView.as_view(), name='stores_assigned_orders'),
+    path('stores/assign-orders/', AssignOrderView.as_view(), name='stores_assign_orders'),
+    path('stores/my-assigned-orders/', MyAssignedOrdersView.as_view(), name='stores_my_assigned_orders'),
+    path('stores/assignment/<int:assignment_id>/update-status/', update_assignment_status, name='stores_update_assignment_status'),
+    path('stores/bulk-assign/', bulk_assign_orders, name='stores_bulk_assign'),
+    path('stores/performance/', StorekeeperPerformanceDashboard.as_view(), name='stores_performance_dashboard'),
+
+    # Weekly Report URLs
+    path('weekly-reports/', weeklyreport_changelist, name='weekly_reports_list'),
+    path('weekly-reports/generate/', generate_weekly_report, name='generate_weekly_report'),
+    path('weekly-reports/<int:report_id>/', weeklyreport_changelist, name='weeklyreport_detail'),
+    
+    # Bulk User Upload
+    path('bulk-user-upload/', bulk_user_upload, name='bulk_user_upload'),
+    
+    # Excel User Import Template Download
+    path('download-user-import-template/', 
+         lambda request: __import__('Inventory.utils.excel_templates', fromlist=['create_user_import_template_view']).create_user_import_template_view(request),
+         name='download_user_import_template'),
 ]

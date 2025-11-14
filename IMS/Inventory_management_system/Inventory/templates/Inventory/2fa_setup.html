@@ -1,0 +1,82 @@
+{% extends "Inventory/base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="text-center mb-4">
+                        <i class="fas fa-shield-alt text-primary me-2"></i>
+                        Set Up Two-Factor Authentication
+                    </h2>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>What is 2FA?</strong><br>
+                        Two-Factor Authentication adds an extra layer of security to your account by requiring a code from your phone in addition to your password.
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5 class="mb-3">Step 1: Install an Authenticator App</h5>
+                        <p class="text-muted">Download one of these apps on your phone:</p>
+                        <ul>
+                            <li>Google Authenticator (iOS/Android)</li>
+                            <li>Microsoft Authenticator (iOS/Android)</li>
+                            <li>Authy (iOS/Android)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5 class="mb-3">Step 2: Scan the QR Code</h5>
+                        <div class="text-center mb-3">
+                            <img src="{% url '2fa_qr' %}" alt="2FA QR Code" class="img-fluid border p-2" style="max-width: 250px;">
+                        </div>
+                        <p class="text-muted small text-center">
+                            Or manually enter this code: <br>
+                            <code class="fs-6">{{ secret_key }}</code>
+                        </p>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5 class="mb-3">Step 3: Enter Verification Code</h5>
+                        <form method="post" action="{% url 'confirm_2fa' %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="code" class="form-label">6-Digit Code</label>
+                                <input type="text" 
+                                       class="form-control form-control-lg text-center" 
+                                       id="code" 
+                                       name="code" 
+                                       placeholder="000000"
+                                       maxlength="6"
+                                       pattern="[0-9]{6}"
+                                       required
+                                       autofocus>
+                                <div class="form-text">Enter the 6-digit code from your authenticator app</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-check me-2"></i>Verify and Enable 2FA
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="text-center">
+                        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-format code input
+    document.getElementById('code').addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+</script>
+{% endblock content %}
+

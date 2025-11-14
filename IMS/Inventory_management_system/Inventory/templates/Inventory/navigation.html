@@ -26,22 +26,15 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
                                 <li><h6 class="dropdown-header">Material Requests</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'request_material' %}">➕ Request Material</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📦 Material Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Tracking & Monitoring</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
                                 <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-<<<<<<< Updated upstream
-=======
                                 <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                                 <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance Summary</a></li>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
                             </ul>
                         </li>
                             {% endif %}
@@ -55,22 +48,15 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="scheduleDropdownSuper">
                                 <li><h6 class="dropdown-header">Material Requests</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'request_material' %}">➕ Request Material</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📦 Material Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Tracking & Monitoring</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a></li>
                                 <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-<<<<<<< Updated upstream
-=======
                                 <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                                 <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance Summary</a></li>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
                             </ul>
                         </li>
                         {% endif %}
@@ -84,11 +70,12 @@
                                 🏪 Store Operations
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="storeOperationsDropdown">
-                                <!-- <li><h6 class="dropdown-header">Material Receipt</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_receipt' %}">📦 Receive Materials</a></li>
-                                <li><hr class="dropdown-divider"></li> -->
+                                <li><h6 class="dropdown-header">My Work</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Release Processing</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Transport Management</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
@@ -110,8 +97,12 @@
                                 🏪 Store Operations
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="storeOperationsDropdownSuper">
+                                <li><h6 class="dropdown-header">My Work</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Release Processing</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Transport Management</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
@@ -134,14 +125,13 @@
                                 🏬 Stores Management
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="storesManagementDropdown">
-                                <li><h6 class="dropdown-header">Material Release Requests</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Requests</a></li>
-                                <li><a class="dropdown-item" href="{% url 'pending_requests' %}">⏳ Pending Approval</a></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}?status=Approved">✅ Approved Requests</a></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}?status=Rejected">❌ Rejected Requests</a></li>
+                                <li><h6 class="dropdown-header">Order Assignment</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Approval Workflow</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📊 View Material Orders</a></li>
+                                <li><h6 class="dropdown-header">Material Orders</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Transport Management</h6></li>
@@ -164,14 +154,13 @@
                                 🏬 Stores Management
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="storesManagementDropdownSuper">
-                                <li><h6 class="dropdown-header">Material Release Requests</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Requests</a></li>
-                                <li><a class="dropdown-item" href="{% url 'pending_requests' %}">⏳ Pending Approval</a></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}?status=Approved">✅ Approved Requests</a></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}?status=Rejected">❌ Rejected Requests</a></li>
+                                <li><h6 class="dropdown-header">Order Assignment</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Approval Workflow</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📊 View Material Orders</a></li>
+                                <li><h6 class="dropdown-header">Material Orders</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
                                 <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Transport Management</h6></li>
@@ -208,27 +197,13 @@
                                 🏗️ Projects
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="projectsDropdown">
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                 <li><h6 class="dropdown-header">Bill of Quantity</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a></li>
                                 <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance Summary</a></li>
                                 <li><a class="dropdown-item" href="{% url 'boq_overissuance_justification_list' %}">📝 Justifications</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">Project Management</h6></li>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
                                 <li><a class="dropdown-item" href="#">🏗️ Project Management</a></li>
                                 <li><a class="dropdown-item" href="#">📊 Project Reports</a></li>
                             </ul>
@@ -245,28 +220,19 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="managementDropdown">
                                 <li><h6 class="dropdown-header">Dashboards & Reports</h6></li>
-                                <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
-                                <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                                <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📈 Performance Reports</a></li>
+                                <li><a class="dropdown-item" href="{% url 'notifications' %}">🔔 System Notifications</a></li>
                                 <li><hr class="dropdown-divider"></li>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
                                 <li><hr class="dropdown-divider"></li>
-=======
                                 <li><h6 class="dropdown-header">Digital Signatures</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
-=======
                                 <li><h6 class="dropdown-header">Digital Signatures</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
-=======
                                 <li><h6 class="dropdown-header">Digital Signatures</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
                             </ul>
                         </li>
                             {% endif %}
@@ -280,28 +246,13 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="managementDropdownSuper">
                                 <li><h6 class="dropdown-header">Dashboards & Reports</h6></li>
-                                <li><a class="dropdown-item" href="#">📈 Performance Reports</a></li>
-                                <li><a class="dropdown-item" href="#">🔔 System Notifications</a></li>
+                                <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📈 Performance Reports</a></li>
+                                <li><a class="dropdown-item" href="{% url 'notifications' %}">🔔 System Notifications</a></li>
                                 <li><hr class="dropdown-divider"></li>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
                                 <li><hr class="dropdown-divider"></li>
-=======
                                 <li><h6 class="dropdown-header">Digital Signatures</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
                                 <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
-=======
-                                <li><h6 class="dropdown-header">Digital Signatures</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                                <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
-=======
-                                <li><h6 class="dropdown-header">Digital Signatures</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                                <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
->>>>>>> Stashed changes
                             </ul>
                         </li>
                         {% endif %}
@@ -379,13 +330,13 @@
                                 {% endif %}
                             </ul>
                         </li>
+                    {% endif %}
 
-                        {% if not user.groups.exists %}
-                            <!-- Show message for unassigned users -->
-                            <li class="nav-item">
-                                <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
-                            </li>
-                        {% endif %}
+                    <!-- Show "Awaiting Authorization" ONLY for users with no groups and not superuser -->
+                    {% if not user.groups.exists and not user.is_superuser %}
+                        <li class="nav-item">
+                            <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
+                        </li>
                     {% endif %}
 
                     <!-- User profile dropdown -->
