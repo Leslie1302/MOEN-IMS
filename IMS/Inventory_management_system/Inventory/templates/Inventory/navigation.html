@@ -304,7 +304,7 @@
                                 {% if recent_notifications %}
                                     {% for notification in recent_notifications %}
                                     <li>
-                                        <a class="dropdown-item small py-2" href="#" 
+                                        <a class="dropdown-item small py-2" href="{% url 'notification_detail' notification.id %}" 
                                            style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
                                             <strong>{{ notification.title }}</strong><br>
                                             <span class="text-muted" style="font-size: 0.85em;">
@@ -320,7 +320,7 @@
                                     <li><span class="dropdown-item small text-muted">No new notifications</span></li>
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-center text-primary fw-semibold" href="#">
+                                <li><a class="dropdown-item text-center text-primary fw-semibold" href="{% url 'notifications' %}">
                                     <i class="bi bi-list-ul"></i> View All Notifications
                                 </a></li>
                                 {% if unread_notifications_count > 0 %}
