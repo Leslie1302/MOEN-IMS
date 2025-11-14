@@ -92,15 +92,10 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
         context = super().get_context_data(**kwargs)
         
         # Get list of storekeepers for assignment dropdown
-        # If Storekeepers group exists and has members, use them; otherwise show all active users
         stores_staff = User.objects.filter(
             groups__name='Storekeepers',
             is_active=True
         ).order_by('username')
-        
-        # Fallback: if no storekeepers exist, show all active staff
-        if not stores_staff.exists():
-            stores_staff = User.objects.filter(is_active=True, is_staff=True).order_by('username')
         
         context['stores_staff'] = stores_staff
         context['search_query'] = self.request.GET.get('search', '')
@@ -215,6 +210,13 @@ class AssignOrderView(LoginRequiredMixin, StoresManagementMixin, View):
                     'success': False,
                     'message': 'Selected staff member not found'
                 }, status=404)
+            
+            # Ensure selected user is a Storekeeper
+            if not staff_member.groups.filter(name='Storekeeper').exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Selected user is not a Storekeeper and cannot be assigned store orders'
+                }, status=400)
             
             # Process assignments in a transaction
             assigned_count = 0
@@ -424,6 +426,13 @@ def bulk_assign_orders(request):
             }, status=400)
         
         staff_member = get_object_or_404(User, id=staff_id)
+        
+        # Ensure selected user is a Storekeeper
+        if not staff_member.groups.filter(name='Storekeepers').exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'Selected user is not a Storekeeper and cannot be assigned store orders'
+            }, status=400)
         
         assigned_count = 0
         with transaction.atomic():
