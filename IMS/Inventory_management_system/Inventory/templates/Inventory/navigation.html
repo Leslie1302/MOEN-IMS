@@ -116,7 +116,34 @@
                         </li>
                         {% endif %}
                         
-                        <!-- Stores Management Menu (for Stores Management group) -->
+                        <!-- Stores Management Menu (for Stores Management group and Superusers) -->
+                        {% if user.is_superuser %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storesManagementDropdown" 
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                🏬 Stores Management
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="storesManagementDropdown">
+                                <li><h6 class="dropdown-header">Order Assignment</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Material Orders</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
+                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Transport Management</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport Status</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Tracking & Verification</h6></li>
+                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
+                            </ul>
+                        </li>
+                        {% else %}
                         {% for group in user.groups.all %}
                             {% if group.name == 'Stores Management' %}
                         <li class="nav-item dropdown">
@@ -146,33 +173,6 @@
                         </li>
                             {% endif %}
                         {% endfor %}
-                        
-                        {% if user.is_superuser %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storesManagementDropdownSuper" 
-                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                🏬 Stores Management
-                            </a>
-                            <ul class="dropdown-menu" aria-labelledby="storesManagementDropdownSuper">
-                                <li><h6 class="dropdown-header">Order Assignment</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
-                                <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a></li>
-                                <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance Dashboard</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Material Orders</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material Orders</a></li>
-                                <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release Orders</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Transport Management</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport Status</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Tracking & Verification</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
-                            </ul>
-                        </li>
                         {% endif %}
                         
                         <!-- Site Work Menu -->
