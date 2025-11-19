@@ -1,0 +1,340 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Bulk Edit Bill of Quantities - Inventory Manager{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+    .formset-row {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: #f8f9fa;
+    }
+    
+    .formset-row:hover {
+        background-color: #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .formset-row h5 {
+        color: #495057;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    .btn-save-all {
+        position: sticky;
+        top: 70px;
+        z-index: 100;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .errorlist {
+        list-style: none;
+        padding: 0;
+        margin: 5px 0;
+    }
+    
+    .errorlist li {
+        color: #dc3545;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="bg-light py-3 mb-4">
+        <h2 class="text-center fw-bold text-primary mb-0">
+            <i class="bi bi-pencil-square"></i> {{ page_title }}
+        </h2>
+        <p class="text-muted text-center mb-0">Edit {{ boq_count }} Bill of Quantity item(s)</p>
+    </div>
+
+    {% if messages %}
+        <div class="row justify-content-center">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Save Buttons (Sticky) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded btn-save-all">
+                <a href="{% url 'bill_of_quantity' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Cancel
+                </a>
+                <button type="submit" form="boq-formset" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> Save All Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formset -->
+    <form method="post" id="boq-formset">
+        {% csrf_token %}
+        {{ formset.management_form }}
+        
+        {% if formset.non_form_errors %}
+            <div class="alert alert-danger">
+                {{ formset.non_form_errors }}
+            </div>
+        {% endif %}
+        
+        <div class="row">
+            {% for form in formset %}
+                <div class="col-12">
+                    <div class="formset-row">
+                        <h5>
+                            Item #{{ forloop.counter }}: 
+                            {% if form.instance.material_description %}
+                                {{ form.instance.material_description }}
+                            {% else %}
+                                BOQ Item
+                            {% endif %}
+                        </h5>
+                        
+                        {{ form.id }}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <!-- Location Information -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.region.id_for_label }}" class="form-label">Region</label>
+                                {{ form.region }}
+                                {% if form.region.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.region.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.district.id_for_label }}" class="form-label">District</label>
+                                {{ form.district }}
+                                {% if form.district.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.district.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.community.id_for_label }}" class="form-label">Community</label>
+                                {{ form.community }}
+                                {% if form.community.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.community.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <!-- Project Details -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.consultant.id_for_label }}" class="form-label">Consultant</label>
+                                {{ form.consultant }}
+                                {% if form.consultant.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.consultant.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.contractor.id_for_label }}" class="form-label">Contractor</label>
+                                {{ form.contractor }}
+                                {% if form.contractor.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.contractor.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.package_number.id_for_label }}" class="form-label">Package Number</label>
+                                {{ form.package_number }}
+                                {% if form.package_number.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.package_number.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <!-- Material Information -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.material_description.id_for_label }}" class="form-label">Material Description</label>
+                                {{ form.material_description }}
+                                {% if form.material_description.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.material_description.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.item_code.id_for_label }}" class="form-label">Item Code</label>
+                                {{ form.item_code }}
+                                {% if form.item_code.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.item_code.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <!-- Quantities -->
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.contract_quantity.id_for_label }}" class="form-label">Contract Quantity</label>
+                                {{ form.contract_quantity }}
+                                {% if form.contract_quantity.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.contract_quantity.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.quantity_received.id_for_label }}" class="form-label">
+                                    Quantity Received
+                                    <i class="bi bi-info-circle" title="This value is automatically updated by site logs"></i>
+                                </label>
+                                {{ form.quantity_received }}
+                                <small class="help-text">Note: This value is automatically updated by site logs</small>
+                                {% if form.quantity_received.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.quantity_received.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.warehouse.id_for_label }}" class="form-label">Warehouse</label>
+                                {{ form.warehouse }}
+                                {% if form.warehouse.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in form.warehouse.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Balance Display -->
+                        {% if form.instance.id %}
+                        <div class="alert {% if form.instance.balance < 0 %}alert-danger{% else %}alert-info{% endif %} mb-0">
+                            <strong>Current Balance:</strong> 
+                            <span class="{% if form.instance.balance < 0 %}text-danger{% endif %}">
+                                {{ form.instance.balance|floatformat:2 }}
+                            </span>
+                            {% if form.instance.balance < 0 %}
+                                <i class="bi bi-exclamation-triangle-fill ms-2"></i> Overissuance!
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Bottom Save Buttons -->
+        <div class="row mt-4 mb-5">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded">
+                    <a href="{% url 'bill_of_quantity' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-save"></i> Save All Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Smooth scroll to first error
+    const firstError = document.querySelector('.errorlist, .alert-danger');
+    if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // Add confirmation before leaving if form is dirty
+    let formChanged = false;
+    const form = document.getElementById('boq-formset');
+    const inputs = form.querySelectorAll('input, select, textarea');
+    
+    inputs.forEach(input => {
+        input.addEventListener('change', () => {
+            formChanged = true;
+        });
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged && !form.submitted) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+    
+    form.addEventListener('submit', function() {
+        form.submitted = true;
+    });
+});
+</script>
+{% endblock content %}
+

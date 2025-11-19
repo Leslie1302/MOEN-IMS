@@ -1,0 +1,352 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Edit Bill of Quantity - Inventory Manager{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+    .form-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 25px;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+    }
+    
+    .form-section h4 {
+        color: #495057;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-left: 10px;
+        border-left: 4px solid #007bff;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    .errorlist {
+        list-style: none;
+        padding: 0;
+        margin: 5px 0;
+    }
+    
+    .errorlist li {
+        color: #dc3545;
+        font-size: 0.875rem;
+    }
+    
+    .balance-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .balance-card.overissuance {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container px-4">
+    <div class="bg-light py-3 mb-4">
+        <h2 class="text-center fw-bold text-primary mb-0">
+            <i class="bi bi-pencil"></i> {{ page_title }}
+        </h2>
+        <p class="text-muted text-center mb-0">
+            Package: {{ boq_item.package_number }} | Item Code: {{ boq_item.item_code }}
+        </p>
+    </div>
+
+    {% if messages %}
+        <div class="row justify-content-center">
+            {% for message in messages %}
+                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-12">
+            <!-- Current Balance Info -->
+            <div class="balance-card {% if boq_item.balance < 0 %}overissuance{% endif %}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">Current Balance</h5>
+                        <h2 class="mb-0">
+                            {{ boq_item.balance|floatformat:2 }}
+                            {% if boq_item.balance < 0 %}
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            {% endif %}
+                        </h2>
+                    </div>
+                    <div class="text-end">
+                        <small>Contract Qty: {{ boq_item.contract_quantity|floatformat:2 }}</small><br>
+                        <small>Qty Received: {{ boq_item.quantity_received|floatformat:2 }}</small>
+                    </div>
+                </div>
+                {% if boq_item.balance < 0 %}
+                    <div class="alert alert-light mt-3 mb-0">
+                        <strong>Warning:</strong> This item has an overissuance of {{ boq_item.overissuance_amount|floatformat:2 }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Edit Form -->
+            <div class="form-card">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ formset.management_form }}
+                    
+                    {% if formset.non_form_errors %}
+                        <div class="alert alert-danger">
+                            {{ formset.non_form_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    {% for form in formset %}
+                        {{ form.id }}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Location Information -->
+                        <div class="form-section">
+                            <h4><i class="bi bi-geo-alt"></i> Location Information</h4>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.region.id_for_label }}" class="form-label">Region</label>
+                                    {{ form.region }}
+                                    {% if form.region.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.region.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.district.id_for_label }}" class="form-label">District</label>
+                                    {{ form.district }}
+                                    {% if form.district.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.district.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.community.id_for_label }}" class="form-label">Community</label>
+                                    {{ form.community }}
+                                    {% if form.community.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.community.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Project Details -->
+                        <div class="form-section">
+                            <h4><i class="bi bi-briefcase"></i> Project Details</h4>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.consultant.id_for_label }}" class="form-label">Consultant</label>
+                                    {{ form.consultant }}
+                                    {% if form.consultant.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.consultant.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.contractor.id_for_label }}" class="form-label">Contractor</label>
+                                    {{ form.contractor }}
+                                    {% if form.contractor.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.contractor.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.package_number.id_for_label }}" class="form-label">Package Number</label>
+                                    {{ form.package_number }}
+                                    {% if form.package_number.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.package_number.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Material Information -->
+                        <div class="form-section">
+                            <h4><i class="bi bi-box-seam"></i> Material Information</h4>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.material_description.id_for_label }}" class="form-label">Material Description</label>
+                                    {{ form.material_description }}
+                                    {% if form.material_description.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.material_description.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.item_code.id_for_label }}" class="form-label">Item Code</label>
+                                    {{ form.item_code }}
+                                    {% if form.item_code.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.item_code.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quantities and Warehouse -->
+                        <div class="form-section">
+                            <h4><i class="bi bi-calculator"></i> Quantities & Warehouse</h4>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.contract_quantity.id_for_label }}" class="form-label">Contract Quantity</label>
+                                    {{ form.contract_quantity }}
+                                    {% if form.contract_quantity.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.contract_quantity.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.quantity_received.id_for_label }}" class="form-label">
+                                        Quantity Received
+                                        <i class="bi bi-info-circle" title="This value is automatically updated by site logs"></i>
+                                    </label>
+                                    {{ form.quantity_received }}
+                                    <small class="help-text d-block mt-1">
+                                        Note: This value is automatically updated by site logs
+                                    </small>
+                                    {% if form.quantity_received.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.quantity_received.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.warehouse.id_for_label }}" class="form-label">Warehouse</label>
+                                    {{ form.warehouse }}
+                                    {% if form.warehouse.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in form.warehouse.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <a href="{% url 'bill_of_quantity' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Smooth scroll to first error
+    const firstError = document.querySelector('.errorlist, .alert-danger');
+    if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // Add confirmation before leaving if form is dirty
+    let formChanged = false;
+    const form = document.querySelector('form');
+    const inputs = form.querySelectorAll('input, select, textarea');
+    
+    inputs.forEach(input => {
+        input.addEventListener('change', () => {
+            formChanged = true;
+        });
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged && !form.submitted) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+    
+    form.addEventListener('submit', function() {
+        form.submitted = true;
+    });
+});
+</script>
+{% endblock content %}
+

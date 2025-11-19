@@ -4,7 +4,7 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from .models import (
     Category, Unit, InventoryItem, MaterialOrder, Profile, ReportSubmission, 
     MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, 
-    Supplier, Warehouse, BoQOverissuanceJustification,
+    Supplier, Warehouse, BoQOverissuanceJustification, BillOfQuantity,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
     SupplierInvoice, SupplierInvoiceItem
 )
@@ -1081,3 +1081,42 @@ class ExcelUserImportForm(forms.Form):
             raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
         
         return excel_file
+
+
+class BillOfQuantityForm(forms.ModelForm):
+    """
+    Form for editing Bill of Quantity items.
+    Used for bulk editing BOQ entries by superusers.
+    """
+    class Meta:
+        model = BillOfQuantity
+        fields = [
+            'region', 'district', 'community', 'consultant', 'contractor',
+            'package_number', 'material_description', 'item_code',
+            'contract_quantity', 'quantity_received', 'warehouse'
+        ]
+        widgets = {
+            'region': forms.TextInput(attrs={'class': 'form-control'}),
+            'district': forms.TextInput(attrs={'class': 'form-control'}),
+            'community': forms.TextInput(attrs={'class': 'form-control'}),
+            'consultant': forms.TextInput(attrs={'class': 'form-control'}),
+            'contractor': forms.TextInput(attrs={'class': 'form-control'}),
+            'package_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'material_description': forms.TextInput(attrs={'class': 'form-control'}),
+            'item_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'contract_quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'quantity_received': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'warehouse': forms.Select(attrs={'class': 'form-control'}),
+        }
+        help_texts = {
+            'quantity_received': 'Note: This value is automatically updated by site logs',
+        }
+
+
+# Create a formset for bulk editing BOQ items
+BillOfQuantityFormSet = modelformset_factory(
+    BillOfQuantity,
+    form=BillOfQuantityForm,
+    extra=0,  # No extra blank forms
+    can_delete=False  # Don't allow deletion through the formset
+)

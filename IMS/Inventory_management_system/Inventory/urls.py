@@ -58,6 +58,9 @@ from .boq_overissuance_views import (
     review_overissuance_justification, boq_overissuance_stats
 )
 
+# Import BOQ management views
+from .boq_views import BulkEditBOQView, SingleEditBOQView
+
 # Import signature views
 from .signature_lookup_view import signature_lookup, signature_verify, signature_api_lookup
 from .signature_demo_view import signature_stamp_demo
@@ -143,6 +146,8 @@ urlpatterns = [
     path('low-inventory-summary/', LowInventorySummaryView.as_view(), name='low_inventory_summary'),
     path('bill-of-quantity/', BillOfQuantityView.as_view(), name='bill_of_quantity'),
     path('upload-bill-of-quantity/', UploadBillOfQuantityView.as_view(), name='upload_bill_of_quantity'),
+    path('bill-of-quantity/bulk-edit/', BulkEditBOQView.as_view(), name='boq_bulk_edit'),
+    path('bill-of-quantity/<int:pk>/edit/', SingleEditBOQView.as_view(), name='boq_single_edit'),
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
     path('update_material_receipt/<int:order_id>/<str:new_status>/', update_material_receipt, name='update_material_receipt'),

@@ -44,10 +44,25 @@
     {% endif %}
 
     {% if boq_items %}
+        {% if user.is_superuser %}
+        <!-- Bulk Edit Form -->
+        <form id="bulk-edit-form" method="get" action="{% url 'boq_bulk_edit' %}">
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary" id="bulk-edit-btn" disabled>
+                    <i class="bi bi-pencil-square"></i> Bulk Edit Selected (<span id="selected-count">0</span>)
+                </button>
+            </div>
+        {% endif %}
+        
         <div class="table-responsive">
             <table class="table table-hover table-striped enhanced-table" id="boq-table">
                 <thead>
                     <tr>
+                        {% if user.is_superuser %}
+                        <th scope="col" class="text-center">
+                            <input type="checkbox" id="select-all" title="Select All">
+                        </th>
+                        {% endif %}
                         <th scope="col" data-sort>Region</th>
                         <th scope="col" data-sort>District</th>
                         <th scope="col" data-sort>Community</th>
@@ -59,11 +74,19 @@
                         <th scope="col" data-sort data-type="number">Contr. Qty</th>
                         <th scope="col" data-sort data-type="number">Qty Rcvd</th>
                         <th scope="col" data-sort data-type="number">Balance</th>
+                        {% if user.is_superuser %}
+                        <th scope="col" class="text-center" data-no-filter>Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in boq_items %}
                         <tr>
+                            {% if user.is_superuser %}
+                            <td class="text-center">
+                                <input type="checkbox" name="boq_ids" value="{{ item.id }}" class="boq-checkbox">
+                            </td>
+                            {% endif %}
                             <td>{{ item.region|default:"N/A" }}</td>
                             <td>{{ item.district|default:"N/A" }}</td>
                             <td>{{ item.community|default:"N/A" }}</td>
@@ -82,15 +105,26 @@
                                 data-sort-value="{{ item.balance|default:0 }}">
                                 {{ item.balance|default:0|intcomma }}
                             </td>
+                            {% if user.is_superuser %}
+                            <td class="text-center">
+                                <a href="{% url 'boq_single_edit' item.id %}" class="btn btn-outline-secondary btn-sm" title="Edit this item">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </td>
+                            {% endif %}
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="11" class="text-center">No Bill of Quantity data available.</td>
+                            <td colspan="{% if user.is_superuser %}14{% else %}11{% endif %}" class="text-center">No Bill of Quantity data available.</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        
+        {% if user.is_superuser %}
+        </form>
+        {% endif %}
         
         <!-- Pagination Controls -->
         {% if page_obj.has_other_pages %}
@@ -172,6 +206,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const headers = table.querySelectorAll('.filter-arrow');
     const filters = {};
     const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
+    
+    // Handle checkbox selection for bulk edit
+    {% if user.is_superuser %}
+    const selectAllCheckbox = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.boq-checkbox');
+    const bulkEditBtn = document.getElementById('bulk-edit-btn');
+    const selectedCountSpan = document.getElementById('selected-count');
+    
+    function updateBulkEditButton() {
+        const checkedBoxes = document.querySelectorAll('.boq-checkbox:checked');
+        const count = checkedBoxes.length;
+        selectedCountSpan.textContent = count;
+        bulkEditBtn.disabled = count === 0;
+    }
+    
+    // Select/deselect all checkboxes
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+                const row = cb.closest('tr');
+                return row && row.style.display !== 'none';
+            });
+            visibleCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkEditButton();
+        });
+    }
+    
+    // Update button when individual checkboxes change
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBulkEditButton();
+            
+            // Update "select all" checkbox state
+            const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+                const row = cb.closest('tr');
+                return row && row.style.display !== 'none';
+            });
+            const allChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allChecked;
+            }
+        });
+    });
+    
+    // Initial update
+    updateBulkEditButton();
+    {% endif %}
 
     function populateDropdowns() {
         headers.forEach(header => {

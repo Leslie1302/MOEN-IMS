@@ -237,3 +237,4 @@ def generate_backup_codes(user):
             token=random_hex(8).upper()
         )
 
+
