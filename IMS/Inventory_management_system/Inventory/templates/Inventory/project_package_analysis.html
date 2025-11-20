@@ -1,0 +1,192 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid mt-4 mb-5">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-primary">
+                <i class="bi bi-boxes"></i> Package Completion Analysis
+            </h3>
+            <p class="text-muted mb-0">Detailed package-level project progress and statistics</p>
+        </div>
+        <div>
+            <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h2 class="text-primary mb-1">{{ total_packages }}</h2>
+                    <p class="text-muted mb-0">Total Packages Tracked</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-bar-chart-fill"></i> Package Completion Chart
+            </h5>
+        </div>
+        <div class="card-body" style="height: 600px;">
+            <canvas id="packageChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-table"></i> Package Details
+            </h5>
+            <button class="btn btn-sm btn-primary" onclick="exportTableToCSV('package-table', 'package_analysis.csv')">
+                <i class="bi bi-download"></i> Export CSV
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="package-table">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Package Number</th>
+                            <th>Region</th>
+                            <th>Contractor</th>
+                            <th>Consultant</th>
+                            <th>Communities</th>
+                            <th>Items</th>
+                            <th>Contract Qty</th>
+                            <th>Received Qty</th>
+                            <th>Balance</th>
+                            <th>Completion %</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pkg in package_list %}
+                        <tr>
+                            <td><strong>{{ pkg.number }}</strong></td>
+                            <td>{{ pkg.region }}</td>
+                            <td>{{ pkg.contractor|truncatechars:30 }}</td>
+                            <td>{{ pkg.consultant|truncatechars:30 }}</td>
+                            <td><span class="badge bg-secondary">{{ pkg.community_count }}</span></td>
+                            <td><span class="badge bg-info">{{ pkg.item_count }}</span></td>
+                            <td>{{ pkg.total_contract|floatformat:2 }}</td>
+                            <td>{{ pkg.total_received|floatformat:2 }}</td>
+                            <td>{{ pkg.balance|floatformat:2 }}</td>
+                            <td>
+                                <div class="progress" style="min-width: 80px;">
+                                    <div class="progress-bar {% if pkg.completion >= 100 %}bg-success{% elif pkg.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         style="width: {{ pkg.completion }}%">
+                                        {{ pkg.completion }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if pkg.status == "Complete" %}
+                                    <span class="badge bg-success">✓ Complete</span>
+                                {% elif pkg.status == "In Progress" %}
+                                    <span class="badge bg-warning">⏳ In Progress</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Not Started</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('packageChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: 'Completion %',
+                data: {{ chart_data|safe }},
+                backgroundColor: 'rgba(13, 202, 240, 0.7)',
+                borderColor: 'rgba(13, 202, 240, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Completion Percentage'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+});
+
+function exportTableToCSV(tableId, filename) {
+    const table = document.getElementById(tableId);
+    const rows = table.querySelectorAll('tr');
+    let csv = [];
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+        
+        for (let j = 0; j < cols.length; j++) {
+            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
+            data = data.replace(/"/g, '""');
+            row.push('"' + data + '"');
+        }
+        
+        csv.push(row.join(','));
+    }
+
+    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const downloadLink = document.createElement('a');
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+</script>
+
+<style>
+.card {
+    border-radius: 12px;
+}
+.table thead th {
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+}
+</style>
+{% endblock %}
+

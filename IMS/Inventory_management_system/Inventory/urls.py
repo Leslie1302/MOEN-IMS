@@ -18,6 +18,14 @@ from .views import (
     update_obsolete_material_status,
 )
 
+# Import project management views
+from .project_management_views import (
+    ProjectManagementDashboardView,
+    CommunityAnalysisView,
+    PackageAnalysisView,
+    MaterialAnalysisView
+)
+
 # Import transporter views
 from . import transporter_views
 from .transporter_views import (
@@ -152,6 +160,10 @@ urlpatterns = [
     path('bill-of-quantity/<int:pk>/edit/', SingleEditBOQView.as_view(), name='boq_single_edit'),
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
+    path('project-management-dashboard/', ProjectManagementDashboardView.as_view(), name='project_management_dashboard'),
+    path('project-analysis/community/', CommunityAnalysisView.as_view(), name='project_community_analysis'),
+    path('project-analysis/package/', PackageAnalysisView.as_view(), name='project_package_analysis'),
+    path('project-analysis/material/', MaterialAnalysisView.as_view(), name='project_material_analysis'),
     path('update_material_receipt/<int:order_id>/<str:new_status>/', update_material_receipt, name='update_material_receipt'),
     path('reports/', ReportSubmissionListView.as_view(), name='report-submission-list'),
     path('reports/new/', ReportSubmissionCreateView.as_view(), name='report-submission-create'),
