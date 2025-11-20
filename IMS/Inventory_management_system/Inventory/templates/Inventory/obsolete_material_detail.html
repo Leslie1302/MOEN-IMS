@@ -1,0 +1,274 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-danger text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-archive me-2"></i>Obsolete Material Details</h4>
+                <a href="{% url 'obsolete_material_list' %}" class="btn btn-light btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i>Back to List
+                </a>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <!-- Status Badge -->
+            <div class="text-center mb-4">
+                {% if obsolete_material.status == 'Registered' %}
+                    <span class="badge bg-warning text-dark fs-5">{{ obsolete_material.status }}</span>
+                {% elif obsolete_material.status == 'Pending Review' %}
+                    <span class="badge bg-info fs-5">{{ obsolete_material.status }}</span>
+                {% elif obsolete_material.status == 'Approved for Disposal' %}
+                    <span class="badge bg-primary fs-5">{{ obsolete_material.status }}</span>
+                {% elif obsolete_material.status == 'Disposed' %}
+                    <span class="badge bg-success fs-5">{{ obsolete_material.status }}</span>
+                {% elif obsolete_material.status == 'Repurposed' %}
+                    <span class="badge bg-secondary fs-5">{{ obsolete_material.status }}</span>
+                {% else %}
+                    <span class="badge bg-dark fs-5">{{ obsolete_material.status }}</span>
+                {% endif %}
+            </div>
+            
+            <!-- Material Information -->
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-box me-2"></i>Material Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Material Name</label>
+                            <p class="fs-5">{{ obsolete_material.material_name }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Material Code</label>
+                            <p class="fs-5"><code>{{ obsolete_material.material_code }}</code></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold text-muted">Category</label>
+                            <p><span class="badge bg-secondary">{{ obsolete_material.category|default:"N/A" }}</span></p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold text-muted">Quantity</label>
+                            <p class="fs-5">{{ obsolete_material.quantity }} {{ obsolete_material.unit }}</p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold text-muted">Warehouse</label>
+                            <p>{{ obsolete_material.warehouse.name|default:"N/A" }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if obsolete_material.serial_numbers %}
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="fw-bold text-muted">Serial Numbers</label>
+                            <div class="alert alert-warning">
+                                <pre class="mb-0">{{ obsolete_material.serial_numbers }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Obsolescence Details -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Obsolescence Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Date Marked Obsolete</label>
+                            <p>{{ obsolete_material.date_marked_obsolete|date:"F d, Y" }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Estimated Value</label>
+                            <p class="fs-5 text-success">
+                                {% if obsolete_material.estimated_value %}
+                                    GHS {{ obsolete_material.estimated_value|floatformat:2 }}
+                                {% else %}
+                                    <span class="text-muted">Not specified</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="fw-bold text-muted">Reason for Obsolescence</label>
+                            <div class="alert alert-light">
+                                {{ obsolete_material.reason_for_obsolescence }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Disposal Information -->
+            {% if obsolete_material.disposal_method or obsolete_material.disposal_date %}
+            <div class="card mb-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-trash-alt me-2"></i>Disposal Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if obsolete_material.disposal_method %}
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Disposal Method</label>
+                            <p>{{ obsolete_material.disposal_method }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if obsolete_material.disposal_date %}
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Disposal Date</label>
+                            <p>{{ obsolete_material.disposal_date|date:"F d, Y" }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Notes -->
+            {% if obsolete_material.notes %}
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Additional Notes</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ obsolete_material.notes|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Audit Trail -->
+            <div class="card mb-3">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Audit Trail</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Registered By</label>
+                            <p>
+                                <i class="fas fa-user me-1"></i>
+                                {{ obsolete_material.registered_by.username|default:"N/A" }}
+                            </p>
+                            <small class="text-muted">{{ obsolete_material.created_at|date:"F d, Y g:i A" }}</small>
+                        </div>
+                        
+                        {% if obsolete_material.reviewed_by %}
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">Reviewed By</label>
+                            <p>
+                                <i class="fas fa-user-check me-1"></i>
+                                {{ obsolete_material.reviewed_by.username }}
+                            </p>
+                            <small class="text-muted">{{ obsolete_material.review_date|date:"F d, Y g:i A" }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if obsolete_material.review_notes %}
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="fw-bold text-muted">Review Notes</label>
+                            <div class="alert alert-secondary">
+                                {{ obsolete_material.review_notes|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>Last updated: {{ obsolete_material.updated_at|date:"F d, Y g:i A" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Update Status Form (if user has permission) -->
+            {% if can_review %}
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Update Status</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{% url 'update_obsolete_material_status' obsolete_material.pk %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">New Status</label>
+                                <select name="status" class="form-control" required>
+                                    {% for status_code, status_label in obsolete_material.STATUS_CHOICES %}
+                                        <option value="{{ status_code }}" 
+                                                {% if status_code == obsolete_material.status %}selected{% endif %}>
+                                            {{ status_label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3" id="disposal-method-field" style="display: none;">
+                                <label class="fw-bold">Disposal Method</label>
+                                <input type="text" name="disposal_method" class="form-control" 
+                                       placeholder="e.g., Auction, Scrap, Donation"
+                                       value="{{ obsolete_material.disposal_method }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row" id="disposal-date-field" style="display: none;">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">Disposal Date</label>
+                                <input type="date" name="disposal_date" class="form-control"
+                                       value="{{ obsolete_material.disposal_date|date:'Y-m-d' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="fw-bold">Review Notes</label>
+                            <textarea name="review_notes" class="form-control" rows="3" 
+                                      placeholder="Enter your review comments..."></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Update Status
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <script>
+                // Show/hide disposal fields based on status
+                document.querySelector('select[name="status"]').addEventListener('change', function() {
+                    const disposalMethodField = document.getElementById('disposal-method-field');
+                    const disposalDateField = document.getElementById('disposal-date-field');
+                    
+                    if (this.value === 'Disposed') {
+                        disposalMethodField.style.display = 'block';
+                        disposalDateField.style.display = 'block';
+                    } else {
+                        disposalMethodField.style.display = 'none';
+                        disposalDateField.style.display = 'none';
+                    }
+                });
+                
+                // Trigger on page load
+                document.querySelector('select[name="status"]').dispatchEvent(new Event('change'));
+            </script>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

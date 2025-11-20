@@ -379,3 +379,4 @@ A: Yes, scan the QR code with multiple authenticator apps during setup, or use A
 **Dependencies**: django-otp 1.3+, pyotp 2.9+, qrcode 7.4+
 
 
+

@@ -11,7 +11,7 @@ from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, 
     BillOfQuantity, Notification, BoQOverissuanceJustification,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment
+    SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial
 )
 from .forms import ExcelUserImportForm
 from .user_import import ExcelUserImporter
@@ -900,4 +900,75 @@ class StoreOrderAssignmentAdmin(admin.ModelAdmin):
                 count += 1
         self.message_user(request, f'{count} assignment(s) marked as completed.')
     mark_completed.short_description = 'Mark selected as completed'
+
+
+@admin.register(ObsoleteMaterial)
+class ObsoleteMaterialAdmin(admin.ModelAdmin):
+    """
+    Admin interface for managing obsolete materials register.
+    """
+    list_display = ('material_name', 'material_code', 'category', 'quantity', 'unit', 'warehouse', 'status', 'date_marked_obsolete', 'registered_by', 'estimated_value')
+    list_filter = ('status', 'warehouse', 'category', 'date_marked_obsolete', 'registered_by')
+    search_fields = ('material_name', 'material_code', 'category', 'reason_for_obsolescence', 'serial_numbers')
+    readonly_fields = ('registered_by', 'reviewed_by', 'review_date', 'created_at', 'updated_at')
+    date_hierarchy = 'date_marked_obsolete'
+    
+    fieldsets = (
+        ('Material Information', {
+            'fields': ('material', 'material_name', 'material_code', 'category', 'unit', 'quantity', 'warehouse')
+        }),
+        ('Serial Numbers (if applicable)', {
+            'fields': ('serial_numbers',),
+            'classes': ('collapse',)
+        }),
+        ('Obsolescence Details', {
+            'fields': ('reason_for_obsolescence', 'date_marked_obsolete', 'status', 'estimated_value')
+        }),
+        ('Disposal Information', {
+            'fields': ('disposal_method', 'disposal_date'),
+            'classes': ('collapse',)
+        }),
+        ('Notes', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+        ('Audit Trail', {
+            'fields': ('registered_by', 'reviewed_by', 'review_date', 'review_notes', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def save_model(self, request, obj, form, change):
+        """Automatically set registered_by when creating"""
+        if not change:  # If creating new
+            obj.registered_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    actions = ['approve_for_disposal', 'mark_as_disposed', 'mark_as_repurposed']
+    
+    def approve_for_disposal(self, request, queryset):
+        """Approve selected materials for disposal"""
+        from django.utils import timezone
+        count = 0
+        for material in queryset:
+            if material.status in ['Registered', 'Pending Review']:
+                material.status = 'Approved for Disposal'
+                material.reviewed_by = request.user
+                material.review_date = timezone.now()
+                material.save()
+                count += 1
+        self.message_user(request, f'{count} material(s) approved for disposal.')
+    approve_for_disposal.short_description = 'Approve selected for disposal'
+    
+    def mark_as_disposed(self, request, queryset):
+        """Mark selected materials as disposed"""
+        count = queryset.filter(status='Approved for Disposal').update(status='Disposed')
+        self.message_user(request, f'{count} material(s) marked as disposed.')
+    mark_as_disposed.short_description = 'Mark selected as disposed'
+    
+    def mark_as_repurposed(self, request, queryset):
+        """Mark selected materials as repurposed"""
+        count = queryset.update(status='Repurposed')
+        self.message_user(request, f'{count} material(s) marked as repurposed.')
+    mark_as_repurposed.short_description = 'Mark selected as repurposed'
 

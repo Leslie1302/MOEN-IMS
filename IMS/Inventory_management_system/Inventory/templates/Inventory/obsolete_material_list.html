@@ -1,0 +1,212 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-danger text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0"><i class="fas fa-archive me-2"></i>Obsolete Materials Register</h3>
+                <a href="{% url 'obsolete_material_register' %}" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus me-1"></i>Register New
+                </a>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <!-- Summary Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h4 class="text-primary">{{ total_count }}</h4>
+                            <p class="mb-0 text-muted">Total Obsolete Items</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h4 class="text-success">{{ total_value|floatformat:2 }}</h4>
+                            <p class="mb-0 text-muted">Total Estimated Value (GHS)</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h4 class="text-warning">{{ status_counts.Registered|default:0 }}</h4>
+                            <p class="mb-0 text-muted">Pending Review</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filters</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Search</label>
+                            <input type="text" name="search" class="form-control" 
+                                   placeholder="Material name or code..." 
+                                   value="{{ request.GET.search }}">
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-control">
+                                <option value="">All Statuses</option>
+                                {% for status_code, status_label in status_choices %}
+                                    <option value="{{ status_code }}" 
+                                            {% if request.GET.status == status_code %}selected{% endif %}>
+                                        {{ status_label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label class="form-label">Warehouse</label>
+                            <select name="warehouse" class="form-control">
+                                <option value="">All Warehouses</option>
+                                {% for warehouse in warehouses %}
+                                    <option value="{{ warehouse.id }}" 
+                                            {% if request.GET.warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ warehouse.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search me-1"></i>Filter
+                                </button>
+                                <a href="{% url 'obsolete_material_list' %}" class="btn btn-secondary">
+                                    <i class="fas fa-redo me-1"></i>Reset
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Obsolete Materials Table -->
+            {% if obsolete_materials %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Material Name</th>
+                                <th>Code</th>
+                                <th>Category</th>
+                                <th>Quantity</th>
+                                <th>Warehouse</th>
+                                <th>Status</th>
+                                <th>Date Marked</th>
+                                <th>Registered By</th>
+                                <th>Est. Value</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in obsolete_materials %}
+                                <tr>
+                                    <td><strong>{{ item.material_name }}</strong></td>
+                                    <td><code>{{ item.material_code }}</code></td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ item.category|default:"N/A" }}</span>
+                                    </td>
+                                    <td>{{ item.quantity }} {{ item.unit }}</td>
+                                    <td>{{ item.warehouse.name|default:"N/A" }}</td>
+                                    <td>
+                                        {% if item.status == 'Registered' %}
+                                            <span class="badge bg-warning text-dark">{{ item.status }}</span>
+                                        {% elif item.status == 'Pending Review' %}
+                                            <span class="badge bg-info">{{ item.status }}</span>
+                                        {% elif item.status == 'Approved for Disposal' %}
+                                            <span class="badge bg-primary">{{ item.status }}</span>
+                                        {% elif item.status == 'Disposed' %}
+                                            <span class="badge bg-success">{{ item.status }}</span>
+                                        {% elif item.status == 'Repurposed' %}
+                                            <span class="badge bg-secondary">{{ item.status }}</span>
+                                        {% else %}
+                                            <span class="badge bg-dark">{{ item.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.date_marked_obsolete|date:"Y-m-d" }}</td>
+                                    <td>{{ item.registered_by.username|default:"N/A" }}</td>
+                                    <td>
+                                        {% if item.estimated_value %}
+                                            GHS {{ item.estimated_value|floatformat:2 }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'obsolete_material_detail' item.pk %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if is_paginated %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.warehouse %}&warehouse={{ request.GET.warehouse }}{% endif %}">First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.warehouse %}&warehouse={{ request.GET.warehouse }}{% endif %}">Previous</a>
+                                </li>
+                            {% endif %}
+                            
+                            <li class="page-item active">
+                                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.warehouse %}&warehouse={{ request.GET.warehouse }}{% endif %}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.warehouse %}&warehouse={{ request.GET.warehouse }}{% endif %}">Last</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h5>No Obsolete Materials Found</h5>
+                    <p class="mb-3">
+                        {% if request.GET.search or request.GET.status or request.GET.warehouse %}
+                            No materials match your search criteria. Try adjusting your filters.
+                        {% else %}
+                            No obsolete materials have been registered yet.
+                        {% endif %}
+                    </p>
+                    <a href="{% url 'obsolete_material_register' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Register First Obsolete Material
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

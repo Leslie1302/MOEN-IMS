@@ -1,0 +1,223 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 p-4">
+        <div class="card-body">
+            <h2 class="text-center fw-bold text-danger mb-3">📦 Register Obsolete Material</h2>
+            <hr class="w-25 mx-auto border-danger mb-4">
+            
+            <p class="text-muted text-center mb-4">
+                Use this form to register materials that are obsolete, damaged, expired, or no longer needed.
+            </p>
+
+            <form method="POST" id="obsolete-material-form">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <!-- Material Selection -->
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-semibold">{{ form.material.label }} <span class="text-danger">*</span></label>
+                        {{ form.material }}
+                        {% if form.material.errors %}
+                            <div class="text-danger small mt-1">{{ form.material.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">{{ form.material.help_text }}</div>
+                    </div>
+                    
+                    <!-- Quantity -->
+                    <div class="col-md-3 mb-3">
+                        <label class="fw-semibold">{{ form.quantity.label }} <span class="text-danger">*</span></label>
+                        {{ form.quantity }}
+                        {% if form.quantity.errors %}
+                            <div class="text-danger small mt-1">{{ form.quantity.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Warehouse -->
+                    <div class="col-md-3 mb-3">
+                        <label class="fw-semibold">{{ form.warehouse.label }}</label>
+                        {{ form.warehouse }}
+                        {% if form.warehouse.errors %}
+                            <div class="text-danger small mt-1">{{ form.warehouse.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Auto-populated fields (read-only) -->
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="fw-semibold">Material Code</label>
+                        <input type="text" class="form-control material-code" readonly>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="fw-semibold">Category</label>
+                        <input type="text" class="form-control category-field" readonly>
+                    </div>
+                    
+                    <div class="col-md-4 mb-3">
+                        <label class="fw-semibold">Unit</label>
+                        <input type="text" class="form-control unit-field" readonly>
+                    </div>
+                </div>
+                
+                <!-- Serial Numbers (conditionally shown) -->
+                <div class="row" id="serial-numbers-section" style="display: none;">
+                    <div class="col-12 mb-3">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Serial numbers required</strong> for Energy Meters and Transformers.
+                        </div>
+                        <label class="fw-semibold">{{ form.serial_numbers.label }} <span class="text-danger" id="serial-required">*</span></label>
+                        {{ form.serial_numbers }}
+                        {% if form.serial_numbers.errors %}
+                            <div class="text-danger small mt-1">{{ form.serial_numbers.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">{{ form.serial_numbers.help_text }}</div>
+                    </div>
+                </div>
+                
+                <!-- Reason for Obsolescence -->
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="fw-semibold">{{ form.reason_for_obsolescence.label }} <span class="text-danger">*</span></label>
+                        {{ form.reason_for_obsolescence }}
+                        {% if form.reason_for_obsolescence.errors %}
+                            <div class="text-danger small mt-1">{{ form.reason_for_obsolescence.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Date and Status -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-semibold">{{ form.date_marked_obsolete.label }} <span class="text-danger">*</span></label>
+                        {{ form.date_marked_obsolete }}
+                        {% if form.date_marked_obsolete.errors %}
+                            <div class="text-danger small mt-1">{{ form.date_marked_obsolete.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-semibold">{{ form.status.label }} <span class="text-danger">*</span></label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                            <div class="text-danger small mt-1">{{ form.status.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Additional Information -->
+                <div class="card bg-light mt-3 mb-3">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0">Additional Information (Optional)</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="fw-semibold">{{ form.estimated_value.label }}</label>
+                                {{ form.estimated_value }}
+                                {% if form.estimated_value.errors %}
+                                    <div class="text-danger small mt-1">{{ form.estimated_value.errors }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label class="fw-semibold">{{ form.disposal_method.label }}</label>
+                                {{ form.disposal_method }}
+                                {% if form.disposal_method.errors %}
+                                    <div class="text-danger small mt-1">{{ form.disposal_method.errors }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label class="fw-semibold">{{ form.disposal_date.label }}</label>
+                                {{ form.disposal_date }}
+                                {% if form.disposal_date.errors %}
+                                    <div class="text-danger small mt-1">{{ form.disposal_date.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="fw-semibold">{{ form.notes.label }}</label>
+                                {{ form.notes }}
+                                {% if form.notes.errors %}
+                                    <div class="text-danger small mt-1">{{ form.notes.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Form Buttons -->
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <a href="{% url 'obsolete_material_list' %}" class="btn btn-secondary px-4">
+                        <i class="fas fa-arrow-left me-2"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-danger px-4">
+                        <i class="fas fa-save me-2"></i>Register Obsolete Material
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Autofill and Serial Number Handling -->
+<script>
+    const inventoryItems = {{ inventory_items|safe }};
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const materialSelect = document.querySelector(".material-select");
+        const categoryInput = document.querySelector(".category-field");
+        const codeInput = document.querySelector(".material-code");
+        const unitInput = document.querySelector(".unit-field");
+        const serialNumbersSection = document.getElementById("serial-numbers-section");
+        const serialNumbersTextarea = document.querySelector("textarea[name='serial_numbers']");
+        
+        function autofillFields() {
+            const selectedId = materialSelect.value;
+            const item = inventoryItems.find(i => i.id == selectedId);
+            
+            if (item) {
+                categoryInput.value = item.category__name || "";
+                codeInput.value = item.code || "";
+                unitInput.value = item.unit__name || "";
+                
+                // Check if serial numbers are required
+                const category = (item.category__name || "").toLowerCase();
+                const requiresSerialNumbers = category.includes('energy meter') || category.includes('transformer');
+                
+                if (requiresSerialNumbers) {
+                    serialNumbersSection.style.display = 'block';
+                    serialNumbersTextarea.required = true;
+                } else {
+                    serialNumbersSection.style.display = 'none';
+                    serialNumbersTextarea.required = false;
+                    serialNumbersTextarea.value = '';
+                }
+            } else {
+                categoryInput.value = "";
+                codeInput.value = "";
+                unitInput.value = "";
+                serialNumbersSection.style.display = 'none';
+                serialNumbersTextarea.required = false;
+                serialNumbersTextarea.value = '';
+            }
+        }
+        
+        // Add event listener to material select
+        materialSelect.addEventListener("change", autofillFields);
+        
+        // Initial autofill if material is already selected
+        if (materialSelect.value) {
+            autofillFields();
+        }
+    });
+</script>
+{% endblock %}
+

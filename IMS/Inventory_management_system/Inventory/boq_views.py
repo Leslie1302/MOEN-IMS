@@ -167,3 +167,4 @@ class SingleEditBOQView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         return render(request, self.template_name, context)
 
+

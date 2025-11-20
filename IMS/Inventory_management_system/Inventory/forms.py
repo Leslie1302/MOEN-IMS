@@ -6,7 +6,7 @@ from .models import (
     MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, 
     Supplier, Warehouse, BoQOverissuanceJustification, BillOfQuantity,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem
+    SupplierInvoice, SupplierInvoiceItem, ObsoleteMaterial
 )
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
@@ -1120,3 +1120,107 @@ BillOfQuantityFormSet = modelformset_factory(
     extra=0,  # No extra blank forms
     can_delete=False  # Don't allow deletion through the formset
 )
+
+
+class ObsoleteMaterialForm(forms.ModelForm):
+    """
+    Form for registering obsolete materials.
+    Auto-populates material code, unit, and category when material is selected.
+    Shows serial number field for Energy Meters and Transformers.
+    """
+    material = forms.ModelChoiceField(
+        queryset=InventoryItem.objects.all(),
+        empty_label="-- Select Material --",
+        widget=forms.Select(attrs={'class': 'form-control material-select'}),
+        help_text="Select the material to register as obsolete"
+    )
+    
+    class Meta:
+        model = ObsoleteMaterial
+        fields = [
+            'material', 'quantity', 'warehouse', 'serial_numbers',
+            'reason_for_obsolescence', 'date_marked_obsolete', 
+            'status', 'estimated_value', 'disposal_method', 
+            'disposal_date', 'notes'
+        ]
+        widgets = {
+            'quantity': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'min': '0'
+            }),
+            'warehouse': forms.Select(attrs={'class': 'form-control'}),
+            'serial_numbers': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Enter serial numbers (one per line or comma-separated)'
+            }),
+            'reason_for_obsolescence': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Explain why this material is obsolete (e.g., damaged, expired, outdated, excess stock)'
+            }),
+            'date_marked_obsolete': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'estimated_value': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': '0.00'
+            }),
+            'disposal_method': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Auction, Scrap, Donation, etc.'
+            }),
+            'disposal_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Additional notes or comments'
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make serial_numbers not required by default (it will be conditionally required via JavaScript)
+        self.fields['serial_numbers'].required = False
+        
+        # Make some fields optional
+        self.fields['estimated_value'].required = False
+        self.fields['disposal_method'].required = False
+        self.fields['disposal_date'].required = False
+        self.fields['notes'].required = False
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        material = cleaned_data.get('material')
+        
+        # Auto-populate material fields from the selected InventoryItem
+        if material:
+            cleaned_data['material_name'] = material.name
+            cleaned_data['material_code'] = material.code
+            cleaned_data['unit'] = material.unit.name if material.unit else ''
+            cleaned_data['category'] = material.category.name if material.category else ''
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Populate the auto-fill fields from the cleaned data
+        if self.cleaned_data.get('material'):
+            material = self.cleaned_data['material']
+            instance.material_name = material.name
+            instance.material_code = material.code
+            instance.unit = material.unit.name if material.unit else ''
+            instance.category = material.category.name if material.category else ''
+        
+        if commit:
+            instance.save()
+        return instance

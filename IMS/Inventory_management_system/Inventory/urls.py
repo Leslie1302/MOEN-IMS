@@ -14,6 +14,8 @@ from .views import (
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
     StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
+    ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
+    update_obsolete_material_status,
 )
 
 # Import transporter views
@@ -250,4 +252,10 @@ urlpatterns = [
     path('download-user-import-template/', 
          lambda request: __import__('Inventory.utils.excel_templates', fromlist=['create_user_import_template_view']).create_user_import_template_view(request),
          name='download_user_import_template'),
+    
+    # Obsolete Materials Register
+    path('obsolete-materials/', ObsoleteMaterialListView.as_view(), name='obsolete_material_list'),
+    path('obsolete-materials/register/', ObsoleteMaterialRegisterView.as_view(), name='obsolete_material_register'),
+    path('obsolete-materials/<int:pk>/', ObsoleteMaterialDetailView.as_view(), name='obsolete_material_detail'),
+    path('obsolete-materials/<int:pk>/update-status/', update_obsolete_material_status, name='update_obsolete_material_status'),
 ]

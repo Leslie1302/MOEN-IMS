@@ -35,14 +35,14 @@ from .forms import (
     MaterialTransportForm, InventoryItemForm, InventoryItemFormSet, MaterialOrderForm,
     UserUpdateForm, ProfileUpdateForm, PasswordChangeForm, ExcelUploadForm,
     ReportSubmissionForm, BulkMaterialRequestForm, ReleaseLetterUploadForm,
-    SiteReceiptForm  # Add SiteReceiptForm
+    SiteReceiptForm, ObsoleteMaterialForm  # Add ObsoleteMaterialForm
 )
 
 # Models
 from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, BillOfQuantity,
     MaterialOrderAudit, ReportSubmission, MaterialTransport, ReleaseLetter,
-    SiteReceipt, Warehouse  # Add Warehouse
+    SiteReceipt, Warehouse, ObsoleteMaterial  # Add ObsoleteMaterial
 )
 
 # Other views
@@ -3139,3 +3139,185 @@ def download_user_template(request):
     response['Content-Disposition'] = 'attachment; filename="user_upload_template.xlsx"'
     
     return response
+
+
+# ==================== OBSOLETE MATERIALS REGISTER ====================
+
+class ObsoleteMaterialRegisterView(LoginRequiredMixin, View):
+    """
+    View for registering obsolete materials.
+    Displays form with auto-population of material details.
+    """
+    template_name = 'Inventory/obsolete_material_register.html'
+    
+    def get(self, request):
+        form = ObsoleteMaterialForm()
+        
+        # Get all inventory items for auto-population in JavaScript
+        items = InventoryItem.objects.select_related('category', 'unit', 'warehouse').all()
+        inventory_items = list(items.values(
+            'id', 'name', 'code', 
+            'category__name', 'unit__name', 
+            'warehouse__id', 'warehouse__name'
+        ))
+        
+        context = {
+            'form': form,
+            'inventory_items': json.dumps(inventory_items),
+            'title': 'Register Obsolete Material'
+        }
+        
+        return render(request, self.template_name, context)
+    
+    def post(self, request):
+        form = ObsoleteMaterialForm(request.POST)
+        
+        if form.is_valid():
+            obsolete_material = form.save(commit=False)
+            obsolete_material.registered_by = request.user
+            obsolete_material.save()
+            
+            messages.success(
+                request, 
+                f'Successfully registered obsolete material: {obsolete_material.material_name} '
+                f'({obsolete_material.quantity} {obsolete_material.unit})'
+            )
+            
+            return redirect('obsolete_material_list')
+        
+        # If form is invalid, re-render with errors
+        items = InventoryItem.objects.select_related('category', 'unit', 'warehouse').all()
+        inventory_items = list(items.values(
+            'id', 'name', 'code', 
+            'category__name', 'unit__name', 
+            'warehouse__id', 'warehouse__name'
+        ))
+        
+        context = {
+            'form': form,
+            'inventory_items': json.dumps(inventory_items),
+            'title': 'Register Obsolete Material'
+        }
+        
+        return render(request, self.template_name, context)
+
+
+class ObsoleteMaterialListView(LoginRequiredMixin, ListView):
+    """
+    List view for all obsolete materials.
+    Displays registered obsolete materials with filtering and search.
+    """
+    model = ObsoleteMaterial
+    template_name = 'Inventory/obsolete_material_list.html'
+    context_object_name = 'obsolete_materials'
+    paginate_by = 50
+    
+    def get_queryset(self):
+        queryset = ObsoleteMaterial.objects.select_related(
+            'material', 'warehouse', 'registered_by', 'reviewed_by'
+        ).all()
+        
+        # Filter by status
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        # Filter by warehouse
+        warehouse_id = self.request.GET.get('warehouse')
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        # Filter by category
+        category = self.request.GET.get('category')
+        if category:
+            queryset = queryset.filter(category__icontains=category)
+        
+        # Search by material name or code
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(material_name__icontains=search) | 
+                Q(material_code__icontains=search)
+            )
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Obsolete Materials Register'
+        context['warehouses'] = Warehouse.objects.filter(is_active=True)
+        context['status_choices'] = ObsoleteMaterial.STATUS_CHOICES
+        
+        # Summary statistics
+        queryset = self.get_queryset()
+        context['total_count'] = queryset.count()
+        context['total_value'] = queryset.aggregate(
+            total=Sum('estimated_value')
+        )['total'] or 0
+        
+        # Count by status
+        context['status_counts'] = {}
+        for status_code, status_label in ObsoleteMaterial.STATUS_CHOICES:
+            context['status_counts'][status_code] = queryset.filter(status=status_code).count()
+        
+        return context
+
+
+class ObsoleteMaterialDetailView(LoginRequiredMixin, DetailView):
+    """
+    Detail view for a single obsolete material record.
+    Shows all information including audit trail.
+    """
+    model = ObsoleteMaterial
+    template_name = 'Inventory/obsolete_material_detail.html'
+    context_object_name = 'obsolete_material'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'Obsolete Material: {self.object.material_name}'
+        context['can_review'] = self.request.user.has_perm('Inventory.can_review_obsolete_material')
+        context['can_approve'] = self.request.user.has_perm('Inventory.can_approve_disposal')
+        return context
+
+
+@login_required
+@permission_required('Inventory.can_review_obsolete_material', raise_exception=True)
+def update_obsolete_material_status(request, pk):
+    """
+    Update the status of an obsolete material record.
+    Requires review permission.
+    """
+    obsolete_material = get_object_or_404(ObsoleteMaterial, pk=pk)
+    
+    if request.method == 'POST':
+        new_status = request.POST.get('status')
+        review_notes = request.POST.get('review_notes', '')
+        
+        if new_status in dict(ObsoleteMaterial.STATUS_CHOICES):
+            obsolete_material.status = new_status
+            obsolete_material.reviewed_by = request.user
+            obsolete_material.review_date = timezone.now()
+            
+            if review_notes:
+                obsolete_material.review_notes = review_notes
+            
+            # Handle disposal-specific fields
+            if new_status == 'Disposed':
+                disposal_method = request.POST.get('disposal_method')
+                disposal_date = request.POST.get('disposal_date')
+                
+                if disposal_method:
+                    obsolete_material.disposal_method = disposal_method
+                if disposal_date:
+                    obsolete_material.disposal_date = disposal_date
+            
+            obsolete_material.save()
+            
+            messages.success(
+                request,
+                f'Status updated to "{new_status}" for {obsolete_material.material_name}'
+            )
+        else:
+            messages.error(request, 'Invalid status value')
+    
+    return redirect('obsolete_material_detail', pk=pk)
