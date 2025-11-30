@@ -2060,6 +2060,89 @@ def download_waybill_pdf(request, transport_id):
     # Build signature cell for main waybill - use image if available, otherwise text
     storekeeper_signature_cell_main = storekeeper_stamp_image_main if storekeeper_stamp_image_main else Paragraph(storekeeper_stamp_text_main or '_________________', small_text)
     
+    # Get store manager info and stamp for main waybill (with image embedding support)
+    store_manager_main = None
+    store_manager_name_main = ''
+    store_manager_stamp_image_main = None
+    store_manager_stamp_text_main = ''
+    store_manager_date_main = ''
+    
+    # Try to get store manager from material_order.assigned_by or transport.created_by
+    if transport.material_order and transport.material_order.assigned_by:
+        store_manager_main = transport.material_order.assigned_by
+    elif transport.created_by:
+        store_manager_main = transport.created_by
+    
+    if store_manager_main:
+        store_manager_name_main = store_manager_main.get_full_name() or store_manager_main.username
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=store_manager_main).first()
+            if profile:
+                # Look for PNG stamp in media/digital_signatures/ folder
+                stamp_filenames = [
+                    f"{store_manager_main.username}.png",
+                    f"{store_manager_main.id}.png",
+                    f"{store_manager_main.username}.jpg",
+                    f"{store_manager_main.id}.jpg",
+                ]
+                
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                
+                for filename in stamp_filenames:
+                    stamp_path = os.path.join(digital_signatures_dir, filename)
+                    if os.path.exists(stamp_path):
+                        try:
+                            store_manager_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            break
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Could not load store manager digital stamp image {stamp_path}: {str(e)}")
+                            continue
+                
+                # If no PNG found, try to generate one
+                if not store_manager_stamp_image_main and profile:
+                    try:
+                        if hasattr(profile, 'generate_digital_stamp_png'):
+                            stamp_path = profile.generate_digital_stamp_png()
+                            if stamp_path and os.path.exists(stamp_path):
+                                store_manager_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Could not generate store manager digital stamp PNG: {str(e)}")
+                
+                # Fallback to text-based stamp only if PNG is not available
+                if not store_manager_stamp_image_main:
+                    stamp = profile.get_or_create_signature_stamp() if profile else None
+                    if stamp:
+                        try:
+                            stamp_data = profile.display_signature_stamp()
+                            if stamp_data:
+                                store_manager_stamp_text_main = f"{stamp_data.get('SIGNED_BY', store_manager_name_main)}\nID: {stamp_data.get('ID', '')}"
+                        except Exception:
+                            if '|' in stamp:
+                                parts = stamp.split('|')
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_manager_name_main
+                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
+                                store_manager_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting store manager stamp for main waybill: {str(e)}")
+        
+        # Get date from material_order.assigned_at or transport.created_at
+        if transport.material_order and transport.material_order.assigned_at:
+            store_manager_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
+        elif transport.created_at:
+            store_manager_date_main = transport.created_at.strftime('%d %B %Y')
+    
+    # Build store manager signature cell
+    store_manager_signature_cell_main = store_manager_stamp_image_main if store_manager_stamp_image_main else Paragraph(store_manager_stamp_text_main or '_________________', small_text)
+    
     signature_data = [
         [
             Paragraph('<b>Role</b>', normal_style),
@@ -2072,6 +2155,12 @@ def download_waybill_pdf(request, transport_id):
             Paragraph(storekeeper_name_main or '_________________', small_text),
             storekeeper_signature_cell_main,
             Paragraph(storekeeper_date_main or '_________________', small_text)
+        ],
+        [
+            Paragraph('<b>Approved By</b><br/>(Stores Manager)', small_text),
+            Paragraph(store_manager_name_main or '_________________', small_text),
+            store_manager_signature_cell_main,
+            Paragraph(store_manager_date_main or '_________________', small_text)
         ],
         [
             Paragraph('<b>Received By</b><br/>(Driver)', small_text),

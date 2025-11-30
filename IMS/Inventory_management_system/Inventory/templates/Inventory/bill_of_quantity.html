@@ -12,12 +12,12 @@
         position: relative;
         z-index: 1030;
     }
-    
+
     /* Ensure dropdown menus work */
     .dropdown-menu {
         z-index: 1040;
     }
-    
+
     /* Ensure table is responsive */
     .table-responsive {
         overflow-x: auto;
@@ -33,352 +33,362 @@
     </div>
 
     {% if messages %}
-        <div class="row justify-content-center">
-            {% for message in messages %}
-                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
+    <div class="row justify-content-center">
+        {% for message in messages %}
+        <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+        {% endfor %}
+    </div>
     {% endif %}
 
     {% if boq_items %}
-        {% if user.is_superuser %}
-        <!-- Bulk Edit Form -->
-        <form id="bulk-edit-form" method="get" action="{% url 'boq_bulk_edit' %}">
-            <div class="mb-3">
-                <button type="submit" class="btn btn-primary" id="bulk-edit-btn" disabled>
-                    <i class="bi bi-pencil-square"></i> Bulk Edit Selected (<span id="selected-count">0</span>)
-                </button>
-            </div>
-        {% endif %}
-        
-        <div class="table-responsive">
-            <table class="table table-hover table-striped enhanced-table" id="boq-table">
-                <thead>
-                    <tr>
-                        {% if user.is_superuser %}
-                        <th scope="col" class="text-center">
-                            <input type="checkbox" id="select-all" title="Select All">
-                        </th>
-                        {% endif %}
-                        <th scope="col" data-sort>Region</th>
-                        <th scope="col" data-sort>District</th>
-                        <th scope="col" data-sort>Community</th>
-                        <th scope="col" data-sort>Consultant</th>
-                        <th scope="col" data-sort>Contractor</th>
-                        <th scope="col" data-sort>Pkg #</th>
-                        <th scope="col" data-sort>Material</th>
-                        <th scope="col" data-sort>Item Code</th>
-                        <th scope="col" data-sort data-type="number">Contr. Qty</th>
-                        <th scope="col" data-sort data-type="number">Qty Rcvd</th>
-                        <th scope="col" data-sort data-type="number">Balance</th>
-                        {% if user.is_superuser %}
-                        <th scope="col" class="text-center" data-no-filter>Actions</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in boq_items %}
-                        <tr>
-                            {% if user.is_superuser %}
-                            <td class="text-center">
-                                <input type="checkbox" name="boq_ids" value="{{ item.id }}" class="boq-checkbox">
-                            </td>
-                            {% endif %}
-                            <td>{{ item.region|default:"N/A" }}</td>
-                            <td>{{ item.district|default:"N/A" }}</td>
-                            <td>{{ item.community|default:"N/A" }}</td>
-                            <td>{{ item.consultant|default:"N/A" }}</td>
-                            <td>{{ item.contractor|default:"N/A" }}</td>
-                            <td>{{ item.package_number|default:"N/A" }}</td>
-                            <td>{{ item.material_description|default:"N/A" }}</td>
-                            <td>{{ item.item_code|default:"N/A" }}</td>
-                            <td data-sort-value="{{ item.contract_quantity|default:0 }}">
-                                {{ item.contract_quantity|default:0|intcomma }}
-                            </td>
-                            <td data-sort-value="{{ item.quantity_received|default:0 }}">
-                                {{ item.quantity_received|default:0|intcomma }}
-                            </td>
-                            <td class="{% if item.balance < 0 %}text-danger fw-bold{% endif %}" 
-                                data-sort-value="{{ item.balance|default:0 }}">
-                                {{ item.balance|default:0|intcomma }}
-                            </td>
-                            {% if user.is_superuser %}
-                            <td class="text-center">
-                                <a href="{% url 'boq_single_edit' item.id %}" class="btn btn-outline-secondary btn-sm" title="Edit this item">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                            </td>
-                            {% endif %}
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="{% if user.is_superuser %}14{% else %}11{% endif %}" class="text-center">No Bill of Quantity data available.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        
-        {% if user.is_superuser %}
-        </form>
-        {% endif %}
-        
-        <!-- Pagination Controls -->
-        {% if page_obj.has_other_pages %}
-        <nav aria-label="Bill of Quantity pagination" class="mt-4">
-            <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page=1">&laquo;&laquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.previous_page_number }}">&laquo;</a>
-                </li>
-                {% else %}
-                <li class="page-item disabled"><span class="page-link">&laquo;&laquo;</span></li>
-                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
-                {% endif %}
+    {% if user.is_superuser %}
+    <!-- Bulk Edit Options -->
+    <div class="mb-3 d-flex gap-2 align-items-center">
+        <!-- Community-Based Bulk Edit (NEW) -->
+        <a href="{% url 'boq_community_bulk_edit' %}" class="btn btn-success">
+            <i class="bi bi-grid-3x3-gap"></i> Community Bulk Edit (Excel-like)
+        </a>
 
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
-                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <li class="page-item"><a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ num }}">{{ num }}</a></li>
+        <!-- Traditional Bulk Edit Form -->
+        <form id="bulk-edit-form" method="get" action="{% url 'boq_bulk_edit' %}" class="d-inline">
+            <button type="submit" class="btn btn-primary" id="bulk-edit-btn" disabled>
+                <i class="bi bi-pencil-square"></i> Bulk Edit Selected (<span id="selected-count">0</span>)
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="table table-hover table-striped enhanced-table" id="boq-table">
+            <thead>
+                <tr>
+                    {% if user.is_superuser %}
+                    <th scope="col" class="text-center">
+                        <input type="checkbox" id="select-all" title="Select All">
+                    </th>
                     {% endif %}
+                    <th scope="col" data-sort>Region</th>
+                    <th scope="col" data-sort>District</th>
+                    <th scope="col" data-sort>Community</th>
+                    <th scope="col" data-sort>Consultant</th>
+                    <th scope="col" data-sort>Contractor</th>
+                    <th scope="col" data-sort>Pkg #</th>
+                    <th scope="col" data-sort>Material</th>
+                    <th scope="col" data-sort>Item Code</th>
+                    <th scope="col" data-sort data-type="number">Contr. Qty</th>
+                    <th scope="col" data-sort data-type="number">Qty Rcvd</th>
+                    <th scope="col" data-sort data-type="number">Balance</th>
+                    {% if user.is_superuser %}
+                    <th scope="col" class="text-center" data-no-filter>Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in boq_items %}
+                <tr>
+                    {% if user.is_superuser %}
+                    <td class="text-center">
+                        <input type="checkbox" name="boq_ids" value="{{ item.id }}" class="boq-checkbox">
+                    </td>
+                    {% endif %}
+                    <td>{{ item.region|default:"N/A" }}</td>
+                    <td>{{ item.district|default:"N/A" }}</td>
+                    <td>{{ item.community|default:"N/A" }}</td>
+                    <td>{{ item.consultant|default:"N/A" }}</td>
+                    <td>{{ item.contractor|default:"N/A" }}</td>
+                    <td>{{ item.package_number|default:"N/A" }}</td>
+                    <td>{{ item.material_description|default:"N/A" }}</td>
+                    <td>{{ item.item_code|default:"N/A" }}</td>
+                    <td data-sort-value="{{ item.contract_quantity|default:0 }}">
+                        {{ item.contract_quantity|default:0|intcomma }}
+                    </td>
+                    <td data-sort-value="{{ item.quantity_received|default:0 }}">
+                        {{ item.quantity_received|default:0|intcomma }}
+                    </td>
+                    <td class="{% if item.balance < 0 %}text-danger fw-bold{% endif %}"
+                        data-sort-value="{{ item.balance|default:0 }}">
+                        {{ item.balance|default:0|intcomma }}
+                    </td>
+                    {% if user.is_superuser %}
+                    <td class="text-center">
+                        <a href="{% url 'boq_single_edit' item.id %}" class="btn btn-outline-secondary btn-sm"
+                            title="Edit this item">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if user.is_superuser %}14{% else %}11{% endif %}" class="text-center">No Bill of
+                        Quantity data available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Bill of Quantity pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="{% url 'bill_of_quantity' %}?page=1">&laquo;&laquo;</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link"
+                    href="{% url 'bill_of_quantity' %}?page={{ page_obj.previous_page_number }}">&laquo;</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo;&laquo;</span></li>
+            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <li class="page-item"><a
+                    class="page-link" href="{% url 'bill_of_quantity' %}?page={{ num }}">{{ num }}</a></li>
+                {% endif %}
                 {% endfor %}
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.next_page_number }}">&raquo;</a>
+                    <a class="page-link"
+                        href="{% url 'bill_of_quantity' %}?page={{ page_obj.next_page_number }}">&raquo;</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="{% url 'bill_of_quantity' %}?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+                    <a class="page-link"
+                        href="{% url 'bill_of_quantity' %}?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
                 <li class="page-item disabled"><span class="page-link">&raquo;&raquo;</span></li>
                 {% endif %}
-            </ul>
-            <div class="text-center text-muted">
-                <small>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} entries</small>
-            </div>
-        </nav>
-        {% endif %}
-        
-    {% else %}
-        <div class="alert alert-info mt-3">
-            No bill of quantity items found.
+        </ul>
+        <div class="text-center text-muted">
+            <small>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+                entries</small>
         </div>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info mt-3">
+        No bill of quantity items found.
+    </div>
     {% endif %}
 
     <div class="d-flex justify-content-between align-items-center px-3 py-3 bg-light mt-3 mb-5">
         <div>
             {% if user.is_superuser %}
-                <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
+            <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
             {% endif %}
             {% if perms.Inventory.can_view_overissuance_summary or user.is_superuser %}
-                <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-warning ms-2">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Overissuance Summary
-                </a>
+            <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-warning ms-2">
+                <i class="bi bi-exclamation-triangle-fill"></i> Overissuance Summary
+            </a>
             {% endif %}
         </div>
         <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
     </div>
 </div>
 
-<button class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; display: none; z-index: 1000;" id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
+<button class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; display: none; z-index: 1000;"
+    id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
 
 <script>
-function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-window.onscroll = function() {
-    const btn = document.getElementById('scroll-top-btn');
-    btn.style.display = window.scrollY > 100 ? 'block' : 'none';
-};
-
-document.addEventListener('DOMContentLoaded', function() {
-    const table = document.getElementById('boq-table');
-    const headers = table.querySelectorAll('.filter-arrow');
-    const filters = {};
-    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
-    
-    // Handle checkbox selection for bulk edit
-    {% if user.is_superuser %}
-    const selectAllCheckbox = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.boq-checkbox');
-    const bulkEditBtn = document.getElementById('bulk-edit-btn');
-    const selectedCountSpan = document.getElementById('selected-count');
-    
-    function updateBulkEditButton() {
-        const checkedBoxes = document.querySelectorAll('.boq-checkbox:checked');
-        const count = checkedBoxes.length;
-        selectedCountSpan.textContent = count;
-        bulkEditBtn.disabled = count === 0;
+    function scrollToTop() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    
-    // Select/deselect all checkboxes
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
-                const row = cb.closest('tr');
-                return row && row.style.display !== 'none';
-            });
-            visibleCheckboxes.forEach(checkbox => {
-                checkbox.checked = this.checked;
-            });
-            updateBulkEditButton();
-        });
-    }
-    
-    // Update button when individual checkboxes change
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            updateBulkEditButton();
-            
-            // Update "select all" checkbox state
-            const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
-                const row = cb.closest('tr');
-                return row && row.style.display !== 'none';
-            });
-            const allChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
-            if (selectAllCheckbox) {
-                selectAllCheckbox.checked = allChecked;
-            }
-        });
-    });
-    
-    // Initial update
-    updateBulkEditButton();
-    {% endif %}
 
-    function populateDropdowns() {
+    window.onscroll = function () {
+        const btn = document.getElementById('scroll-top-btn');
+        btn.style.display = window.scrollY > 100 ? 'block' : 'none';
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const table = document.getElementById('boq-table');
+        const headers = table.querySelectorAll('.filter-arrow');
+        const filters = {};
+        const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
+
+        // Handle checkbox selection for bulk edit
+        {% if user.is_superuser %}
+        const selectAllCheckbox = document.getElementById('select-all');
+        const checkboxes = document.querySelectorAll('.boq-checkbox');
+        const bulkEditBtn = document.getElementById('bulk-edit-btn');
+        const selectedCountSpan = document.getElementById('selected-count');
+
+        function updateBulkEditButton() {
+            const checkedBoxes = document.querySelectorAll('.boq-checkbox:checked');
+            const count = checkedBoxes.length;
+            selectedCountSpan.textContent = count;
+            bulkEditBtn.disabled = count === 0;
+        }
+
+        // Select/deselect all checkboxes
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function () {
+                const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+                    const row = cb.closest('tr');
+                    return row && row.style.display !== 'none';
+                });
+                visibleCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateBulkEditButton();
+            });
+        }
+
+        // Update button when individual checkboxes change
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                updateBulkEditButton();
+
+                // Update "select all" checkbox state
+                const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
+                    const row = cb.closest('tr');
+                    return row && row.style.display !== 'none';
+                });
+                const allChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = allChecked;
+                }
+            });
+        });
+
+        // Initial update
+        updateBulkEditButton();
+        {% endif %}
+
+        function populateDropdowns() {
+            headers.forEach(header => {
+                const colIndex = parseInt(header.getAttribute('data-column'));
+                const dropdown = document.getElementById(`filter-${colIndex}`);
+                const values = new Set();
+                const rows = table.querySelector('tbody').getElementsByTagName('tr');
+
+                for (let row of rows) {
+                    if (row.style.display !== 'none') {
+                        const cells = row.getElementsByTagName('td');
+                        if (cells[colIndex]) {
+                            values.add(cells[colIndex].textContent.trim() || 'N/A');
+                        }
+                    }
+                }
+                console.log(`Column ${colIndex} available values:`, Array.from(values));
+
+                const currentSelections = filters[colIndex] || [];
+                dropdown.innerHTML = '';
+                const selectAll = document.createElement('div');
+                selectAll.className = 'dropdown-item';
+                selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
+                dropdown.appendChild(selectAll);
+
+                values.forEach(value => {
+                    const item = document.createElement('div');
+                    item.className = 'dropdown-item';
+                    const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
+                    item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
+                    dropdown.appendChild(item);
+                });
+
+                const confirmBtn = document.createElement('button');
+                confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
+                confirmBtn.textContent = 'Confirm';
+                confirmBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    console.log(`Confirm clicked for column ${colIndex}`);
+                    updateFilters(colIndex);
+                    filterTable();
+                    populateDropdowns();
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(confirmBtn);
+
+                selectAll.querySelector('input').addEventListener('change', function (e) {
+                    e.stopPropagation();
+                    const isChecked = this.checked;
+                    dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
+                    console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
+                });
+            });
+        }
+
         headers.forEach(header => {
             const colIndex = parseInt(header.getAttribute('data-column'));
             const dropdown = document.getElementById(`filter-${colIndex}`);
-            const values = new Set();
+
+            header.onclick = function (e) {
+                e.stopPropagation();
+                if (dropdown.style.display === 'block') {
+                    dropdown.style.display = 'none';
+                } else {
+                    // Only close filter dropdowns, not navbar dropdowns
+                    document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
+                    dropdown.style.display = 'block';
+                }
+            };
+
+            dropdown.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            // Only close table filter dropdowns, not navbar dropdowns
+            if (!e.target.classList.contains('filter-arrow')) {
+                document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
+            }
+        });
+
+        function updateFilters(colIndex) {
+            const dropdown = document.getElementById(`filter-${colIndex}`);
+            filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
+            console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
+        }
+
+        function filterTable() {
             const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            
+            console.log(`Filtering ${rows.length} rows`);
             for (let row of rows) {
-                if (row.style.display !== 'none') {
-                    const cells = row.getElementsByTagName('td');
-                    if (cells[colIndex]) {
-                        values.add(cells[colIndex].textContent.trim() || 'N/A');
+                let show = true;
+                const cells = row.getElementsByTagName('td');
+                for (let col in filters) {
+                    const colIdx = parseInt(col);
+                    const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
+                    if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
+                        show = false;
+                        break;
                     }
                 }
+                console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
+                row.style.display = show ? '' : 'none';
             }
-            console.log(`Column ${colIndex} available values:`, Array.from(values));
-
-            const currentSelections = filters[colIndex] || [];
-            dropdown.innerHTML = '';
-            const selectAll = document.createElement('div');
-            selectAll.className = 'dropdown-item';
-            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
-            dropdown.appendChild(selectAll);
-
-            values.forEach(value => {
-                const item = document.createElement('div');
-                item.className = 'dropdown-item';
-                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
-                dropdown.appendChild(item);
-            });
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
-            confirmBtn.textContent = 'Confirm';
-            confirmBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                console.log(`Confirm clicked for column ${colIndex}`);
-                updateFilters(colIndex);
-                filterTable();
-                populateDropdowns();
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(confirmBtn);
-
-            selectAll.querySelector('input').addEventListener('change', function(e) {
-                e.stopPropagation();
-                const isChecked = this.checked;
-                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
-                console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
-            });
-        });
-    }
-
-    headers.forEach(header => {
-        const colIndex = parseInt(header.getAttribute('data-column'));
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-
-        header.onclick = function(e) {
-            e.stopPropagation();
-            if (dropdown.style.display === 'block') {
-                dropdown.style.display = 'none';
-            } else {
-                // Only close filter dropdowns, not navbar dropdowns
-                document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
-                dropdown.style.display = 'block';
-            }
-        };
-
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
-    document.addEventListener('click', function(e) {
-        // Only close table filter dropdowns, not navbar dropdowns
-        if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('[id^="filter-"]').forEach(d => d.style.display = 'none');
+            console.log('Filter applied');
         }
-    });
 
-    function updateFilters(colIndex) {
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-        console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
-    }
-
-    function filterTable() {
-        const rows = table.querySelector('tbody').getElementsByTagName('tr');
-        console.log(`Filtering ${rows.length} rows`);
-        for (let row of rows) {
-            let show = true;
-            const cells = row.getElementsByTagName('td');
+        function undoFilters() {
+            console.log('Undo filters triggered');
             for (let col in filters) {
-                const colIdx = parseInt(col);
-                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                    show = false;
-                    break;
-                }
+                delete filters[col];
             }
-            console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
-            row.style.display = show ? '' : 'none';
+            allRows.forEach(row => row.style.display = '');
+            populateDropdowns();
         }
-        console.log('Filter applied');
-    }
 
-    function undoFilters() {
-        console.log('Undo filters triggered');
-        for (let col in filters) {
-            delete filters[col];
-        }
-        allRows.forEach(row => row.style.display = '');
+        document.getElementById('undo-filter-btn').addEventListener('click', function () {
+            undoFilters();
+        });
+
         populateDropdowns();
-    }
-
-    document.getElementById('undo-filter-btn').addEventListener('click', function() {
-        undoFilters();
+        headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
+        filterTable();
     });
-
-    populateDropdowns();
-    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-    filterTable();
-});
 </script>
 {% endblock full_width_content %}

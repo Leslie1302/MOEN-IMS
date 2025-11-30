@@ -1,0 +1,796 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Community BOQ Bulk Edit - Inventory Manager{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+    /* Minimal Clean Theme - Matching Global App Style */
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* Page Background */
+    .container-fluid {
+        background-color: #fafafa;
+        min-height: 100vh;
+        padding-bottom: 60px;
+    }
+
+    /* Header Styles */
+    .page-header {
+        background-color: #ffffff;
+        border-radius: 0.25rem;
+        padding: 2rem 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+    }
+
+    .page-header h2 {
+        color: #111827;
+        font-weight: 500;
+        font-size: 1.875rem;
+        margin: 0;
+    }
+
+    .page-header p {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin: 0.5rem 0 0;
+    }
+
+    /* Community Selector Styles */
+    .community-selector {
+        background: #ffffff;
+        border-radius: 0.25rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+    }
+
+    .community-selector h5 {
+        color: #111827;
+        font-weight: 500;
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .community-selector h5 i {
+        color: #2563eb;
+    }
+
+    .community-selector p {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+
+    .community-tabs {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+
+    .community-tab {
+        padding: 0.75rem 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.25rem;
+        background: #ffffff;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        color: #1f2937;
+        font-weight: 400;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .community-tab:hover {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .community-tab.active {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+    }
+
+    .community-tab .badge {
+        background: #f3f4f6;
+        color: #374151;
+        padding: 0.125rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 400;
+    }
+
+    .community-tab.active .badge {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    /* Excel-like Grid Styles */
+    .boq-grid-container {
+        background: #ffffff;
+        border-radius: 0.25rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+    }
+
+    .boq-grid-container h5 {
+        color: #111827;
+        font-weight: 500;
+        font-size: 1.125rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .boq-grid-container h5 i {
+        color: #2563eb;
+    }
+
+    .boq-grid-container h5 .badge {
+        background: #2563eb;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 400;
+    }
+
+    .table-responsive {
+        border-radius: 0.25rem;
+        overflow-x: auto;
+        overflow-y: visible;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid #e5e7eb;
+    }
+
+    .boq-grid {
+        width: 100%;
+        min-width: 1600px;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .boq-grid th {
+        background-color: #f9fafb;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 500;
+        text-transform: none;
+        font-size: 0.875rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        white-space: nowrap;
+    }
+
+    .boq-grid td {
+        border: 1px solid #f3f4f6;
+        padding: 0.75rem 1rem;
+        background: #ffffff;
+        transition: background 0.2s;
+    }
+
+    .boq-grid tbody tr:hover {
+        background: #f9fafb;
+    }
+
+    /* Editable cells */
+    .editable-cell {
+        min-width: 100px;
+        cursor: text;
+        background: #fef3c7;
+        color: #92400e;
+        font-weight: 500;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .editable-cell::after {
+        content: '✏️';
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.2s;
+        font-size: 0.875rem;
+    }
+
+    .editable-cell:hover::after {
+        opacity: 0.5;
+    }
+
+    .editable-cell:hover {
+        background: #fde68a;
+        border-color: #f59e0b;
+    }
+
+    .editable-cell.editing {
+        background: white;
+        padding: 0;
+        border-color: #2563eb;
+    }
+
+    .editable-cell input {
+        width: 100%;
+        border: 2px solid #2563eb;
+        padding: 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        box-sizing: border-box;
+        border-radius: 0.25rem;
+        background: white;
+    }
+
+    .editable-cell input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .editable-cell.modified {
+        background: #dbeafe;
+        color: #1e3a8a;
+        font-weight: 600;
+    }
+
+    /* Balance display */
+    .balance-positive {
+        color: #059669;
+        font-weight: 600;
+        background: #d1fae5;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .balance-negative {
+        color: #dc2626;
+        font-weight: 600;
+        background: #fee2e2;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .balance-zero {
+        color: #6b7280;
+        font-weight: 400;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+        position: sticky;
+        top: 70px;
+        z-index: 100;
+        background: #ffffff;
+        padding: 1rem 1.5rem;
+        border-radius: 0.25rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        border: 1px solid #e5e7eb;
+    }
+
+    .action-buttons .btn {
+        font-weight: 400;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .action-buttons .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .action-buttons .btn-primary {
+        background-color: #2563eb;
+        border-color: #2563eb;
+        color: white;
+    }
+
+    .action-buttons .btn-primary:hover {
+        background-color: #1d4ed8;
+        border-color: #1d4ed8;
+    }
+
+    .action-buttons .btn-secondary {
+        background-color: #6b7280;
+        border-color: #6b7280;
+        color: white;
+    }
+
+    .action-buttons .btn-secondary:hover {
+        background-color: #4b5563;
+        border-color: #4b5563;
+    }
+
+    .action-buttons .btn-outline-secondary {
+        background: white;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+    }
+
+    .action-buttons .btn-outline-secondary:hover {
+        background-color: #f9fafb;
+    }
+
+    .modified-indicator {
+        color: #92400e;
+        background: #fef3c7;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+        border: 1px solid #fde68a;
+    }
+
+    /* Loading spinner */
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(37, 99, 235, 0.9);
+        backdrop-filter: blur(5px);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .loading-overlay.active {
+        display: flex;
+    }
+
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.25rem;
+    }
+
+    /* Info Alert */
+    .alert-info {
+        background: #dbeafe;
+        border: 1px solid #93c5fd;
+        border-radius: 0.25rem;
+        color: #1e40af;
+        font-weight: 400;
+        padding: 1rem;
+    }
+
+    /* Smooth scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h2 class="text-center mb-0">
+            <i class="bi bi-grid-3x3-gap"></i> {{ page_title }}
+        </h2>
+        <p class="text-center mb-0">Excel-like editing grouped by community | Streamline your BOQ updates</p>
+    </div>
+
+    {% if messages %}
+    <div class="row justify-content-center">
+        {% for message in messages %}
+        <div class="col-12 alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Community Selector -->
+    <div class="community-selector">
+        <h5 class="mb-0">
+            <i class="bi bi-house-door"></i> Select Community
+        </h5>
+        <p class="text-muted mb-2">Choose a community to edit its BOQ items</p>
+
+        <div class="community-tabs">
+            {% for comm in communities %}
+            <a href="{% url 'boq_community_bulk_edit' %}?community={{ comm.community }}"
+                class="community-tab {% if selected_community == comm.community %}active{% endif %}">
+                {{ comm.community }}
+                <span class="badge bg-secondary">{{ comm.count }}</span>
+            </a>
+            {% empty %}
+            <p class="text-muted">No communities found with BOQ items.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if selected_community %}
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <div>
+            <a href="{% url 'bill_of_quantity' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to BOQ List
+            </a>
+            <button type="button" class="btn btn-outline-secondary" id="resetBtn">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset Changes
+            </button>
+        </div>
+        <div>
+            <span class="modified-indicator" id="modifiedIndicator" style="display: none;">
+                <i class="bi bi-pencil-fill"></i> <span id="modifiedCount">0</span> item(s) modified
+            </span>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary btn-lg" id="saveBtn">
+                <i class="bi bi-save"></i> Save All Changes
+            </button>
+        </div>
+    </div>
+
+    <!-- BOQ Grid -->
+    <div class="boq-grid-container">
+        <h5 class="mb-3">
+            <i class="bi bi-building"></i> {{ selected_community }}
+            <span class="badge bg-info">{{ boq_items|length }} item(s)</span>
+        </h5>
+
+        {% if boq_items %}
+        <div class="table-responsive">
+            <table class="boq-grid" id="boqGrid">
+                <thead>
+                    <tr>
+                        <th style="min-width: 120px;">Package #</th>
+                        <th style="min-width: 300px;">Material Description</th>
+                        <th style="min-width: 120px;">Item Code</th>
+                        <th style="min-width: 140px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"
+                            class="text-center">
+                            Contract Qty
+                            <i class="bi bi-pencil-fill" title="Editable" style="margin-left: 5px;"></i>
+                        </th>
+                        <th style="min-width: 120px;" class="text-end">Received Qty</th>
+                        <th style="min-width: 120px;" class="text-end">Balance</th>
+                        <th style="min-width: 150px;">Region</th>
+                        <th style="min-width: 150px;">District</th>
+                        <th style="min-width: 200px;">Consultant</th>
+                        <th style="min-width: 200px;">Contractor</th>
+                    </tr>
+                </thead>
+                <tbody id="boqTableBody">
+                    {% for item in boq_items %}
+                    <tr data-boq-id="{{ item.id }}">
+                        <td style="white-space: nowrap;">{{ item.package_number }}</td>
+                        <td style="max-width: 300px;">{{ item.material_description }}</td>
+                        <td style="white-space: nowrap;">{{ item.item_code }}</td>
+                        <td class="editable-cell text-center" data-field="contract_quantity"
+                            data-original-value="{{ item.contract_quantity }}">
+                            {{ item.contract_quantity|floatformat:2 }}
+                        </td>
+                        <td class="text-end" style="white-space: nowrap;">{{ item.quantity_received|floatformat:2 }}
+                        </td>
+                        <td class="text-end balance-cell {% if item.balance < 0 %}balance-negative{% elif item.balance > 0 %}balance-positive{% else %}balance-zero{% endif %}"
+                            style="white-space: nowrap;">
+                            {{ item.balance|floatformat:2 }}
+                        </td>
+                        <td>{{ item.region }}</td>
+                        <td>{{ item.district }}</td>
+                        <td>{{ item.consultant }}</td>
+                        <td>{{ item.contractor }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No BOQ items found for this community.
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center">
+        <i class="bi bi-arrow-up"></i> Please select a community above to begin editing
+    </div>
+    {% endif %}
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border text-light" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const grid = document.getElementById('boqGrid');
+        if (!grid) return;
+
+        const saveBtn = document.getElementById('saveBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const modifiedIndicator = document.getElementById('modifiedIndicator');
+        const modifiedCount = document.getElementById('modifiedCount');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        let modifiedCells = new Map(); // Track modified cells: {boq_id: {field: value}}
+        let currentEditingCell = null;
+
+        // Make cells editable
+        document.querySelectorAll('.editable-cell').forEach(cell => {
+            cell.addEventListener('click', function () {
+                if (currentEditingCell && currentEditingCell !== this) {
+                    finishEditing(currentEditingCell);
+                }
+                startEditing(this);
+            });
+        });
+
+        function startEditing(cell) {
+            if (cell.classList.contains('editing')) return;
+
+            currentEditingCell = cell;
+            const currentValue = cell.textContent.trim();
+            cell.classList.add('editing');
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.min = '0';
+            input.value = parseFloat(currentValue) || 0;
+            input.className = 'form-control';
+
+            cell.textContent = '';
+            cell.appendChild(input);
+            input.focus();
+            input.select();
+
+            // Handle Enter key
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    finishEditing(cell);
+                    moveToNextEditableCell(cell);
+                } else if (e.key === 'Escape') {
+                    cancelEditing(cell, currentValue);
+                } else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    finishEditing(cell);
+                    moveToNextEditableCell(cell, e.shiftKey);
+                }
+            });
+
+            // Handle blur (clicking outside)
+            input.addEventListener('blur', function () {
+                setTimeout(() => finishEditing(cell), 100);
+            });
+        }
+
+        function finishEditing(cell) {
+            if (!cell.classList.contains('editing')) return;
+
+            const input = cell.querySelector('input');
+            if (!input) return;
+
+            const newValue = parseFloat(input.value) || 0;
+            const originalValue = parseFloat(cell.dataset.originalValue);
+            const boqId = cell.closest('tr').dataset.boqId;
+            const field = cell.dataset.field;
+
+            cell.classList.remove('editing');
+            cell.textContent = newValue.toFixed(2);
+
+            // Track modification
+            if (newValue !== originalValue) {
+                cell.classList.add('modified');
+                if (!modifiedCells.has(boqId)) {
+                    modifiedCells.set(boqId, {});
+                }
+                modifiedCells.get(boqId)[field] = newValue;
+            } else {
+                cell.classList.remove('modified');
+                if (modifiedCells.has(boqId)) {
+                    delete modifiedCells.get(boqId)[field];
+                    if (Object.keys(modifiedCells.get(boqId)).length === 0) {
+                        modifiedCells.delete(boqId);
+                    }
+                }
+            }
+
+            // Update balance if contract quantity changed
+            if (field === 'contract_quantity') {
+                updateBalance(cell.closest('tr'), newValue);
+            }
+
+            updateModifiedIndicator();
+            currentEditingCell = null;
+        }
+
+        function cancelEditing(cell, originalValue) {
+            cell.classList.remove('editing');
+            cell.textContent = originalValue;
+            currentEditingCell = null;
+        }
+
+        function moveToNextEditableCell(currentCell, reverse = false) {
+            const editableCells = Array.from(document.querySelectorAll('.editable-cell'));
+            const currentIndex = editableCells.indexOf(currentCell);
+
+            if (currentIndex === -1) return;
+
+            const nextIndex = reverse ? currentIndex - 1 : currentIndex + 1;
+            if (nextIndex >= 0 && nextIndex < editableCells.length) {
+                startEditing(editableCells[nextIndex]);
+            }
+        }
+
+        function updateBalance(row, newContractQty) {
+            const receivedCell = row.querySelector('td:nth-child(5)');
+            const balanceCell = row.querySelector('.balance-cell');
+
+            const receivedQty = parseFloat(receivedCell.textContent) || 0;
+            const balance = newContractQty - receivedQty;
+
+            balanceCell.textContent = balance.toFixed(2);
+            balanceCell.className = 'text-end balance-cell';
+            if (balance < 0) {
+                balanceCell.classList.add('balance-negative');
+            } else if (balance > 0) {
+                balanceCell.classList.add('balance-positive');
+            } else {
+                balanceCell.classList.add('balance-zero');
+            }
+        }
+
+        function updateModifiedIndicator() {
+            const count = modifiedCells.size;
+            if (count > 0) {
+                modifiedIndicator.style.display = 'block';
+                modifiedCount.textContent = count;
+                saveBtn.disabled = false;
+            } else {
+                modifiedIndicator.style.display = 'none';
+                saveBtn.disabled = true;
+            }
+        }
+
+        // Save changes
+        saveBtn.addEventListener('click', async function () {
+            if (modifiedCells.size === 0) {
+                alert('No changes to save');
+                return;
+            }
+
+            if (!confirm(`Save changes to ${modifiedCells.size} item(s)?`)) {
+                return;
+            }
+
+            // Prepare updates array
+            const updates = [];
+            modifiedCells.forEach((fields, boqId) => {
+                updates.push({
+                    id: parseInt(boqId),
+                    contract_quantity: fields.contract_quantity
+                });
+            });
+
+            // Show loading
+            loadingOverlay.classList.add('active');
+            saveBtn.disabled = true;
+
+            try {
+                const response = await fetch('{% url "bulk_update_boq_api" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ updates })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Successfully updated ${result.updated_count} item(s)!`);
+
+                    // Update original values and clear modifications
+                    modifiedCells.forEach((fields, boqId) => {
+                        const row = document.querySelector(`tr[data-boq-id="${boqId}"]`);
+                        const cell = row.querySelector('.editable-cell[data-field="contract_quantity"]');
+                        cell.dataset.originalValue = fields.contract_quantity;
+                        cell.classList.remove('modified');
+                    });
+
+                    modifiedCells.clear();
+                    updateModifiedIndicator();
+
+                    if (result.errors && result.errors.length > 0) {
+                        console.error('Some updates failed:', result.errors);
+                        alert(`Note: ${result.errors.length} item(s) had errors. Check console for details.`);
+                    }
+                } else {
+                    alert('Error saving changes: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Error saving changes. Please try again.');
+            } finally {
+                loadingOverlay.classList.remove('active');
+                saveBtn.disabled = false;
+            }
+        });
+
+        // Reset changes
+        resetBtn.addEventListener('click', function () {
+            if (modifiedCells.size === 0) {
+                alert('No changes to reset');
+                return;
+            }
+
+            if (!confirm('Discard all unsaved changes?')) {
+                return;
+            }
+
+            // Reset all modified cells
+            modifiedCells.forEach((fields, boqId) => {
+                const row = document.querySelector(`tr[data-boq-id="${boqId}"]`);
+                const cell = row.querySelector('.editable-cell[data-field="contract_quantity"]');
+                const originalValue = parseFloat(cell.dataset.originalValue);
+
+                cell.textContent = originalValue.toFixed(2);
+                cell.classList.remove('modified');
+
+                updateBalance(row, originalValue);
+            });
+
+            modifiedCells.clear();
+            updateModifiedIndicator();
+        });
+
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function (e) {
+            if (modifiedCells.size > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    });
+</script>
+{% endblock content %}

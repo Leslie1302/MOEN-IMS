@@ -70,6 +70,10 @@ from .boq_overissuance_views import (
 
 # Import BOQ management views
 from .boq_views import BulkEditBOQView, SingleEditBOQView
+from .boq_community_views import (
+    CommunityBOQBulkEditView, CommunityListAPIView, 
+    CommunityBOQDataAPIView, BulkUpdateBOQAPIView
+)
 
 # Import signature views
 from .signature_lookup_view import signature_lookup, signature_verify, signature_api_lookup
@@ -158,6 +162,12 @@ urlpatterns = [
     path('upload-bill-of-quantity/', UploadBillOfQuantityView.as_view(), name='upload_bill_of_quantity'),
     path('bill-of-quantity/bulk-edit/', BulkEditBOQView.as_view(), name='boq_bulk_edit'),
     path('bill-of-quantity/<int:pk>/edit/', SingleEditBOQView.as_view(), name='boq_single_edit'),
+    
+    # Community-based BOQ bulk edit
+    path('bill-of-quantity/community-bulk-edit/', CommunityBOQBulkEditView.as_view(), name='boq_community_bulk_edit'),
+    path('bill-of-quantity/api/communities/', CommunityListAPIView.as_view(), name='community_list_api'),
+    path('bill-of-quantity/api/community-data/', CommunityBOQDataAPIView.as_view(), name='community_boq_data_api'),
+    path('bill-of-quantity/api/bulk-update/', BulkUpdateBOQAPIView.as_view(), name='bulk_update_boq_api'),
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
     path('project-management-dashboard/', ProjectManagementDashboardView.as_view(), name='project_management_dashboard'),
