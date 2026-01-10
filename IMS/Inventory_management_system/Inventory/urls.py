@@ -77,7 +77,7 @@ from .boq_community_views import (
 
 # Import signature views
 from .signature_lookup_view import signature_lookup, signature_verify, signature_api_lookup
-from .signature_demo_view import signature_stamp_demo
+
 
 # Import stores management views
 from .stores_management_views import (
@@ -251,7 +251,7 @@ urlpatterns = [
     path('signatures/lookup/', signature_lookup, name='signature_lookup'),
     path('signatures/verify/<int:user_id>/', signature_verify, name='signature_verify'),
     path('signatures/api/lookup/', signature_api_lookup, name='signature_api_lookup'),
-    path('signatures/demo/', signature_stamp_demo, name='signature_demo'),
+
     
     # Stores Management URLs
     path('stores/pending-orders/', PendingOrdersView.as_view(), name='stores_pending_orders'),

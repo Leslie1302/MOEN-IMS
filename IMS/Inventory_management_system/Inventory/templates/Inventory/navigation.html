@@ -1,14 +1,14 @@
 {% load static %}
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-    <div class="container-fluid">
+    <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">🏗️ MOEN-IMS</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
             aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-            <ul class="navbar-nav align-items-center">
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav align-items-center me-auto">
                 {% if user.is_authenticated %}
                 {% if user.groups.exists or user.is_superuser %}
                 <!-- Dashboard -->
@@ -383,17 +383,17 @@
                             <h6 class="dropdown-header">Digital Signatures</h6>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                        <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
+
                         <li>
                             <h6 class="dropdown-header">Digital Signatures</h6>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                        <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
+
                         <li>
                             <h6 class="dropdown-header">Digital Signatures</h6>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                        <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
+
                     </ul>
                 </li>
                 {% endif %}
@@ -422,7 +422,7 @@
                             <h6 class="dropdown-header">Digital Signatures</h6>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-                        <li><a class="dropdown-item" href="{% url 'signature_demo' %}">📋 Signature Demo</a></li>
+
                     </ul>
                 </li>
                 {% endif %}
@@ -458,6 +458,9 @@
                 </li>
                 {% endif %}
                 {% endcomment %}
+
+            </ul>
+            <ul class="navbar-nav align-items-center">
 
                 <!-- Notifications -->
                 <li class="nav-item">

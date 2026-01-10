@@ -118,8 +118,11 @@ class RequestMaterialView(LoginRequiredMixin, View):
     template_name = 'Inventory/request_material.html'
 
     def get(self, request):
-        # Show all inventory items to all users for transparency
-        items = InventoryItem.objects.all()
+        # Filter items based on user permissions
+        if request.user.is_superuser:
+            items = InventoryItem.objects.all()
+        else:
+            items = InventoryItem.objects.filter(group__in=request.user.groups.all())
 
         formset = MaterialOrderFormSet(form_kwargs={'user': request.user})
         bulk_form = BulkMaterialRequestForm()
@@ -584,11 +587,22 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         return context
 
 
-class UpdateMaterialStatusView(View):
+class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
     Handle material order status updates and fulfillment processing.
     Supports: Seen, Approved, Rejected, Partial, Full status updates.
     """
+
+    def test_func(self):
+        """Ensure only staff/superusers or explicitly assigned users can update status."""
+        user = self.request.user
+        if user.is_superuser or user.is_staff:
+            return True
+        # Check specific permissions if available, or rely on group membership checks in post()
+        # Ideally, we'd check 'Inventory.change_materialorder' here but let's
+        # allow the post method to handle granular assignment checks, 
+        # while this ensures basic authorized access level.
+        return user.groups.exists() 
     
     def post(self, request, order_id, new_status):
         logger = logging.getLogger(__name__)

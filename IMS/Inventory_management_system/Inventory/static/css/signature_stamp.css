@@ -6,7 +6,7 @@
 /* Base Stamp Styles */
 .digital-signature-stamp {
     display: inline-block;
-    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-family: 'Courier New', Courier, monospace;
     text-align: center;
     background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

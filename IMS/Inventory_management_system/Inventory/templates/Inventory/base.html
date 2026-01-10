@@ -1,6 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     {% load static %}
     <base href="/" />
@@ -26,28 +27,35 @@
             --bs-link-color: #2563eb;
             --bs-link-hover-color: #1d4ed8;
         }
+
         * {
             box-sizing: border-box;
         }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #fafafa;
             color: var(--bs-body-color);
             line-height: 1.6;
         }
+
         .navbar {
             background-color: #ffffff !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
             border-bottom: 1px solid #e5e7eb;
             padding: 1rem 0;
         }
-        .navbar-brand, .navbar-nav .nav-link {
+
+        .navbar-brand,
+        .navbar-nav .nav-link {
             color: #1f2937 !important;
             font-weight: 400;
         }
+
         .navbar-nav .nav-link:hover {
             color: var(--bs-primary) !important;
         }
+
         .card {
             border: 1px solid #e5e7eb;
             box-shadow: none;
@@ -55,6 +63,7 @@
             background-color: #ffffff;
             margin-bottom: 2rem;
         }
+
         .card-header {
             background-color: transparent;
             border-bottom: 1px solid #e5e7eb;
@@ -62,31 +71,38 @@
             color: var(--bs-dark);
             padding: 1.25rem;
         }
+
         .card-body {
             padding: 1.5rem;
         }
+
         .btn {
             border-radius: var(--bs-border-radius);
             font-weight: 400;
             padding: 0.5rem 1rem;
             border: 1px solid transparent;
         }
+
         .btn-primary {
             background-color: var(--bs-primary);
             border-color: var(--bs-primary);
         }
+
         .btn-primary:hover {
             background-color: #1d4ed8;
             border-color: #1d4ed8;
         }
+
         .btn-outline-primary {
             border-color: var(--bs-primary);
             color: var(--bs-primary);
         }
+
         .table {
             background-color: #ffffff;
             border: 1px solid #e5e7eb;
         }
+
         .table thead th {
             background-color: #f9fafb;
             color: #374151;
@@ -97,54 +113,75 @@
             font-size: 0.875rem;
             letter-spacing: 0;
         }
+
         .table tbody tr {
             border-color: #f3f4f6;
         }
+
         .table tbody tr:hover {
             background-color: #f9fafb;
         }
+
         .table td {
             border-color: #f3f4f6;
             padding: 0.75rem 1rem;
         }
+
         .badge {
             font-weight: 400;
             padding: 0.25rem 0.5rem;
         }
-        .form-control, .form-select {
+
+        .form-control,
+        .form-select {
             border-color: #d1d5db;
             border-radius: var(--bs-border-radius);
             padding: 0.5rem 0.75rem;
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             border-color: var(--bs-primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
+
         .form-control::placeholder {
             color: #9ca3af;
         }
+
         .content {
             background-color: #fafafa;
             padding: 2rem 0;
         }
-        .container, .container-fluid {
+
+        .container,
+        .container-fluid {
             padding-left: 1.5rem;
             padding-right: 1.5rem;
         }
+
         footer {
             background-color: #ffffff;
             color: #6b7280;
             border-top: 1px solid #e5e7eb;
             padding: 2rem 0;
         }
-        h1, h2, h3, h4, h5, h6 {
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             font-weight: 500;
             color: #111827;
         }
+
         /* Remove excessive shadows and effects */
         .shadow {
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
         }
+
         .shadow-sm {
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
         }
@@ -152,7 +189,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/8/87/Warehouse_icon.png" type="image/png">
     <title>{% block title %}WAREHOUSE MANAGEMENT TOOL{% endblock %}</title>
-    
+
     <!-- Table Utilities CSS -->
     <style>
         /* Table enhancements */
@@ -160,20 +197,22 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
-        
+
         .table {
             width: 100%;
             margin-bottom: 1rem;
             color: #212529;
             border-collapse: collapse;
         }
-        
+
         /* Table header styles */
         .table thead th {
             white-space: nowrap;
             position: relative;
-            background-color: #2c3e50; /* Dark blue background */
-            color: #ffffff; /* White text */
+            background-color: #2c3e50;
+            /* Dark blue background */
+            color: #ffffff;
+            /* White text */
             vertical-align: middle;
             padding: 0.75rem;
             border: 1px solid #1a252f;
@@ -182,43 +221,44 @@
             font-size: 0.8rem;
             letter-spacing: 0.5px;
         }
-        
+
         /* Ensure filter row headers match the main header style */
         .table thead tr.filter-row th {
-            background-color: #34495e; /* Slightly lighter than main header */
+            background-color: #34495e;
+            /* Slightly lighter than main header */
             padding: 0.5rem 0.75rem;
         }
-        
+
         /* Style for sortable headers */
         .table thead th.sortable {
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        
+
         .table thead th.sortable:hover {
             background-color: #1a252f;
         }
-        
+
         .table th.sortable {
             cursor: pointer;
         }
-        
+
         .table th.sort-asc::after {
             content: ' ↑';
             opacity: 0.7;
         }
-        
+
         .table th.sort-desc::after {
             content: ' ↓';
             opacity: 0.7;
         }
-        
+
         /* Filter styles */
         .filter-container {
             position: relative;
             width: 100%;
         }
-        
+
         .filter-input {
             width: 100%;
             padding: 0.25rem 0.5rem;
@@ -226,7 +266,7 @@
             border: 1px solid #dee2e6;
             border-radius: 0.25rem;
         }
-        
+
         .filter-dropdown {
             position: absolute;
             z-index: 1000;
@@ -238,21 +278,21 @@
             box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
             display: none;
         }
-        
+
         .filter-dropdown.show {
             display: block;
         }
-        
+
         .filter-dropdown-item {
             padding: 0.25rem 0.5rem;
             cursor: pointer;
             white-space: nowrap;
         }
-        
+
         .filter-dropdown-item:hover {
             background-color: #f8f9fa;
         }
-        
+
         .filter-icon {
             position: absolute;
             right: 0.5rem;
@@ -261,7 +301,7 @@
             cursor: pointer;
             color: #6c757d;
         }
-        
+
         .filter-clear {
             position: absolute;
             right: 1.5rem;
@@ -271,16 +311,16 @@
             color: #6c757d;
             display: none;
         }
-        
+
         .filter-clear.visible {
             display: block;
         }
-        
+
         /* Pagination styles */
         .pagination {
             margin: 0.5rem 0;
         }
-        
+
         /* Responsive table */
         @media (max-width: 768px) {
             .table-responsive {
@@ -289,15 +329,15 @@
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
             }
-            
+
             .table {
                 width: 100%;
                 max-width: 100%;
                 margin-bottom: 1rem;
                 background-color: transparent;
             }
-            
-            .table th, 
+
+            .table th,
             .table td {
                 white-space: nowrap;
             }
@@ -309,94 +349,97 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
-        
+
         .table th {
             white-space: nowrap;
             position: relative;
         }
-        
+
         .table th.sort-asc::after {
             content: ' ↑';
             opacity: 0.7;
         }
-        
+
         .table th.sort-desc::after {
             content: ' ↓';
             opacity: 0.7;
         }
-        
+
         .table th:hover {
             background-color: #f8f9fa;
             cursor: pointer;
         }
-        
+
         .filter-dropdown {
             z-index: 1060;
             max-height: 400px;
             overflow-y: auto;
         }
-        
+
         /* Fix navbar dropdown z-index issues */
         .navbar {
             position: relative;
             z-index: 1030 !important;
         }
-        
+
         .navbar .dropdown-menu {
             z-index: 1050 !important;
             position: absolute !important;
         }
-        
+
         /* Bootstrap Modal z-index hierarchy (highest priority) */
         .modal-backdrop {
             z-index: 1040 !important;
             /* CRITICAL FIX: Hide stuck modal backdrops globally */
             display: none !important;
         }
-        
+
         .modal {
             z-index: 1055 !important;
         }
-        
+
         /* Ensure body doesn't get stuck with modal-open class */
         body.modal-open {
             overflow: auto !important;
             padding-right: 0 !important;
         }
-        
+
         /* Ensure page content doesn't overlap navbar dropdowns */
         .content {
             position: relative;
             z-index: 1;
         }
-        
+
         /* Ensure all page elements respect navbar z-index hierarchy */
         .sticky-top:not(.navbar) {
             z-index: 10 !important;
         }
-        
-        .card, .container, .container-fluid {
+
+        .card,
+        .container,
+        .container-fluid {
             position: relative;
             z-index: auto;
         }
-        
+
         .filter-options {
             max-height: 250px;
             overflow-y: auto;
         }
-        
+
         .form-check {
             padding: 0.25rem 0.5rem;
             margin: 0;
             border-bottom: 1px solid #f0f0f0;
         }
-        
+
         .form-check:hover {
             background-color: #f8f9fa;
         }
 
         /* Make the body take full height */
-        html, body {
+        html,
+        body {
             height: 100%;
             margin: 0;
             display: flex;
@@ -415,7 +458,9 @@
             padding: 15px 0;
         }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
+
 <body>
     {% include 'Inventory/navigation.html' %}
 
@@ -432,14 +477,14 @@
         <p>&copy; 2025 Warehouse Management Tool | All Rights Reserved</p>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" 
-            integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" 
-            crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa"
+        crossorigin="anonymous"></script>
+
     <!-- Fix for stuck modal backdrops - AGGRESSIVE GLOBAL FIX -->
     <script>
         // Immediate backdrop cleanup - run before DOMContentLoaded
-        (function() {
+        (function () {
             function cleanupBackdrops() {
                 const backdrops = document.querySelectorAll('.modal-backdrop');
                 if (backdrops.length > 0) {
@@ -450,23 +495,23 @@
                 document.body.style.overflow = '';
                 document.body.style.paddingRight = '';
             }
-            
+
             // Run cleanup immediately
             cleanupBackdrops();
-            
+
             // Run cleanup on DOMContentLoaded
-            document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('DOMContentLoaded', function () {
                 cleanupBackdrops();
-                
+
                 // Run cleanup multiple times to catch delayed backdrops
                 setTimeout(cleanupBackdrops, 100);
                 setTimeout(cleanupBackdrops, 500);
                 setTimeout(cleanupBackdrops, 1000);
-                
+
                 // Monitor for any new backdrops being added and remove them immediately
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        mutation.addedNodes.forEach(function(node) {
+                const observer = new MutationObserver(function (mutations) {
+                    mutations.forEach(function (mutation) {
+                        mutation.addedNodes.forEach(function (node) {
                             if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
                                 console.log('[Backdrop Fix] Detected new modal backdrop, removing immediately');
                                 node.remove();
@@ -474,7 +519,7 @@
                         });
                     });
                 });
-                
+
                 observer.observe(document.body, {
                     childList: true,
                     subtree: false
@@ -482,37 +527,37 @@
             });
         })();
     </script>
-    
+
     <!-- Notification System JavaScript -->
     <script>
         function markAllRead(event) {
             event.preventDefault();
-            
+
             fetch("{% url 'mark_all_notifications_read' %}", {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                                   document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                        document.querySelector('meta[name="csrf-token"]')?.content || '',
                     'Content-Type': 'application/json',
                 },
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Reload page to update the badge
-                    window.location.reload();
-                } else {
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload page to update the badge
+                        window.location.reload();
+                    } else {
+                        alert('Error marking notifications as read');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
                     alert('Error marking notifications as read');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error marking notifications as read');
-            });
+                });
         }
-        
+
         // Optional: Auto-refresh notification count every 30 seconds
-        setInterval(function() {
+        setInterval(function () {
             fetch("{% url 'get_unread_count' %}")
                 .then(response => response.json())
                 .then(data => {
@@ -530,10 +575,11 @@
                 .catch(error => console.error('Error fetching notification count:', error));
         }, 30000); // 30 seconds
     </script>
-    
+
     {% block extra_js %}{% endblock %}
-    
+
     <!-- Table Utilities -->
     <script src="{% static 'js/table-utils.js' %}"></script>
 </body>
+
 </html>

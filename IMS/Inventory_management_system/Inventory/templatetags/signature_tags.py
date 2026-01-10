@@ -11,7 +11,9 @@ from datetime import datetime
 register = template.Library()
 
 
-@register.inclusion_tag('Inventory/signature_stamp.html')
+from django.template.loader import render_to_string
+
+@register.simple_tag
 def signature_stamp(profile, size='medium'):
     """
     Render a visual digital signature stamp for a user profile.
@@ -25,20 +27,18 @@ def signature_stamp(profile, size='medium'):
         {% signature_stamp user.profile %}
         {% signature_stamp user.profile size='large' %}
     """
+    context = {'size': size}
+    
     if not profile or not profile.signature_stamp:
-        return {
-            'has_stamp': False,
-            'size': size
-        }
+        context['has_stamp'] = False
+        return mark_safe(str(render_to_string('Inventory/signature_stamp.html', context)))
     
     # Parse the signature stamp
     stamp_data = profile.display_signature_stamp()
     
     if not stamp_data:
-        return {
-            'has_stamp': False,
-            'size': size
-        }
+        context['has_stamp'] = False
+        return mark_safe(str(render_to_string('Inventory/signature_stamp.html', context)))
     
     # Extract components
     full_name = stamp_data.get('SIGNED_BY', 'Unknown')
@@ -65,8 +65,8 @@ def signature_stamp(profile, size='medium'):
             user_role = 'Staff'
         elif profile.user.groups.exists():
             user_role = profile.user.groups.first().name
-    
-    return {
+            
+    context.update({
         'has_stamp': True,
         'full_name': full_name,
         'user_role': user_role,
@@ -74,9 +74,10 @@ def signature_stamp(profile, size='medium'):
         'stamp_id': stamp_id,
         'formatted_date': formatted_date,
         'formatted_time': formatted_time,
-        'size': size,
         'profile': profile
-    }
+    })
+    
+    return mark_safe(str(render_to_string('Inventory/signature_stamp.html', context)))
 
 
 @register.simple_tag

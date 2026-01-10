@@ -26,16 +26,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
+from django.core.exceptions import ImproperlyConfigured
+
+def get_env_variable(var_name):
+    """Get the environment variable or return exception."""
+    try:
+        return os.environ[var_name]
+    except KeyError:
+        raise ImproperlyConfigured(f"Set the {var_name} environment variable")
+
 # SECURITY WARNING: keep the secret key used in production secret!
-# Prefer environment variable in production
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-6z-jao9@c1iv5^98mp_kq8)kfqo82k_u5@2-nj@s3*#76l*b=^'
-)
+SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Set DJANGO_DEBUG='True' for development, 'False' for production
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -53,7 +57,7 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
-    CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+    CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript from reading CSRF token
     SESSION_COOKIE_SAMESITE = 'Lax'  # or 'None' if you need cross-site cookies
     CSRF_COOKIE_SAMESITE = 'Lax'     # or 'None' if you need cross-site cookies
     

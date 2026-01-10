@@ -12,7 +12,7 @@
     }
 
     /* Page Background */
-    .container-fluid {
+    .bulk-edit-content {
         background-color: #fafafa;
         min-height: 100vh;
         padding-bottom: 60px;
@@ -26,6 +26,8 @@
         margin-bottom: 2rem;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         border: 1px solid #e5e7eb;
+        border-top: 4px solid #2563eb;
+        /* Add color pop */
     }
 
     .page-header h2 {
@@ -49,6 +51,8 @@
         margin-bottom: 2rem;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         border: 1px solid #e5e7eb;
+        border-top: 4px solid #2563eb;
+        /* Add color pop */
     }
 
     .community-selector h5 {
@@ -96,6 +100,7 @@
     .community-tab:hover {
         border-color: #2563eb;
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        background-color: #f0f7ff;
     }
 
     .community-tab.active {
@@ -125,6 +130,8 @@
         padding: 1.5rem;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         border: 1px solid #e5e7eb;
+        border-top: 4px solid #2563eb;
+        /* Add color pop */
     }
 
     .boq-grid-container h5 {
@@ -159,38 +166,7 @@
         border: 1px solid #e5e7eb;
     }
 
-    .boq-grid {
-        width: 100%;
-        min-width: 1600px;
-        border-collapse: collapse;
-        font-size: 0.875rem;
-    }
-
-    .boq-grid th {
-        background-color: #f9fafb;
-        color: #374151;
-        border: 1px solid #e5e7eb;
-        padding: 0.75rem 1rem;
-        text-align: left;
-        font-weight: 500;
-        text-transform: none;
-        font-size: 0.875rem;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        white-space: nowrap;
-    }
-
-    .boq-grid td {
-        border: 1px solid #f3f4f6;
-        padding: 0.75rem 1rem;
-        background: #ffffff;
-        transition: background 0.2s;
-    }
-
-    .boq-grid tbody tr:hover {
-        background: #f9fafb;
-    }
+    /* Table styles inherited from base.html (.table class) */
 
     /* Editable cells */
     .editable-cell {
@@ -250,6 +226,8 @@
         background: #dbeafe;
         color: #1e3a8a;
         font-weight: 600;
+        border: 2px solid #3b82f6;
+        /* Highlight modified */
     }
 
     /* Balance display */
@@ -282,7 +260,7 @@
         background: #ffffff;
         padding: 1rem 1.5rem;
         border-radius: 0.25rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         margin-bottom: 2rem;
         display: flex;
         justify-content: space-between;
@@ -290,6 +268,7 @@
         gap: 1rem;
         flex-wrap: wrap;
         border: 1px solid #e5e7eb;
+        border-left: 4px solid #2563eb;
     }
 
     .action-buttons .btn {
@@ -402,8 +381,8 @@
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="container-fluid px-4">
+{% block full_width_content %}
+<div class="container-fluid px-4 mt-4 bulk-edit-content">
     <!-- Page Header -->
     <div class="page-header">
         <h2 class="text-center mb-0">
@@ -475,7 +454,7 @@
 
         {% if boq_items %}
         <div class="table-responsive">
-            <table class="boq-grid" id="boqGrid">
+            <table class="table table-bordered table-hover" id="boqGrid">
                 <thead>
                     <tr>
                         <th style="min-width: 120px;">Package #</th>
@@ -793,4 +772,4 @@
         });
     });
 </script>
-{% endblock content %}
+{% endblock full_width_content %}
