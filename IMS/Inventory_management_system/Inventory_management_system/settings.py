@@ -44,6 +44,8 @@ ALLOWED_HOSTS = [
     'www.moen-ims.org',
     'moen-ims-28b53393a6a5.herokuapp.com',
     'moen-ims-defea5f92ea2.herokuapp.com',
+    'moen-ims-8b7793040010.herokuapp.com',
+    '.herokuapp.com',
 ]
 
 if not DEBUG:
