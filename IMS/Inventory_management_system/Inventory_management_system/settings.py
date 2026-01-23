@@ -28,15 +28,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 from django.core.exceptions import ImproperlyConfigured
 
-def get_env_variable(var_name):
-    """Get the environment variable or return exception."""
-    try:
-        return os.environ[var_name]
-    except KeyError:
-        raise ImproperlyConfigured(f"Set the {var_name} environment variable")
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-build-only')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
