@@ -8,3 +8,5 @@ class InventoryConfig(AppConfig):
     def ready(self):
         """Import signals when app is ready"""
         import Inventory.signals
+        import Inventory.release_letter_signals  # Release letter tracking signals
+

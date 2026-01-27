@@ -81,7 +81,12 @@ class ReleaseLetter(auto_prefetch.Model):
     """
     Model for storing release letters that authorize material releases.
     Each letter is linked to a specific material order.
+    
+    Enhanced for tracking:
+    - Drawdown: Tracks requested (administrative commitment) vs. authorized
+    - Fulfillment: Tracks delivered (physical movement) vs. authorized
     """
+    # Original fields
     request_code = models.CharField(
         max_length=50,
         db_index=True,
@@ -93,6 +98,8 @@ class ReleaseLetter(auto_prefetch.Model):
     )
     pdf_file = models.FileField(
         upload_to='release_letters/%Y/%m/%d/',
+        blank=True,
+        null=True,
         help_text="The signed release letter in PDF format"
     )
     uploaded_by = auto_prefetch.ForeignKey(
@@ -107,6 +114,82 @@ class ReleaseLetter(auto_prefetch.Model):
         blank=True,
         help_text="Any additional notes or comments about this release letter"
     )
+    
+    # ========== NEW TRACKING FIELDS ==========
+    
+    # Unique reference for tracking
+    reference_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        blank=True,
+        null=True,
+        help_text="Unique reference number for this release letter (auto-generated if blank)"
+    )
+    
+    # Authorized quantity tracking
+    total_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Total quantity authorized by this release letter"
+    )
+    
+    # Material classification
+    MATERIAL_TYPE_CHOICES = [
+        ('Transformers', 'Transformers'),
+        ('Poles', 'Poles'),
+        ('Cables', 'Cables'),
+        ('Conductors', 'Conductors'),
+        ('Meters', 'Meters'),
+        ('Insulators', 'Insulators'),
+        ('Switches', 'Switches'),
+        ('Other', 'Other'),
+    ]
+    material_type = models.CharField(
+        max_length=50,
+        choices=MATERIAL_TYPE_CHOICES,
+        default='Other',
+        help_text="Type of material covered by this release letter"
+    )
+    
+    # Project phase association
+    project_phase = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Project phase this release letter covers"
+    )
+    
+    # Status tracking
+    STATUS_CHOICES = [
+        ('Open', 'Open'),
+        ('Closed', 'Closed'),
+    ]
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='Open',
+        help_text="Status of this release letter"
+    )
+    
+    # Alert threshold
+    alert_threshold_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=80.00,
+        help_text="Percentage threshold to trigger drawdown alerts (default 80%)"
+    )
+    
+    # BOQ linkage for guardrail validation
+    boq_item = auto_prefetch.ForeignKey(
+        'BillOfQuantity',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='release_letters',
+        help_text="Bill of Quantity item for allocation validation"
+    )
 
     class Meta(auto_prefetch.Model.Meta):
         ordering = ['-upload_time']
@@ -115,14 +198,117 @@ class ReleaseLetter(auto_prefetch.Model):
         unique_together = ['request_code', 'title']  # Prevent duplicate letters for same request
         permissions = [
             ('can_upload_release_letter', 'Can upload release letters'),
+            ('can_view_release_letter_tracking', 'Can view release letter tracking dashboard'),
         ]
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate reference number if not provided."""
+        if not self.reference_number:
+            from datetime import datetime
+            import uuid
+            date_str = datetime.now().strftime('%Y%m%d')
+            unique_id = uuid.uuid4().hex[:6].upper()
+            self.reference_number = f"RL-{date_str}-{unique_id}"
+        super().save(*args, **kwargs)
         
     def get_related_orders(self):
-        """Get all material orders associated with this request code."""
+        """Get all material orders associated with this release letter."""
+        return self.material_orders.all()
+    
+    def get_related_orders_by_request_code(self):
+        """Get all material orders associated with this request code (legacy method)."""
         return MaterialOrder.objects.filter(request_code=self.request_code)
 
     def __str__(self):
-        return f"{self.title} - {self.request_code}"
+        ref = self.reference_number or self.request_code
+        return f"{self.title} - {ref}"
+    
+    # ========== CALCULATED PROPERTIES FOR TRACKING ==========
+    
+    @property
+    def total_requested(self):
+        """
+        Sum of all linked MaterialOrder quantities (administrative commitment).
+        This represents what has been "committed" on paper.
+        """
+        from decimal import Decimal
+        result = self.material_orders.aggregate(
+            total=models.Sum('quantity')
+        )['total']
+        return Decimal(str(result)) if result else Decimal('0')
+    
+    @property
+    def balance_to_request(self):
+        """
+        Remaining quantity available to request.
+        Represents how much more can be requested against this letter.
+        """
+        from decimal import Decimal
+        total_qty = Decimal(str(self.total_quantity)) if self.total_quantity else Decimal('0')
+        return max(Decimal('0'), total_qty - self.total_requested)
+    
+    @property
+    def drawdown_percentage(self):
+        """
+        Percentage of authorized quantity that has been requested.
+        Shows administrative commitment level.
+        """
+        from decimal import Decimal
+        if not self.total_quantity or self.total_quantity == 0:
+            return Decimal('0')
+        return (self.total_requested / Decimal(str(self.total_quantity))) * 100
+    
+    @property
+    def total_released(self):
+        """
+        Sum of quantities from Delivered transports (physical movement).
+        This represents what has actually left the warehouse.
+        """
+        from decimal import Decimal
+        # Get from transports linked directly to this release letter
+        result = self.transports.filter(
+            status='Delivered'
+        ).aggregate(total=models.Sum('quantity'))['total']
+        return Decimal(str(result)) if result else Decimal('0')
+    
+    @property
+    def fulfillment_percentage(self):
+        """
+        Percentage of authorized quantity actually released/delivered.
+        Shows physical movement level.
+        """
+        from decimal import Decimal
+        if not self.total_quantity or self.total_quantity == 0:
+            return Decimal('0')
+        return (self.total_released / Decimal(str(self.total_quantity))) * 100
+    
+    @property
+    def is_threshold_exceeded(self):
+        """Check if drawdown has exceeded alert threshold."""
+        from decimal import Decimal
+        threshold = Decimal(str(self.alert_threshold_percentage)) if self.alert_threshold_percentage else Decimal('80')
+        return self.drawdown_percentage >= threshold
+    
+    @property
+    def tracking_status_color(self):
+        """
+        Return color coding for dashboard display.
+        Green: <70%, Yellow: 70-89%, Red: >=90%
+        """
+        pct = float(self.drawdown_percentage)
+        if pct >= 90:
+            return 'danger'  # Red
+        elif pct >= 70:
+            return 'warning'  # Yellow
+        return 'success'  # Green
+    
+    @property
+    def fulfillment_gap(self):
+        """
+        Difference between requested and released.
+        Positive = materials requested but not yet delivered.
+        """
+        return self.total_requested - self.total_released
 
 class InventoryItem(auto_prefetch.Model):
     name = models.CharField(max_length=200)

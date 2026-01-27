@@ -15,7 +15,7 @@ from .views import (
     StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
-    update_obsolete_material_status,
+    update_obsolete_material_status, release_letter_tracking_dashboard,
 )
 
 # Import project management views
@@ -223,8 +223,9 @@ urlpatterns = [
     # Transporter legend
     path('transport/legend/', transporter_views.TransporterLegendView.as_view(), name='transporter_legend'),
     
-    # Release letter upload
+    # Release letter upload and tracking
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
+    path('release-letters/tracking/', release_letter_tracking_dashboard, name='release_letter_tracking_dashboard'),
     path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
     
     # Notification management

@@ -3335,3 +3335,108 @@ def update_obsolete_material_status(request, pk):
             messages.error(request, 'Invalid status value')
     
     return redirect('obsolete_material_detail', pk=pk)
+
+
+# ===== RELEASE LETTER TRACKING DASHBOARD =====
+
+@login_required
+def release_letter_tracking_dashboard(request):
+    """
+    Dashboard view showing all release letters with tracking metrics.
+    Displays drawdown and fulfillment status with color-coded indicators.
+    """
+    from .models import ReleaseLetter
+    from django.db.models import Sum, Avg, Count, Q
+    from decimal import Decimal
+    
+    # Get filter parameters
+    filter_status = request.GET.get('status', '')
+    filter_material_type = request.GET.get('material_type', '')
+    filter_threshold = request.GET.get('threshold', '')
+    search_query = request.GET.get('search', '')
+    
+    # Base queryset
+    queryset = ReleaseLetter.objects.select_related('boq_item', 'uploaded_by').prefetch_related('material_orders', 'transports')
+    
+    # Apply filters
+    if filter_status:
+        queryset = queryset.filter(status=filter_status)
+    
+    if filter_material_type:
+        queryset = queryset.filter(material_type=filter_material_type)
+    
+    if search_query:
+        queryset = queryset.filter(
+            Q(reference_number__icontains=search_query) |
+            Q(title__icontains=search_query) |
+            Q(request_code__icontains=search_query)
+        )
+    
+    # Get all release letters (we'll filter threshold in Python due to calculated property)
+    release_letters = list(queryset.order_by('-upload_time'))
+    
+    # Enrich each release letter with additional tracking data
+    for rl in release_letters:
+        # Add order count (using prefetch to optimize)
+        rl.order_count = rl.material_orders.count()
+        
+        # Add transport status counts
+        rl.delivered_count = rl.transports.filter(status='Delivered').count()
+        rl.in_transit_count = rl.transports.filter(status='In Transit').count()
+        
+        # Calculate pending count (all other statuses)
+        total_transports = rl.transports.count()
+        rl.pending_count = total_transports - rl.delivered_count - rl.in_transit_count
+    
+    # Filter by threshold if needed
+    if filter_threshold == 'exceeded':
+        release_letters = [rl for rl in release_letters if rl.is_threshold_exceeded]
+    elif filter_threshold == 'normal':
+        release_letters = [rl for rl in release_letters if not rl.is_threshold_exceeded]
+    
+    # Calculate summary statistics
+    total_letters = len(release_letters)
+    open_letters = sum(1 for rl in release_letters if rl.status == 'Open')
+    threshold_alerts = sum(1 for rl in release_letters if rl.is_threshold_exceeded)
+    
+    # Calculate average fulfillment
+    fulfillment_values = [float(rl.fulfillment_percentage) for rl in release_letters if rl.total_quantity > 0]
+    avg_fulfillment = sum(fulfillment_values) / len(fulfillment_values) if fulfillment_values else 0
+    
+    # Calculate material type statistics
+    material_type_stats = {}
+    for rl in release_letters:
+        if rl.material_type not in material_type_stats:
+            material_type_stats[rl.material_type] = {'count': 0, 'total_drawdown': Decimal('0')}
+        material_type_stats[rl.material_type]['count'] += 1
+        material_type_stats[rl.material_type]['total_drawdown'] += rl.drawdown_percentage
+    
+    material_stats = [
+        {
+            'type': mtype,
+            'count': stats['count'],
+            'avg_drawdown': float(stats['total_drawdown'] / stats['count']) if stats['count'] > 0 else 0
+        }
+        for mtype, stats in material_type_stats.items()
+    ]
+    material_stats.sort(key=lambda x: x['avg_drawdown'], reverse=True)
+    
+    context = {
+        'release_letters': release_letters,
+        'summary': {
+            'total_letters': total_letters,
+            'open_letters': open_letters,
+            'threshold_alerts': threshold_alerts,
+            'avg_fulfillment': avg_fulfillment,
+        },
+        'material_stats': material_stats,
+        'material_types': ReleaseLetter.MATERIAL_TYPE_CHOICES,
+        
+        # Filter values for template
+        'filter_status': filter_status,
+        'filter_material_type': filter_material_type,
+        'filter_threshold': filter_threshold,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'Inventory/release_letter_tracking_dashboard.html', context)
