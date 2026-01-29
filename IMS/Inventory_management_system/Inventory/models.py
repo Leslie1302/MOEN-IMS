@@ -500,6 +500,7 @@ class MaterialOrder(auto_prefetch.Model):
     contractor = models.CharField(max_length=200, blank=True, null=True)
     package_number = models.CharField(max_length=50, blank=True, null=True)
     project_name = models.CharField(max_length=200, blank=True, null=True)
+    phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4)")
     
     # Additional metadata
     notes = models.TextField(blank=True, null=True, help_text="Additional notes or instructions")
@@ -916,6 +917,7 @@ class BillOfQuantity(auto_prefetch.Model):
     consultant = models.CharField(max_length=200)
     contractor = models.CharField(max_length=200)
     package_number = models.CharField(max_length=50)
+    phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4)")
     material_description = models.CharField(max_length=200)
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()
@@ -1059,6 +1061,7 @@ class ReportSubmission(auto_prefetch.Model):
     consultant = models.CharField(max_length=200)
     contractor = models.CharField(max_length=200)
     package_number = models.CharField(max_length=50)
+    phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4)")
     material_description = models.CharField(max_length=200)
     item_code = models.CharField(max_length=200)
     contract_quantity = models.FloatField()
@@ -1130,6 +1133,7 @@ class ReportSubmission(auto_prefetch.Model):
                     'material_description': self.material_description,
                     'contract_quantity': self.contract_quantity,
                     'quantity_received': self.quantity_received,
+                    'phase': self.phase,
                     'user': self.user,
                     'group': self.group
                 }
@@ -1443,16 +1447,17 @@ class Project(auto_prefetch.Model):
     ]
     
     PROJECT_TYPE_CHOICES = [
-        ('Infrastructure', 'Infrastructure'),
-        ('Construction', 'Construction'),
-        ('Maintenance', 'Maintenance'),
-        ('Emergency', 'Emergency'),
+        ('SHEP', 'SHEP'),
+        ('Turnkey', 'Turnkey'),
+        ('China Water', 'China Water'),
+        ('Other Electrification', 'Other Electrification'),
     ]
     
     name = models.CharField(max_length=200, help_text="Project name")
     code = models.CharField(max_length=50, unique=True, help_text="Unique project code")
     description = models.TextField(help_text="Detailed project description")
-    project_type = models.CharField(max_length=50, choices=PROJECT_TYPE_CHOICES, default='Infrastructure')
+    project_type = models.CharField(max_length=50, choices=PROJECT_TYPE_CHOICES, default='SHEP')
+    phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4, Phase 2, etc.)")
     status = models.CharField(max_length=50, choices=PROJECT_STATUS_CHOICES, default='Planning')
     
     # Project management details

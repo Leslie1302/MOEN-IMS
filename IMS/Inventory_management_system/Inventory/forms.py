@@ -6,7 +6,7 @@ from .models import (
     MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, 
     Supplier, Warehouse, BoQOverissuanceJustification, BillOfQuantity,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem, ObsoleteMaterial
+    SupplierInvoice, SupplierInvoiceItem, ObsoleteMaterial, Project
 )
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
@@ -649,6 +649,37 @@ class MaterialTransportForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class ProjectForm(forms.ModelForm):
+    """Form for creating and editing projects, tailored for SHEP and turnkey projects."""
+    class Meta:
+        model = Project
+        fields = [
+            'name', 'code', 'description', 'project_type', 'phase', 
+            'status', 'project_manager', 'consultant', 'contractor', 
+            'start_date', 'planned_end_date', 'total_budget'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter project name'}),
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., SHEP5-AS-01'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'project_type': forms.Select(attrs={'class': 'form-select'}),
+            'phase': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., SHEP-4'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'project_manager': forms.Select(attrs={'class': 'form-select'}),
+            'consultant': forms.TextInput(attrs={'class': 'form-control'}),
+            'contractor': forms.TextInput(attrs={'class': 'form-control'}),
+            'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'planned_end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'total_budget': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Prioritize SHEP as the default project type if it's a new project
+        if not self.instance.pk:
+            self.fields['project_type'].initial = 'SHEP'
 
 
 class SiteReceiptForm(forms.ModelForm):

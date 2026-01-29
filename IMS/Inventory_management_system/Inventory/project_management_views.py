@@ -49,7 +49,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
             overall_completion = (total_received / total_contract * 100) if total_contract > 0 else 0
             
             # Community-level aggregation
-            community_data = boq_items.values('community', 'region', 'district').annotate(
+            community_data = boq_items.values('community', 'region', 'district', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0),
                 item_count=Count('id'),
@@ -68,6 +68,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                         'name': comm['community'],
                         'region': comm['region'],
                         'district': comm['district'],
+                        'phase': comm['phase'],
                         'total_contract': comm['total_contract'],
                         'total_received': comm['total_received'],
                         'completion': round(completion, 2),
@@ -82,7 +83,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                         community_chart_data.append(round(completion, 2))
             
             # Package-level aggregation
-            package_data = boq_items.values('package_number', 'contractor', 'consultant').annotate(
+            package_data = boq_items.values('package_number', 'contractor', 'consultant', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0),
                 item_count=Count('id'),
@@ -101,6 +102,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                         'number': pkg['package_number'],
                         'contractor': pkg['contractor'],
                         'consultant': pkg['consultant'],
+                        'phase': pkg['phase'],
                         'total_contract': pkg['total_contract'],
                         'total_received': pkg['total_received'],
                         'completion': round(completion, 2),
@@ -191,7 +193,7 @@ class CommunityAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             boq_items = BillOfQuantity.objects.all()
             
             # Community-level aggregation with full data
-            community_data = boq_items.values('community', 'region', 'district').annotate(
+            community_data = boq_items.values('community', 'region', 'district', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0),
                 item_count=Count('id'),
@@ -223,6 +225,7 @@ class CommunityAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                         'name': comm['community'],
                         'region': comm['region'],
                         'district': comm['district'],
+                        'phase': comm['phase'],
                         'total_contract': comm['total_contract'],
                         'total_received': comm['total_received'],
                         'balance': comm['total_contract'] - comm['total_received'],
@@ -269,7 +272,7 @@ class PackageAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
             boq_items = BillOfQuantity.objects.all()
             
             # Package-level aggregation with full data
-            package_data = boq_items.values('package_number', 'contractor', 'consultant', 'region').annotate(
+            package_data = boq_items.values('package_number', 'contractor', 'consultant', 'region', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0),
                 item_count=Count('id'),
@@ -289,6 +292,7 @@ class PackageAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
                         'contractor': pkg['contractor'],
                         'consultant': pkg['consultant'],
                         'region': pkg['region'],
+                        'phase': pkg['phase'],
                         'total_contract': pkg['total_contract'],
                         'total_received': pkg['total_received'],
                         'balance': pkg['total_contract'] - pkg['total_received'],

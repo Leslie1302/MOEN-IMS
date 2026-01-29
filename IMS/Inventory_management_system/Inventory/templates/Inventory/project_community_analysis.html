@@ -72,7 +72,8 @@
             <h5 class="card-title mb-0">
                 <i class="bi bi-table"></i> Community Details
             </h5>
-            <button class="btn btn-sm btn-primary" onclick="exportTableToCSV('community-table', 'community_analysis.csv')">
+            <button class="btn btn-sm btn-primary"
+                onclick="exportTableToCSV('community-table', 'community_analysis.csv')">
                 <i class="bi bi-download"></i> Export CSV
             </button>
         </div>
@@ -84,6 +85,7 @@
                             <th>Community</th>
                             <th>Region</th>
                             <th>District</th>
+                            <th>Phase</th>
                             <th>Packages</th>
                             <th>Items</th>
                             <th>Contract Qty</th>
@@ -99,6 +101,11 @@
                             <td><strong>{{ comm.name }}</strong></td>
                             <td>{{ comm.region }}</td>
                             <td>{{ comm.district }}</td>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-10 text-primary">
+                                    {{ comm.phase|default:"-" }}
+                                </span>
+                            </td>
                             <td><span class="badge bg-secondary">{{ comm.package_count }}</span></td>
                             <td><span class="badge bg-info">{{ comm.item_count }}</span></td>
                             <td>{{ comm.total_contract|floatformat:2 }}</td>
@@ -106,19 +113,19 @@
                             <td>{{ comm.balance|floatformat:2 }}</td>
                             <td>
                                 <div class="progress" style="min-width: 80px;">
-                                    <div class="progress-bar {% if comm.completion >= 100 %}bg-success{% elif comm.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                         style="width: {{ comm.completion }}%">
+                                    <div class="progress-bar {% if comm.completion >= 100 %}bg-success{% elif comm.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                        style="width: {{ comm.completion }}%">
                                         {{ comm.completion }}%
                                     </div>
                                 </div>
                             </td>
                             <td>
                                 {% if comm.status == "Complete" %}
-                                    <span class="badge bg-success">✓ Complete</span>
+                                <span class="badge bg-success">✓ Complete</span>
                                 {% elif comm.status == "In Progress" %}
-                                    <span class="badge bg-warning">⏳ In Progress</span>
+                                <span class="badge bg-warning">⏳ In Progress</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Not Started</span>
+                                <span class="badge bg-secondary">Not Started</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -134,90 +141,90 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Community Chart
-    const ctx = document.getElementById('communityChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: {{ chart_labels|safe }},
-            datasets: [{
-                label: 'Completion %',
-                data: {{ chart_data|safe }},
-                backgroundColor: 'rgba(13, 110, 253, 0.7)',
-                borderColor: 'rgba(13, 110, 253, 1)',
-                borderWidth: 1
+    document.addEventListener('DOMContentLoaded', function () {
+        // Community Chart
+        const ctx = document.getElementById('communityChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels| safe }},
+        datasets: [{
+            label: 'Completion %',
+            data: {{ chart_data| safe }},
+        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+        borderColor: 'rgba(13, 110, 253, 1)',
+        borderWidth: 1
             }]
         },
         options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Completion Percentage'
-                    }
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'Completion Percentage'
                 }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
             },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.parsed.x.toFixed(2) + '%';
-                        }
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return context.parsed.x.toFixed(2) + '%';
                     }
                 }
             }
         }
+    }
     });
 });
 
-// Export table to CSV
-function exportTableToCSV(tableId, filename) {
-    const table = document.getElementById(tableId);
-    const rows = table.querySelectorAll('tr');
-    let csv = [];
+    // Export table to CSV
+    function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        const rows = table.querySelectorAll('tr');
+        let csv = [];
 
-    for (let i = 0; i < rows.length; i++) {
-        const row = [];
-        const cols = rows[i].querySelectorAll('td, th');
-        
-        for (let j = 0; j < cols.length; j++) {
-            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
-            data = data.replace(/"/g, '""');
-            row.push('"' + data + '"');
+        for (let i = 0; i < rows.length; i++) {
+            const row = [];
+            const cols = rows[i].querySelectorAll('td, th');
+
+            for (let j = 0; j < cols.length; j++) {
+                let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
+                data = data.replace(/"/g, '""');
+                row.push('"' + data + '"');
+            }
+
+            csv.push(row.join(','));
         }
-        
-        csv.push(row.join(','));
-    }
 
-    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
-    const downloadLink = document.createElement('a');
-    downloadLink.download = filename;
-    downloadLink.href = window.URL.createObjectURL(csvFile);
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-}
+        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const downloadLink = document.createElement('a');
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
 </script>
 
 <style>
-.card {
-    border-radius: 12px;
-}
-.table thead th {
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
+    .card {
+        border-radius: 12px;
+    }
+
+    .table thead th {
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+    }
 </style>
 {% endblock %}
-

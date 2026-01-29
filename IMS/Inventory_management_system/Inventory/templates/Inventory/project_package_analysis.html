@@ -59,6 +59,7 @@
                         <tr>
                             <th>Package Number</th>
                             <th>Region</th>
+                            <th>Phase</th>
                             <th>Contractor</th>
                             <th>Consultant</th>
                             <th>Communities</th>
@@ -75,6 +76,11 @@
                         <tr>
                             <td><strong>{{ pkg.number }}</strong></td>
                             <td>{{ pkg.region }}</td>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-10 text-primary">
+                                    {{ pkg.phase|default:"-" }}
+                                </span>
+                            </td>
                             <td>{{ pkg.contractor|truncatechars:30 }}</td>
                             <td>{{ pkg.consultant|truncatechars:30 }}</td>
                             <td><span class="badge bg-secondary">{{ pkg.community_count }}</span></td>
@@ -84,19 +90,19 @@
                             <td>{{ pkg.balance|floatformat:2 }}</td>
                             <td>
                                 <div class="progress" style="min-width: 80px;">
-                                    <div class="progress-bar {% if pkg.completion >= 100 %}bg-success{% elif pkg.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                         style="width: {{ pkg.completion }}%">
+                                    <div class="progress-bar {% if pkg.completion >= 100 %}bg-success{% elif pkg.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                        style="width: {{ pkg.completion }}%">
                                         {{ pkg.completion }}%
                                     </div>
                                 </div>
                             </td>
                             <td>
                                 {% if pkg.status == "Complete" %}
-                                    <span class="badge bg-success">✓ Complete</span>
+                                <span class="badge bg-success">✓ Complete</span>
                                 {% elif pkg.status == "In Progress" %}
-                                    <span class="badge bg-warning">⏳ In Progress</span>
+                                <span class="badge bg-warning">⏳ In Progress</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Not Started</span>
+                                <span class="badge bg-secondary">Not Started</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -112,81 +118,81 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('packageChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: {{ chart_labels|safe }},
-            datasets: [{
-                label: 'Completion %',
-                data: {{ chart_data|safe }},
-                backgroundColor: 'rgba(13, 202, 240, 0.7)',
-                borderColor: 'rgba(13, 202, 240, 1)',
-                borderWidth: 1
+    document.addEventListener('DOMContentLoaded', function () {
+        const ctx = document.getElementById('packageChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels| safe }},
+        datasets: [{
+            label: 'Completion %',
+            data: {{ chart_data| safe }},
+        backgroundColor: 'rgba(13, 202, 240, 0.7)',
+        borderColor: 'rgba(13, 202, 240, 1)',
+        borderWidth: 1
             }]
         },
         options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Completion Percentage'
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'Completion Percentage'
                 }
             }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
         }
+    }
     });
 });
 
-function exportTableToCSV(tableId, filename) {
-    const table = document.getElementById(tableId);
-    const rows = table.querySelectorAll('tr');
-    let csv = [];
+    function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        const rows = table.querySelectorAll('tr');
+        let csv = [];
 
-    for (let i = 0; i < rows.length; i++) {
-        const row = [];
-        const cols = rows[i].querySelectorAll('td, th');
-        
-        for (let j = 0; j < cols.length; j++) {
-            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
-            data = data.replace(/"/g, '""');
-            row.push('"' + data + '"');
+        for (let i = 0; i < rows.length; i++) {
+            const row = [];
+            const cols = rows[i].querySelectorAll('td, th');
+
+            for (let j = 0; j < cols.length; j++) {
+                let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
+                data = data.replace(/"/g, '""');
+                row.push('"' + data + '"');
+            }
+
+            csv.push(row.join(','));
         }
-        
-        csv.push(row.join(','));
-    }
 
-    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
-    const downloadLink = document.createElement('a');
-    downloadLink.download = filename;
-    downloadLink.href = window.URL.createObjectURL(csvFile);
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-}
+        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const downloadLink = document.createElement('a');
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
 </script>
 
 <style>
-.card {
-    border-radius: 12px;
-}
-.table thead th {
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
+    .card {
+        border-radius: 12px;
+    }
+
+    .table thead th {
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+    }
 </style>
 {% endblock %}
-

@@ -335,7 +335,6 @@
                 {% endif %}
 
                 <!-- Projects Menu -->
-                {% if user.is_superuser %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="projectsDropdown"
                         role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -358,11 +357,17 @@
                         </li>
                         <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">📈 Project
                                 Management</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_community_analysis' %}">🏙️ Community
+                                Analysis</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'project_package_analysis' %}">📦 Package Analysis</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'project_material_analysis' %}">📊 Material
+                                Analysis</a></li>
                         <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📊 Release
                                 Letter Tracking</a></li>
                     </ul>
                 </li>
-                {% endif %}
 
                 <!-- Management Menu -->
                 {% for group in user.groups.all %}

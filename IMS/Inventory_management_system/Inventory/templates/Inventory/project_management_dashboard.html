@@ -8,8 +8,8 @@
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h2 class="fw-bold mb-0">📈 Project Management Dashboard</h2>
-                    <p class="mb-0 opacity-75">Executive overview of Bill of Quantities and project progress</p>
+                    <h2 class="fw-bold mb-0">⚡ SHEP & Electrification Dashboard</h2>
+                    <p class="mb-0 opacity-75">Executive overview of SHEP, Turnkey, and China Water projects</p>
                 </div>
                 <div class="col-md-4 text-end">
                     <span class="badge bg-light text-dark px-3 py-2">
@@ -21,14 +21,14 @@
     </div>
 
     {% if messages %}
-        <div class="container mb-3">
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
+    <div class="container mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+        {% endfor %}
+    </div>
     {% endif %}
 
     <!-- Summary Statistics Cards -->
@@ -224,7 +224,8 @@
                     <a href="{% url 'project_community_analysis' %}" class="btn btn-sm btn-primary me-2">
                         <i class="bi bi-arrows-fullscreen"></i> Full Analysis
                     </a>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#communityTableCollapse">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#communityTableCollapse">
                         <i class="bi bi-chevron-down"></i> Toggle
                     </button>
                 </div>
@@ -233,61 +234,62 @@
                 <div class="card-body p-0">
                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                         <table class="table table-hover table-sm mb-0" id="community-summary-table">
-                        <thead class="sticky-top bg-light">
-                            <tr>
-                                <th>Community</th>
-                                <th>Region</th>
-                                <th>District</th>
-                                <th>Packages</th>
-                                <th>Items</th>
-                                <th>Contract Qty</th>
-                                <th>Received Qty</th>
-                                <th>Completion %</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for comm in community_list %}
-                            <tr>
-                                <td><strong>{{ comm.name }}</strong></td>
-                                <td>{{ comm.region }}</td>
-                                <td>{{ comm.district }}</td>
-                                <td><span class="badge bg-secondary">{{ comm.package_count }}</span></td>
-                                <td><span class="badge bg-info">{{ comm.item_count }}</span></td>
-                                <td>{{ comm.total_contract|floatformat:0 }}</td>
-                                <td>{{ comm.total_received|floatformat:0 }}</td>
-                                <td>
-                                    <div class="progress" style="height: 20px; min-width: 100px;">
-                                        <div class="progress-bar {% if comm.completion >= 100 %}bg-success{% elif comm.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                             role="progressbar" 
-                                             style="width: {{ comm.completion }}%"
-                                             aria-valuenow="{{ comm.completion }}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                            {{ comm.completion }}%
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>Community</th>
+                                    <th>Region</th>
+                                    <th>District</th>
+                                    <th>Phase</th>
+                                    <th>Packages</th>
+                                    <th>Items</th>
+                                    <th>Contract Qty</th>
+                                    <th>Received Qty</th>
+                                    <th>Completion %</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comm in community_list %}
+                                <tr>
+                                    <td><strong>{{ comm.name }}</strong></td>
+                                    <td>{{ comm.region }}</td>
+                                    <td>{{ comm.district }}</td>
+                                    <td><span class="badge bg-primary bg-opacity-10 text-primary">{{
+                                            comm.phase|default:"-" }}</span></td>
+                                    <td><span class="badge bg-secondary">{{ comm.package_count }}</span></td>
+                                    <td><span class="badge bg-info">{{ comm.item_count }}</span></td>
+                                    <td>{{ comm.total_contract|floatformat:0 }}</td>
+                                    <td>{{ comm.total_received|floatformat:0 }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px; min-width: 100px;">
+                                            <div class="progress-bar {% if comm.completion >= 100 %}bg-success{% elif comm.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                                role="progressbar" style="width: {{ comm.completion }}%"
+                                                aria-valuenow="{{ comm.completion }}" aria-valuemin="0"
+                                                aria-valuemax="100">
+                                                {{ comm.completion }}%
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if comm.status == "Complete" %}
+                                    </td>
+                                    <td>
+                                        {% if comm.status == "Complete" %}
                                         <span class="badge bg-success">✓ Complete</span>
-                                    {% elif comm.status == "In Progress" %}
+                                        {% elif comm.status == "In Progress" %}
                                         <span class="badge bg-warning">⏳ In Progress</span>
-                                    {% else %}
+                                        {% else %}
                                         <span class="badge bg-secondary">Not Started</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="9" class="text-center text-muted py-4">
-                                    No community data available
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        No community data available
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -304,7 +306,8 @@
                     <a href="{% url 'project_package_analysis' %}" class="btn btn-sm btn-primary me-2">
                         <i class="bi bi-arrows-fullscreen"></i> Full Analysis
                     </a>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#packageTableCollapse">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#packageTableCollapse">
                         <i class="bi bi-chevron-down"></i> Toggle
                     </button>
                 </div>
@@ -313,51 +316,52 @@
                 <div class="card-body p-0">
                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                         <table class="table table-hover table-sm mb-0" id="package-summary-table">
-                        <thead class="sticky-top bg-light">
-                            <tr>
-                                <th>Package Number</th>
-                                <th>Contractor</th>
-                                <th>Consultant</th>
-                                <th>Communities</th>
-                                <th>Items</th>
-                                <th>Contract Qty</th>
-                                <th>Received Qty</th>
-                                <th>Completion %</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for pkg in package_list %}
-                            <tr>
-                                <td><strong>{{ pkg.number }}</strong></td>
-                                <td>{{ pkg.contractor|truncatechars:30 }}</td>
-                                <td>{{ pkg.consultant|truncatechars:30 }}</td>
-                                <td><span class="badge bg-secondary">{{ pkg.community_count }}</span></td>
-                                <td><span class="badge bg-info">{{ pkg.item_count }}</span></td>
-                                <td>{{ pkg.total_contract|floatformat:0 }}</td>
-                                <td>{{ pkg.total_received|floatformat:0 }}</td>
-                                <td>
-                                    <div class="progress" style="height: 20px; min-width: 100px;">
-                                        <div class="progress-bar {% if pkg.completion >= 100 %}bg-success{% elif pkg.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                             role="progressbar" 
-                                             style="width: {{ pkg.completion }}%"
-                                             aria-valuenow="{{ pkg.completion }}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                            {{ pkg.completion }}%
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>Package Number</th>
+                                    <th>Phase</th>
+                                    <th>Contractor</th>
+                                    <th>Consultant</th>
+                                    <th>Communities</th>
+                                    <th>Items</th>
+                                    <th>Contract Qty</th>
+                                    <th>Received Qty</th>
+                                    <th>Completion %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pkg in package_list %}
+                                <tr>
+                                    <td><strong>{{ pkg.number }}</strong></td>
+                                    <td><span class="badge bg-primary bg-opacity-10 text-primary">{{
+                                            pkg.phase|default:"-" }}</span></td>
+                                    <td>{{ pkg.contractor|truncatechars:30 }}</td>
+                                    <td>{{ pkg.consultant|truncatechars:30 }}</td>
+                                    <td><span class="badge bg-secondary">{{ pkg.community_count }}</span></td>
+                                    <td><span class="badge bg-info">{{ pkg.item_count }}</span></td>
+                                    <td>{{ pkg.total_contract|floatformat:0 }}</td>
+                                    <td>{{ pkg.total_received|floatformat:0 }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px; min-width: 100px;">
+                                            <div class="progress-bar {% if pkg.completion >= 100 %}bg-success{% elif pkg.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                                role="progressbar" style="width: {{ pkg.completion }}%"
+                                                aria-valuenow="{{ pkg.completion }}" aria-valuemin="0"
+                                                aria-valuemax="100">
+                                                {{ pkg.completion }}%
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
-                                    No package data available
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        No package data available
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -371,51 +375,51 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Chart.js defaults
-    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    Chart.defaults.responsive = true;
-    Chart.defaults.maintainAspectRatio = false;
+    document.addEventListener('DOMContentLoaded', function () {
+        // Chart.js defaults
+        Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        Chart.defaults.responsive = true;
+        Chart.defaults.maintainAspectRatio = false;
 
-    // Community Completion Chart
-    const communityCtx = document.getElementById('communityChart').getContext('2d');
-    new Chart(communityCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ community_chart_labels|safe }},
-            datasets: [{
-                label: 'Completion %',
-                data: {{ community_chart_data|safe }},
-                backgroundColor: 'rgba(13, 110, 253, 0.8)',
-                borderColor: 'rgba(13, 110, 253, 1)',
-                borderWidth: 1
+        // Community Completion Chart
+        const communityCtx = document.getElementById('communityChart').getContext('2d');
+        new Chart(communityCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ community_chart_labels| safe }},
+        datasets: [{
+            label: 'Completion %',
+            data: {{ community_chart_data| safe }},
+        backgroundColor: 'rgba(13, 110, 253, 0.8)',
+        borderColor: 'rgba(13, 110, 253, 1)',
+        borderWidth: 1
             }]
         },
         options: {
-            indexAxis: 'y',
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Completion Percentage'
-                    }
+        indexAxis: 'y',
+        scales: {
+            x: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'Completion Percentage'
                 }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
             },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.parsed.x.toFixed(2) + '%';
-                        }
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return context.parsed.x.toFixed(2) + '%';
                     }
                 }
             }
         }
+    }
     });
 
     // Overall Completion Donut Chart
@@ -445,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
+                        label: function (context) {
                             return context.label + ': ' + context.parsed.toFixed(2) + '%';
                         }
                     }
@@ -459,40 +463,40 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(packageCtx, {
         type: 'bar',
         data: {
-            labels: {{ package_chart_labels|safe }},
-            datasets: [{
-                label: 'Completion %',
-                data: {{ package_chart_data|safe }},
-                backgroundColor: 'rgba(13, 202, 240, 0.8)',
-                borderColor: 'rgba(13, 202, 240, 1)',
-                borderWidth: 1
+            labels: {{ package_chart_labels| safe }},
+        datasets: [{
+            label: 'Completion %',
+            data: {{ package_chart_data| safe }},
+        backgroundColor: 'rgba(13, 202, 240, 0.8)',
+        borderColor: 'rgba(13, 202, 240, 1)',
+        borderWidth: 1
             }]
         },
         options: {
-            indexAxis: 'y',
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Completion Percentage'
-                    }
+        indexAxis: 'y',
+        scales: {
+            x: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'Completion Percentage'
                 }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
             },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.parsed.x.toFixed(2) + '%';
-                        }
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return context.parsed.x.toFixed(2) + '%';
                     }
                 }
             }
         }
+    }
     });
 
     // Material Fulfillment Chart
@@ -500,142 +504,142 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(materialCtx, {
         type: 'bar',
         data: {
-            labels: {{ material_chart_labels|safe }},
-            datasets: [{
-                label: 'Contract Quantity',
-                data: {{ material_contract_data|safe }},
-                backgroundColor: 'rgba(255, 193, 7, 0.6)',
-                borderColor: 'rgba(255, 193, 7, 1)',
-                borderWidth: 1
+            labels: {{ material_chart_labels| safe }},
+        datasets: [{
+            label: 'Contract Quantity',
+            data: {{ material_contract_data| safe }},
+        backgroundColor: 'rgba(255, 193, 7, 0.6)',
+        borderColor: 'rgba(255, 193, 7, 1)',
+        borderWidth: 1
             }, {
-                label: 'Received Quantity',
-                data: {{ material_received_data|safe }},
-                backgroundColor: 'rgba(25, 135, 84, 0.6)',
-                borderColor: 'rgba(25, 135, 84, 1)',
-                borderWidth: 1
+            label: 'Received Quantity',
+            data: {{ material_received_data| safe }},
+        backgroundColor: 'rgba(25, 135, 84, 0.6)',
+        borderColor: 'rgba(25, 135, 84, 1)',
+        borderWidth: 1
             }]
         },
         options: {
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top'
-                }
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'top'
             }
         }
+    }
     });
 });
 
-// Export table to CSV function
-function exportTableToCSV(tableId, filename) {
-    const table = document.getElementById(tableId);
-    const rows = table.querySelectorAll('tr');
-    let csv = [];
+    // Export table to CSV function
+    function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        const rows = table.querySelectorAll('tr');
+        let csv = [];
 
-    for (let i = 0; i < rows.length; i++) {
-        const row = [];
-        const cols = rows[i].querySelectorAll('td, th');
-        
-        for (let j = 0; j < cols.length; j++) {
-            // Get text content, remove extra whitespace
-            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
-            // Escape quotes
-            data = data.replace(/"/g, '""');
-            row.push('"' + data + '"');
+        for (let i = 0; i < rows.length; i++) {
+            const row = [];
+            const cols = rows[i].querySelectorAll('td, th');
+
+            for (let j = 0; j < cols.length; j++) {
+                // Get text content, remove extra whitespace
+                let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
+                // Escape quotes
+                data = data.replace(/"/g, '""');
+                row.push('"' + data + '"');
+            }
+
+            csv.push(row.join(','));
         }
-        
-        csv.push(row.join(','));
-    }
 
-    // Download CSV
-    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
-    const downloadLink = document.createElement('a');
-    downloadLink.download = filename;
-    downloadLink.href = window.URL.createObjectURL(csvFile);
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-}
+        // Download CSV
+        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const downloadLink = document.createElement('a');
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
 </script>
 
 <style>
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.bg-gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.icon-circle {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-}
-
-.hover-lift {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.hover-lift:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-
-.card {
-    border-radius: 12px;
-}
-
-.card-header {
-    border-top-left-radius: 12px !important;
-    border-top-right-radius: 12px !important;
-}
-
-.table thead th {
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 2px solid #dee2e6;
-}
-
-.table tbody tr {
-    transition: background-color 0.2s ease;
-}
-
-.table tbody tr:hover {
-    background-color: rgba(13, 110, 253, 0.05);
-}
-
-.progress {
-    border-radius: 8px;
-}
-
-.progress-bar {
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.75rem;
-}
-
-@media (max-width: 768px) {
-    .icon-circle {
-        width: 40px;
-        height: 40px;
-        font-size: 1.2rem;
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
-    
-    h2.fw-bold {
+
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .icon-circle {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 1.5rem;
     }
-}
+
+    .hover-lift {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .hover-lift:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .card {
+        border-radius: 12px;
+    }
+
+    .card-header {
+        border-top-left-radius: 12px !important;
+        border-top-right-radius: 12px !important;
+    }
+
+    .table thead th {
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+
+    .progress {
+        border-radius: 8px;
+    }
+
+    .progress-bar {
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    @media (max-width: 768px) {
+        .icon-circle {
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+        }
+
+        h2.fw-bold {
+            font-size: 1.5rem;
+        }
+    }
 </style>
 {% endblock %}
