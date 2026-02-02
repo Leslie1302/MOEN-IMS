@@ -19,6 +19,7 @@ from django.forms import formset_factory
 from django.db import transaction
 from django.contrib import messages
 from django.urls import reverse_lazy
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse, HttpResponse, Http404
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -202,10 +203,16 @@ class RequestMaterialView(LoginRequiredMixin, View):
                             from django.utils import timezone
                             
                             title = form.cleaned_data.get('release_letter_title') or f"Release Letter for {material_order.name}"
+                            auth_qty = form.cleaned_data.get('release_letter_quantity') or material_order.quantity
+                            material_type = form.cleaned_data.get('release_letter_material_type') or 'Other'
+                            phase = form.cleaned_data.get('release_letter_project_phase')
                             
                             release_letter = ReleaseLetter.objects.create(
                                 request_code=material_order.request_code,
                                 title=title,
+                                total_quantity=auth_qty,
+                                material_type=material_type,
+                                project_phase=phase,
                                 pdf_file=form.cleaned_data['release_letter_pdf'],
                                 upload_time=timezone.now(),
                                 uploaded_by=request.user,
@@ -275,8 +282,15 @@ class RequestMaterialView(LoginRequiredMixin, View):
             release_letter = None
             if release_letter_pdf:
                 try:
+                    total_batch_quantity = form.cleaned_data.get('release_letter_quantity') or df['quantity'].sum()
+                    material_type = form.cleaned_data.get('release_letter_material_type') or 'Other'
+                    phase = form.cleaned_data.get('release_letter_project_phase')
+                    
                     release_letter = ReleaseLetter.objects.create(
                         title=release_letter_title or f"Release Letter - {base_request_code}",
+                        total_quantity=Decimal(str(total_batch_quantity)),
+                        material_type=material_type,
+                        project_phase=phase,
                         pdf_file=release_letter_pdf,
                         uploaded_by=request.user,
                         request_code=base_request_code
@@ -792,12 +806,18 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                 logger.info(f"Successfully processed order {order_id}: {response_data}")
                 return JsonResponse(response_data)
 
-        except MaterialOrder.DoesNotExist:
+        except (MaterialOrder.DoesNotExist, Http404):
             logger.error(f"Material order {order_id} not found")
             return JsonResponse({
                 "success": False, 
                 "error": f"Material order with ID {order_id} not found"
             }, status=404)
+        except ValidationError as e:
+            logger.warning(f"Validation error updating material status for order {order_id}: {e}")
+            return JsonResponse({
+                "success": False, 
+                "error": str(e.message) if hasattr(e, 'message') else str(e)
+            }, status=400)
         except Exception as e:
             logger.error(f"Unexpected error updating material status for order {order_id}: {e}", exc_info=True)
             return JsonResponse({
@@ -2310,6 +2330,44 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         })
 
 
+class AdjustReleaseLetterQuantityView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """View for adjusting the total authorized quantity of a release letter."""
+    
+    def test_func(self):
+        return self.request.user.is_superuser or self.request.user.groups.filter(name='Schedule Officers').exists()
+        
+    def post(self, request, pk):
+        if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+            
+        release_letter = get_object_or_404(ReleaseLetter, pk=pk)
+        try:
+            data = json.loads(request.body)
+            new_quantity = Decimal(str(data.get('total_quantity')))
+            
+            if new_quantity < 0:
+                return JsonResponse({'success': False, 'error': 'Quantity cannot be negative'}, status=400)
+                
+            old_quantity = release_letter.total_quantity
+            release_letter.total_quantity = new_quantity
+            release_letter.save()
+            
+            # Log the change
+            logger.info(f"User {request.user.username} adjusted RL {release_letter.reference_number} quantity from {old_quantity} to {new_quantity}")
+            
+            return JsonResponse({
+                'success': True, 
+                'new_quantity': float(new_quantity),
+                'new_balance': float(release_letter.balance_to_request),
+                'new_fulfillment': float(release_letter.fulfillment_percentage)
+            })
+        except (InvalidOperation, ValueError, TypeError) as e:
+            return JsonResponse({'success': False, 'error': f'Invalid quantity format: {str(e)}'}, status=400)
+        except Exception as e:
+            logger.error(f"Error adjusting RL quantity: {str(e)}", exc_info=True)
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 def update_material_receipt(request, order_id, new_status):
     """
     Handle AJAX updates for material receipts.
@@ -2415,8 +2473,13 @@ def update_material_receipt(request, order_id, new_status):
                 'last_updated_by': getattr(request.user, 'username', None),
             })
 
-    except MaterialOrder.DoesNotExist:
+    except (MaterialOrder.DoesNotExist, Http404):
         return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+    except ValidationError as e:
+        return JsonResponse({
+            'success': False, 
+            'error': str(e.message) if hasattr(e, 'message') else str(e)
+        }, status=400)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 

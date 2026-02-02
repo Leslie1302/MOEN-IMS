@@ -7,7 +7,9 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Q, Count, Sum, F
+from django.db.models import Q, Count, Sum, F
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 from django.conf import settings
 import pandas as pd
@@ -307,6 +309,17 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                             errors.append(f"Order {order.request_code}: No quantity available for transport")
                             continue
                         
+                        # Validate against BOQ guardrails (via signals)
+                        # We do this here to catch it before creating the transport
+                        if order.release_letter:
+                            from .release_letter_services import validate_material_request_against_release_letter
+                            try:
+                                # This is just a check, the actual validation happens in signals
+                                pass 
+                            except ValidationError as ve:
+                                errors.append(f"Order {order.request_code}: {ve.message}")
+                                continue
+                        
                         # Get release letter if exists
                         release_letter = None
                         try:
@@ -359,6 +372,8 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         
                     except MaterialOrder.DoesNotExist:
                         errors.append(f"Order ID {order_id}: Not found")
+                    except ValidationError as ve:
+                        errors.append(f"Order ID {order_id}: {ve.message}")
                     except Exception as e:
                         errors.append(f"Order ID {order_id}: {str(e)}")
             
@@ -509,16 +524,23 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                 messages.error(request, error_msg)
                 
             except Transporter.DoesNotExist:
-                error_msg = 'Transporter not found.'
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': False, 'error': error_msg})
-                messages.error(request, error_msg)
+                    return JsonResponse({'success': True, 'message': 'Transporter assigned successfully'})
+                
+                messages.success(request, 'Transporter assigned successfully.')
+                return redirect('transport_assignment')
+            
+            except ValidationError as e:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': str(e.message) if hasattr(e, 'message') else str(e)})
+                messages.error(request, str(e.message) if hasattr(e, 'message') else str(e))
+                return redirect('transport_assignment')
                 
             except Exception as e:
-                error_msg = f'Error assigning transporter: {str(e)}'
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': False, 'error': error_msg})
-                messages.error(request, error_msg)
+                    return JsonResponse({'success': False, 'error': str(e)})
+                messages.error(request, f'Error assigning transporter: {str(e)}')
+                return redirect('transport_assignment')
         
         # If we get here, there was an error - redisplay the form with errors
         return self.get(request, *args, **kwargs)

@@ -81,6 +81,30 @@ class MaterialOrderForm(forms.ModelForm):
         help_text="Title for the release letter (optional, will auto-generate if not provided)",
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
+    
+    release_letter_quantity = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        label="Authorized Quantity",
+        help_text="The total quantity authorized by the letter",
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+    )
+    
+    release_letter_material_type = forms.ChoiceField(
+        required=False,
+        choices=ReleaseLetter.MATERIAL_TYPE_CHOICES,
+        label="Material Type",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    release_letter_project_phase = forms.CharField(
+        required=False,
+        max_length=100,
+        label="Project Phase",
+        help_text="e.g., SHEP-4",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
 
     class Meta:
         model = MaterialOrder
@@ -195,6 +219,30 @@ class BulkMaterialRequestForm(forms.Form):
         max_length=200,
         label="Release Letter Title",
         help_text="Title for the release letter (optional, will auto-generate if not provided)",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    
+    release_letter_quantity = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        label="Authorized Quantity",
+        help_text="The total quantity authorized by the letter",
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+    )
+    
+    release_letter_material_type = forms.ChoiceField(
+        required=False,
+        choices=ReleaseLetter.MATERIAL_TYPE_CHOICES,
+        label="Material Type",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    release_letter_project_phase = forms.CharField(
+        required=False,
+        max_length=100,
+        label="Project Phase",
+        help_text="e.g., SHEP-4",
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
 
@@ -383,6 +431,25 @@ class ReleaseLetterUploadForm(forms.ModelForm):
         help_text="A descriptive title for this release letter",
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
+    total_quantity = forms.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        label="Total Authorized Quantity",
+        help_text="The total quantity of material authorized by this letter",
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+    )
+    material_type = forms.ChoiceField(
+        choices=ReleaseLetter.MATERIAL_TYPE_CHOICES,
+        label="Material Type",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    project_phase = forms.CharField(
+        required=False,
+        max_length=100,
+        label="Project Phase",
+        help_text="e.g., SHEP-4, Turnkey Phase 2",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
     pdf_file = forms.FileField(
         label="Signed Letter (PDF)",
         help_text="Upload the signed release letter in PDF format",
@@ -400,7 +467,7 @@ class ReleaseLetterUploadForm(forms.ModelForm):
 
     class Meta:
         model = ReleaseLetter
-        fields = ['request_code', 'title', 'pdf_file', 'notes']
+        fields = ['request_code', 'title', 'total_quantity', 'material_type', 'project_phase', 'pdf_file', 'notes']
 
     def clean_request_code(self):
         """Validate that the request code exists and is in a valid status."""

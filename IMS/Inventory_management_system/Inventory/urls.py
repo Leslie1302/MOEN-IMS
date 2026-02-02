@@ -12,10 +12,12 @@ from .views import (
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView, 
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
+    AdjustReleaseLetterQuantityView,
     StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
     update_obsolete_material_status, release_letter_tracking_dashboard,
+    AdjustReleaseLetterQuantityView,
 )
 
 # Import project management views
@@ -226,6 +228,7 @@ urlpatterns = [
     # Release letter upload and tracking
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
     path('release-letters/tracking/', release_letter_tracking_dashboard, name='release_letter_tracking_dashboard'),
+    path('release-letters/<int:pk>/adjust-quantity/', AdjustReleaseLetterQuantityView.as_view(), name='adjust_release_letter_quantity'),
     path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
     
     # Notification management

@@ -257,9 +257,9 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
                 title=f'Transport Assignment: {instance.material_order.name if instance.material_order else "Materials"}',
                 message=f'Transport assigned to {instance.transporter.name if instance.transporter else "transporter"}. '
                         f'Vehicle: {instance.vehicle.registration_number if instance.vehicle else "TBD"}. '
-                        f'Quantity: {instance.quantity_assigned} {instance.material_order.unit if instance.material_order else "units"}',
+                        f'Quantity: {instance.quantity} {instance.material_order.unit if instance.material_order else "units"}',
                 recipient_group='Management',
-                sender=instance.assigned_by,
+                sender=instance.created_by,
                 related_transport=instance,
                 related_order=instance.material_order
             )
@@ -272,7 +272,7 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
                     message=f'Transport has been assigned for your material request ({instance.material_order.name}). '
                             f'Transporter: {instance.transporter.name if instance.transporter else "TBD"}',
                     recipient_group='All',
-                    sender=instance.assigned_by,
+                    sender=instance.created_by,
                     recipient_user=instance.material_order.user,
                     related_transport=instance,
                     related_order=instance.material_order
@@ -289,7 +289,7 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
                         notification_type='transport_assigned',
                         title=f'Materials En Route',
                         message=f'Transport for {instance.material_order.name if instance.material_order else "materials"} is now en route. '
-                                f'Expected delivery to {instance.destination_location if instance.destination_location else "site"}',
+                                f'Expected delivery to {instance.district if instance.district else "site"}',
                         recipient_group='Management',
                         sender=None,
                         related_transport=instance,
@@ -301,7 +301,7 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
                         notification_type='material_delivered',
                         title=f'Materials Delivered',
                         message=f'Transport completed for {instance.material_order.name if instance.material_order else "materials"}. '
-                                f'{instance.quantity_assigned} units delivered to {instance.destination_location if instance.destination_location else "site"}',
+                                f'{instance.quantity} units delivered to {instance.district if instance.district else "site"}',
                         recipient_group='Management',
                         sender=None,
                         related_transport=instance,
@@ -343,7 +343,7 @@ def handle_site_receipt_notifications(sender, instance, created, **kwargs):
                 message=f'{instance.received_by.username if instance.received_by else "Consultant"} confirmed receipt of materials on site. '
                         f'Quantity: {instance.received_quantity} units. '
                         f'Condition: {instance.condition}. '
-                        f'Location: {instance.material_transport.destination_location if instance.material_transport else "Site"}',
+                        f'Location: {instance.material_transport.district if instance.material_transport else "Site"}',
                 recipient_group='Management',
                 sender=instance.received_by,
                 related_transport=instance.material_transport
