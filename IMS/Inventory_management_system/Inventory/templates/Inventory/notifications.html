@@ -1,7 +1,7 @@
 {% extends 'Inventory/base.html' %}
 {% load humanize %}
 
-{% block title %}Notifications - MOEN IMS{% endblock %}
+{% block title %}Notifications - MOEGT IEPS{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -12,7 +12,7 @@
                 <h2 class="fw-bold">
                     <i class="bi bi-bell-fill text-primary"></i> Notifications
                     {% if unread_count > 0 %}
-                        <span class="badge bg-danger">{{ unread_count }} unread</span>
+                    <span class="badge bg-danger">{{ unread_count }} unread</span>
                     {% endif %}
                 </h2>
                 {% if unread_count > 0 %}
@@ -25,14 +25,14 @@
             <!-- Filter Tabs -->
             <ul class="nav nav-tabs mb-3">
                 <li class="nav-item">
-                    <a class="nav-link {% if not request.GET.unread and not request.GET.type %}active{% endif %}" 
-                       href="{% url 'notifications' %}">
+                    <a class="nav-link {% if not request.GET.unread and not request.GET.type %}active{% endif %}"
+                        href="{% url 'notifications' %}">
                         <i class="bi bi-list-ul"></i> All
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.GET.unread == 'true' %}active{% endif %}" 
-                       href="{% url 'notifications' %}?unread=true">
+                    <a class="nav-link {% if request.GET.unread == 'true' %}active{% endif %}"
+                        href="{% url 'notifications' %}?unread=true">
                         <i class="bi bi-envelope-fill"></i> Unread
                     </a>
                 </li>
@@ -41,13 +41,20 @@
                         <i class="bi bi-funnel"></i> Filter by Type
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_request">Material Requests</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_processed">Material Processed</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=transport_assigned">Transport Assigned</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_delivered">Material Delivered</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=site_receipt_logged">Site Receipts</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=boq_updated">BOQ Updates</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=staff_prompt">Staff Prompts</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_request">Material
+                                Requests</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_processed">Material
+                                Processed</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=transport_assigned">Transport
+                                Assigned</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=material_delivered">Material
+                                Delivered</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=site_receipt_logged">Site
+                                Receipts</a></li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=boq_updated">BOQ Updates</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'notifications' %}?type=staff_prompt">Staff
+                                Prompts</a></li>
                     </ul>
                 </li>
             </ul>
@@ -56,68 +63,73 @@
             <div class="card shadow-sm">
                 <div class="card-body p-0">
                     {% if notifications %}
-                        <div class="list-group list-group-flush">
-                            {% for notification in notifications %}
-                            <a href="{% url 'notification_detail' notification.id %}" 
-                               class="list-group-item list-group-item-action {% if not notification.is_read %}bg-light border-start border-primary border-4{% endif %}">
-                                <div class="d-flex w-100 justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center mb-2">
-                                            {% if notification.notification_type == 'material_request' %}
-                                                <span class="badge bg-info me-2"><i class="bi bi-box-seam"></i> Request</span>
-                                            {% elif notification.notification_type == 'material_processed' %}
-                                                <span class="badge bg-success me-2"><i class="bi bi-check-circle"></i> Processed</span>
-                                            {% elif notification.notification_type == 'transport_assigned' %}
-                                                <span class="badge bg-primary me-2"><i class="bi bi-truck"></i> Transport</span>
-                                            {% elif notification.notification_type == 'material_delivered' %}
-                                                <span class="badge bg-success me-2"><i class="bi bi-box-check"></i> Delivered</span>
-                                            {% elif notification.notification_type == 'site_receipt_logged' %}
-                                                <span class="badge bg-warning me-2"><i class="bi bi-clipboard-check"></i> Site Receipt</span>
-                                            {% elif notification.notification_type == 'boq_updated' %}
-                                                <span class="badge bg-secondary me-2"><i class="bi bi-file-earmark-text"></i> BOQ</span>
-                                            {% elif notification.notification_type == 'staff_prompt' %}
-                                                <span class="badge bg-danger me-2"><i class="bi bi-exclamation-triangle"></i> Alert</span>
-                                            {% endif %}
-                                            
-                                            <h6 class="mb-0 fw-bold">{{ notification.title }}</h6>
-                                            
-                                            {% if not notification.is_read %}
-                                                <span class="badge bg-danger ms-2">NEW</span>
-                                            {% endif %}
-                                        </div>
-                                        
-                                        <p class="mb-1 text-muted">{{ notification.message|truncatewords:30 }}</p>
-                                        
-                                        <div class="d-flex align-items-center text-muted small">
-                                            <i class="bi bi-clock me-1"></i>
-                                            <span>{{ notification.created_at|naturaltime }}</span>
-                                            
-                                            {% if notification.sender %}
-                                                <span class="ms-3">
-                                                    <i class="bi bi-person me-1"></i>
-                                                    {{ notification.sender.username }}
-                                                </span>
-                                            {% endif %}
-                                            
-                                            <span class="ms-3">
-                                                <i class="bi bi-people me-1"></i>
-                                                {{ notification.recipient_group }}
-                                            </span>
-                                        </div>
+                    <div class="list-group list-group-flush">
+                        {% for notification in notifications %}
+                        <a href="{% url 'notification_detail' notification.id %}"
+                            class="list-group-item list-group-item-action {% if not notification.is_read %}bg-light border-start border-primary border-4{% endif %}">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        {% if notification.notification_type == 'material_request' %}
+                                        <span class="badge bg-info me-2"><i class="bi bi-box-seam"></i> Request</span>
+                                        {% elif notification.notification_type == 'material_processed' %}
+                                        <span class="badge bg-success me-2"><i class="bi bi-check-circle"></i>
+                                            Processed</span>
+                                        {% elif notification.notification_type == 'transport_assigned' %}
+                                        <span class="badge bg-primary me-2"><i class="bi bi-truck"></i> Transport</span>
+                                        {% elif notification.notification_type == 'material_delivered' %}
+                                        <span class="badge bg-success me-2"><i class="bi bi-box-check"></i>
+                                            Delivered</span>
+                                        {% elif notification.notification_type == 'site_receipt_logged' %}
+                                        <span class="badge bg-warning me-2"><i class="bi bi-clipboard-check"></i> Site
+                                            Receipt</span>
+                                        {% elif notification.notification_type == 'boq_updated' %}
+                                        <span class="badge bg-secondary me-2"><i class="bi bi-file-earmark-text"></i>
+                                            BOQ</span>
+                                        {% elif notification.notification_type == 'staff_prompt' %}
+                                        <span class="badge bg-danger me-2"><i class="bi bi-exclamation-triangle"></i>
+                                            Alert</span>
+                                        {% endif %}
+
+                                        <h6 class="mb-0 fw-bold">{{ notification.title }}</h6>
+
+                                        {% if not notification.is_read %}
+                                        <span class="badge bg-danger ms-2">NEW</span>
+                                        {% endif %}
                                     </div>
-                                    
-                                    <div class="ms-3">
-                                        <i class="bi bi-chevron-right"></i>
+
+                                    <p class="mb-1 text-muted">{{ notification.message|truncatewords:30 }}</p>
+
+                                    <div class="d-flex align-items-center text-muted small">
+                                        <i class="bi bi-clock me-1"></i>
+                                        <span>{{ notification.created_at|naturaltime }}</span>
+
+                                        {% if notification.sender %}
+                                        <span class="ms-3">
+                                            <i class="bi bi-person me-1"></i>
+                                            {{ notification.sender.username }}
+                                        </span>
+                                        {% endif %}
+
+                                        <span class="ms-3">
+                                            <i class="bi bi-people me-1"></i>
+                                            {{ notification.recipient_group }}
+                                        </span>
                                     </div>
                                 </div>
-                            </a>
-                            {% endfor %}
-                        </div>
+
+                                <div class="ms-3">
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
                     {% else %}
-                        <div class="text-center py-5">
-                            <i class="bi bi-bell-slash text-muted" style="font-size: 3rem;"></i>
-                            <p class="text-muted mt-3">No notifications found</p>
-                        </div>
+                    <div class="text-center py-5">
+                        <i class="bi bi-bell-slash text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-3">No notifications found</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -127,12 +139,14 @@
             <nav aria-label="Notifications pagination" class="mt-4">
                 <ul class="pagination justify-content-center">
                     {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">First</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Previous</a>
-                        </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page=1{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.previous_page_number }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Previous</a>
+                    </li>
                     {% endif %}
 
                     <li class="page-item active">
@@ -142,12 +156,14 @@
                     </li>
 
                     {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Next</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Last</a>
-                        </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.next_page_number }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.unread %}&unread={{ request.GET.unread }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}">Last</a>
+                    </li>
                     {% endif %}
                 </ul>
             </nav>

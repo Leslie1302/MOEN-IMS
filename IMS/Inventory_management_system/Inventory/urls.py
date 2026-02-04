@@ -17,7 +17,7 @@ from .views import (
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
     update_obsolete_material_status, release_letter_tracking_dashboard,
-    AdjustReleaseLetterQuantityView,
+    AdjustReleaseLetterQuantityView, AboutView,
 )
 
 # Import project management views
@@ -96,6 +96,7 @@ handler500 = custom_500_view
 urlpatterns = [
     # Public routes
     path('', Index.as_view(), name='index'),
+    path('about/', AboutView.as_view(), name='about'),
     path('signup/', SignUpView.as_view(), name='signup'),
     path('signin/', SignInView.as_view(), name='signin'),
     path('logout/', CustomLogoutView.as_view(template_name='Inventory/logout.html'), name='logout'),

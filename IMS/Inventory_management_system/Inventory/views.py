@@ -99,6 +99,9 @@ class Index(TemplateView):
     template_name = 'Inventory/index.html'
 
 # Superuser-only access mixin that returns 404 for non-superusers
+
+class AboutView(TemplateView):
+    template_name = 'Inventory/about.html'
 class SuperuserOnlyMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.is_superuser

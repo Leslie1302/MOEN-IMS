@@ -1,0 +1,275 @@
+{% extends "Inventory/base.html" %}
+{% load static %}
+
+{% block title %}About - MOEGT IEPS{% endblock %}
+
+{% block extra_head %}
+<style>
+    :root {
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.3);
+        --gradient-primary: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        --gradient-secondary: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .about-header {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 100px 0 150px 0;
+        margin-bottom: -100px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .about-header::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -20%;
+        width: 140%;
+        height: 200%;
+        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        animation: rotate 20s linear infinite;
+    }
+
+    @keyframes rotate {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        padding: 40px;
+        margin-bottom: 40px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+    }
+
+    .section-title {
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 25px;
+        position: relative;
+        display: inline-block;
+    }
+
+    .section-title::after {
+        content: "";
+        position: absolute;
+        bottom: -8px;
+        left: 0;
+        width: 50px;
+        height: 4px;
+        background: #2ecc71;
+        border-radius: 2px;
+    }
+
+    .feature-icon {
+        width: 60px;
+        height: 60px;
+        background: #f0fdf4;
+        color: #22c55e;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+
+    .tech-badge {
+        background: #f1f5f9;
+        color: #475569;
+        padding: 8px 16px;
+        border-radius: 100px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin: 5px;
+        display: inline-block;
+    }
+
+    .fade-up {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+
+    .fade-up.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .stakeholder-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+
+    .stakeholder-item {
+        text-align: center;
+        padding: 20px;
+    }
+
+    .stakeholder-item i {
+        font-size: 32px;
+        color: #2563eb;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block full_width_content %}
+<div class="about-header text-center">
+    <div class="container relative">
+        <h1 class="display-3 fw-bold mb-3" style="text-shadow: var(--text-shadow);">⚡ MOEGT IEPS</h1>
+        <p class="lead opacity-90 mx-auto" style="max-width: 700px;">
+            The Integrated Energy Project System (IEPS) is the foundational digital platform driving the Ministry of
+            Energy and Green Transition's logistical excellence and infrastructure deployment.
+        </p>
+    </div>
+</div>
+
+<div class="container" style="position: relative; z-index: 10;">
+    <div class="row">
+        <!-- Mission & Purpose -->
+        <div class="col-lg-8">
+            <div class="glass-card fade-up">
+                <h2 class="section-title">Our Mission</h2>
+                <p class="lead">
+                    To accelerate the deployment of energy infrastructure across Ghana through precise inventory
+                    tracking, transparent resource management, and optimized logistics workflows.
+                </p>
+                <hr class="my-4 opacity-10">
+                <p>
+                    The MOEGT IEPS emerged from a critical need to bridge the gap between ministerial authorizations and
+                    field-level implementation. By integrating Bill of Quantities (BoQ) tracking with real-time
+                    warehouse movements, we ensure that every pole, transformer, and meter is accounted for from
+                    delivery to installation.
+                </p>
+            </div>
+
+            <div class="glass-card fade-up">
+                <h2 class="section-title">System Architecture</h2>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-shield-check"></i></div>
+                        <h4>Drawdown Guardrails</h4>
+                        <p class="text-muted">Prevents material releases that exceed ministerial authorizations through
+                            the Release Letter system.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-graph-up-arrow"></i></div>
+                        <h4>BoQ Analysis</h4>
+                        <p class="text-muted">Dynamic monitoring of Bill of Quantities to identify and justify project
+                            overissuances in real-time.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-truck"></i></div>
+                        <h4>Logistics Loop</h4>
+                        <p class="text-muted">End-to-end transport tracking from warehouse release to
+                            consultant-verified site receipt.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-bell"></i></div>
+                        <h4>Automated Alerts</h4>
+                        <p class="text-muted">Intelligent notifications for low stock, new requests, and transport
+                            milestones.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar / Statistics -->
+        <div class="col-lg-4">
+            <div class="glass-card fade-up" style="background: var(--gradient-secondary); color: white;">
+                <h3 class="mb-4">System Core</h3>
+                <div class="d-flex flex-wrap">
+                    <span class="tech-badge">Django 5.0</span>
+                    <span class="tech-badge">PostgreSQL</span>
+                    <span class="tech-badge">Real-time AJAX</span>
+                    <span class="tech-badge">AI Integration</span>
+                    <span class="tech-badge">AES-256 Security</span>
+                </div>
+                <hr class="opacity-20 my-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <span>2FA Protected</span>
+                </div>
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <span>Weekly Auto-Reports</span>
+                </div>
+            </div>
+
+            <div class="glass-card fade-up">
+                <h3 class="h5 mb-4">Support & Coordination</h3>
+                <p class="small text-muted mb-4">Developed for the Ministry of Energy and Green Transition of Ghana.</p>
+                <div class="d-grid gap-2">
+                    <a href="mailto:support.ieps@energymin.gov.gh" class="btn btn-primary">
+                        <i class="bi bi-envelope me-2"></i>Contact Support
+                    </a>
+                    <a href="{% url 'index' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-house me-2"></i>Home Portal
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stakeholders Section -->
+    <div class="glass-card fade-up mb-5">
+        <h2 class="section-title d-block text-center mx-auto mb-5">The Integrated Ecosystem</h2>
+        <div class="stakeholder-grid">
+            <div class="stakeholder-item">
+                <i class="bi bi-person-badge"></i>
+                <h5>Schedule Officers</h5>
+                <p class="small text-muted">Initialize requests & manage authorizations</p>
+            </div>
+            <div class="stakeholder-item">
+                <i class="bi bi-box-seam"></i>
+                <h5>Storekeepers</h5>
+                <p class="small text-muted">Execute inventory movements & physical checks</p>
+            </div>
+            <div class="stakeholder-item">
+                <i class="bi bi-briefcase"></i>
+                <h5>Consultants</h5>
+                <p class="small text-muted">Verify site receipts & project compliance</p>
+            </div>
+            <div class="stakeholder-item">
+                <i class="bi bi-speedometer2"></i>
+                <h5>Management</h5>
+                <p class="small text-muted">Oversee balances & strategic reporting</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-up').forEach((el) => observer.observe(el));
+    });
+</script>
+{% endblock %}

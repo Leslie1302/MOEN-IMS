@@ -1,8 +1,8 @@
-# MOEN Inventory Management System - Complete Documentation
+# MOEGT Integrated Energy Project System (IEPS) - Complete Documentation
 
 ## System Overview
 
-The MOEN IMS is a comprehensive inventory management system designed for the Ministry of Energy to track materials, manage requests, coordinate transportation, and monitor Bill of Quantities (BoQ) across multiple warehouses and project sites.
+The MOEGT IEPS is a comprehensive integrated energy project and inventory management system designed for the Ministry of Energy and Green Transition (MOEGT).
 
 ---
 
@@ -252,16 +252,18 @@ Step 4: Transporter B can deliver remaining 200 poles
 ### 5. Release Letter System
 
 #### Purpose
-Formal authorization for material releases
+Formal authorization for material releases, now with robust drawdown and fulfillment tracking.
 
 #### Features
-- PDF upload
-- Request code linkage
-- Base code grouping (removes row numbers)
-- Auto-approval of linked orders
-- Upload tracking (user, timestamp)
-- Notes/comments field
-- Validation (prevents upload for completed requests)
+- **PDF upload**: Secure storage of signed authorization documents.
+- **Request code linkage**: Groups related orders under a single letter.
+- **Authorized Quantity Tracking**: Explicitly tracks total quantity authorized vs requested.
+- **Drawdown Analysis**: Real-time tracking of requested quantity against authorization.
+- **Fulfillment Tracking**: Monitors physical movement (transports) against authorized amounts.
+- **Material Classification**: Categorizes letters by material type (Transformers, Poles, etc.).
+- **Project Phase Tracking**: Links authorizations to specific project phases (e.g., SHEP-4).
+- **Maintenance Tools**: AJAX-based adjustment of authorized quantities for administrators.
+- **Validation**: Prevents material releases that exceed the authorized letter balance.
 
 #### Workflow
 1. Schedule officer creates material request
@@ -491,6 +493,21 @@ package_number: CharField(50)
 
 # Release letter
 release_letter: ForeignKey(ReleaseLetter)
+```
+
+#### ReleaseLetter
+```python
+request_code: CharField(50)
+title: CharField(200)
+pdf_file: FileField
+total_quantity: DecimalField(12, 2)
+material_type: CharField (Transformers/Poles/Cables/etc.)
+project_phase: CharField(100)
+reference_number: CharField(50, unique=True)
+status: CharField (Open/Closed)
+uploaded_by: ForeignKey(User)
+upload_time: DateTimeField
+notes: TextField
 ```
 
 #### BillOfQuantity

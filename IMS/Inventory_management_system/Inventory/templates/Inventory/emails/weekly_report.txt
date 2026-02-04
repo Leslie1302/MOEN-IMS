@@ -72,7 +72,7 @@ Report ID:                  {{ report.report_id }}
 Generated:                  {{ report.generated_at|date:"F d, Y g:i A" }}
 
 ================================================================================
-MOEN Inventory Management System
+MOEGT Integrated Energy Project System (IEPS)
 Automated Weekly Development Report
 Generated on {{ generated_date|date:"F d, Y \a\t g:i A" }}
 ================================================================================

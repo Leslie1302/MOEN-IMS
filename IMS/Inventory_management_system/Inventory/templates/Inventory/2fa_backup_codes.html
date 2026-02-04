@@ -10,12 +10,13 @@
                         <i class="fas fa-key text-warning me-2"></i>
                         Backup Codes
                     </h2>
-                    
+
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Important:</strong> Save these backup codes in a safe place. Each code can only be used once.
+                        <strong>Important:</strong> Save these backup codes in a safe place. Each code can only be used
+                        once.
                     </div>
-                    
+
                     <div class="bg-light p-4 rounded mb-4">
                         <div class="row">
                             {% for token in tokens %}
@@ -25,7 +26,7 @@
                             {% endfor %}
                         </div>
                     </div>
-                    
+
                     <div class="d-flex gap-2 justify-content-center mb-3">
                         <button onclick="printCodes()" class="btn btn-outline-primary">
                             <i class="fas fa-print me-2"></i>Print
@@ -37,14 +38,15 @@
                             <i class="fas fa-download me-2"></i>Download
                         </button>
                     </div>
-                    
+
                     <form method="post" action="{% url 'regenerate_backup_codes' %}" class="text-center mb-3">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-warning" onclick="return confirm('This will invalidate your current backup codes. Are you sure?')">
+                        <button type="submit" class="btn btn-warning"
+                            onclick="return confirm('This will invalidate your current backup codes. Are you sure?')">
                             <i class="fas fa-redo me-2"></i>Regenerate Codes
                         </button>
                     </form>
-                    
+
                     <div class="text-center">
                         <a href="{% url 'profile' %}" class="btn btn-primary">
                             <i class="fas fa-check me-2"></i>I've Saved My Codes
@@ -60,32 +62,29 @@
     function printCodes() {
         window.print();
     }
-    
+
     function copyCodes() {
-        const codes = [{% for token in tokens %}'{{ token.token }}',{% endfor %}];
-        const text = codes.join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            alert('Backup codes copied to clipboard!');
-        });
+        const codes = [{% for token in tokens %} '{{ token.token }}', {% endfor %}];
+    const text = codes.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Backup codes copied to clipboard!');
+    });
     }
-    
+
     function downloadCodes() {
-        const codes = [{% for token in tokens %}'{{ token.token }}',{% endfor %}];
-        const text = 'MOEN-IMS Backup Codes\n' +
-                     '======================\n\n' +
-                     codes.join('\n') +
-                     '\n\nKeep these codes safe! Each can only be used once.';
-        
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'moen-ims-backup-codes.txt';
-        a.click();
-        window.URL.revokeObjectURL(url);
+        const codes = [{% for token in tokens %} '{{ token.token }}', {% endfor %}];
+    const text = 'MOEGT IEPS Backup Codes\n' +
+        '======================\n\n' +
+        codes.join('\n') +
+        '\n\nKeep these codes safe! Each can only be used once.';
+
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'moegt-ieps-backup-codes.txt';
+    a.click();
+    window.URL.revokeObjectURL(url);
     }
 </script>
 {% endblock content %}
-
-
-

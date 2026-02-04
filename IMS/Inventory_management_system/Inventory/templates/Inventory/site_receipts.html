@@ -1,7 +1,7 @@
 {% extends "Inventory/base.html" %}
 {% load static %}
 
-{% block title %}Site Receipts - MOEN-IMS{% endblock %}
+{% block title %}Site Receipts - MOEGT IEPS{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
@@ -32,8 +32,8 @@
                                 <span class="input-group-text bg-light border-end-0">
                                     <i class="fas fa-search text-muted"></i>
                                 </span>
-                                <input type="text" class="form-control border-start-0" 
-                                       placeholder="Search materials..." id="searchInput">
+                                <input type="text" class="form-control border-start-0" placeholder="Search materials..."
+                                    id="searchInput">
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -58,171 +58,177 @@
 
             <!-- Receipts List -->
             {% if receipts %}
-                <div class="row" id="receiptsContainer">
-                    {% for receipt in receipts %}
-                    <div class="col-lg-6 col-xl-4 mb-4 receipt-card" 
-                         data-material="{{ receipt.material_transport.material_order.name|lower }}"
-                         data-condition="{{ receipt.condition }}"
-                         data-date="{{ receipt.received_date|date:'Y-m-d' }}"
-                         data-consultant="{{ receipt.received_by.get_full_name|default:receipt.received_by.username|lower }}">
-                        <div class="card h-100 shadow-sm border-0">
-                            <div class="card-header bg-light border-0 pb-0">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h6 class="card-title fw-bold mb-1 text-primary">
-                                            {{ receipt.material_transport.material_order.name }}
-                                        </h6>
-                                        <small class="text-muted">{{ receipt.material_transport.material_order.code }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        {% if receipt.condition == 'Good' %}
-                                            <span class="badge bg-success">✅ Good</span>
-                                        {% elif receipt.condition == 'Damaged' %}
-                                            <span class="badge bg-danger">❌ Damaged</span>
-                                        {% elif receipt.condition == 'Partial' %}
-                                            <span class="badge bg-warning text-dark">⚠️ Partial</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">{{ receipt.condition }}</span>
-                                        {% endif %}
-                                    </div>
+            <div class="row" id="receiptsContainer">
+                {% for receipt in receipts %}
+                <div class="col-lg-6 col-xl-4 mb-4 receipt-card"
+                    data-material="{{ receipt.material_transport.material_order.name|lower }}"
+                    data-condition="{{ receipt.condition }}" data-date="{{ receipt.received_date|date:'Y-m-d' }}"
+                    data-consultant="{{ receipt.received_by.get_full_name|default:receipt.received_by.username|lower }}">
+                    <div class="card h-100 shadow-sm border-0">
+                        <div class="card-header bg-light border-0 pb-0">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="card-title fw-bold mb-1 text-primary">
+                                        {{ receipt.material_transport.material_order.name }}
+                                    </h6>
+                                    <small class="text-muted">{{ receipt.material_transport.material_order.code
+                                        }}</small>
+                                </div>
+                                <div class="text-end">
+                                    {% if receipt.condition == 'Good' %}
+                                    <span class="badge bg-success">✅ Good</span>
+                                    {% elif receipt.condition == 'Damaged' %}
+                                    <span class="badge bg-danger">❌ Damaged</span>
+                                    {% elif receipt.condition == 'Partial' %}
+                                    <span class="badge bg-warning text-dark">⚠️ Partial</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ receipt.condition }}</span>
+                                    {% endif %}
                                 </div>
                             </div>
-                            
-                            <div class="card-body">
-                                <!-- Receipt Details -->
-                                <div class="row mb-3">
-                                    <div class="col-6">
-                                        <small class="text-muted d-block">Received Quantity</small>
-                                        <span class="fw-semibold">{{ receipt.received_quantity }} {{ receipt.material_transport.material_order.unit }}</span>
-                                    </div>
-                                    <div class="col-6">
-                                        <small class="text-muted d-block">Expected</small>
-                                        <span class="fw-semibold">{{ receipt.material_transport.quantity }} {{ receipt.material_transport.material_order.unit }}</span>
-                                    </div>
-                                </div>
+                        </div>
 
-                                <!-- Location -->
-                                <div class="mb-3">
-                                    <small class="text-muted d-block">Location</small>
-                                    <span class="fw-semibold">📍 {{ receipt.material_transport.material_order.region }}, {{ receipt.material_transport.material_order.district }}</span>
+                        <div class="card-body">
+                            <!-- Receipt Details -->
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Received Quantity</small>
+                                    <span class="fw-semibold">{{ receipt.received_quantity }} {{
+                                        receipt.material_transport.material_order.unit }}</span>
                                 </div>
-
-                                <!-- Consultant -->
-                                <div class="mb-3">
-                                    <small class="text-muted d-block">Received By</small>
-                                    <span class="fw-semibold">👤 {{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Expected</small>
+                                    <span class="fw-semibold">{{ receipt.material_transport.quantity }} {{
+                                        receipt.material_transport.material_order.unit }}</span>
                                 </div>
-
-                                <!-- Date -->
-                                <div class="mb-3">
-                                    <small class="text-muted d-block">Receipt Date</small>
-                                    <span class="small">📅 {{ receipt.received_date|date:"M d, Y g:i A" }}</span>
-                                </div>
-
-                                <!-- Transport Info -->
-                                <div class="row mb-3">
-                                    <div class="col-6">
-                                        <small class="text-muted d-block">Transporter</small>
-                                        <span class="small">{{ receipt.material_transport.transporter.name }}</span>
-                                    </div>
-                                    <div class="col-6">
-                                        <small class="text-muted d-block">Vehicle</small>
-                                        <span class="small">{{ receipt.material_transport.vehicle.registration_number|default:"N/A" }}</span>
-                                    </div>
-                                </div>
-
-                                <!-- Notes -->
-                                {% if receipt.notes %}
-                                <div class="mb-3">
-                                    <small class="text-muted d-block">Notes</small>
-                                    <p class="small mb-0">{{ receipt.notes|truncatewords:15 }}</p>
-                                </div>
-                                {% endif %}
                             </div>
 
-                            <div class="card-footer bg-light border-0">
-                                <div class="row">
-                                    <div class="col-6">
-                                        {% if receipt.waybill_pdf %}
-                                            <a href="{{ receipt.waybill_pdf.url }}" target="_blank" 
-                                               class="btn btn-sm btn-outline-primary w-100">
-                                                <i class="fas fa-file-pdf me-1"></i>Waybill
-                                            </a>
-                                        {% else %}
-                                            <button class="btn btn-sm btn-outline-secondary w-100" disabled>
-                                                <i class="fas fa-file-pdf me-1"></i>No Waybill
-                                            </button>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-6">
-                                        {% if receipt.site_photos %}
-                                            <a href="{{ receipt.site_photos.url }}" target="_blank" 
-                                               class="btn btn-sm btn-outline-success w-100">
-                                                <i class="fas fa-camera me-1"></i>Photos
-                                            </a>
-                                        {% else %}
-                                            <button class="btn btn-sm btn-outline-secondary w-100" disabled>
-                                                <i class="fas fa-camera me-1"></i>No Photos
-                                            </button>
-                                        {% endif %}
-                                    </div>
+                            <!-- Location -->
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Location</small>
+                                <span class="fw-semibold">📍 {{ receipt.material_transport.material_order.region }}, {{
+                                    receipt.material_transport.material_order.district }}</span>
+                            </div>
+
+                            <!-- Consultant -->
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Received By</small>
+                                <span class="fw-semibold">👤 {{
+                                    receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
+                            </div>
+
+                            <!-- Date -->
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Receipt Date</small>
+                                <span class="small">📅 {{ receipt.received_date|date:"M d, Y g:i A" }}</span>
+                            </div>
+
+                            <!-- Transport Info -->
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Transporter</small>
+                                    <span class="small">{{ receipt.material_transport.transporter.name }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Vehicle</small>
+                                    <span class="small">{{
+                                        receipt.material_transport.vehicle.registration_number|default:"N/A" }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            {% if receipt.notes %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Notes</small>
+                                <p class="small mb-0">{{ receipt.notes|truncatewords:15 }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer bg-light border-0">
+                            <div class="row">
+                                <div class="col-6">
+                                    {% if receipt.waybill_pdf %}
+                                    <a href="{{ receipt.waybill_pdf.url }}" target="_blank"
+                                        class="btn btn-sm btn-outline-primary w-100">
+                                        <i class="fas fa-file-pdf me-1"></i>Waybill
+                                    </a>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary w-100" disabled>
+                                        <i class="fas fa-file-pdf me-1"></i>No Waybill
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div class="col-6">
+                                    {% if receipt.site_photos %}
+                                    <a href="{{ receipt.site_photos.url }}" target="_blank"
+                                        class="btn btn-sm btn-outline-success w-100">
+                                        <i class="fas fa-camera me-1"></i>Photos
+                                    </a>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary w-100" disabled>
+                                        <i class="fas fa-camera me-1"></i>No Photos
+                                    </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
-                    {% endfor %}
                 </div>
+                {% endfor %}
+            </div>
 
-                <!-- Pagination -->
-                {% if is_paginated %}
-                <nav aria-label="Receipts pagination" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page=1">&laquo; First</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-                            </li>
-                        {% endif %}
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Receipts pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                    {% endif %}
 
-                        <li class="page-item active">
-                            <span class="page-link">
-                                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                            </span>
-                        </li>
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
 
-                        {% if page_obj.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
 
             {% else %}
-                <!-- Empty State -->
-                <div class="text-center py-5">
-                    <div class="mb-4">
-                        <i class="fas fa-clipboard-list text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
-                    </div>
-                    <h4 class="text-muted mb-2">No Site Receipts</h4>
-                    <p class="text-muted mb-4">No materials have been logged as received at project sites yet.</p>
-                    <a href="{% url 'consultant_deliveries' %}" class="btn btn-primary">
-                        <i class="fas fa-truck me-2"></i>Check Pending Deliveries
-                    </a>
+            <!-- Empty State -->
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-clipboard-list text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
                 </div>
+                <h4 class="text-muted mb-2">No Site Receipts</h4>
+                <p class="text-muted mb-4">No materials have been logged as received at project sites yet.</p>
+                <a href="{% url 'consultant_deliveries' %}" class="btn btn-primary">
+                    <i class="fas fa-truck me-2"></i>Check Pending Deliveries
+                </a>
+            </div>
             {% endif %}
         </div>
     </div>
 </div>
 
 <!-- Receipt Detail Modal -->
-<div class="modal fade" id="receiptDetailModal" tabindex="-1" aria-labelledby="receiptDetailModalLabel" aria-hidden="true">
+<div class="modal fade" id="receiptDetailModal" tabindex="-1" aria-labelledby="receiptDetailModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -244,65 +250,65 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const conditionFilter = document.getElementById('conditionFilter');
-    const dateFilter = document.getElementById('dateFilter');
-    const receiptCards = document.querySelectorAll('.receipt-card');
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('searchInput');
+        const conditionFilter = document.getElementById('conditionFilter');
+        const dateFilter = document.getElementById('dateFilter');
+        const receiptCards = document.querySelectorAll('.receipt-card');
 
-    function filterReceipts() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const conditionValue = conditionFilter.value;
-        const dateValue = dateFilter.value;
+        function filterReceipts() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const conditionValue = conditionFilter.value;
+            const dateValue = dateFilter.value;
 
-        receiptCards.forEach(card => {
-            const material = card.dataset.material;
-            const consultant = card.dataset.consultant;
-            const condition = card.dataset.condition;
-            const date = card.dataset.date;
+            receiptCards.forEach(card => {
+                const material = card.dataset.material;
+                const consultant = card.dataset.consultant;
+                const condition = card.dataset.condition;
+                const date = card.dataset.date;
 
-            const matchesSearch = material.includes(searchTerm) || consultant.includes(searchTerm);
-            const matchesCondition = !conditionValue || condition === conditionValue;
-            const matchesDate = !dateValue || date === dateValue;
+                const matchesSearch = material.includes(searchTerm) || consultant.includes(searchTerm);
+                const matchesCondition = !conditionValue || condition === conditionValue;
+                const matchesDate = !dateValue || date === dateValue;
 
-            if (matchesSearch && matchesCondition && matchesDate) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
+                if (matchesSearch && matchesCondition && matchesDate) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // Update visible count
+            const visibleCards = Array.from(receiptCards).filter(card => card.style.display !== 'none');
+            const badge = document.querySelector('.badge.bg-success');
+            if (badge) {
+                badge.textContent = `${visibleCards.length} Logged`;
             }
-        });
-
-        // Update visible count
-        const visibleCards = Array.from(receiptCards).filter(card => card.style.display !== 'none');
-        const badge = document.querySelector('.badge.bg-success');
-        if (badge) {
-            badge.textContent = `${visibleCards.length} Logged`;
         }
-    }
 
-    searchInput.addEventListener('input', filterReceipts);
-    conditionFilter.addEventListener('change', filterReceipts);
-    dateFilter.addEventListener('change', filterReceipts);
+        searchInput.addEventListener('input', filterReceipts);
+        conditionFilter.addEventListener('change', filterReceipts);
+        dateFilter.addEventListener('change', filterReceipts);
 
-    window.clearFilters = function() {
-        searchInput.value = '';
-        conditionFilter.value = '';
-        dateFilter.value = '';
-        filterReceipts();
-    };
+        window.clearFilters = function () {
+            searchInput.value = '';
+            conditionFilter.value = '';
+            dateFilter.value = '';
+            filterReceipts();
+        };
 
-    // Add click handlers for receipt cards to show details
-    receiptCards.forEach(card => {
-        card.addEventListener('click', function(e) {
-            // Don't trigger if clicking on links
-            if (e.target.tagName === 'A' || e.target.closest('a')) {
-                return;
-            }
-            
-            // Show receipt details in modal (implement as needed)
-            console.log('Receipt card clicked:', card.dataset);
+        // Add click handlers for receipt cards to show details
+        receiptCards.forEach(card => {
+            card.addEventListener('click', function (e) {
+                // Don't trigger if clicking on links
+                if (e.target.tagName === 'A' || e.target.closest('a')) {
+                    return;
+                }
+
+                // Show receipt details in modal (implement as needed)
+                console.log('Receipt card clicked:', card.dataset);
+            });
         });
     });
-});
 </script>
 {% endblock %}

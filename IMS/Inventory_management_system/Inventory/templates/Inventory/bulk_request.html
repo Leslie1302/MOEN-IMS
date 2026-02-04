@@ -1,7 +1,7 @@
 {% extends 'Inventory/base.html' %}
 {% load static %}
 
-{% block title %}Bulk Material Request - MOEN IMS{% endblock %}
+{% block title %}Bulk Material Request - MOEGT IEPS{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -14,7 +14,8 @@
                 <h5><i class="fas fa-info-circle me-2"></i>Instructions</h5>
                 <ol class="mb-0">
                     <li>Download the Excel template below</li>
-                    <li>Fill in the required information (name, quantity, region, district, community, consultant, contractor, package_number, warehouse)</li>
+                    <li>Fill in the required information (name, quantity, region, district, community, consultant,
+                        contractor, package_number, warehouse)</li>
                     <li>Upload the completed file using the form</li>
                     <li>Each request will be assigned a unique tracking code</li>
                 </ol>
@@ -26,9 +27,8 @@
                         <div class="card-body">
                             <h5 class="card-title">Download Template</h5>
                             <p class="card-text">Use this template to prepare your bulk material request.</p>
-                            <a href="{% static 'Inventory/templates/bulk_request_template.xlsx' %}" 
-                               class="btn btn-success" 
-                               download="Bulk_Request_Template.xlsx">
+                            <a href="{% static 'Inventory/templates/bulk_request_template.xlsx' %}"
+                                class="btn btn-success" download="Bulk_Request_Template.xlsx">
                                 <i class="fas fa-file-excel me-2"></i>Download Excel Template
                             </a>
                         </div>
@@ -42,8 +42,8 @@
                                 {% csrf_token %}
                                 <div class="mb-3">
                                     <label for="excel_file" class="form-label">Select Excel File</label>
-                                    <input class="form-control" type="file" id="excel_file" name="excel_file" 
-                                           accept=".xlsx, .xls" required>
+                                    <input class="form-control" type="file" id="excel_file" name="excel_file"
+                                        accept=".xlsx, .xls" required>
                                     <div class="form-text">Only .xlsx or .xls files are accepted.</div>
                                 </div>
                                 <div class="mb-3">
@@ -57,16 +57,19 @@
                                 <!-- Release Letter Upload -->
                                 <div id="release-letter-section">
                                     <div class="mb-3 release-letter-field">
-                                        <label for="release_letter_title" class="form-label">Release Letter Title</label>
-                                        <input type="text" class="form-control" id="release_letter_title" 
-                                               name="release_letter_title" placeholder="Enter release letter title">
-                                        <div class="form-text">A title for the release letter (e.g., 'August 2024 Material Release')</div>
+                                        <label for="release_letter_title" class="form-label">Release Letter
+                                            Title</label>
+                                        <input type="text" class="form-control" id="release_letter_title"
+                                            name="release_letter_title" placeholder="Enter release letter title">
+                                        <div class="form-text">A title for the release letter (e.g., 'August 2024
+                                            Material Release')</div>
                                     </div>
                                     <div class="mb-3 release-letter-field">
                                         <label for="release_letter_pdf" class="form-label">Release Letter (PDF)</label>
-                                        <input class="form-control" type="file" id="release_letter_pdf" 
-                                               name="release_letter_pdf" accept=".pdf">
-                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)</div>
+                                        <input class="form-control" type="file" id="release_letter_pdf"
+                                            name="release_letter_pdf" accept=".pdf">
+                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)
+                                        </div>
                                     </div>
                                 </div>
                                 <button type="submit" class="btn btn-primary">
@@ -79,13 +82,13 @@
             </div>
 
             {% if messages %}
-                <div class="mt-4">
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
+            <div class="mt-4">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
                 </div>
+                {% endfor %}
+            </div>
             {% endif %}
         </div>
     </div>
@@ -111,12 +114,12 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('bulk-upload-form');
         const requestType = document.getElementById('request_type');
         const releaseLetterSection = document.getElementById('release-letter-section');
         const releaseLetterFields = document.querySelectorAll('.release-letter-field');
-        
+
         // Function to toggle release letter fields
         function toggleReleaseLetterFields() {
             const isRelease = requestType && requestType.value === 'Release';
@@ -132,7 +135,7 @@
                 });
             });
         }
-        
+
         // Set initial state
         if (requestType) {
             // Set up change event
@@ -140,11 +143,11 @@
             // Initialize the fields
             toggleReleaseLetterFields();
         }
-        
-        form.addEventListener('submit', function() {
+
+        form.addEventListener('submit', function () {
             const fileInput = document.getElementById('excel_file');
             const requestType = document.getElementById('request_type');
-            
+
             if (fileInput.files.length > 0 && requestType.value) {
                 const modal = new bootstrap.Modal(document.getElementById('processingModal'));
                 modal.show();

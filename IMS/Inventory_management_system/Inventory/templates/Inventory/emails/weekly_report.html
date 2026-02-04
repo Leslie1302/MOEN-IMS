@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,34 +15,41 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+
         .container {
             background-color: #ffffff;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
         }
+
         .header h1 {
             margin: 0;
             font-size: 28px;
             font-weight: 600;
         }
+
         .header .date-range {
             margin-top: 10px;
             font-size: 16px;
             opacity: 0.9;
         }
+
         .content {
             padding: 30px;
         }
+
         .section {
             margin-bottom: 30px;
         }
+
         .section h2 {
             color: #2c3e50;
             border-bottom: 3px solid #3498db;
@@ -49,6 +57,7 @@
             margin-bottom: 15px;
             font-size: 22px;
         }
+
         .executive-summary {
             background: #ecf0f1;
             padding: 20px;
@@ -56,11 +65,13 @@
             border-left: 5px solid #3498db;
             margin-bottom: 30px;
         }
+
         .executive-summary p {
             margin: 0;
             font-size: 16px;
             line-height: 1.8;
         }
+
         .content-box {
             background: #f8f9fa;
             padding: 15px 20px;
@@ -71,13 +82,31 @@
             font-size: 14px;
             line-height: 1.6;
         }
-        .features-box { border-left-color: #27ae60; }
-        .fixes-box { border-left-color: #e74c3c; }
-        .database-box { border-left-color: #8e44ad; }
-        .improvements-box { border-left-color: #f39c12; }
-        .pending-box { border-left-color: #34495e; }
-        .priorities-box { border-left-color: #16a085; }
-        
+
+        .features-box {
+            border-left-color: #27ae60;
+        }
+
+        .fixes-box {
+            border-left-color: #e74c3c;
+        }
+
+        .database-box {
+            border-left-color: #8e44ad;
+        }
+
+        .improvements-box {
+            border-left-color: #f39c12;
+        }
+
+        .pending-box {
+            border-left-color: #34495e;
+        }
+
+        .priorities-box {
+            border-left-color: #16a085;
+        }
+
         .custom-notes {
             background: #fff3cd;
             padding: 20px;
@@ -85,35 +114,43 @@
             border-left: 5px solid #ffc107;
             margin: 30px 0;
         }
+
         .custom-notes h3 {
             margin-top: 0;
             color: #856404;
         }
+
         .stats {
             background: #e8f5e9;
             padding: 20px;
             border-radius: 5px;
             margin-top: 30px;
         }
+
         .stats h3 {
             margin-top: 0;
             color: #2e7d32;
         }
+
         .stats ul {
             list-style: none;
             padding: 0;
             margin: 10px 0 0 0;
         }
+
         .stats li {
             padding: 5px 0;
             border-bottom: 1px solid #c8e6c9;
         }
+
         .stats li:last-child {
             border-bottom: none;
         }
+
         .stats strong {
             color: #1b5e20;
         }
+
         .footer {
             background: #2c3e50;
             color: #ecf0f1;
@@ -121,9 +158,11 @@
             text-align: center;
             font-size: 14px;
         }
+
         .footer p {
             margin: 5px 0;
         }
+
         .badge {
             display: inline-block;
             padding: 4px 12px;
@@ -132,20 +171,24 @@
             font-weight: 600;
             margin: 0 5px;
         }
+
         .badge-commits {
             background: #e3f2fd;
             color: #1976d2;
         }
+
         .badge-files {
             background: #f3e5f5;
             color: #7b1fa2;
         }
+
         .badge-migrations {
             background: #fff3e0;
             color: #e65100;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- Header -->
@@ -160,7 +203,7 @@
                 <span class="badge badge-migrations">{{ report.migrations_found }} Migrations</span>
             </div>
         </div>
-        
+
         <!-- Content -->
         <div class="content">
             <!-- Executive Summary -->
@@ -168,43 +211,43 @@
                 <h2 style="margin-top: 0; color: #2980b9; border: none; font-size: 20px;">📋 Executive Summary</h2>
                 <p>{{ report.executive_summary }}</p>
             </div>
-            
+
             <!-- New Features -->
             <div class="section">
                 <h2>✨ New Features Implemented</h2>
                 <div class="content-box features-box">{{ report.new_features }}</div>
             </div>
-            
+
             <!-- Bug Fixes -->
             <div class="section">
                 <h2>🐛 Bug Fixes and Issues Resolved</h2>
                 <div class="content-box fixes-box">{{ report.bug_fixes }}</div>
             </div>
-            
+
             <!-- Database Changes -->
             <div class="section">
                 <h2>🗄️ Database Changes</h2>
                 <div class="content-box database-box">{{ report.database_changes }}</div>
             </div>
-            
+
             <!-- Code Improvements -->
             <div class="section">
                 <h2>🔧 Code Improvements and Refactoring</h2>
                 <div class="content-box improvements-box">{{ report.code_improvements }}</div>
             </div>
-            
+
             <!-- Pending Tasks -->
             <div class="section">
                 <h2>⏳ Pending Tasks and Known Issues</h2>
                 <div class="content-box pending-box">{{ report.pending_tasks }}</div>
             </div>
-            
+
             <!-- Next Priorities -->
             <div class="section">
                 <h2>🎯 Next Week's Priorities</h2>
                 <div class="content-box priorities-box">{{ report.next_priorities }}</div>
             </div>
-            
+
             <!-- Custom Notes -->
             {% if report.custom_notes %}
             <div class="custom-notes">
@@ -212,7 +255,7 @@
                 <p style="white-space: pre-wrap;">{{ report.custom_notes }}</p>
             </div>
             {% endif %}
-            
+
             <!-- Statistics -->
             <div class="stats">
                 <h3>📈 Report Statistics</h3>
@@ -226,15 +269,16 @@
                     <li><strong>Report ID:</strong> {{ report.report_id }}</li>
                     <li><strong>Generated:</strong> {{ report.generated_at|date:"F d, Y g:i A" }}</li>
                     {% if report.generated_by %}
-                    <li><strong>Generated By:</strong> {{ report.generated_by.get_full_name|default:report.generated_by.username }}</li>
+                    <li><strong>Generated By:</strong> {{
+                        report.generated_by.get_full_name|default:report.generated_by.username }}</li>
                     {% endif %}
                 </ul>
             </div>
         </div>
-        
+
         <!-- Footer -->
         <div class="footer">
-            <p><strong>MOEN Inventory Management System</strong></p>
+            <p><strong>MOEGT Integrated Energy Project System (IEPS)</strong></p>
             <p>Automated Weekly Development Report</p>
             <p style="font-size: 12px; opacity: 0.8;">
                 This report was automatically generated on {{ generated_date|date:"F d, Y \a\t g:i A" }}
@@ -242,4 +286,5 @@
         </div>
     </div>
 </body>
+
 </html>
