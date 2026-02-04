@@ -85,7 +85,7 @@ from .signature_lookup_view import signature_lookup, signature_verify, signature
 from .stores_management_views import (
     PendingOrdersView, AssignedOrdersView, AssignOrderView,
     MyAssignedOrdersView, update_assignment_status, bulk_assign_orders,
-    StorekeeperPerformanceDashboard
+    StoreOfficerPerformanceDashboard
 )
 
 # Error handlers
@@ -265,7 +265,7 @@ urlpatterns = [
     path('stores/my-assigned-orders/', MyAssignedOrdersView.as_view(), name='stores_my_assigned_orders'),
     path('stores/assignment/<int:assignment_id>/update-status/', update_assignment_status, name='stores_update_assignment_status'),
     path('stores/bulk-assign/', bulk_assign_orders, name='stores_bulk_assign'),
-    path('stores/performance/', StorekeeperPerformanceDashboard.as_view(), name='stores_performance_dashboard'),
+    path('stores/performance/', StoreOfficerPerformanceDashboard.as_view(), name='stores_performance_dashboard'),
 
     # Weekly Report URLs
     path('weekly-reports/', weeklyreport_changelist, name='weekly_reports_list'),

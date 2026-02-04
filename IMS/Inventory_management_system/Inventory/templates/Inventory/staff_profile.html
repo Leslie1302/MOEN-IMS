@@ -14,7 +14,8 @@
                     <h1 class="h2 mb-1">👤 Staff Profile</h1>
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb mb-0">
-                            <li class="breadcrumb-item"><a href="{% url 'management_dashboard' %}">Management Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'management_dashboard' %}">Management
+                                    Dashboard</a></li>
                             <li class="breadcrumb-item active">{{ target_user.username }}</li>
                         </ol>
                     </nav>
@@ -36,14 +37,14 @@
                     <div class="row align-items-center">
                         <div class="col-md-2 text-center">
                             {% if target_profile.profile_picture %}
-                                <img src="{{ target_profile.profile_picture.url }}" 
-                                     alt="{{ target_user.username }}'s profile picture"
-                                     class="avatar-lg rounded-circle"
-                                     style="width: 80px; height: 80px; object-fit: cover;">
+                            <img src="{{ target_profile.profile_picture.url }}"
+                                alt="{{ target_user.username }}'s profile picture" class="avatar-lg rounded-circle"
+                                style="width: 80px; height: 80px; object-fit: cover;">
                             {% else %}
-                                <div class="avatar-lg bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
-                                    <i class="fas fa-user fa-2x"></i>
-                                </div>
+                            <div
+                                class="avatar-lg bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
+                                <i class="fas fa-user fa-2x"></i>
+                            </div>
                             {% endif %}
                         </div>
                         <div class="col-md-6">
@@ -52,9 +53,9 @@
                             <p class="text-muted mb-1">{{ target_user.email }}</p>
                             <div class="mt-2">
                                 {% for group in user_groups %}
-                                    <span class="badge bg-info me-1">{{ group.name }}</span>
+                                <span class="badge bg-info me-1">{{ group.name }}</span>
                                 {% empty %}
-                                    <span class="badge bg-secondary">No Role Assigned</span>
+                                <span class="badge bg-secondary">No Role Assigned</span>
                                 {% endfor %}
                             </div>
                         </div>
@@ -87,63 +88,73 @@
                     <div class="row align-items-center">
                         <div class="col-md-8">
                             {% for group in user_groups %}
-                                {% if 'Schedule Officers' in group.name %}
-                                <div class="alert alert-info mb-0">
-                                    <h6 class="alert-heading"><i class="bi bi-person-badge"></i> Schedule Officer Tasks</h6>
-                                    <p class="mb-2"><strong>What you do:</strong> Create material requests for sites</p>
-                                    <p class="mb-2"><strong>Your task completes when:</strong> 
-                                        <span class="badge bg-success">Site Receipt is Logged</span>
-                                    </p>
-                                    <p class="mb-0"><strong>Measured from:</strong> Request Creation → Site Receipt Logged</p>
-                                    <hr>
-                                    <small class="text-muted">
-                                        <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Follow up with storekeepers and transporters to ensure timely delivery and receipt logging for better grades.
-                                    </small>
-                                </div>
-                                {% elif 'Storekeepers' in group.name %}
-                                <div class="alert alert-warning mb-0">
-                                    <h6 class="alert-heading"><i class="bi bi-box-seam"></i> Storekeeper Tasks</h6>
-                                    <p class="mb-2"><strong>What you do:</strong> Process material orders and release to transport</p>
-                                    <p class="mb-2"><strong>Your task completes when:</strong> 
-                                        <span class="badge bg-info">Transport Status = In Transit</span>
-                                    </p>
-                                    <p class="mb-0"><strong>Measured from:</strong> Request Received → Transport In Transit</p>
-                                    <hr>
-                                    <small class="text-muted">
-                                        <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Quick processing and timely transport release improves your efficiency score.
-                                    </small>
-                                </div>
-                                {% elif 'Transporters' in group.name %}
-                                <div class="alert alert-success mb-0">
-                                    <h6 class="alert-heading"><i class="bi bi-truck"></i> Transporter Tasks</h6>
-                                    <p class="mb-2"><strong>What you do:</strong> Deliver materials to sites</p>
-                                    <p class="mb-2"><strong>Your task completes when:</strong> 
-                                        <span class="badge bg-success">Delivered + Site Receipt Logged</span>
-                                    </p>
-                                    <p class="mb-0"><strong>Measured from:</strong> Transport Assignment → Site Receipt Logged</p>
-                                    <hr>
-                                    <small class="text-muted">
-                                        <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Ensure consultants log site receipts promptly after delivery for task completion.
-                                    </small>
-                                </div>
-                                {% elif 'Consultants' in group.name %}
-                                <div class="alert alert-secondary mb-0">
-                                    <h6 class="alert-heading"><i class="bi bi-clipboard-check"></i> Consultant Tasks</h6>
-                                    <p class="mb-2"><strong>What you do:</strong> Log site receipts when materials arrive</p>
-                                    <p class="mb-2"><strong>Your task completes when:</strong> 
-                                        <span class="badge bg-success">Site Receipt is Logged</span>
-                                    </p>
-                                    <p class="mb-0"><strong>Measured from:</strong> Same-day logging is ideal</p>
-                                    <hr>
-                                    <small class="text-muted">
-                                        <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Log receipts immediately upon delivery for best efficiency scores.
-                                    </small>
-                                </div>
-                                {% endif %}
+                            {% if 'Schedule Officers' in group.name %}
+                            <div class="alert alert-info mb-0">
+                                <h6 class="alert-heading"><i class="bi bi-person-badge"></i> Schedule Officer Tasks</h6>
+                                <p class="mb-2"><strong>What you do:</strong> Create material requests for sites</p>
+                                <p class="mb-2"><strong>Your task completes when:</strong>
+                                    <span class="badge bg-success">Site Receipt is Logged</span>
+                                </p>
+                                <p class="mb-0"><strong>Measured from:</strong> Request Creation → Site Receipt Logged
+                                </p>
+                                <hr>
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Follow up with storekeepers
+                                    and transporters to ensure timely delivery and receipt logging for better grades.
+                                </small>
+                            </div>
+                            {% elif 'Store Officer' in group.name %}
+                            <div class="alert alert-warning mb-0">
+                                <h6 class="alert-heading"><i class="bi bi-box-seam"></i> Store Officer Tasks</h6>
+                                <p class="mb-2"><strong>What you do:</strong> Process material orders and release to
+                                    transport</p>
+                                <p class="mb-2"><strong>Your task completes when:</strong>
+                                    <span class="badge bg-info">Transport Status = In Transit</span>
+                                </p>
+                                <p class="mb-0"><strong>Measured from:</strong> Request Received → Transport In Transit
+                                </p>
+                                <hr>
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Quick processing and timely
+                                    transport release improves your efficiency score.
+                                </small>
+                            </div>
+                            {% elif 'Transporters' in group.name %}
+                            <div class="alert alert-success mb-0">
+                                <h6 class="alert-heading"><i class="bi bi-truck"></i> Transporter Tasks</h6>
+                                <p class="mb-2"><strong>What you do:</strong> Deliver materials to sites</p>
+                                <p class="mb-2"><strong>Your task completes when:</strong>
+                                    <span class="badge bg-success">Delivered + Site Receipt Logged</span>
+                                </p>
+                                <p class="mb-0"><strong>Measured from:</strong> Transport Assignment → Site Receipt
+                                    Logged</p>
+                                <hr>
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Ensure consultants log site
+                                    receipts promptly after delivery for task completion.
+                                </small>
+                            </div>
+                            {% elif 'Consultants' in group.name %}
+                            <div class="alert alert-secondary mb-0">
+                                <h6 class="alert-heading"><i class="bi bi-clipboard-check"></i> Consultant Tasks</h6>
+                                <p class="mb-2"><strong>What you do:</strong> Log site receipts when materials arrive
+                                </p>
+                                <p class="mb-2"><strong>Your task completes when:</strong>
+                                    <span class="badge bg-success">Site Receipt is Logged</span>
+                                </p>
+                                <p class="mb-0"><strong>Measured from:</strong> Same-day logging is ideal</p>
+                                <hr>
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb"></i> <strong>Tip:</strong> Log receipts immediately upon
+                                    delivery for best efficiency scores.
+                                </small>
+                            </div>
+                            {% endif %}
                             {% empty %}
-                                <div class="alert alert-light mb-0">
-                                    <p class="mb-0"><i class="bi bi-info-circle"></i> No specific role assigned. Contact administrator for role assignment.</p>
-                                </div>
+                            <div class="alert alert-light mb-0">
+                                <p class="mb-0"><i class="bi bi-info-circle"></i> No specific role assigned. Contact
+                                    administrator for role assignment.</p>
+                            </div>
                             {% endfor %}
                         </div>
                         <div class="col-md-4 text-center">
@@ -259,8 +270,8 @@
                             <span>{{ completion_rate|floatformat:1 }}%</span>
                         </div>
                         <div class="progress">
-                            <div class="progress-bar bg-{{ performance_color }}" 
-                                 style="width: {{ completion_rate }}%"></div>
+                            <div class="progress-bar bg-{{ performance_color }}" style="width: {{ completion_rate }}%">
+                            </div>
                         </div>
                     </div>
                     <div class="text-center">
@@ -281,34 +292,34 @@
                 </div>
                 <div class="card-body">
                     {% if timeline_items %}
-                        <div class="timeline">
-                            {% for item in timeline_items %}
-                                <div class="timeline-item">
-                                    <div class="timeline-marker bg-{{ performance_color }}"></div>
-                                    <div class="timeline-content">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div>
-                                                <h6 class="mb-1">
-                                                    {{ item.icon }} {{ item.title }}
-                                                </h6>
-                                                <p class="text-muted mb-1">{{ item.description }}</p>
-                                                {% if item.status %}
-                                                    <span class="badge bg-secondary">{{ item.status }}</span>
-                                                {% endif %}
-                                            </div>
-                                            <small class="text-muted">
-                                                {{ item.timestamp|timesince }} ago
-                                            </small>
-                                        </div>
+                    <div class="timeline">
+                        {% for item in timeline_items %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-{{ performance_color }}"></div>
+                            <div class="timeline-content">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            {{ item.icon }} {{ item.title }}
+                                        </h6>
+                                        <p class="text-muted mb-1">{{ item.description }}</p>
+                                        {% if item.status %}
+                                        <span class="badge bg-secondary">{{ item.status }}</span>
+                                        {% endif %}
                                     </div>
+                                    <small class="text-muted">
+                                        {{ item.timestamp|timesince }} ago
+                                    </small>
                                 </div>
-                            {% endfor %}
+                            </div>
                         </div>
+                        {% endfor %}
+                    </div>
                     {% else %}
-                        <div class="text-center text-muted py-4">
-                            <i class="fas fa-inbox fa-3x mb-3"></i>
-                            <p>No recent activity found</p>
-                        </div>
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <p>No recent activity found</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -322,30 +333,31 @@
                 </div>
                 <div class="card-body">
                     {% if recent_material_orders %}
-                        {% for order in recent_material_orders %}
-                            <div class="border-bottom pb-2 mb-2">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h6 class="mb-1">{{ order.name }}</h6>
-                                        <p class="text-muted mb-1 small">
-                                            {{ order.quantity|intcomma }} {{ order.unit }}
-                                        </p>
-                                        <span class="badge bg-{% if order.request_type == 'Release' %}danger{% else %}success{% endif %}">
-                                            {{ order.get_request_type_display }}
-                                        </span>
-                                    </div>
-                                    <div class="text-end">
-                                        <small class="text-muted">{{ order.date_requested|date:"M d" }}</small>
-                                        <br>
-                                        <span class="badge bg-secondary">{{ order.status }}</span>
-                                    </div>
-                                </div>
+                    {% for order in recent_material_orders %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ order.name }}</h6>
+                                <p class="text-muted mb-1 small">
+                                    {{ order.quantity|intcomma }} {{ order.unit }}
+                                </p>
+                                <span
+                                    class="badge bg-{% if order.request_type == 'Release' %}danger{% else %}success{% endif %}">
+                                    {{ order.get_request_type_display }}
+                                </span>
                             </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center text-muted py-3">
-                            <p class="mb-0">No recent orders</p>
+                            <div class="text-end">
+                                <small class="text-muted">{{ order.date_requested|date:"M d" }}</small>
+                                <br>
+                                <span class="badge bg-secondary">{{ order.status }}</span>
+                            </div>
                         </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <p class="mb-0">No recent orders</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -366,11 +378,12 @@
 <!-- Include Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Monthly Activity Chart
-    const ctx = document.getElementById('monthlyChart').getContext('2d');
-    const monthlyData = {{ monthly_data|safe }};
-    
+    document.addEventListener('DOMContentLoaded', function () {
+        // Monthly Activity Chart
+        const ctx = document.getElementById('monthlyChart').getContext('2d');
+        const monthlyData = {{ monthly_data| safe
+    }};
+
     new Chart(ctx, {
         type: 'line',
         data: {
@@ -407,75 +420,75 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Timeline Styles */
-.timeline {
-    position: relative;
-    padding-left: 2rem;
-}
-
-.timeline-item {
-    position: relative;
-    padding-bottom: 1.5rem;
-    border-left: 2px solid #e9ecef;
-    padding-left: 1.5rem;
-}
-
-.timeline-item:last-child {
-    padding-bottom: 0;
-    border-left: none;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -8px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    top: 5px;
-}
-
-.timeline-content {
-    font-size: 0.9rem;
-}
-
-/* Avatar Styles */
-.avatar-lg {
-    width: 80px;
-    height: 80px;
-    font-size: 2rem;
-}
-
-/* Card Hover Effects */
-.card {
-    transition: transform 0.2s ease-in-out;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-}
-
-/* Progress Bar */
-.progress {
-    height: 8px;
-    border-radius: 4px;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
+    /* Timeline Styles */
     .timeline {
-        padding-left: 1rem;
+        position: relative;
+        padding-left: 2rem;
     }
-    
+
     .timeline-item {
-        padding-left: 1rem;
+        position: relative;
+        padding-bottom: 1.5rem;
+        border-left: 2px solid #e9ecef;
+        padding-left: 1.5rem;
     }
-    
+
+    .timeline-item:last-child {
+        padding-bottom: 0;
+        border-left: none;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -8px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        top: 5px;
+    }
+
+    .timeline-content {
+        font-size: 0.9rem;
+    }
+
+    /* Avatar Styles */
     .avatar-lg {
-        width: 60px;
-        height: 60px;
-        font-size: 1.5rem;
+        width: 80px;
+        height: 80px;
+        font-size: 2rem;
     }
-}
+
+    /* Card Hover Effects */
+    .card {
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+    }
+
+    /* Progress Bar */
+    .progress {
+        height: 8px;
+        border-radius: 4px;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .timeline {
+            padding-left: 1rem;
+        }
+
+        .timeline-item {
+            padding-left: 1rem;
+        }
+
+        .avatar-lg {
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem;
+        }
+    }
 </style>
 
 <!-- Include Font Awesome -->

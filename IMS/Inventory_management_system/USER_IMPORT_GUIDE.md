@@ -230,7 +230,7 @@ Row 3: jane.smith | Jane Smith | jane.smith@company.com
 Users can be automatically assigned to groups during import:
 
 - **Schedule Officers**: For project scheduling staff
-- **Storekeepers**: For inventory management staff  
+- **Store Officers**: For inventory management staff  
 - **Transporters**: For logistics staff
 - **Consultants**: For external consultants
 - **default**: For general users

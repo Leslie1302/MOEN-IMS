@@ -28,7 +28,7 @@ def create_notification(notification_type, title, message, recipient_group,
         notification_type: Type of notification (from Notification.NOTIFICATION_TYPES)
         title: Notification title
         message: Detailed notification message
-        recipient_group: Target group ('Storekeepers', 'Schedule Officers', 'Management', etc.)
+        recipient_group: Target group ('Store Officers', 'Schedule Officers', 'Management', etc.)
         sender: User who triggered the action (optional)
         recipient_user: Specific user recipient (optional)
         related_order: Related MaterialOrder (optional)
@@ -64,7 +64,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
     """
     try:
         if created:
-            # New material request - notify Storekeepers
+            # New material request - notify Store Officers
             if instance.request_type == 'Release':
                 create_notification(
                     notification_type='material_request',
@@ -72,7 +72,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
                     message=f'{instance.user.username if instance.user else "Someone"} requested {instance.quantity} {instance.unit} of {instance.name}. '
                             f'Location: {instance.district}, {instance.region}. '
                             f'Request Code: {instance.request_code}',
-                    recipient_group='Storekeepers',
+                    recipient_group='Store Officers',
                     sender=instance.user,
                     related_order=instance
                 )
@@ -114,7 +114,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
                         is_partial = instance.remaining_quantity > 0
                         processing_type = "Partially processed" if is_partial else "Fully processed"
                         
-                        # Material processed by storekeeper - notify requester
+                        # Material processed by store officer - notify requester
                         create_notification(
                             notification_type='material_processed',
                             title=f'Request {processing_type}: {instance.name}',
@@ -132,7 +132,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
                         create_notification(
                             notification_type='material_processed',
                             title=f'Material {processing_type}: {instance.name}',
-                            message=f'{instance.processed_by.username if instance.processed_by else "Storekeeper"} {processing_type.lower()} {qty_diff} {instance.unit} of {instance.name}. '
+                            message=f'{instance.processed_by.username if instance.processed_by else "Store Officer"} {processing_type.lower()} {qty_diff} {instance.unit} of {instance.name}. '
                                     f'Total processed: {instance.processed_quantity}/{instance.quantity}. '
                                     f'Request Code: {instance.request_code}',
                             recipient_group='Management',
@@ -149,7 +149,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
                         # Status changed - notify relevant parties based on new status
                         if new_status == 'Processed' and not hasattr(instance, '_quantity_processed'):
                             # Status changed to Processed but we haven't already sent processing notification
-                            # Material processed by storekeeper - notify requester
+                            # Material processed by store officer - notify requester
                             create_notification(
                                 notification_type='material_processed',
                                 title=f'Request Processed: {instance.name}',
@@ -166,7 +166,7 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
                             create_notification(
                                 notification_type='material_processed',
                                 title=f'Material Processed: {instance.name}',
-                                message=f'{instance.processed_by.username if instance.processed_by else "Storekeeper"} processed {instance.processed_quantity} {instance.unit} of {instance.name}. '
+                                message=f'{instance.processed_by.username if instance.processed_by else "Store Officer"} processed {instance.processed_quantity} {instance.unit} of {instance.name}. '
                                         f'Request Code: {instance.request_code}',
                                 recipient_group='Management',
                                 sender=instance.processed_by,
@@ -336,7 +336,7 @@ def handle_site_receipt_notifications(sender, instance, created, **kwargs):
     """
     try:
         if created:
-            # Site receipt logged - notify Management and Storekeepers
+            # Site receipt logged - notify Management and Store Officers
             create_notification(
                 notification_type='site_receipt_logged',
                 title=f'Site Receipt Logged: {instance.material_transport.material_order.name if instance.material_transport and instance.material_transport.material_order else "Materials"}',
@@ -349,13 +349,13 @@ def handle_site_receipt_notifications(sender, instance, created, **kwargs):
                 related_transport=instance.material_transport
             )
             
-            # Notify Storekeepers
+            # Notify Store Officers
             create_notification(
                 notification_type='site_receipt_logged',
                 title=f'Materials Received on Site',
                 message=f'Site receipt confirmed for {instance.material_transport.material_order.name if instance.material_transport and instance.material_transport.material_order else "materials"}. '
                         f'Quantity: {instance.received_quantity}, Condition: {instance.condition}',
-                recipient_group='Storekeepers',
+                recipient_group='Store Officers',
                 sender=instance.received_by,
                 related_transport=instance.material_transport
             )
@@ -384,7 +384,7 @@ def handle_low_inventory_notifications(sender, instance, created, **kwargs):
                     title=f'CRITICAL: Low Stock Alert - {instance.name}',
                     message=f'{instance.name} is critically low with only {instance.quantity} {instance.unit} remaining. '
                             f'Immediate restocking required! Code: {instance.code}',
-                    recipient_group='Storekeepers',
+                    recipient_group='Store Officers',
                     sender=None
                 )
                 
@@ -404,7 +404,7 @@ def handle_low_inventory_notifications(sender, instance, created, **kwargs):
                     title=f'Low Stock Alert - {instance.name}',
                     message=f'{instance.name} stock is low with {instance.quantity} {instance.unit} remaining. '
                             f'Consider restocking soon. Code: {instance.code}',
-                    recipient_group='Storekeepers',
+                    recipient_group='Store Officers',
                     sender=None
                 )
     

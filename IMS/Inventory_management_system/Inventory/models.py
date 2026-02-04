@@ -459,12 +459,12 @@ class MaterialOrder(auto_prefetch.Model):
         null=True,
         blank=True,
         related_name='assigned_material_orders',
-        help_text="Storekeeper assigned to process this order"
+        help_text="Store Officer assigned to process this order"
     )
     assigned_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When the order was assigned to a storekeeper"
+        help_text="When the order was assigned to a store officer"
     )
     assigned_by = auto_prefetch.ForeignKey(
         User,
@@ -1598,7 +1598,7 @@ class Notification(auto_prefetch.Model):
     
     RECIPIENT_GROUPS = [
         ('Schedule Officers', 'Schedule Officers'),
-        ('Storekeepers', 'Storekeepers'),
+        ('Store Officers', 'Store Officers'),
         ('Management', 'Management'),
         ('Consultants', 'Consultants'),
         ('All', 'All Users'),

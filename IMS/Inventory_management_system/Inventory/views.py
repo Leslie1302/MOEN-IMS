@@ -1668,8 +1668,8 @@ def management_dashboard(request):
         context = {
             'total_orders': 0,
             'total_received_by_consultants': 0,
-            'total_received_by_storekeepers': 0,
-            'total_released_by_storekeepers': 0,
+            'total_received_by_store_officers': 0,
+            'total_released_by_store_officers': 0,
             'total_on_site': 0,
             'pending_orders': 0,
             'orders': [],
@@ -1751,22 +1751,23 @@ def management_dashboard(request):
                                 avg_completion_days = total_days / count_with_dates
                     
                     # Storekeepers - Materials they processed
+                    # Store Officers - Materials they processed
                     # Completed = When transport status is "In Transit"
-                    if 'Storekeepers' in user_groups:
+                    if 'Store Officers' in user_groups:
                         processed_orders = MaterialOrder.objects.filter(last_updated_by=user)
                         total_tasks += processed_orders.count()
                         
                         # Count completed: orders with transport in "In Transit" status
-                        completed_storekeeper_orders = processed_orders.filter(
+                        completed_store_officer_orders = processed_orders.filter(
                             materialtransport__status='In Transit'
                         ).distinct()
-                        completed_tasks += completed_storekeeper_orders.count()
+                        completed_tasks += completed_store_officer_orders.count()
                         
                         # Calculate processing efficiency (request to in transit)
-                        if completed_storekeeper_orders.exists():
+                        if completed_store_officer_orders.exists():
                             total_days = 0
                             count_with_dates = 0
-                            for order in completed_storekeeper_orders:
+                            for order in completed_store_officer_orders:
                                 if order.date_requested:
                                     # Get the transport for this order
                                     transport = MaterialTransport.objects.filter(
@@ -1992,22 +1993,20 @@ def management_dashboard(request):
                 total=Sum('processed_quantity')
             )['total'] or 0
             
-            # Received by Storekeepers
-            received_by_storekeepers = MaterialOrder.objects.filter(
-                status='Received', 
-                user__groups__name='Storekeepers'
+            # Received by Store Officers
+            received_by_store_officers = MaterialOrder.objects.filter(
+                user__groups__name='Store Officers'
             )
-            context['total_received_by_storekeepers'] = received_by_storekeepers.aggregate(
-                total=Sum('processed_quantity')
+            context['total_received_by_store_officers'] = received_by_store_officers.aggregate(
+                total=Sum(F('quantity') * F('unit_price'), output_field=FloatField())
             )['total'] or 0
             
-            # Released by Storekeepers
-            released_by_storekeepers = MaterialOrder.objects.filter(
-                request_type='Release', 
-                user__groups__name='Storekeepers'
+            # Released by Store Officers
+            released_by_store_officers = MaterialOrder.objects.filter(
+                user__groups__name='Store Officers'
             )
-            context['total_released_by_storekeepers'] = released_by_storekeepers.aggregate(
-                total=Sum('processed_quantity')
+            context['total_released_by_store_officers'] = released_by_store_officers.aggregate(
+                total=Sum(F('quantity') * F('unit_price'), output_field=FloatField())
             )['total'] or 0
             
             # Other metrics

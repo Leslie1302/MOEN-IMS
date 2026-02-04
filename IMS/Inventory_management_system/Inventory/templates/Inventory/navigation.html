@@ -86,9 +86,9 @@
                 </li>
                 {% endif %}
 
-                <!-- Store Operations Menu (for Storekeepers) -->
+                <!-- Store Operations Menu (for Store Officers) -->
                 {% for group in user.groups.all %}
-                {% if group.name == 'Storekeeper' %}
+                {% if group.name == 'Store Officer' %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storeOperationsDropdown"
                         role="button" data-bs-toggle="dropdown" aria-expanded="false">

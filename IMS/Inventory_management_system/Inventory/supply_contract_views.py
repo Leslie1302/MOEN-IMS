@@ -415,7 +415,7 @@ class InvoiceCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 @login_required
 def verify_invoice(request, pk):
-    """Verify an invoice (Storekeeper/Management)"""
+    """Verify an invoice (Store Officer/Management)"""
     invoice = get_object_or_404(SupplierInvoice, pk=pk)
     
     if not (is_management(request.user) or is_superuser(request.user)):

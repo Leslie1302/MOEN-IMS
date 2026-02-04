@@ -32,20 +32,20 @@ class StoresManagementMixin(UserPassesTestMixin):
             return False
         if self.request.user.is_superuser:
             return True
-        # Management group can assign orders to Storekeepers
+        # Management group can assign orders to Store Officers
         return self.request.user.groups.filter(name='Management').exists()
 
 
 class StoresStaffMixin(UserPassesTestMixin):
-    """Mixin to restrict access to Storekeepers who process orders"""
+    """Mixin to restrict access to Store Officers who process orders house"""
     
     def test_func(self):
         if not self.request.user.is_authenticated:
             return False
         if self.request.user.is_superuser:
             return True
-        # Storekeepers process assigned orders
-        return self.request.user.groups.filter(name='Storekeepers').exists()
+        # Store Officers process assigned orders
+        return self.request.user.groups.filter(name='Store Officers').exists()
 
 
 class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
@@ -91,9 +91,9 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get list of storekeepers for assignment dropdown
+        # Get list of store officers for assignment dropdown
         stores_staff = User.objects.filter(
-            groups__name='Storekeepers',
+            groups__name='Store Officers',
             is_active=True
         ).order_by('username')
         
@@ -151,9 +151,9 @@ class AssignedOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Get list of storekeepers
+        # Get list of store officers
         stores_staff = User.objects.filter(
-            groups__name='Storekeepers',
+            groups__name='Store Officers',
             is_active=True
         ).order_by('username')
         
@@ -211,11 +211,11 @@ class AssignOrderView(LoginRequiredMixin, StoresManagementMixin, View):
                     'message': 'Selected staff member not found'
                 }, status=404)
             
-            # Ensure selected user is a Storekeeper
-            if not staff_member.groups.filter(name='Storekeeper').exists():
+            # Ensure selected user is a Store Officer
+            if not staff_member.groups.filter(name='Store Officer').exists():
                 return JsonResponse({
                     'success': False,
-                    'message': 'Selected user is not a Storekeeper and cannot be assigned store orders'
+                    'message': 'Selected user is not a Store Officer and cannot be assigned store orders'
                 }, status=400)
             
             # Process assignments in a transaction
@@ -427,11 +427,11 @@ def bulk_assign_orders(request):
         
         staff_member = get_object_or_404(User, id=staff_id)
         
-        # Ensure selected user is a Storekeeper
-        if not staff_member.groups.filter(name='Storekeepers').exists():
+        # Ensure selected user is a Store Officer
+        if not staff_member.groups.filter(name='Store Officers').exists():
             return JsonResponse({
                 'success': False,
-                'message': 'Selected user is not a Storekeeper and cannot be assigned store orders'
+                'message': 'Selected user is not a Store Officer and cannot be assigned store orders'
             }, status=400)
         
         assigned_count = 0
@@ -473,41 +473,41 @@ def bulk_assign_orders(request):
         }, status=500)
 
 
-class StorekeeperPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class StoreOfficerPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
-    Performance dashboard specifically for storekeepers.
+    Performance dashboard specifically for store officers.
     Shows individual performance metrics and team statistics.
     """
     model = User
     template_name = 'Inventory/stores/performance_dashboard.html'
-    context_object_name = 'storekeepers'
+    context_object_name = 'store_officers'
     
     def test_func(self):
-        """Allow access to Storekeepers and Management"""
+        """Allow access to Store Officers and Management"""
         if not self.request.user.is_authenticated:
             return False
         if self.request.user.is_superuser:
             return True
-        return self.request.user.groups.filter(name__in=['Storekeepers', 'Management']).exists()
+        return self.request.user.groups.filter(name__in=['Store Officers', 'Management']).exists()
     
     def get_queryset(self):
-        """Get all storekeepers"""
+        """Get all store officers"""
         return User.objects.filter(
-            groups__name='Storekeepers',
+            groups__name='Store Officers',
             is_active=True
         ).order_by('username')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Calculate performance grades for each storekeeper
-        storekeeper_grades = {}
+        # Calculate performance grades for each store officer
+        store_officer_grades = {}
         
-        for storekeeper in self.get_queryset():
+        for store_officer in self.get_queryset():
             try:
-                # Get all assignments for this storekeeper
+                # Get all assignments for this store officer
                 assignments = StoreOrderAssignment.objects.filter(
-                    assigned_to=storekeeper
+                    assigned_to=store_officer
                 )
                 
                 total_tasks = assignments.count()
@@ -594,10 +594,10 @@ class StorekeeperPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, L
                     grade_color = 'secondary'
                     performance_score = 0
                 
-                storekeeper_grades[storekeeper.id] = {
-                    'username': storekeeper.username,
-                    'first_name': storekeeper.first_name,
-                    'last_name': storekeeper.last_name,
+                store_officer_grades[store_officer.id] = {
+                    'username': store_officer.username,
+                    'first_name': store_officer.first_name,
+                    'last_name': store_officer.last_name,
                     'grade': performance_score,
                     'grade_letter': grade_letter,
                     'grade_color': grade_color,
@@ -610,15 +610,15 @@ class StorekeeperPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, L
                     'volume_score': volume_score,
                 }
                 
-                logger.info(f"✓ Storekeeper {storekeeper.username}: Grade={grade_letter}, Score={performance_score:.1f}, Tasks={completed_tasks}/{total_tasks}")
+                logger.info(f"✓ Store Officer {store_officer.username}: Grade={grade_letter}, Score={performance_score:.1f}, Tasks={completed_tasks}/{total_tasks}")
                 
             except Exception as e:
-                logger.error(f"✗ Error calculating grade for {storekeeper.username}: {str(e)}", exc_info=True)
+                logger.error(f"✗ Error calculating grade for {store_officer.username}: {str(e)}", exc_info=True)
                 # Add user with default values
-                storekeeper_grades[storekeeper.id] = {
-                    'username': storekeeper.username,
-                    'first_name': storekeeper.first_name,
-                    'last_name': storekeeper.last_name,
+                store_officer_grades[store_officer.id] = {
+                    'username': store_officer.username,
+                    'first_name': store_officer.first_name,
+                    'last_name': store_officer.last_name,
                     'grade': 0,
                     'grade_letter': 'N/A',
                     'grade_color': 'secondary',
@@ -633,16 +633,16 @@ class StorekeeperPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, L
         
         # Sort by performance score and identify top performer
         sorted_grades = sorted(
-            storekeeper_grades.items(),
+            store_officer_grades.items(),
             key=lambda x: x[1]['grade'],
             reverse=True
         )
         
-        # Mark top performer as "Storekeeper of the Month"
+        # Mark top performer as "Store Officer of the Month"
         if sorted_grades and sorted_grades[0][1]['grade'] > 0:
             sorted_grades[0][1]['top_performer'] = True
         
-        context['storekeeper_grades'] = dict(sorted_grades)
+        context['store_officer_grades'] = dict(sorted_grades)
         
         # Overall statistics
         all_assignments = StoreOrderAssignment.objects.all()

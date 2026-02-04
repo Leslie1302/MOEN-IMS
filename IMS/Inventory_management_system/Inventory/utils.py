@@ -2,12 +2,12 @@
 Utility functions for the Inventory application.
 """
 
-def is_storekeeper(user):
+def is_store_officer(user):
     """
-    Check if the user is a storekeeper.
-    A user is considered a storekeeper if they are in the 'Storekeeper' group.
+    Check if the user is a store officer.
+    A user is considered a store officer if they are in the 'Store Officer' group.
     """
-    return user.groups.filter(name='Storekeeper').exists() or user.is_superuser
+    return user.groups.filter(name='Store Officer').exists() or user.is_superuser
 
 def is_superuser(user):
     """

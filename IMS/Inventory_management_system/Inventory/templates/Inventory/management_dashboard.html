@@ -13,37 +13,47 @@
                 </div>
                 <div class="col-md-4 text-end">
                     <div class="dropdown">
-                        <button class="btn btn-outline-primary position-relative" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-primary position-relative" type="button"
+                            id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             🔔 Notifications
                             {% if unread_notifications_count > 0 %}
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            <span
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                 {{ unread_notifications_count }}
                             </span>
                             {% endif %}
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end" style="width: 350px; max-height: 400px; overflow-y: auto;" aria-labelledby="notificationDropdown">
-                            <li><h6 class="dropdown-header">Recent Notifications</h6></li>
+                        <ul class="dropdown-menu dropdown-menu-end"
+                            style="width: 350px; max-height: 400px; overflow-y: auto;"
+                            aria-labelledby="notificationDropdown">
+                            <li>
+                                <h6 class="dropdown-header">Recent Notifications</h6>
+                            </li>
                             {% if recent_notifications %}
-                                {% for notification in recent_notifications %}
-                                <li>
-                                    <a class="dropdown-item small py-2" href="{% url 'notification_detail' notification.id %}"
-                                       style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
-                                        <strong>{{ notification.title }}</strong><br>
-                                        <span class="text-muted" style="font-size: 0.85em;">
-                                            {{ notification.message|truncatewords:15 }}
-                                        </span><br>
-                                        <span class="text-muted" style="font-size: 0.75em;">
-                                            <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
-                                        </span>
-                                    </a>
-                                </li>
-                                {% endfor %}
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-center text-primary fw-semibold" href="{% url 'notifications' %}">
+                            {% for notification in recent_notifications %}
+                            <li>
+                                <a class="dropdown-item small py-2"
+                                    href="{% url 'notification_detail' notification.id %}"
+                                    style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
+                                    <strong>{{ notification.title }}</strong><br>
+                                    <span class="text-muted" style="font-size: 0.85em;">
+                                        {{ notification.message|truncatewords:15 }}
+                                    </span><br>
+                                    <span class="text-muted" style="font-size: 0.75em;">
+                                        <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
+                                    </span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-center text-primary fw-semibold"
+                                    href="{% url 'notifications' %}">
                                     <i class="bi bi-list-ul"></i> View All Notifications
                                 </a></li>
                             {% else %}
-                                <li><span class="dropdown-item text-muted">No new notifications</span></li>
+                            <li><span class="dropdown-item text-muted">No new notifications</span></li>
                             {% endif %}
                         </ul>
                     </div>
@@ -53,14 +63,14 @@
     </div>
 
     {% if messages %}
-        <div class="row justify-content-center">
-            {% for message in messages %}
-                <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
+    <div class="row justify-content-center">
+        {% for message in messages %}
+        <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+        {% endfor %}
+    </div>
     {% endif %}
 
     <!-- Summary Statistics -->
@@ -71,7 +81,8 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h5 class="card-title"><a href="{% url 'material_orders' %}" class="text-white text-decoration-none">Total Orders</a></h5>
+                                <h5 class="card-title"><a href="{% url 'material_orders' %}"
+                                        class="text-white text-decoration-none">Total Orders</a></h5>
                                 <h2 class="display-6 mb-0">{{ total_orders }}</h2>
                                 <small class="opacity-75">All time</small>
                             </div>
@@ -113,7 +124,8 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h5 class="card-title"><a href="{% url 'low_inventory_summary' %}" class="text-white text-decoration-none">Low Stock Items</a></h5>
+                                <h5 class="card-title"><a href="{% url 'low_inventory_summary' %}"
+                                        class="text-white text-decoration-none">Low Stock Items</a></h5>
                                 <h2 class="display-6 mb-0">{{ low_inventory_count }}</h2>
                                 <small class="opacity-75">Need attention</small>
                             </div>
@@ -205,7 +217,7 @@
                                 <span class="badge bg-warning">C+ (70-74)</span>
                                 <span class="badge bg-warning">C (65-69)</span>
                                 <span class="badge bg-danger">D (60-64)</span>
-                                <span class="badge bg-danger">F (<60)</span>
+                                <span class="badge bg-danger">F (&lt;60)</span>
                             </div>
                         </div>
                     </div>
@@ -219,7 +231,7 @@
                                     <i class="bi bi-person-badge"></i> Schedule Officers
                                 </h6>
                                 <p class="small mb-2"><strong>Tasks:</strong> Material requests created</p>
-                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                <p class="small mb-2"><strong>Complete when:</strong>
                                     <span class="badge bg-success">Site Receipt Logged</span>
                                 </p>
                                 <p class="small mb-0 text-muted">
@@ -228,15 +240,15 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Storekeepers -->
+                    <!-- Store Officers -->
                     <div class="col-md-3">
                         <div class="card h-100 border-warning">
                             <div class="card-body">
                                 <h6 class="card-title text-warning">
-                                    <i class="bi bi-box-seam"></i> Storekeepers
+                                    <i class="bi bi-box-seam"></i> Store Officers
                                 </h6>
                                 <p class="small mb-2"><strong>Tasks:</strong> Orders to process</p>
-                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                <p class="small mb-2"><strong>Complete when:</strong>
                                     <span class="badge bg-info">Transport In Transit</span>
                                 </p>
                                 <p class="small mb-0 text-muted">
@@ -253,7 +265,7 @@
                                     <i class="bi bi-truck"></i> Transporters
                                 </h6>
                                 <p class="small mb-2"><strong>Tasks:</strong> Transport assignments</p>
-                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                <p class="small mb-2"><strong>Complete when:</strong>
                                     <span class="badge bg-success">Delivered + Receipt</span>
                                 </p>
                                 <p class="small mb-0 text-muted">
@@ -270,7 +282,7 @@
                                     <i class="bi bi-clipboard-check"></i> Consultants
                                 </h6>
                                 <p class="small mb-2"><strong>Tasks:</strong> Site receipts to log</p>
-                                <p class="small mb-2"><strong>Complete when:</strong> 
+                                <p class="small mb-2"><strong>Complete when:</strong>
                                     <span class="badge bg-success">Receipt Logged</span>
                                 </p>
                                 <p class="small mb-0 text-muted">
@@ -308,7 +320,7 @@
                         </thead>
                         <tbody>
                             {% for user_id, data in user_grades.items %}
-                            <tr {% if data.worker_of_month %}class="table-success"{% endif %}>
+                            <tr {% if data.worker_of_month %}class="table-success" {% endif %}>
                                 <td>
                                     <strong>{{ data.username }}</strong>
                                     {% if data.worker_of_month %}
@@ -320,17 +332,14 @@
                                 <td>{{ data.groups|default:"No Role" }}</td>
                                 <td>
                                     <div class="progress" style="height: 25px;">
-                                        <div class="progress-bar bg-{{ data.grade_color }}" 
-                                             role="progressbar" 
-                                             style="width: {{ data.grade }}%" 
-                                             aria-valuenow="{{ data.grade }}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
+                                        <div class="progress-bar bg-{{ data.grade_color }}" role="progressbar"
+                                            style="width: {{ data.grade }}%" aria-valuenow="{{ data.grade }}"
+                                            aria-valuemin="0" aria-valuemax="100">
                                             {{ data.grade|floatformat:0 }}%
                                         </div>
                                     </div>
                                     <small class="text-muted">
-                                        Completion: {{ data.completion_rate|floatformat:0 }}% | 
+                                        Completion: {{ data.completion_rate|floatformat:0 }}% |
                                         Volume: {{ data.completed_tasks }}
                                     </small>
                                 </td>
@@ -338,24 +347,26 @@
                                     <span class="badge bg-{{ data.grade_color }} fs-6">{{ data.grade_letter }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-primary">{{ data.completed_tasks }}</span> / 
+                                    <span class="badge bg-primary">{{ data.completed_tasks }}</span> /
                                     <span class="text-muted">{{ data.total_tasks }}</span>
                                     <br>
                                     <small class="text-muted">completed</small>
                                 </td>
                                 <td>
                                     {% if data.avg_completion_days > 0 %}
-                                        <span class="badge {% if data.avg_completion_days < 2 %}bg-success{% elif data.avg_completion_days < 5 %}bg-info{% elif data.avg_completion_days < 10 %}bg-warning{% else %}bg-danger{% endif %}">
-                                            {{ data.avg_completion_days }} days
-                                        </span>
+                                    <span
+                                        class="badge {% if data.avg_completion_days < 2 %}bg-success{% elif data.avg_completion_days < 5 %}bg-info{% elif data.avg_completion_days < 10 %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ data.avg_completion_days }} days
+                                    </span>
                                     {% else %}
-                                        <span class="badge bg-secondary">N/A</span>
+                                    <span class="badge bg-secondary">N/A</span>
                                     {% endif %}
                                     <br>
                                     <small class="text-muted">avg time</small>
                                 </td>
                                 <td>
-                                    <a href="{% url 'staff_profile' data.username %}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{% url 'staff_profile' data.username %}"
+                                        class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-eye"></i> Details
                                     </a>
                                 </td>
@@ -413,15 +424,15 @@
                                         <td>{{ order.quantity }}</td>
                                         <td>
                                             {% if order.status == "Pending" %}
-                                                <span class="badge bg-warning">⏳ Pending</span>
+                                            <span class="badge bg-warning">⏳ Pending</span>
                                             {% elif order.status == "Seen" %}
-                                                <span class="badge bg-info">👀 Seen</span>
+                                            <span class="badge bg-info">👀 Seen</span>
                                             {% elif order.status == "Approved" %}
-                                                <span class="badge bg-primary">🔄 Approved</span>
+                                            <span class="badge bg-primary">🔄 Approved</span>
                                             {% elif order.status == "Completed" %}
-                                                <span class="badge bg-success">✅ Completed</span>
+                                            <span class="badge bg-success">✅ Completed</span>
                                             {% else %}
-                                                <span class="badge bg-secondary">🔄 {{ order.status }}</span>
+                                            <span class="badge bg-secondary">🔄 {{ order.status }}</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -463,13 +474,15 @@
         <div class="card">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">Material Orders and Receipts</h4>
-                <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#ordersTable">
+                <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#ordersTable">
                     Toggle Table
                 </button>
             </div>
             <div class="collapse show" id="ordersTable">
                 <div class="card-body p-0">
-                    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
+                    <div class="table-responsive"
+                        style="overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px);">
                         <table class="table table-hover table-striped w-100" id="orders-table">
                             <thead class="sticky-top bg-light">
                                 <tr>
@@ -537,26 +550,26 @@
 <meta name="csrf-token" content="{{ csrf_token }}">
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Refresh button
-    document.getElementById('refresh-btn').addEventListener('click', function() {
-        location.reload();
-    });
-
-    // Initialize DataTables for better table functionality
-    if (typeof $ !== 'undefined') {
-        $('#user-grades').DataTable({
-            order: [[2, 'desc']], // Sort by grade descending
-            pageLength: 10,
-            responsive: true
+    document.addEventListener('DOMContentLoaded', function () {
+        // Refresh button
+        document.getElementById('refresh-btn').addEventListener('click', function () {
+            location.reload();
         });
-    }
 
-    // Auto-refresh every 60 seconds for real-time data
-    setTimeout(function() {
-        location.reload();
-    }, 60 * 1000);
-});
+        // Initialize DataTables for better table functionality
+        if (typeof $ !== 'undefined') {
+            $('#user-grades').DataTable({
+                order: [[2, 'desc']], // Sort by grade descending
+                pageLength: 10,
+                responsive: true
+            });
+        }
+
+        // Auto-refresh every 60 seconds for real-time data
+        setTimeout(function () {
+            location.reload();
+        }, 60 * 1000);
+    });
 </script>
 
 <style>
@@ -564,23 +577,24 @@ document.addEventListener('DOMContentLoaded', function() {
     body {
         background-color: #f8f9fa;
     }
+
     .container-fluid {
         padding: 0;
     }
-    
+
     /* Fix z-index for sticky elements to not interfere with navbar dropdowns */
     .sticky-top {
         z-index: 10 !important;
     }
-    
+
     .bg-light.py-2.sticky-top {
         z-index: 10 !important;
     }
-    
+
     thead.sticky-top {
         z-index: 10 !important;
     }
-    
+
     /* Card Styles */
     .card {
         border: none;
@@ -589,18 +603,21 @@ document.addEventListener('DOMContentLoaded', function() {
         margin-bottom: 1.5rem;
         transition: transform 0.2s;
     }
+
     .card:hover {
         transform: translateY(-5px);
     }
+
     .card-header {
         border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         font-weight: 600;
     }
-    
+
     /* Table Styles */
     .table {
         margin-bottom: 0;
     }
+
     .table th {
         background-color: #f8f9fa;
         position: sticky;
@@ -612,24 +629,28 @@ document.addEventListener('DOMContentLoaded', function() {
         font-size: 0.75rem;
         letter-spacing: 0.5px;
     }
+
     .table td {
         vertical-align: middle;
     }
-    
+
     /* Timeline Styles */
     .timeline {
         position: relative;
         padding-left: 2rem;
     }
+
     .timeline-item {
         position: relative;
         padding-bottom: 1.5rem;
         border-left: 2px solid #e9ecef;
         padding-left: 1.5rem;
     }
+
     .timeline-item:last-child {
         padding-bottom: 0;
     }
+
     .timeline-marker {
         position: absolute;
         left: -8px;
@@ -639,16 +660,18 @@ document.addEventListener('DOMContentLoaded', function() {
         background-color: #0d6efd;
         top: 5px;
     }
+
     .timeline-content {
         font-size: 0.9rem;
     }
-    
+
     /* Progress Bar */
     .progress {
         height: 25px;
         border-radius: 5px;
         overflow: hidden;
     }
+
     .progress-bar {
         display: flex;
         align-items: center;
@@ -656,34 +679,43 @@ document.addEventListener('DOMContentLoaded', function() {
         font-weight: 600;
         font-size: 0.8rem;
     }
-    
+
     /* Badge Styles */
     .badge {
         font-weight: 500;
         padding: 0.35em 0.65em;
     }
-    
+
     /* Fixed Bottom Bar */
     .fixed-bottom {
         z-index: 1030;
         box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
     }
-    
+
     /* Responsive Adjustments */
     @media (max-width: 768px) {
         .card {
             margin-bottom: 1rem;
         }
+
         .display-6 {
             font-size: 1.5rem;
         }
     }
-    
+
     /* Animation */
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
+
     .card {
         animation: fadeIn 0.3s ease-out;
     }

@@ -41,7 +41,7 @@ from .models import (
     # Note: Notification, Project, ProjectSite, ProjectPhase will be available after migration
 )
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
-from Inventory.utils import is_storekeeper, is_superuser, is_schedule_officer
+from Inventory.utils import is_store_officer, is_superuser, is_schedule_officer
 
 # Superuser-only access mixin that returns 404 for non-superusers
 class SuperuserOnlyMixin(UserPassesTestMixin):
@@ -54,7 +54,7 @@ class SuperuserOnlyMixin(UserPassesTestMixin):
 
 class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
-    View for storekeepers and superusers to see all release letters with their associated orders.
+    View for store officers and superusers to see all release letters with their associated orders.
     """
     model = ReleaseLetter
     template_name = 'Inventory/release_letter_list.html'
@@ -106,7 +106,7 @@ class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     """
-    View for storekeepers to assign transporters to material orders.
+    View for store officers to assign transporters to material orders.
     """
     model = MaterialOrder
     template_name = 'Inventory/transporter_assignment.html'
@@ -114,7 +114,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
     paginate_by = 20
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         # Clear any potential caching by forcing fresh query
@@ -547,7 +547,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def update_transport_status(request, pk):
     """
     Update the status of a transport assignment.
@@ -647,14 +647,14 @@ def update_transport_status(request, pk):
 
 
 class TransporterListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
-    """View for managing transport companies."""
+    """View for managing transport companies. Access restricted to store officers and management."""
     model = Transporter
     template_name = 'Inventory/transporter_list.html'
     context_object_name = 'transporters'
     paginate_by = 20
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         queryset = Transporter.objects.all().annotate(
@@ -689,7 +689,7 @@ class TransporterCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     success_url = reverse_lazy('transporter_list')
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def form_valid(self, form):
         form.instance.added_by = self.request.user
@@ -705,7 +705,7 @@ class TransporterUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateView):
     success_url = reverse_lazy('transporter_list')
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def form_valid(self, form):
         messages.success(self.request, 'Transporter updated successfully.')
@@ -713,7 +713,7 @@ class TransporterUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateView):
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def export_transporters_template(request):
     """Export an Excel template for importing transporters."""
     import pandas as pd
@@ -766,7 +766,7 @@ def export_transporters_template(request):
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def ajax_load_vehicles(request):
     """AJAX view to load vehicles for a specific transporter."""
     from django.http import JsonResponse
@@ -788,7 +788,7 @@ def ajax_load_vehicles(request):
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def import_transporters(request):
     """Import transporters from an Excel file."""
     if request.method == 'POST':
@@ -839,7 +839,7 @@ class TransportVehicleListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         queryset = TransportVehicle.objects.select_related('transporter').all()
@@ -875,7 +875,7 @@ class TransportVehicleCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateV
     template_name = 'Inventory/transport_vehicle_form.html'
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_initial(self):
         """Pre-select transporter if coming from transporter detail page."""
@@ -904,7 +904,7 @@ class TransportVehicleUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateV
     template_name = 'Inventory/transport_vehicle_form.html'
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_success_url(self):
         return reverse_lazy('vehicle_list')
@@ -937,7 +937,7 @@ class TransporterDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailView):
     context_object_name = 'transporter'
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -966,7 +966,7 @@ class TransportVehicleDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailV
     context_object_name = 'vehicle'
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
 
 
 class TransporterLegendView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
@@ -976,7 +976,7 @@ class TransporterLegendView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     context_object_name = 'transporters'
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         return Transporter.objects.prefetch_related('vehicles').all()
@@ -999,7 +999,7 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def test_func(self):
-        return is_storekeeper(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+        return is_store_officer(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
         # Get all active transports that haven't been logged as received on site
@@ -1076,13 +1076,13 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         
         # Add user role information for template
         context['is_schedule_officer'] = is_schedule_officer(self.request.user)
-        context['is_storekeeper'] = is_storekeeper(self.request.user)
+        context['is_store_officer'] = is_store_officer(self.request.user)
         
         return context
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def debug_transport_records(request):
     """Debug view to check MaterialTransport records in the database."""
     from django.http import JsonResponse
@@ -1125,7 +1125,7 @@ def debug_transport_records(request):
 
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def create_test_transport(request):
     """Create a test transport record for debugging."""
     from django.http import JsonResponse
@@ -1178,7 +1178,7 @@ def create_test_transport(request):
         })
 
 @login_required
-@user_passes_test(lambda u: is_storekeeper(u) or is_superuser(u))
+@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
 def debug_assignment_orders(request):
     """Debug view to check which orders should appear in assignment table."""
     from django.http import JsonResponse
@@ -1607,31 +1607,31 @@ def download_waybill_pdf(request, transport_id):
         fontName='Helvetica-Bold',
     )))
     
-    # Get storekeeper info and stamp (with image embedding support)
+    # Get store officer info and stamp (with image embedding support)
     # Priority: processed_by (who actually processed it) > assigned_to (who it was assigned to) > created_by
-    storekeeper_name = ''
-    storekeeper_stamp_image = None
-    storekeeper_stamp_text = ''
-    storekeeper_date = ''
-    storekeeper = None
+    store_officer_name = ''
+    store_officer_stamp_image = None
+    store_officer_stamp_text = ''
+    store_officer_date = ''
+    store_officer = None
     if transport.material_order:
         # Use processed_by first (the person who actually processed the order)
-        storekeeper = (transport.material_order.processed_by or 
-                     transport.material_order.assigned_to or 
-                     transport.material_order.created_by)
+        store_officer = (transport.material_order.processed_by or 
+                      transport.material_order.assigned_to or 
+                      transport.material_order.created_by)
     
-    if storekeeper:
-        storekeeper_name = storekeeper.get_full_name() or storekeeper.username
+    if store_officer:
+        store_officer_name = store_officer.get_full_name() or store_officer.username
         try:
             from .models import Profile
-            profile = Profile.objects.filter(user=storekeeper).first()
+            profile = Profile.objects.filter(user=store_officer).first()
             if profile:
                 # Look for PNG stamp in media/digital_signatures/ folder
                 stamp_filenames = [
-                    f"{storekeeper.username}.png",
-                    f"{storekeeper.id}.png",
-                    f"{storekeeper.username}.jpg",
-                    f"{storekeeper.id}.jpg",
+                    f"{store_officer.username}.png",
+                    f"{store_officer.id}.png",
+                    f"{store_officer.username}.jpg",
+                    f"{store_officer.id}.jpg",
                 ]
                 
                 digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
@@ -1642,7 +1642,7 @@ def download_waybill_pdf(request, transport_id):
                     stamp_path = os.path.join(digital_signatures_dir, filename)
                     if os.path.exists(stamp_path):
                         try:
-                            storekeeper_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            store_officer_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
                             break
                         except Exception as e:
                             import logging
@@ -1650,44 +1650,44 @@ def download_waybill_pdf(request, transport_id):
                             logger.warning(f"Could not load digital stamp image {stamp_path}: {str(e)}")
                             continue
                 
-                if not storekeeper_stamp_image and profile:
+                if not store_officer_stamp_image and profile:
                     try:
                         if hasattr(profile, 'generate_digital_stamp_png'):
                             stamp_path = profile.generate_digital_stamp_png()
                             if stamp_path and os.path.exists(stamp_path):
-                                storekeeper_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                                store_officer_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
                     except Exception as e:
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
                 
-                if not storekeeper_stamp_image:
+                if not store_officer_stamp_image:
                     stamp = profile.get_or_create_signature_stamp() if profile else None
                     if stamp:
                         try:
                             stamp_data = profile.display_signature_stamp()
                             if stamp_data:
-                                storekeeper_stamp_text = f"{stamp_data.get('SIGNED_BY', storekeeper_name)}\nID: {stamp_data.get('ID', '')}"
+                                store_officer_stamp_text = f"{stamp_data.get('SIGNED_BY', store_officer_name)}\nID: {stamp_data.get('ID', '')}"
                         except Exception:
                             if '|' in stamp:
                                 parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else storekeeper_name
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_officer_name
                                 stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                storekeeper_stamp_text = f"{signed_by}\nID: {stamp_id}"
+                                store_officer_stamp_text = f"{signed_by}\nID: {stamp_id}"
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Error getting storekeeper stamp: {str(e)}")
+            logger.error(f"Error getting store officer stamp: {str(e)}")
         # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
         if transport.material_order and transport.material_order.processed_at:
-            storekeeper_date = transport.material_order.processed_at.strftime('%d %B %Y')
+            store_officer_date = transport.material_order.processed_at.strftime('%d %B %Y')
         elif transport.material_order and transport.material_order.assigned_at:
-            storekeeper_date = transport.material_order.assigned_at.strftime('%d %B %Y')
+            store_officer_date = transport.material_order.assigned_at.strftime('%d %B %Y')
         else:
-            storekeeper_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+            store_officer_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
     
     # Build signature cell - use image if available, otherwise text
-    storekeeper_signature_cell = storekeeper_stamp_image if storekeeper_stamp_image else Paragraph(storekeeper_stamp_text or '_________________', small_text)
+    store_officer_signature_cell = store_officer_stamp_image if store_officer_stamp_image else Paragraph(store_officer_stamp_text or '_________________', small_text)
     
     # Get store manager info and stamp
     store_manager = None
@@ -1712,8 +1712,8 @@ def download_waybill_pdf(request, transport_id):
                 stamp_filenames = [
                     f"{store_manager.username}.png",
                     f"{store_manager.id}.png",
-                    f"{store_manager.username}.jpg",
                     f"{store_manager.id}.jpg",
+                    f"{store_manager.username}.jpg",
                 ]
                 
                 digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
@@ -1770,7 +1770,7 @@ def download_waybill_pdf(request, transport_id):
     # Build store manager signature cell
     store_manager_signature_cell = store_manager_stamp_image if store_manager_stamp_image else Paragraph(store_manager_stamp_text or '_________________', small_text)
     
-    # Signature table with all parties: Storekeeper, Store Manager, Driver, Recipient
+    # Signature table with all parties: Store Officer, Store Manager, Driver, Recipient
     signature_cover_data = [
         [
             Paragraph('<b>Name</b>', small_text),
@@ -1778,9 +1778,9 @@ def download_waybill_pdf(request, transport_id):
             Paragraph('<b>Date</b>', small_text)
         ],
         [
-            Paragraph('<b>Storekeeper</b>', small_text),
-            storekeeper_signature_cell,
-            Paragraph(storekeeper_date or '_________________', small_text)
+            Paragraph('<b>Store Officer</b>', small_text),
+            store_officer_signature_cell,
+            Paragraph(store_officer_date or '_________________', small_text)
         ],
         [
             Paragraph('<b>Store Manager</b>', small_text),
@@ -1994,31 +1994,31 @@ def download_waybill_pdf(request, transport_id):
     elements.append(Paragraph("✍️ Signatures & Endorsements", heading_style))
     elements.append(Spacer(1, 0.1*inch))
     
-    # Get storekeeper info and stamp for main waybill (with image embedding support)
-    storekeeper_name_main = ''
-    storekeeper_stamp_image_main = None
-    storekeeper_stamp_text_main = ''
-    storekeeper_date_main = ''
-    # Try to get storekeeper from processed_by (who actually processed it), assigned_to, or created_by
-    storekeeper_main = None
+    # Get store officer info and stamp for main waybill (with image embedding support)
+    store_officer_name_main = ''
+    store_officer_stamp_image_main = None
+    store_officer_stamp_text_main = ''
+    store_officer_date_main = ''
+    # Try to get store officer from processed_by (who actually processed it), assigned_to, or created_by
+    store_officer_main = None
     if transport.material_order:
-        storekeeper_main = (transport.material_order.processed_by or 
+        store_officer_main = (transport.material_order.processed_by or 
                           transport.material_order.assigned_to or 
                           transport.material_order.created_by)
     
-    if storekeeper_main:
-        storekeeper_name_main = storekeeper_main.get_full_name() or storekeeper_main.username
+    if store_officer_main:
+        store_officer_name_main = store_officer_main.get_full_name() or store_officer_main.username
         try:
             from .models import Profile
-            profile = Profile.objects.filter(user=storekeeper_main).first()
+            profile = Profile.objects.filter(user=store_officer_main).first()
             if profile:
                 # Look for PNG stamp in media/digital_signatures/ folder
                 # Try multiple possible filenames: username.png, user_id.png, etc.
                 stamp_filenames = [
-                    f"{storekeeper_main.username}.png",
-                    f"{storekeeper_main.id}.png",
-                    f"{storekeeper_main.username}.jpg",
-                    f"{storekeeper_main.id}.jpg",
+                    f"{store_officer_main.username}.png",
+                    f"{store_officer_main.id}.png",
+                    f"{store_officer_main.username}.jpg",
+                    f"{store_officer_main.id}.jpg",
                 ]
                 
                 digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
@@ -2031,7 +2031,7 @@ def download_waybill_pdf(request, transport_id):
                     if os.path.exists(stamp_path):
                         try:
                             # Use PNG/JPG image for signature
-                            storekeeper_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            store_officer_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
                             break  # Found the stamp, exit loop
                         except Exception as e:
                             import logging
@@ -2040,47 +2040,47 @@ def download_waybill_pdf(request, transport_id):
                             continue
                 
                 # If no PNG found, try to generate one
-                if not storekeeper_stamp_image_main and profile:
+                if not store_officer_stamp_image_main and profile:
                     try:
                         # Generate PNG stamp if method exists
                         if hasattr(profile, 'generate_digital_stamp_png'):
                             stamp_path = profile.generate_digital_stamp_png()
                             if stamp_path and os.path.exists(stamp_path):
-                                storekeeper_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                                store_officer_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
                     except Exception as e:
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
                 
                 # Fallback to text-based stamp only if PNG is not available
-                if not storekeeper_stamp_image_main:
+                if not store_officer_stamp_image_main:
                     stamp = profile.get_or_create_signature_stamp() if profile else None
                     if stamp:
                         try:
                             stamp_data = profile.display_signature_stamp()
                             if stamp_data:
-                                storekeeper_stamp_text_main = f"{stamp_data.get('SIGNED_BY', storekeeper_name_main)}\nID: {stamp_data.get('ID', '')}"
+                                store_officer_stamp_text_main = f"{stamp_data.get('SIGNED_BY', store_officer_name_main)}\nID: {stamp_data.get('ID', '')}"
                         except Exception:
                             # If display_signature_stamp doesn't exist, parse the stamp string
                             if '|' in stamp:
                                 parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else storekeeper_name_main
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_officer_name_main
                                 stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                storekeeper_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
+                                store_officer_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Error getting storekeeper stamp for main waybill: {str(e)}")
+            logger.error(f"Error getting store officer stamp for main waybill: {str(e)}")
         # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
         if transport.material_order and transport.material_order.processed_at:
-            storekeeper_date_main = transport.material_order.processed_at.strftime('%d %B %Y')
+            store_officer_date_main = transport.material_order.processed_at.strftime('%d %B %Y')
         elif transport.material_order and transport.material_order.assigned_at:
-            storekeeper_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
+            store_officer_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
         else:
-            storekeeper_date_main = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+            store_officer_date_main = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
     
     # Build signature cell for main waybill - use image if available, otherwise text
-    storekeeper_signature_cell_main = storekeeper_stamp_image_main if storekeeper_stamp_image_main else Paragraph(storekeeper_stamp_text_main or '_________________', small_text)
+    store_officer_signature_cell_main = store_officer_stamp_image_main if store_officer_stamp_image_main else Paragraph(store_officer_stamp_text_main or '_________________', small_text)
     
     # Get store manager info and stamp for main waybill (with image embedding support)
     store_manager_main = None
@@ -2173,10 +2173,10 @@ def download_waybill_pdf(request, transport_id):
             Paragraph('<b>Date</b>', normal_style)
         ],
         [
-            Paragraph('<b>Issued By</b><br/>(Storekeeper)', small_text),
-            Paragraph(storekeeper_name_main or '_________________', small_text),
-            storekeeper_signature_cell_main,
-            Paragraph(storekeeper_date_main or '_________________', small_text)
+            Paragraph('<b>Issued By</b><br/>(Store Officer)', small_text),
+            Paragraph(store_officer_name_main or '_________________', small_text),
+            store_officer_signature_cell_main,
+            Paragraph(store_officer_date_main or '_________________', small_text)
         ],
         [
             Paragraph('<b>Approved By</b><br/>(Stores Manager)', small_text),
@@ -2312,8 +2312,8 @@ def verify_waybill_qr(request, waybill_identifier):
     user_groups = request.user.groups.all()
     group_names = [g.name for g in user_groups]
     
-    # Check if user is storekeeper, transporter, or consultant
-    is_storekeeper_user = is_storekeeper(request.user)
+    # Check if user is store officer, transporter, or consultant
+    is_store_officer_user = is_store_officer(request.user)
     is_transporter_user = 'Transporter' in group_names or 'transporter' in group_names
     is_consultant_user = 'Consultant' in group_names or 'consultant' in group_names
     
@@ -2321,9 +2321,9 @@ def verify_waybill_qr(request, waybill_identifier):
     with transaction.atomic():
         stamp_recorded = False
         
-        if is_storekeeper_user:
-            role = "Storekeeper (Issued By)"
-            # Storekeeper stamp is already embedded in waybill generation
+        if is_store_officer_user:
+            role = "Store Officer (Issued By)"
+            # Store Officer stamp is already embedded in waybill generation
             # This is just for verification/audit
             stamp_recorded = True
         elif is_transporter_user:

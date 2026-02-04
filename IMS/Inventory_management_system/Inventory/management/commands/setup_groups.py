@@ -24,7 +24,7 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'name': 'Storekeeper',
+                'name': 'Store Officer',
                 'description': 'Users who manage inventory and process orders',
                 'permissions': [
                     'add_materialorder',

@@ -208,7 +208,7 @@ class CustomGroupAdmin(GroupAdmin):
     fieldsets = (
         (None, {
             'fields': ('name',),
-            'description': 'Groups represent user roles (e.g., Schedule Officers, Storekeepers, Transporters, Consultants)'
+            'description': 'Groups represent user roles (e.g., Schedule Officers, Store Officers, Transporters, Consultants)'
         }),
         ('Permissions', {
             'fields': ('permissions',),

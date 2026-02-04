@@ -19,6 +19,6 @@ def has_group(user, group_name):
 def is_in_group(user, group_name):
     """
     Alternative filter to check if a user is in a specific group.
-    Usage: {% if user|is_in_group:"Storekeeper" %}
+    Usage: {% if user|is_in_group:"Store Officer" %}
     """
     return user.groups.filter(name=group_name).exists()
