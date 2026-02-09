@@ -172,3 +172,27 @@
     </div>
 </div>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'notifications',
+        title: 'Notifications',
+        subtitle: 'Stay updated on system activities',
+        icon: '🔔',
+        features: [
+            { icon: '📋', title: 'All Notifications', desc: 'View all system alerts and updates' },
+            { icon: '📨', title: 'Unread Filter', desc: 'Focus on new notifications' },
+            { icon: '🏷️', title: 'Type Filters', desc: 'Filter by request, transport, receipt' },
+            { icon: '✅', title: 'Mark as Read', desc: 'Clear notifications in bulk' }
+        ],
+        tips: [
+            'Click notifications to view details',
+            'Use Mark All as Read to clear queue',
+            'Filter by type to find specific alerts'
+        ]
+    });
+});
+</script>
+{% endblock %}

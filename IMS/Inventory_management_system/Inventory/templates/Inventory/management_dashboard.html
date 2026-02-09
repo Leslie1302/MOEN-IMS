@@ -721,3 +721,27 @@
     }
 </style>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'management_dashboard',
+        title: 'Management Dashboard',
+        subtitle: 'System overview and user performance metrics',
+        icon: '📊',
+        features: [
+            { icon: '📈', title: 'Performance Grades', desc: 'Track user performance scores' },
+            { icon: '🏆', title: 'Worker of the Month', desc: 'Highlight top performers' },
+            { icon: '📦', title: 'Order Statistics', desc: 'View pending and completed orders' },
+            { icon: '🔔', title: 'Notifications', desc: 'Stay updated on system activities' }
+        ],
+        tips: [
+            'Performance is graded on completion, efficiency, and volume',
+            'Click user names for detailed performance profiles',
+            'Data refreshes automatically every 60 seconds'
+        ]
+    });
+});
+</script>
+{% endblock %}

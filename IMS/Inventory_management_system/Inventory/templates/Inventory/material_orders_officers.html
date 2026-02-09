@@ -454,3 +454,27 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'material_orders_officers',
+        title: 'Material Orders (Officer)',
+        subtitle: 'Manage and fulfill material requests',
+        icon: '👮',
+        features: [
+            { icon: '⚡', title: 'Quick Actions', desc: 'Process or complete orders instantly' },
+            { icon: '📏', title: 'Partial Fulfillment', desc: 'Handle split deliveries easily' },
+            { icon: '👀', title: 'Status Tracking', desc: 'Monitor seen, approved, and completed items' },
+            { icon: '📝', title: 'Release Letters', desc: 'Verify authorization documents' }
+        ],
+        tips: [
+            'Enter quantity before clicking Process',
+            'Completed orders cannot be reverted',
+            'Urgent priority items appear at the top'
+        ]
+    });
+});
+</script>
+{% endblock %}

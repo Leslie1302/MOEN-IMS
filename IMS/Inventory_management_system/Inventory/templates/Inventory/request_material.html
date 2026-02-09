@@ -7,32 +7,24 @@
         <div class="card-body">
             <h2 class="text-center fw-bold text-primary mb-3">📥 Request Materials</h2>
             <hr class="w-25 mx-auto border-primary mb-4">
-            
+
             <!-- Tabs Navigation -->
             <ul class="nav nav-tabs nav-fill mb-4" id="requestTabs" role="tablist">
                 {% if user.is_superuser %}
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'single' %}active{% endif %}" 
-                            id="single-tab" 
-                            data-bs-toggle="tab" 
-                            data-bs-target="#single-request" 
-                            type="button" 
-                            role="tab" 
-                            aria-controls="single-request" 
-                            aria-selected="{% if active_tab == 'single' %}true{% else %}false{% endif %}">
+                    <button class="nav-link {% if active_tab == 'single' %}active{% endif %}" id="single-tab"
+                        data-bs-toggle="tab" data-bs-target="#single-request" type="button" role="tab"
+                        aria-controls="single-request"
+                        aria-selected="{% if active_tab == 'single' %}true{% else %}false{% endif %}">
                         Single Request
                     </button>
                 </li>
                 {% endif %}
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'bulk' %}active{% endif %}" 
-                            id="bulk-tab" 
-                            data-bs-toggle="tab" 
-                            data-bs-target="#bulk-request" 
-                            type="button" 
-                            role="tab" 
-                            aria-controls="bulk-request" 
-                            aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}">
+                    <button class="nav-link {% if active_tab == 'bulk' %}active{% endif %}" id="bulk-tab"
+                        data-bs-toggle="tab" data-bs-target="#bulk-request" type="button" role="tab"
+                        aria-controls="bulk-request"
+                        aria-selected="{% if active_tab == 'bulk' %}true{% else %}false{% endif %}">
                         Bulk Request (Excel)
                     </button>
                 </li>
@@ -41,101 +33,157 @@
             <!-- Tab Content -->
             <div class="tab-content" id="requestTabsContent">
                 <!-- Single Request Tab -->
-                <div class="tab-pane fade {% if active_tab == 'single' %}show active{% endif %}" 
-                     id="single-request" 
-                     role="tabpanel" 
-                     aria-labelledby="single-tab">
+                <div class="tab-pane fade {% if active_tab == 'single' %}show active{% endif %}" id="single-request"
+                    role="tabpanel" aria-labelledby="single-tab">
                     {% if user.is_superuser %}
                     <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}
                         {{ formset.management_form }}
                         <div id="form-container">
                             {% for form in formset %}
-                                <div class="card mb-3 shadow-sm p-3 material-form">
-                                    <div class="d-flex flex-column gap-3">
-                                        <div>
-                                            <label class="fw-semibold">{{ form.name.label }}</label>
-                                            {{ form.name }}
-                                            {{ form.name.errors }}
+                            <div class="card mb-3 shadow-sm p-3 material-form">
+                                <div class="d-flex flex-column gap-3">
+                                    <!-- Material Selection -->
+                                    <div>
+                                        <label class="fw-semibold">{{ form.name.label }}</label>
+                                        {{ form.name }}
+                                        {{ form.name.errors }}
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.quantity.label }}</label>
+                                        {{ form.quantity }}
+                                        {{ form.quantity.errors }}
+                                    </div>
+
+                                    <!-- Project Type Selection -->
+                                    <div class="border-top pt-3">
+                                        <h6 class="text-muted mb-3">
+                                            <i class="fas fa-project-diagram me-2"></i>Project Details
+                                        </h6>
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.project_type.label }}</label>
+                                        {{ form.project_type }}
+                                        {{ form.project_type.errors }}
+                                        <div class="form-text">{{ form.project_type.help_text }}</div>
+                                    </div>
+                                    <div id="requestor-section">
+                                        <label class="fw-semibold">{{ form.requestor.label }}</label>
+                                        {{ form.requestor }}
+                                        {{ form.requestor.errors }}
+                                        <div class="form-text">{{ form.requestor.help_text }}</div>
+                                    </div>
+
+                                    <!-- Location Fields (Cascading) -->
+                                    <div class="border-top pt-3">
+                                        <h6 class="text-muted mb-3">
+                                            <i class="fas fa-map-marker-alt me-2"></i>Location
+                                            <a href="{% url 'abbreviation_legend' %}"
+                                                class="btn btn-sm btn-outline-info ms-2" target="_blank">
+                                                <i class="fas fa-book me-1"></i>View Abbreviation Legend
+                                            </a>
+                                        </h6>
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.region.label }}</label>
+                                        {{ form.region }}
+                                        {{ form.region.errors }}
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.district.label }}</label>
+                                        {{ form.district }}
+                                        {{ form.district.errors }}
+                                    </div>
+                                    <div id="community-section">
+                                        <label class="fw-semibold">{{ form.community.label }}</label>
+                                        {{ form.community }}
+                                        {{ form.community.errors }}
+                                        <div class="form-text">{{ form.community.help_text }}</div>
+                                    </div>
+
+                                    <!-- Project Assignment -->
+                                    <div class="border-top pt-3">
+                                        <h6 class="text-muted mb-3">
+                                            <i class="fas fa-users me-2"></i>Project Assignment
+                                        </h6>
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.consultant.label }}</label>
+                                        {{ form.consultant }}
+                                        {{ form.consultant.errors }}
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">{{ form.contractor.label }}</label>
+                                        {{ form.contractor }}
+                                        {{ form.contractor.errors }}
+                                    </div>
+
+                                    <!-- Package Number -->
+                                    <div id="package-section">
+                                        <label class="fw-semibold">{{ form.package_number.label }}</label>
+                                        {{ form.package_number }}
+
+                                        <!-- Auto-generated package number display -->
+                                        <div id="auto-package-display" class="mt-2" style="display: none;">
+                                            <input type="text" id="auto-package-number" class="form-control bg-light"
+                                                readonly placeholder="Package number will be auto-generated...">
+                                            <small class="text-muted">Auto-generated based on project type, location,
+                                                and requestor</small>
                                         </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.quantity.label }}</label>
-                                            {{ form.quantity }}
-                                            {{ form.quantity.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.region.label }}</label>
-                                            {{ form.region }}
-                                            {{ form.region.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.district.label }}</label>
-                                            {{ form.district }}
-                                            {{ form.district.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.consultant.label }}</label>
-                                            {{ form.consultant }}
-                                            {{ form.consultant.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.contractor.label }}</label>
-                                            {{ form.contractor }}
-                                            {{ form.contractor.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.package_number.label }}</label>
-                                            {{ form.package_number }}
-                                            {{ form.package_number.errors }}
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">{{ form.warehouse.label }}</label>
-                                            {{ form.warehouse }}
-                                            {{ form.warehouse.errors }}
-                                        </div>
-                                        
-                                        <!-- Release Letter Upload Section -->
-                                        <div class="border-top pt-3 mt-2">
-                                            <h6 class="text-muted mb-3">
-                                                <i class="fas fa-file-pdf me-2"></i>Release Letter (Optional)
-                                            </h6>
-                                            <div class="row">
-                                                <div class="col-md-8">
-                                                    <label class="fw-semibold">{{ form.release_letter_pdf.label }}</label>
-                                                    {{ form.release_letter_pdf }}
-                                                    {{ form.release_letter_pdf.errors }}
-                                                    <div class="form-text">{{ form.release_letter_pdf.help_text }}</div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label class="fw-semibold">{{ form.release_letter_title.label }}</label>
-                                                    {{ form.release_letter_title }}
-                                                    {{ form.release_letter_title.errors }}
-                                                    <div class="form-text">{{ form.release_letter_title.help_text }}</div>
-                                                </div>
+
+                                        {{ form.package_number.errors }}
+                                    </div>
+
+                                    <div>
+                                        <label class="fw-semibold">{{ form.warehouse.label }}</label>
+                                        {{ form.warehouse }}
+                                        {{ form.warehouse.errors }}
+                                    </div>
+
+                                    <!-- Release Letter Upload Section -->
+                                    <div class="border-top pt-3 mt-2">
+                                        <h6 class="text-muted mb-3">
+                                            <i class="fas fa-file-pdf me-2"></i>Release Letter (Optional)
+                                        </h6>
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <label class="fw-semibold">{{ form.release_letter_pdf.label }}</label>
+                                                {{ form.release_letter_pdf }}
+                                                {{ form.release_letter_pdf.errors }}
+                                                <div class="form-text">{{ form.release_letter_pdf.help_text }}</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="fw-semibold">{{ form.release_letter_title.label }}</label>
+                                                {{ form.release_letter_title }}
+                                                {{ form.release_letter_title.errors }}
+                                                <div class="form-text">{{ form.release_letter_title.help_text }}</div>
                                             </div>
                                         </div>
-                                        
-                                        <div>
-                                            <label class="fw-semibold">Category</label>
-                                            <input type="text" class="form-control category-field" readonly>
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">Material Code</label>
-                                            <input type="text" class="form-control material-code" readonly>
-                                        </div>
-                                        <div>
-                                            <label class="fw-semibold">Unit</label>
-                                            <input type="text" class="form-control unit-field" readonly>
-                                        </div>
-                                        <div class="text-end">
-                                            <button type="button" class="btn btn-outline-danger remove-form">❌ Remove Item</button>
-                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="fw-semibold">Category</label>
+                                        <input type="text" class="form-control category-field" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">Material Code</label>
+                                        <input type="text" class="form-control material-code" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="fw-semibold">Unit</label>
+                                        <input type="text" class="form-control unit-field" readonly>
+                                    </div>
+                                    <div class="text-end">
+                                        <button type="button" class="btn btn-outline-danger remove-form">❌ Remove
+                                            Item</button>
                                     </div>
                                 </div>
+                            </div>
                             {% endfor %}
                         </div>
                         <div class="d-flex justify-content-center gap-3 mt-4">
-                            <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another Item</button>
+                            <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another
+                                Item</button>
                             <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
                         </div>
                     </form>
@@ -143,37 +191,41 @@
                     <div class="alert alert-warning text-center mt-4">
                         <i class="fas fa-lock fa-2x mb-3"></i>
                         <h5>Access Restricted</h5>
-                        <p class="mb-0">Only superusers can use the single request form. Please use the <strong>Bulk Request</strong> tab instead.</p>
+                        <p class="mb-0">Only superusers can use the single request form. Please use the <strong>Bulk
+                                Request</strong> tab instead.</p>
                     </div>
                     {% endif %}
                 </div>
 
                 <!-- Bulk Request Tab -->
-                <div class="tab-pane fade {% if active_tab == 'bulk' %}show active{% endif %}" 
-                     id="bulk-request" 
-                     role="tabpanel" 
-                     aria-labelledby="bulk-tab">
+                <div class="tab-pane fade {% if active_tab == 'bulk' %}show active{% endif %}" id="bulk-request"
+                    role="tabpanel" aria-labelledby="bulk-tab">
                     {% if user.is_authenticated %}
-                        {% if user.groups.exists or user.is_superuser %}
+                    {% if user.groups.exists or user.is_superuser %}
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-body">
                             <h5 class="card-title text-center mb-4">📊 Bulk Material Request</h5>
                             <p class="text-muted text-center mb-4">
-                                Upload an Excel file with your material requests. Required columns: name, quantity, region, district, community, consultant, contractor, package_number, warehouse.
-                                <strong>Note:</strong> The <em>community</em> field is required for proper tracking.
-                                <a href="https://limewire.com/d/3BnBH#jMcv7h9vRW" id="download-template" class="text-primary">Download template</a>
+                                Upload an Excel file with your material requests. Required columns: name, quantity,
+                                project_type, requestor, region, district, community, consultant, contractor,
+                                package_number, warehouse.
+                                <strong>Note:</strong> For COST and SPEC project types, package numbers are
+                                auto-generated.
+                                <a href="{% url 'download_material_template' %}" id="download-template"
+                                    class="text-primary"><i class="fas fa-download me-1"></i>Download template</a>
                             </p>
-                            
+
                             <form method="POST" enctype="multipart/form-data" id="bulk-request-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="bulk_submit" value="1">
-                                
+
                                 <div class="mb-3">
                                     <label for="id_file" class="form-label fw-semibold">Select Excel File</label>
-                                    <input class="form-control" type="file" id="id_file" name="file" accept=".xlsx, .xls" required>
+                                    <input class="form-control" type="file" id="id_file" name="file"
+                                        accept=".xlsx, .xls" required>
                                     <div class="form-text">Only .xlsx or .xls files are accepted.</div>
                                 </div>
-                                
+
                                 <div class="mb-3">
                                     <label for="request_type" class="form-label fw-semibold">Request Type</label>
                                     <select class="form-select" id="request_type" name="request_type" required>
@@ -181,7 +233,7 @@
                                         <option value="Transfer">Transfer</option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="mb-3">
                                     <label for="priority" class="form-label fw-semibold">Priority</label>
                                     <select class="form-select" id="priority" name="priority" required>
@@ -196,19 +248,23 @@
                                 <!-- Release Letter Upload Section -->
                                 <div id="release-letter-section" class="border-top pt-3 mt-3">
                                     <div class="mb-3">
-                                        <label for="release_letter_title" class="form-label fw-semibold">Release Letter Title</label>
-                                        <input type="text" class="form-control" id="release_letter_title" 
-                                               name="release_letter_title" placeholder="Enter release letter title">
-                                        <div class="form-text">A title for the release letter (e.g., 'August 2024 Material Release')</div>
+                                        <label for="release_letter_title" class="form-label fw-semibold">Release Letter
+                                            Title</label>
+                                        <input type="text" class="form-control" id="release_letter_title"
+                                            name="release_letter_title" placeholder="Enter release letter title">
+                                        <div class="form-text">A title for the release letter (e.g., 'August 2024
+                                            Material Release')</div>
                                     </div>
                                     <div class="mb-3">
-                                        <label for="release_letter_pdf" class="form-label fw-semibold">Release Letter (PDF)</label>
-                                        <input class="form-control" type="file" id="release_letter_pdf" 
-                                               name="release_letter_pdf" accept=".pdf">
-                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)</div>
+                                        <label for="release_letter_pdf" class="form-label fw-semibold">Release Letter
+                                            (PDF)</label>
+                                        <input class="form-control" type="file" id="release_letter_pdf"
+                                            name="release_letter_pdf" accept=".pdf">
+                                        <div class="form-text">Upload the signed release letter (PDF only, max 10MB)
+                                        </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="d-grid gap-2 mt-4">
                                     <button type="submit" class="btn btn-primary">
                                         <i class="fas fa-upload me-2"></i>Upload & Process
@@ -217,7 +273,7 @@
                             </form>
                         </div>
                     </div>
-                    
+
                     <div class="alert alert-info">
                         <h6><i class="fas fa-info-circle me-2"></i>Instructions:</h6>
                         <ol class="mb-0">
@@ -227,12 +283,13 @@
                             <li>Each request will be assigned a unique tracking code</li>
                         </ol>
                     </div>
-                        {% else %}
-                        <div class="alert alert-warning text-center mt-4">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <p class="mb-0">You need to be assigned to a group (e.g., Schedule Officer) to request materials.</p>
-                        </div>
-                        {% endif %}
+                    {% else %}
+                    <div class="alert alert-warning text-center mt-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <p class="mb-0">You need to be assigned to a group (e.g., Schedule Officer) to request
+                            materials.</p>
+                    </div>
+                    {% endif %}
                     {% else %}
                     <div class="alert alert-warning text-center mt-4">
                         <i class="fas fa-lock me-2"></i>
@@ -247,10 +304,10 @@
 
 <script>
     // Initialize release letter section
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const requestType = document.getElementById('request_type');
         const releaseLetterSection = document.getElementById('release-letter-section');
-        
+
         // Function to toggle release letter fields
         function toggleReleaseLetterFields() {
             const isRelease = requestType && requestType.value === 'Release';
@@ -262,16 +319,223 @@
                 });
             }
         }
-        
+
         // Set up event listener for request type change
         if (requestType) {
             requestType.addEventListener('change', toggleReleaseLetterFields);
             // Initialize on page load
             toggleReleaseLetterFields();
         }
+
+        // ===== Cascading Dropdowns for SHEP Communities =====
+        const regionSelects = document.querySelectorAll('[id$="_region"], [id="id_region"]');
+        const districtSelects = document.querySelectorAll('[id$="_district"], [id="id_district"]');
+        const communitySelects = document.querySelectorAll('[id$="_community"], [id="id_community"]');
+        const projectTypeSelects = document.querySelectorAll('[id$="_project_type"], [id="id_project_type"]');
+        const packageSelects = document.querySelectorAll('[id$="_package_number"], [id="id_package_number"]');
+
+        // Setup cascading for each form instance
+        function setupCascadingDropdowns(formElement) {
+            const regionSelect = formElement.querySelector('[name$="region"]');
+            const districtSelect = formElement.querySelector('[name$="district"]');
+            const communitySelect = formElement.querySelector('[name$="community"]');
+            const projectTypeSelect = formElement.querySelector('[name$="project_type"]');
+            const packageSelect = formElement.querySelector('[name$="package_number"]');
+            const requestorInput = formElement.querySelector('[name$="requestor"]');
+            const requestorSection = formElement.querySelector('#requestor-section');
+            const communitySection = formElement.querySelector('#community-section');
+            const autoPackageDisplay = formElement.querySelector('#auto-package-display');
+            const autoPackageNumber = formElement.querySelector('#auto-package-number');
+
+            // Handle project type change
+            if (projectTypeSelect) {
+                projectTypeSelect.addEventListener('change', function () {
+                    const projectType = this.value;
+
+                    // Show/hide requestor field based on project type
+                    if (requestorSection) {
+                        if (projectType === 'COST' || projectType === 'SPEC') {
+                            requestorSection.style.display = 'block';
+                            if (requestorInput) requestorInput.required = true;
+                        } else {
+                            requestorSection.style.display = projectType === 'SHEP' ? 'none' : 'block';
+                            if (requestorInput) requestorInput.required = false;
+                        }
+                    }
+
+                    // Show/hide auto-package display based on project type
+                    if (autoPackageDisplay && packageSelect) {
+                        if (projectType === 'SHEP') {
+                            // SHEP: Show dropdown, hide auto-generated
+                            packageSelect.style.display = 'block';
+                            autoPackageDisplay.style.display = 'none';
+                        } else if (projectType === 'COST' || projectType === 'SPEC') {
+                            // Cost-sharing/Special: Hide dropdown, show auto-generated
+                            packageSelect.style.display = 'none';
+                            autoPackageDisplay.style.display = 'block';
+                            generateAutoPackageNumber(formElement);
+                        } else {
+                            packageSelect.style.display = 'block';
+                            autoPackageDisplay.style.display = 'none';
+                        }
+                    }
+                });
+                // Initialize on load
+                projectTypeSelect.dispatchEvent(new Event('change'));
+            }
+
+            // Load districts when region changes
+            if (regionSelect) {
+                regionSelect.addEventListener('change', function () {
+                    const region = this.value;
+                    if (!region) {
+                        resetSelect(districtSelect, '-- Select District --');
+                        resetSelect(communitySelect, '-- Select Community --');
+                        return;
+                    }
+
+                    fetch(`/api/districts-by-region/?region=${encodeURIComponent(region)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            resetSelect(districtSelect, '-- Select District --');
+                            data.districts.forEach(d => {
+                                const option = document.createElement('option');
+                                option.value = d.name;
+                                option.textContent = `${d.name} (${d.abbreviation})`;
+                                districtSelect.appendChild(option);
+                            });
+                        })
+                        .catch(err => console.error('Error loading districts:', err));
+
+                    // Clear community
+                    resetSelect(communitySelect, '-- Select Community --');
+                });
+            }
+
+            // Load communities when district changes
+            if (districtSelect) {
+                districtSelect.addEventListener('change', function () {
+                    const district = this.value;
+                    if (!district) {
+                        resetSelect(communitySelect, '-- Select Community --');
+                        return;
+                    }
+
+                    fetch(`/api/communities-by-district/?district=${encodeURIComponent(district)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            resetSelect(communitySelect, '-- Select Community --');
+                            data.communities.forEach(c => {
+                                const option = document.createElement('option');
+                                option.value = c.name;
+                                option.textContent = `${c.name} (${c.abbreviation})`;
+                                communitySelect.appendChild(option);
+                            });
+                        })
+                        .catch(err => console.error('Error loading communities:', err));
+
+                    // Regenerate package number if applicable
+                    generateAutoPackageNumber(formElement);
+                });
+            }
+
+            // For SHEP: Load packages when community changes
+            if (communitySelect) {
+                communitySelect.addEventListener('change', function () {
+                    const community = this.value;
+                    const projectType = projectTypeSelect ? projectTypeSelect.value : '';
+
+                    if (projectType === 'SHEP' && community) {
+                        fetch(`/api/packages-by-community/?community=${encodeURIComponent(community)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                resetSelect(packageSelect, '-- Select Package Number --');
+                                data.packages.forEach(p => {
+                                    const option = document.createElement('option');
+                                    option.value = p;
+                                    option.textContent = p;
+                                    packageSelect.appendChild(option);
+                                });
+                            })
+                            .catch(err => console.error('Error loading packages:', err));
+                    } else {
+                        generateAutoPackageNumber(formElement);
+                    }
+                });
+            }
+
+            // Regenerate package number when requestor changes
+            if (requestorInput) {
+                requestorInput.addEventListener('blur', function () {
+                    generateAutoPackageNumber(formElement);
+                });
+            }
+        }
+
+        // Helper to reset select element
+        function resetSelect(selectElement, defaultText) {
+            if (selectElement) {
+                selectElement.innerHTML = `<option value="">${defaultText}</option>`;
+            }
+        }
+
+        // Generate auto package number for non-SHEP projects
+        function generateAutoPackageNumber(formElement) {
+            const projectTypeSelect = formElement.querySelector('[name$="project_type"]');
+            const districtSelect = formElement.querySelector('[name$="district"]');
+            const communitySelect = formElement.querySelector('[name$="community"]');
+            const requestorInput = formElement.querySelector('[name$="requestor"]');
+            const autoPackageNumber = formElement.querySelector('#auto-package-number');
+            const packageSelect = formElement.querySelector('[name$="package_number"]');
+
+            const projectType = projectTypeSelect ? projectTypeSelect.value : '';
+            const district = districtSelect ? districtSelect.value : '';
+            const community = communitySelect ? communitySelect.value : '';
+            const requestor = requestorInput ? requestorInput.value : '';
+
+            // Only generate for non-SHEP projects
+            if (projectType !== 'COST' && projectType !== 'SPEC') {
+                return;
+            }
+
+            // Need at least district and requestor
+            if (!district || !requestor) {
+                if (autoPackageNumber) {
+                    autoPackageNumber.value = 'Select district and enter requestor...';
+                }
+                return;
+            }
+
+            // Call API to generate package number
+            fetch(`/api/generate-package-number/?project_type=${projectType}&district=${encodeURIComponent(district)}&community=${encodeURIComponent(community)}&requestor=${encodeURIComponent(requestor)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (autoPackageNumber && data.package_number) {
+                        autoPackageNumber.value = data.package_number;
+                        // Also set the hidden package_number field
+                        if (packageSelect) {
+                            // Clear and add the auto-generated value
+                            const option = document.createElement('option');
+                            option.value = data.package_number;
+                            option.textContent = data.package_number;
+                            option.selected = true;
+                            packageSelect.appendChild(option);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Error generating package number:', err);
+                    if (autoPackageNumber) {
+                        autoPackageNumber.value = 'Error generating package number';
+                    }
+                });
+        }
+
+        // Initialize cascading for all existing forms
+        document.querySelectorAll('.material-form').forEach(setupCascadingDropdowns);
     });
 
-    const inventoryItems = {{ inventory_items|safe }};
+    const inventoryItems = {{ inventory_items| safe }};
 
     document.addEventListener("DOMContentLoaded", function () {
         function autofillFields(selectElement) {
@@ -300,7 +564,7 @@
             if (select.value) autofillFields(select);
         });
 
-        document.getElementById("add-form").addEventListener("click", function () {
+        document.getElementById("add-form")?.addEventListener("click", function () {
             const formContainer = document.getElementById("form-container");
             const totalForms = document.querySelector("#id_form-TOTAL_FORMS");
             const newFormIdx = parseInt(totalForms.value);
@@ -309,7 +573,7 @@
             newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
             const select = newForm.querySelector(".material-select");
             select.selectedIndex = 0;
-            ['quantity', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse'].forEach(field => {
+            ['quantity', 'project_type', 'requestor', 'region', 'district', 'community', 'consultant', 'contractor', 'package_number', 'warehouse'].forEach(field => {
                 const fieldElement = newForm.querySelector(`[name$='${field}']`);
                 if (fieldElement) {
                     fieldElement.value = "";
@@ -328,6 +592,9 @@
 
             formContainer.appendChild(newForm);
             totalForms.value = newFormIdx + 1;
+
+            // Setup cascading dropdowns for the new form
+            setupCascadingDropdowns(newForm);
         });
 
         document.addEventListener("click", function (event) {
@@ -342,6 +609,47 @@
                 }
             }
         });
+
+        // Move setupCascadingDropdowns to global scope for new forms
+        window.setupCascadingDropdowns = function (formElement) {
+            const regionSelect = formElement.querySelector('[name$="region"]');
+            const districtSelect = formElement.querySelector('[name$="district"]');
+            const communitySelect = formElement.querySelector('[name$="community"]');
+            const projectTypeSelect = formElement.querySelector('[name$="project_type"]');
+            const requestorInput = formElement.querySelector('[name$="requestor"]');
+            const requestorSection = formElement.querySelector('#requestor-section');
+            const autoPackageDisplay = formElement.querySelector('#auto-package-display');
+            const packageSelect = formElement.querySelector('[name$="package_number"]');
+
+            // Initialize project type handler
+            if (projectTypeSelect) {
+                projectTypeSelect.dispatchEvent(new Event('change'));
+            }
+        };
     });
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'request_material',
+        title: 'Request Materials',
+        subtitle: 'Submit material requisitions for your projects',
+        icon: '📥',
+        features: [
+            { icon: '📋', title: 'Single Requests', desc: 'Request individual materials' },
+            { icon: '📊', title: 'Bulk Upload', desc: 'Upload Excel files for bulk requests' },
+            { icon: '📍', title: 'Location Cascades', desc: 'Select region, district, community' },
+            { icon: '📄', title: 'Release Letters', desc: 'Attach release letter PDFs' }
+        ],
+        tips: [
+            'Use bulk upload for multiple materials at once',
+            'Package numbers auto-generate for COST/SPEC projects',
+            'Download the template before bulk uploading'
+        ]
+    });
+});
 </script>
 {% endblock %}

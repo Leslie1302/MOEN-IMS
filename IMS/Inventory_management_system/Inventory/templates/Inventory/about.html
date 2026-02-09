@@ -273,3 +273,27 @@
     });
 </script>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'about',
+        title: 'About MOEGT IEPS',
+        subtitle: 'Learn about the Integrated Energy Project System',
+        icon: '⚡',
+        features: [
+            { icon: '🛡️', title: 'Drawdown Guardrails', desc: 'Prevent unauthorized material releases' },
+            { icon: '📊', title: 'BoQ Analysis', desc: 'Track Bill of Quantities in real-time' },
+            { icon: '🚚', title: 'Logistics Loop', desc: 'End-to-end transport tracking' },
+            { icon: '🔔', title: 'Automated Alerts', desc: 'Smart notifications for all stakeholders' }
+        ],
+        tips: [
+            'IEPS integrates with Release Letters for compliance',
+            'Built with Django 5.0 and PostgreSQL',
+            'Contact support for technical assistance'
+        ]
+    });
+});
+</script>
+{% endblock %}

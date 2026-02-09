@@ -657,3 +657,350 @@ class StoreOfficerPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, 
         ).order_by('-assigned_at')[:10]
         
         return context
+
+
+class StoreOperationsHubView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """
+    Unified Store Operations Hub - Hybrid Dashboard.
+    Combines Table, Kanban, and Timeline views with partial processing support.
+    Role-based access: Store Officers see own orders, Management sees all, Schedule Officers see read-only.
+    """
+    model = MaterialOrder
+    template_name = 'Inventory/stores/store_operations_hub.html'
+    context_object_name = 'orders'
+    paginate_by = 50
+    
+    def test_func(self):
+        """Allow access to Store Officers, Management, Schedule Officers, Consultants, and Superusers"""
+        if not self.request.user.is_authenticated:
+            return False
+        if self.request.user.is_superuser:
+            return True
+        allowed_groups = ['Store Officers', 'Management', 'Schedule Officers', 'Consultants']
+        return self.request.user.groups.filter(name__in=allowed_groups).exists()
+    
+    def get_user_role(self):
+        """Determine the user's primary role for permissions"""
+        user = self.request.user
+        if user.is_superuser:
+            return 'admin'
+        if user.groups.filter(name='Store Officers').exists():
+            return 'store_officer'
+        if user.groups.filter(name='Management').exists():
+            return 'management'
+        if user.groups.filter(name='Schedule Officers').exists():
+            return 'schedule_officer'
+        if user.groups.filter(name='Consultants').exists():
+            return 'consultant'
+        return 'viewer'
+    
+    def get_queryset(self):
+        """Get orders based on user role and filters"""
+        user = self.request.user
+        role = self.get_user_role()
+        
+        # Base queryset - all release type orders
+        queryset = MaterialOrder.objects.filter(
+            request_type='Release'
+        ).select_related(
+            'user', 'unit', 'category', 'warehouse', 'assigned_to', 'assigned_by'
+        ).prefetch_related(
+            'store_assignments', 'transports'
+        ).order_by('-date_requested')
+        
+        # Role-based filtering
+        if role == 'store_officer':
+            # Store Officers see only orders assigned to them
+            queryset = queryset.filter(assigned_to=user)
+        elif role == 'consultant':
+            # Consultants see orders for their region/district
+            queryset = queryset.filter(
+                Q(user=user) | Q(consultant=user.username)
+            )
+        # Management, Schedule Officers, Admin see all orders
+        
+        # Apply filters from request
+        status = self.request.GET.get('status', '')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        date_filter = self.request.GET.get('date_range', '')
+        if date_filter == 'today':
+            queryset = queryset.filter(date_requested__date=timezone.now().date())
+        elif date_filter == 'week':
+            start_of_week = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            queryset = queryset.filter(date_requested__date__gte=start_of_week)
+        elif date_filter == 'month':
+            queryset = queryset.filter(
+                date_requested__year=timezone.now().year,
+                date_requested__month=timezone.now().month
+            )
+        
+        # Search filter
+        search = self.request.GET.get('search', '')
+        if search:
+            queryset = queryset.filter(
+                Q(request_code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(user__username__icontains=search) |
+                Q(assigned_to__username__icontains=search)
+            )
+        
+        # Priority filter
+        priority = self.request.GET.get('priority', '')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        role = self.get_user_role()
+        
+        # User role info
+        context['user_role'] = role
+        context['can_process'] = role in ['store_officer', 'management', 'admin']
+        context['can_assign'] = role in ['management', 'admin']
+        
+        # Current view mode (table, kanban, timeline)
+        context['view_mode'] = self.request.GET.get('view', 'table')
+        
+        # Build base queryset for stats (same role-based filtering)
+        if role == 'store_officer':
+            base_qs = MaterialOrder.objects.filter(request_type='Release', assigned_to=user)
+        elif role == 'consultant':
+            base_qs = MaterialOrder.objects.filter(
+                request_type='Release'
+            ).filter(Q(user=user) | Q(consultant=user.username))
+        else:
+            base_qs = MaterialOrder.objects.filter(request_type='Release')
+        
+        # Statistics
+        today = timezone.now().date()
+        week_start = today - timedelta(days=today.weekday())
+        
+        stats = {
+            'total_orders': base_qs.count(),
+            'today_new': base_qs.filter(date_requested__date=today).count(),
+            'pending_start': base_qs.filter(status__in=['Pending', 'Approved']).count(),
+            'in_progress': base_qs.filter(status='In Progress').count(),
+            'partially_fulfilled': base_qs.filter(status='Partially Fulfilled').count(),
+            'completed': base_qs.filter(status='Completed').count(),
+            'this_week_completed': base_qs.filter(
+                status='Completed',
+                date_requested__date__gte=week_start
+            ).count(),
+        }
+        
+        # Transport stats
+        transport_stats = {
+            'in_transit': MaterialTransport.objects.filter(
+                status='In Transit',
+                material_order__in=base_qs
+            ).count(),
+            'delivered': MaterialTransport.objects.filter(
+                status='Delivered',
+                material_order__in=base_qs
+            ).count(),
+        }
+        stats.update(transport_stats)
+        context['stats'] = stats
+        
+        # Kanban columns data
+        if context['view_mode'] == 'kanban':
+            context['kanban_columns'] = {
+                'assigned': base_qs.filter(status__in=['Pending', 'Approved']).order_by('-date_requested')[:20],
+                'in_progress': base_qs.filter(status='In Progress').order_by('-date_requested')[:20],
+                'partial': base_qs.filter(status='Partially Fulfilled').order_by('-date_requested')[:20],
+                'completed': base_qs.filter(status='Completed').order_by('-date_requested')[:20],
+            }
+        
+        # Timeline data (recent activities)
+        if context['view_mode'] == 'timeline':
+            # Get recent orders with their activities
+            context['timeline_items'] = base_qs.order_by('-date_requested')[:50]
+        
+        # Filter options
+        context['status_choices'] = [
+            ('Pending', 'Pending'),
+            ('Approved', 'Approved'),
+            ('In Progress', 'In Progress'),
+            ('Partially Fulfilled', 'Partially Fulfilled'),
+            ('Completed', 'Completed'),
+        ]
+        context['priority_choices'] = [
+            ('Low', 'Low'),
+            ('Medium', 'Medium'),
+            ('High', 'High'),
+            ('Urgent', 'Urgent'),
+        ]
+        context['date_range_choices'] = [
+            ('today', 'Today'),
+            ('week', 'This Week'),
+            ('month', 'This Month'),
+            ('', 'All Time'),
+        ]
+        
+        # Current filter values
+        context['selected_status'] = self.request.GET.get('status', '')
+        context['selected_priority'] = self.request.GET.get('priority', '')
+        context['selected_date_range'] = self.request.GET.get('date_range', '')
+        context['search_query'] = self.request.GET.get('search', '')
+        
+        # Store staff list for assignment (if user can assign)
+        if context['can_assign']:
+            context['stores_staff'] = User.objects.filter(
+                groups__name='Store Officers',
+                is_active=True
+            ).order_by('username')
+        
+        return context
+
+
+@login_required
+@require_POST
+def process_order_partial(request, order_id):
+    """
+    Process a partial quantity of an order.
+    Supports incremental fulfillment with status transitions.
+    """
+    try:
+        order = get_object_or_404(MaterialOrder, id=order_id)
+        user = request.user
+        
+        # Check permissions
+        can_process = (
+            user.is_superuser or
+            user == order.assigned_to or
+            user.groups.filter(name='Management').exists()
+        )
+        
+        if not can_process:
+            return JsonResponse({
+                'success': False,
+                'message': 'You do not have permission to process this order'
+            }, status=403)
+        
+        # Get quantity to process
+        try:
+            from decimal import Decimal
+            quantity_to_process = Decimal(str(request.POST.get('quantity', 0)))
+        except (ValueError, TypeError, Exception):
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid quantity provided'
+            }, status=400)
+        
+        if quantity_to_process <= 0:
+            return JsonResponse({
+                'success': False,
+                'message': 'Quantity must be greater than zero'
+            }, status=400)
+        
+        # Calculate remaining quantity
+        current_processed = order.processed_quantity or Decimal('0')
+        remaining = order.quantity - current_processed
+        
+        if quantity_to_process > remaining:
+            return JsonResponse({
+                'success': False,
+                'message': f'Cannot process {quantity_to_process}. Only {remaining} remaining.'
+            }, status=400)
+        
+        # Update order
+        with transaction.atomic():
+            new_processed = current_processed + quantity_to_process
+            order.processed_quantity = new_processed
+            
+            # Determine new status based on fulfillment
+            if new_processed >= order.quantity:
+                order.status = 'Completed'
+            elif new_processed > 0:
+                order.status = 'Partially Fulfilled'
+            else:
+                order.status = 'In Progress'
+            
+            # Update remaining quantity
+            order.remaining_quantity = order.quantity - new_processed
+            order.last_updated_by = user
+            order.save()
+            
+            # Update assignment if exists
+            assignment = StoreOrderAssignment.objects.filter(
+                material_order=order,
+                assigned_to=user
+            ).first()
+            
+            if assignment:
+                if order.status == 'Completed':
+                    assignment.status = 'Completed'
+                    assignment.completed_at = timezone.now()
+                elif order.status in ['Partially Fulfilled', 'In Progress']:
+                    assignment.status = 'In Progress'
+                    if not assignment.started_at:
+                        assignment.started_at = timezone.now()
+                assignment.save()
+        
+        logger.info(f"Order {order.request_code} processed: +{quantity_to_process}, total={new_processed}/{order.quantity}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully processed {quantity_to_process} {order.unit}',
+            'order_id': order.id,
+            'processed_quantity': new_processed,
+            'remaining_quantity': order.remaining_quantity,
+            'new_status': order.status,
+            'fulfillment_percentage': round((new_processed / order.quantity) * 100, 1) if order.quantity > 0 else 0
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing order {order_id}: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': f'Error processing order: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def store_hub_stats_api(request):
+    """
+    API endpoint to get real-time stats for the Store Operations Hub.
+    Returns JSON data for dashboard widgets.
+    """
+    try:
+        user = request.user
+        
+        # Determine role
+        if user.is_superuser:
+            role = 'admin'
+        elif user.groups.filter(name='Store Officers').exists():
+            role = 'store_officer'
+        elif user.groups.filter(name='Management').exists():
+            role = 'management'
+        else:
+            role = 'viewer'
+        
+        # Build queryset based on role
+        if role == 'store_officer':
+            base_qs = MaterialOrder.objects.filter(request_type='Release', assigned_to=user)
+        else:
+            base_qs = MaterialOrder.objects.filter(request_type='Release')
+        
+        today = timezone.now().date()
+        
+        stats = {
+            'total': base_qs.count(),
+            'today_new': base_qs.filter(date_requested__date=today).count(),
+            'pending': base_qs.filter(status__in=['Pending', 'Approved']).count(),
+            'in_progress': base_qs.filter(status='In Progress').count(),
+            'partial': base_qs.filter(status='Partially Fulfilled').count(),
+            'completed': base_qs.filter(status='Completed').count(),
+        }
+        
+        return JsonResponse({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error fetching hub stats: {str(e)}", exc_info=True)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+

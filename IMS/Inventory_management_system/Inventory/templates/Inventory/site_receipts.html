@@ -71,8 +71,7 @@
                                     <h6 class="card-title fw-bold mb-1 text-primary">
                                         {{ receipt.material_transport.material_order.name }}
                                     </h6>
-                                    <small class="text-muted">{{ receipt.material_transport.material_order.code
-                                        }}</small>
+                                    <small class="text-muted">{{ receipt.material_transport.material_order.code }}</small>
                                 </div>
                                 <div class="text-end">
                                     {% if receipt.condition == 'Good' %}
@@ -93,28 +92,24 @@
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <small class="text-muted d-block">Received Quantity</small>
-                                    <span class="fw-semibold">{{ receipt.received_quantity }} {{
-                                        receipt.material_transport.material_order.unit }}</span>
+                                    <span class="fw-semibold">{{ receipt.received_quantity }} {{ receipt.material_transport.material_order.unit }}</span>
                                 </div>
                                 <div class="col-6">
                                     <small class="text-muted d-block">Expected</small>
-                                    <span class="fw-semibold">{{ receipt.material_transport.quantity }} {{
-                                        receipt.material_transport.material_order.unit }}</span>
+                                    <span class="fw-semibold">{{ receipt.material_transport.quantity }} {{ receipt.material_transport.material_order.unit }}</span>
                                 </div>
                             </div>
 
                             <!-- Location -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Location</small>
-                                <span class="fw-semibold">📍 {{ receipt.material_transport.material_order.region }}, {{
-                                    receipt.material_transport.material_order.district }}</span>
+                                <span class="fw-semibold">📍 {{ receipt.material_transport.material_order.region }}, {{ receipt.material_transport.material_order.district }}</span>
                             </div>
 
                             <!-- Consultant -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Received By</small>
-                                <span class="fw-semibold">👤 {{
-                                    receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
+                                <span class="fw-semibold">👤 {{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
                             </div>
 
                             <!-- Date -->
@@ -131,8 +126,7 @@
                                 </div>
                                 <div class="col-6">
                                     <small class="text-muted d-block">Vehicle</small>
-                                    <span class="small">{{
-                                        receipt.material_transport.vehicle.registration_number|default:"N/A" }}</span>
+                                    <span class="small">{{ receipt.material_transport.vehicle.registration_number|default:"N/A" }}</span>
                                 </div>
                             </div>
 
@@ -148,21 +142,21 @@
                         <div class="card-footer bg-light border-0">
                             <div class="row">
                                 <div class="col-6">
-                                    {% if receipt.waybill_pdf %}
-                                    <a href="{{ receipt.waybill_pdf.url }}" target="_blank"
-                                        class="btn btn-sm btn-outline-primary w-100">
+                                    {% if receipt.waybill_downloadable %}
+                                    <a href="{% url 'download_waybill_pdf' receipt.material_transport.id %}"
+                                        target="_blank" class="btn btn-sm btn-outline-primary w-100">
                                         <i class="fas fa-file-pdf me-1"></i>Waybill
                                     </a>
                                     {% else %}
-                                    <button class="btn btn-sm btn-outline-secondary w-100" disabled>
-                                        <i class="fas fa-file-pdf me-1"></i>No Waybill
+                                    <button class="btn btn-sm btn-outline-secondary w-100" disabled
+                                        title="Waybill unavailable: {{ receipt.pending_receipts_count }} item(s) in this bulk shipment still need receipt confirmation">
+                                        <i class="fas fa-clock me-1"></i>Waybill Pending
                                     </button>
                                     {% endif %}
                                 </div>
                                 <div class="col-6">
                                     {% if receipt.site_photos %}
-                                    <a href="{{ receipt.site_photos.url }}" target="_blank"
-                                        class="btn btn-sm btn-outline-success w-100">
+                                    <a href="{{ receipt.site_photos.url }}" target="_blank" class="btn btn-sm btn-outline-success w-100">
                                         <i class="fas fa-camera me-1"></i>Photos
                                     </a>
                                     {% else %}
@@ -310,5 +304,53 @@
             });
         });
     });
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'site_receipts',
+        title: 'Site Receipts',
+        subtitle: 'History of materials received at project sites',
+        icon: '📝',
+        features: [
+            { icon: '📋', title: 'Receipt Records', desc: 'View all logged material receipts' },
+            { icon: '🔍', title: 'Search & Filter', desc: 'Find receipts by site, date, or material' },
+            { icon: '📄', title: 'Print Waybill', desc: 'Generate waybills for completed deliveries' },
+            { icon: '✅', title: 'Verification', desc: 'Track confirmed vs pending receipts' }
+        ],
+        tips: [
+            'Click on a receipt card to view details',
+            'Use date filters for faster searching',
+            'Download waybills for documentation'
+        ]
+    });
+});
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'site_receipts',
+        title: 'Site Receipts',
+        subtitle: 'History of logged material receipts',
+        icon: '📋',
+        features: [
+            { icon: '📝', title: 'Receipt Log', desc: 'View all materials received at site' },
+            { icon: '🔍', title: 'Condition Tracking', desc: 'Filter by Good, Damaged, or Partial' },
+            { icon: '📅', title: 'Date Filtering', desc: 'Find receipts by date range' },
+            { icon: '🚚', title: 'Pending Deliveries', desc: 'Quick access to expected items' }
+        ],
+        tips: [
+            'Use the condition filter to find damaged items',
+            'Search by material name or receipt ID',
+            'Export filtered lists for reports'
+        ]
+    });
+});
 </script>
 {% endblock %}

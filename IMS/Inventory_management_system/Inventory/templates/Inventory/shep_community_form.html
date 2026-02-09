@@ -1,0 +1,103 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} SHEP Community{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                        {% if object %}Edit Community{% else %}Add New Community{% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_region" class="form-label fw-semibold">Region <span
+                                        class="text-danger">*</span></label>
+                                {{ form.region }}
+                                {% if form.region.errors %}
+                                <div class="invalid-feedback d-block">{{ form.region.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{{ form.region.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_district" class="form-label fw-semibold">District <span
+                                        class="text-danger">*</span></label>
+                                {{ form.district }}
+                                {% if form.district.errors %}
+                                <div class="invalid-feedback d-block">{{ form.district.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{{ form.district.help_text }}</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_community" class="form-label fw-semibold">Community <span
+                                        class="text-danger">*</span></label>
+                                {{ form.community }}
+                                {% if form.community.errors %}
+                                <div class="invalid-feedback d-block">{{ form.community.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{{ form.community.help_text }}</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="id_package_number" class="form-label fw-semibold">Package Number <span
+                                        class="text-danger">*</span></label>
+                                {{ form.package_number }}
+                                {% if form.package_number.errors %}
+                                <div class="invalid-feedback d-block">{{ form.package_number.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">{{ form.package_number.help_text }}</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                {{ form.is_active }}
+                                <label class="form-check-label" for="id_is_active">
+                                    Active Community
+                                </label>
+                            </div>
+                            <small class="text-muted">Uncheck to hide this community from dropdown selections</small>
+                        </div>
+
+                        {% if object %}
+                        <div class="alert alert-info mb-4">
+                            <h6 class="alert-heading mb-1"><i class="bi bi-info-circle me-1"></i> Current Abbreviations
+                            </h6>
+                            <p class="mb-0 small">
+                                Region: <strong>{{ object.region_abbr }}</strong> |
+                                District: <strong>{{ object.district_abbr }}</strong> |
+                                Community: <strong>{{ object.community_abbr }}</strong>
+                            </p>
+                            <small class="text-muted">Abbreviations will be automatically regenerated if names
+                                change.</small>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'shep_community_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg me-1"></i> {% if object %}Save Changes{% else %}Add Community{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

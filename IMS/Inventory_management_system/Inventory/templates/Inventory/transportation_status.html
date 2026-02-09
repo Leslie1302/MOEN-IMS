@@ -9,38 +9,47 @@
         font-size: 1.2em;
         margin-right: 0.5rem;
     }
+
     .transport-card {
         transition: transform 0.2s;
         border-left: 4px solid #dee2e6;
     }
+
     .transport-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
+
     .transport-card.in-transit {
         border-left-color: #007bff;
         background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
     }
+
     .transport-card.loading {
         border-left-color: #ffc107;
         background: linear-gradient(135deg, #fffbf0 0%, #ffffff 100%);
     }
+
     .transport-card.delivered {
         border-left-color: #28a745;
         background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
     }
+
     .transport-card.assigned {
         border-left-color: #6c757d;
         background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
     }
+
     .stats-card {
         border: none;
         border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
+
     .pulse {
         animation: pulse 2s infinite;
     }
+
     .truck-icon {
         font-size: 2rem;
         opacity: 0.8;
@@ -52,7 +61,7 @@
 <div class="container-fluid px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h2 mb-2">🚛 Transportation Status</h1>
+            <h1 class="h2 mb-2">ðŸš› Transportation Status</h1>
             <p class="text-muted">Track active shipments and transporter assignments</p>
         </div>
         <div>
@@ -80,7 +89,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="stats-card card border-left-info shadow h-100 py-2">
                 <div class="card-body">
@@ -97,7 +106,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="stats-card card border-left-warning shadow h-100 py-2">
                 <div class="card-body">
@@ -114,7 +123,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="stats-card card border-left-success shadow h-100 py-2">
                 <div class="card-body">
@@ -139,8 +148,8 @@
             <form method="get" class="row g-3">
                 <div class="col-md-4">
                     <label for="search" class="form-label">Search</label>
-                    <input type="text" class="form-control" id="search" name="search" 
-                           value="{{ search_query }}" placeholder="Search orders, transporters, drivers...">
+                    <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}"
+                        placeholder="Search orders, transporters, drivers...">
                 </div>
                 <div class="col-md-3">
                     <label for="status" class="form-label">Status</label>
@@ -178,7 +187,7 @@
 
     <!-- Consignments and Transport Cards -->
     {% if consignments or single_shipments %}
-    
+
     <!-- Consignment Groups -->
     {% if consignments %}
     <h4 class="mt-4 mb-3"><i class="fas fa-boxes"></i> Bulk Shipments (Consignments)</h4>
@@ -189,9 +198,11 @@
                 <div>
                     <h5 class="mb-1"><i class="fas fa-shipping-fast"></i> Consignment: {{ consignment_number }}</h5>
                     {% with first_transport=transports_in_consignment.0 %}
-                    <div class="mb-1"><strong>Waybill:</strong> <code class="text-white">{{ first_transport.waybill_number }}</code></div>
+                    <div class="mb-1"><strong>Waybill:</strong> <code
+                            class="text-white">{{ first_transport.waybill_number }}</code></div>
                     {% endwith %}
-                    <small>{{ transports_in_consignment|length }} material{{ transports_in_consignment|length|pluralize }} in this shipment</small>
+                    <small>{{ transports_in_consignment|length }} material{{ transports_in_consignment|length|pluralize
+                        }} in this shipment</small>
                 </div>
                 <div class="text-end">
                     {% with first_transport=transports_in_consignment.0 %}
@@ -201,10 +212,7 @@
                     <div><strong>Vehicle:</strong> {{ first_transport.vehicle.registration_number }}</div>
                     {% endif %}
                     <div class="mt-2">
-                        <a href="{% url 'download_waybill_pdf' first_transport.id %}" 
-                           class="btn btn-success btn-sm" target="_blank">
-                            <i class="fas fa-file-pdf"></i> Download Waybill (All Materials)
-                        </a>
+                        <!-- Waybill download moved to Site Receipts page -->
                     </div>
                     {% endwith %}
                 </div>
@@ -234,13 +242,12 @@
                             {% if not is_schedule_officer or user.is_superuser %}
                             <div class="mt-2">
                                 <button type="button" class="btn btn-sm btn-primary update-status-btn"
-                                        data-transport-id="{{ transport.id }}"
-                                        data-current-status="{{ transport.status }}"
-                                        data-material="{{ transport.material_name }}"
-                                        data-transporter="{{ transport.transporter.name }}"
-                                        data-driver="{{ transport.driver_name }}"
-                                        data-order-code="{{ transport.material_order.request_code }}"
-                                        data-consignment-number="{{ transport.consignment_number|default:'' }}">
+                                    data-transport-id="{{ transport.id }}" data-current-status="{{ transport.status }}"
+                                    data-material="{{ transport.material_name }}"
+                                    data-transporter="{{ transport.transporter.name }}"
+                                    data-driver="{{ transport.driver_name }}"
+                                    data-order-code="{{ transport.material_order.request_code }}"
+                                    data-consignment-number="{{ transport.consignment_number|default:'' }}">
                                     <i class="fas fa-edit"></i> Update
                                 </button>
                             </div>
@@ -282,9 +289,9 @@
                 transition: all 0.3s ease;
                 position: relative;
                 overflow: hidden;
-            " onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 30px rgba(0,0,0,0.12)'" 
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.08)'">
-                
+            " onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 8px 30px rgba(0,0,0,0.12)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.08)'">
+
                 <!-- Status Header -->
                 <div style="
                     background: {% if transport.status == 'Assigned' %}linear-gradient(135deg, #6c757d 0%, #495057 100%)
@@ -311,17 +318,17 @@
                         backdrop-filter: blur(10px);
                     ">
                         {% if transport.status == 'Assigned' %}
-                            <i class="fas fa-clipboard-check"></i> Assigned
+                        <i class="fas fa-clipboard-check"></i> Assigned
                         {% elif transport.status == 'Loading' %}
-                            <i class="fas fa-dolly"></i> Loading
+                        <i class="fas fa-dolly"></i> Loading
                         {% elif transport.status == 'Loaded' %}
-                            <i class="fas fa-truck-loading"></i> Loaded
+                        <i class="fas fa-truck-loading"></i> Loaded
                         {% elif transport.status == 'In Transit' %}
-                            <i class="fas fa-shipping-fast"></i> In Transit
+                        <i class="fas fa-shipping-fast"></i> In Transit
                         {% elif transport.status == 'Delivered' %}
-                            <i class="fas fa-check-circle"></i> Delivered
+                        <i class="fas fa-check-circle"></i> Delivered
                         {% else %}
-                            <i class="fas fa-question-circle"></i> {{ transport.get_status_display }}
+                        <i class="fas fa-question-circle"></i> {{ transport.get_status_display }}
                         {% endif %}
                     </span>
                 </div>
@@ -329,65 +336,84 @@
                 <!-- Card Content -->
                 <div style="padding: 20px;">
                     <!-- Material Info -->
-                    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative; overflow: hidden;">
-                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;"></div>
-                        
+                    <div
+                        style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative; overflow: hidden;">
+                        <div
+                            style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;">
+                        </div>
+
                         <div style="position: relative; z-index: 2;">
                             <h6 style="color: white; font-weight: 700; margin-bottom: 8px; font-size: 0.95rem;">
-                                📦 {{ transport.material_order.name }}
+                                ðŸ“¦ {{ transport.material_order.name }}
                             </h6>
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                            <div
+                                style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
                                 <span style="color: #00f2fe; font-size: 0.8rem; font-weight: 600;">
-                                    Processed: {{ transport.material_order.processed_quantity|default:"0" }} {{ transport.material_order.unit }}
+                                    Processed: {{ transport.material_order.processed_quantity|default:"0" }} {{
+                                    transport.material_order.unit }}
                                 </span>
                                 <span style="color: rgba(255,255,255,0.6);">|</span>
                                 <span style="color: rgba(255,255,255,0.9); font-size: 0.8rem; font-weight: 500;">
-                                    This Transport: {{ transport.quantity|floatformat:0 }} {{ transport.material_order.unit }}
+                                    This Transport: {{ transport.quantity|floatformat:0 }} {{
+                                    transport.material_order.unit }}
                                 </span>
                             </div>
-                            
+
                             <!-- Fulfillment Status Badge -->
-                            {% if transport.quantity < transport.material_order.processed_quantity %}
-                            <div style="display: inline-block; background: rgba(255, 193, 7, 0.2); color: #ffc107; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 193, 7, 0.3);">
-                                ⚠️ Partial Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
-                            </div>
-                            {% elif transport.quantity == transport.material_order.processed_quantity %}
-                            <div style="display: inline-block; background: rgba(40, 167, 69, 0.2); color: #28a745; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(40, 167, 69, 0.3);">
-                                ✅ Full Transport
-                            </div>
-                            {% else %}
-                            <div style="display: inline-block; background: rgba(255, 87, 34, 0.2); color: #ff5722; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 87, 34, 0.3);">
-                                ⚠️ Over Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
-                            </div>
-                            {% endif %}
+                            {% if transport.quantity < transport.material_order.processed_quantity %} <div
+                                style="display: inline-block; background: rgba(255, 193, 7, 0.2); color: #ffc107; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 193, 7, 0.3);">
+                                âš ï¸ Partial Transport ({{ transport.quantity|floatformat:0 }}/{{
+                                transport.material_order.processed_quantity|floatformat:0 }})
                         </div>
+                        {% elif transport.quantity == transport.material_order.processed_quantity %}
+                        <div
+                            style="display: inline-block; background: rgba(40, 167, 69, 0.2); color: #28a745; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(40, 167, 69, 0.3);">
+                            âœ… Full Transport
+                        </div>
+                        {% else %}
+                        <div
+                            style="display: inline-block; background: rgba(255, 87, 34, 0.2); color: #ff5722; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 87, 34, 0.3);">
+                            âš ï¸ Over Transport ({{ transport.quantity|floatformat:0 }}/{{
+                            transport.material_order.processed_quantity|floatformat:0 }})
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Transport Details -->
+                <div style="display: grid; gap: 8px; font-size: 0.85rem;">
+                    <div
+                        style="background: rgba(102, 126, 234, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #667eea;">
+                        <strong style="color: #667eea;">ðŸš› Transporter:</strong> {{ transport.transporter.name }}
+                    </div>
+                    <div
+                        style="background: rgba(40, 167, 69, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #28a745;">
+                        <strong style="color: #28a745;">ðŸ‘¤ Driver:</strong> {{ transport.driver_name|default:"Not
+                        assigned" }}
+                    </div>
+                    <div
+                        style="background: rgba(255, 193, 7, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #ffc107;">
+                        <strong style="color: #e67e22;">ðŸ“ Destination:</strong> {{ transport.region }}, {{
+                        transport.district }}
+                    </div>
+                </div>
+
+                <!-- Animated Progress Bar -->
+                <div
+                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 15px; margin-top: 15px; position: relative; overflow: hidden;">
+                    <div
+                        style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;">
                     </div>
 
-                    <!-- Transport Details -->
-                    <div style="display: grid; gap: 8px; font-size: 0.85rem;">
-                        <div style="background: rgba(102, 126, 234, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #667eea;">
-                            <strong style="color: #667eea;">🚛 Transporter:</strong> {{ transport.transporter.name }}
+                    <div style="position: relative; z-index: 2;">
+                        <div style="color: white; font-weight: 600; margin-bottom: 10px; font-size: 0.8rem;">
+                            ðŸšš Transport Progress
                         </div>
-                        <div style="background: rgba(40, 167, 69, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #28a745;">
-                            <strong style="color: #28a745;">👤 Driver:</strong> {{ transport.driver_name|default:"Not assigned" }}
-                        </div>
-                        <div style="background: rgba(255, 193, 7, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #ffc107;">
-                            <strong style="color: #e67e22;">📍 Destination:</strong> {{ transport.region }}, {{ transport.district }}
-                        </div>
-                    </div>
 
-                    <!-- Animated Progress Bar -->
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 15px; margin-top: 15px; position: relative; overflow: hidden;">
-                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 10px, transparent 10px, transparent 20px); opacity: 0.4;"></div>
-                        
-                        <div style="position: relative; z-index: 2;">
-                            <div style="color: white; font-weight: 600; margin-bottom: 10px; font-size: 0.8rem;">
-                                🚚 Transport Progress
-                            </div>
-                            
-                            <!-- Progress Track -->
-                            <div style="background: rgba(255,255,255,0.2); height: 6px; border-radius: 10px; position: relative; margin-bottom: 8px;">
-                                <div style="
+                        <!-- Progress Track -->
+                        <div
+                            style="background: rgba(255,255,255,0.2); height: 6px; border-radius: 10px; position: relative; margin-bottom: 8px;">
+                            <div style="
                                     background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%);
                                     height: 100%;
                                     border-radius: 10px;
@@ -400,190 +426,207 @@
                                     position: relative;
                                     transition: width 0.5s ease;
                                 ">
-                                    <!-- Animated Truck -->
-                                    <div style="
+                                <!-- Animated Truck -->
+                                <div style="
                                         position: absolute;
                                         right: -8px;
                                         top: -8px;
                                         font-size: 16px;
                                         animation: bounce 2s infinite;
-                                    ">ᯓ⛟</div>
-                                </div>
-                            </div>
-                            
-                            <!-- Status Text -->
-                            <div style="color: rgba(255,255,255,0.9); font-size: 0.75rem; text-align: center;">
-                                Status: {{ transport.get_status_display }}
-                                {% if transport.status == 'Assigned' %} • Awaiting pickup
-                                {% elif transport.status == 'In Transit' %} • En route to destination
-                                {% elif transport.status == 'Delivered' %} • Successfully delivered
-                                {% endif %}
+                                    ">á¯“â›Ÿ</div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Action Buttons -->
-                    <div style="text-align: center; margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
-                        <a href="{% url 'download_waybill_pdf' transport.id %}" 
-                           class="btn btn-success btn-sm"
-                           style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
-                           target="_blank">
-                            <i class="fas fa-file-pdf"></i> Download Waybill
-                        </a>
-                        {% if not is_schedule_officer or user.is_superuser %}
-                        <button type="button"
-                                class="btn btn-outline-primary btn-sm update-status-btn" 
-                                style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
-                                data-transport-id="{{ transport.id }}"
-                                data-current-status="{{ transport.status }}"
-                                data-material="{{ transport.material_name }}"
-                                data-transporter="{{ transport.transporter.name }}"
-                                data-driver="{{ transport.driver_name }}"
-                                data-order-code="{{ transport.material_order.request_code }}"
-                                data-consignment-number="{{ transport.consignment_number|default:'' }}">
-                            <i class="fas fa-edit"></i> Update Status
-                        </button>
-                        {% endif %}
+                        <!-- Status Text -->
+                        <div style="color: rgba(255,255,255,0.9); font-size: 0.75rem; text-align: center;">
+                            Status: {{ transport.get_status_display }}
+                            {% if transport.status == 'Assigned' %} â€¢ Awaiting pickup
+                            {% elif transport.status == 'In Transit' %} â€¢ En route to destination
+                            {% elif transport.status == 'Delivered' %} â€¢ Successfully delivered
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
+
+                <!-- Action Buttons -->
+                <div style="text-align: center; margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                    <a href="{% url 'download_waybill_pdf' transport.id %}" class="btn btn-success btn-sm"
+                        style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;" target="_blank">
+                        <i class="fas fa-file-pdf"></i> Download Waybill
+                    </a>
+                    {% if not is_schedule_officer or user.is_superuser %}
+                    <button type="button" class="btn btn-outline-primary btn-sm update-status-btn"
+                        style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
+                        data-transport-id="{{ transport.id }}" data-current-status="{{ transport.status }}"
+                        data-material="{{ transport.material_name }}"
+                        data-transporter="{{ transport.transporter.name }}" data-driver="{{ transport.driver_name }}"
+                        data-order-code="{{ transport.material_order.request_code }}"
+                        data-consignment-number="{{ transport.consignment_number|default:'' }}">
+                        <i class="fas fa-edit"></i> Update Status
+                    </button>
+                    {% endif %}
+                </div>
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
+    </div>
 
-        <!-- Custom Scrollbar Styles -->
-        <style>
-            #transportContainer::-webkit-scrollbar {
-                height: 8px;
+    <!-- Custom Scrollbar Styles -->
+    <style>
+        #transportContainer::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        #transportContainer::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        #transportContainer::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 10px;
+        }
+
+        #transportContainer::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateY(0);
             }
-            #transportContainer::-webkit-scrollbar-track {
-                background: #f1f1f1;
-                border-radius: 10px;
+
+            40% {
+                transform: translateY(-4px);
             }
-            #transportContainer::-webkit-scrollbar-thumb {
-                background: #cbd5e0;
-                border-radius: 10px;
+
+            60% {
+                transform: translateY(-2px);
             }
-            #transportContainer::-webkit-scrollbar-thumb:hover {
-                background: #a0aec0;
+        }
+    </style>
+
+    <!-- Pagination JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const container = document.getElementById('transportContainer');
+            const cards = container.querySelectorAll('.transport-card-horizontal');
+            const cardsPerPage = 3; // Show 3 cards per page
+            const totalPages = Math.ceil(cards.length / cardsPerPage);
+            let currentPage = 1;
+
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+            const currentPageSpan = document.getElementById('currentPage');
+            const totalPagesSpan = document.getElementById('totalPages');
+            const showingCount = document.getElementById('showingCount');
+
+            // Update page info
+            totalPagesSpan.textContent = totalPages;
+
+            function showPage(page) {
+                const startIndex = (page - 1) * cardsPerPage;
+                const endIndex = startIndex + cardsPerPage;
+
+                cards.forEach((card, index) => {
+                    if (index >= startIndex && index < endIndex) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                currentPageSpan.textContent = page;
+                showingCount.textContent = Math.min(cardsPerPage, cards.length - startIndex);
+
+                // Update button states
+                prevBtn.disabled = page === 1;
+                nextBtn.disabled = page === totalPages;
+
+                // Scroll to start of container
+                container.scrollLeft = 0;
             }
-            
-            @keyframes bounce {
-                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                40% { transform: translateY(-4px); }
-                60% { transform: translateY(-2px); }
-            }
-        </style>
 
-        <!-- Pagination JavaScript -->
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const container = document.getElementById('transportContainer');
-                const cards = container.querySelectorAll('.transport-card-horizontal');
-                const cardsPerPage = 3; // Show 3 cards per page
-                const totalPages = Math.ceil(cards.length / cardsPerPage);
-                let currentPage = 1;
-
-                const prevBtn = document.getElementById('prevPage');
-                const nextBtn = document.getElementById('nextPage');
-                const currentPageSpan = document.getElementById('currentPage');
-                const totalPagesSpan = document.getElementById('totalPages');
-                const showingCount = document.getElementById('showingCount');
-
-                // Update page info
-                totalPagesSpan.textContent = totalPages;
-
-                function showPage(page) {
-                    const startIndex = (page - 1) * cardsPerPage;
-                    const endIndex = startIndex + cardsPerPage;
-
-                    cards.forEach((card, index) => {
-                        if (index >= startIndex && index < endIndex) {
-                            card.style.display = 'block';
-                        } else {
-                            card.style.display = 'none';
-                        }
-                    });
-
-                    currentPageSpan.textContent = page;
-                    showingCount.textContent = Math.min(cardsPerPage, cards.length - startIndex);
-
-                    // Update button states
-                    prevBtn.disabled = page === 1;
-                    nextBtn.disabled = page === totalPages;
-
-                    // Scroll to start of container
-                    container.scrollLeft = 0;
+            // Event listeners
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    showPage(currentPage);
                 }
-
-                // Event listeners
-                prevBtn.addEventListener('click', () => {
-                    if (currentPage > 1) {
-                        currentPage--;
-                        showPage(currentPage);
-                    }
-                });
-
-                nextBtn.addEventListener('click', () => {
-                    if (currentPage < totalPages) {
-                        currentPage++;
-                        showPage(currentPage);
-                    }
-                });
-
-                // Initialize first page
-                showPage(1);
-
-                // Add smooth scrolling with mouse wheel
-                container.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    container.scrollLeft += e.deltaY;
-                });
             });
-        </script>
-    </div>
-    {% endif %}
-    
-    {% else %}
-    <div class="text-center py-5">
-        <i class="fas fa-truck fa-3x text-muted mb-3"></i>
-        <h4 class="text-muted">No active transports</h4>
-        <p class="text-muted">All shipments have been completed or there are no active assignments.</p>
-        <a href="{% url 'transport_assignment' %}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Create New Assignment
-        </a>
-    </div>
-    {% endif %}
-    
-    {% if is_paginated %}
-    <nav aria-label="Transportation status pagination">
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">&laquo; First</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Previous</a>
-                </li>
-            {% endif %}
-            
-            <li class="page-item active">
-                <span class="page-link">
-                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                </span>
-            </li>
-            
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Next</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Last &raquo;</a>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
-    {% endif %}
-    
+
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    showPage(currentPage);
+                }
+            });
+
+            // Initialize first page
+            showPage(1);
+
+            // Add smooth scrolling with mouse wheel
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                container.scrollLeft += e.deltaY;
+            });
+        });
+    </script>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-truck fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No active transports</h4>
+    <p class="text-muted">All shipments have been completed or there are no active assignments.</p>
+    <a href="{% url 'transport_assignment' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create New Assignment
+    </a>
+</div>
+{% endif %}
+
+{% if is_paginated %}
+<nav aria-label="Transportation status pagination">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link"
+                href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">&laquo;
+                First</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link"
+                href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+                href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Next</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link"
+                href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if transporter_filter %}&transporter={{ transporter_filter }}{% endif %}">Last
+                &raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
 </div>
 
 <!-- Status Update Modal -->
@@ -603,10 +646,12 @@
                     <!-- Bulk Consignment Warning -->
                     <div id="bulkConsignmentWarning" class="alert alert-warning mb-3" style="display: none;">
                         <h6 class="mb-2"><i class="fas fa-boxes"></i> <strong>Bulk Consignment</strong></h6>
-                        <p class="mb-1">This transport is part of a bulk consignment: <strong><span id="modalConsignmentNumber"></span></strong></p>
-                        <p class="mb-0"><small><i class="fas fa-info-circle"></i> Updating this status will affect <strong>ALL</strong> transports in this consignment.</small></p>
+                        <p class="mb-1">This transport is part of a bulk consignment: <strong><span
+                                    id="modalConsignmentNumber"></span></strong></p>
+                        <p class="mb-0"><small><i class="fas fa-info-circle"></i> Updating this status will affect
+                                <strong>ALL</strong> transports in this consignment.</small></p>
                     </div>
-                    
+
                     <!-- Transport Info -->
                     <div class="alert alert-info mb-3">
                         <h6 class="mb-2"><strong>Transport Details</strong></h6>
@@ -615,7 +660,7 @@
                         <p class="mb-1"><strong>Transporter:</strong> <span id="modalTransporter"></span></p>
                         <p class="mb-0"><strong>Driver:</strong> <span id="modalDriver"></span></p>
                     </div>
-                    
+
                     <!-- Current Status -->
                     <div class="mb-3">
                         <label class="form-label"><strong>Current Status</strong></label>
@@ -623,7 +668,7 @@
                             <span id="currentStatusBadge" class="badge bg-secondary fs-6"></span>
                         </div>
                     </div>
-                    
+
                     <!-- Status Workflow Guide -->
                     <div class="alert alert-light border mb-3">
                         <h6 class="mb-2"><i class="fas fa-route"></i> <strong>Status Workflow</strong></h6>
@@ -639,7 +684,7 @@
                             <span class="badge bg-success">Delivered</span>
                         </div>
                     </div>
-                    
+
                     <!-- New Status Selection -->
                     <div class="mb-3">
                         <label for="newStatus" class="form-label"><strong>Update Status To</strong> *</label>
@@ -652,11 +697,12 @@
                             <option value="Delivered">Delivered to Site</option>
                         </select>
                     </div>
-                    
+
                     <!-- Notes -->
                     <div class="mb-3">
                         <label for="statusNotes" class="form-label">Notes (Optional)</label>
-                        <textarea class="form-control" id="statusNotes" name="notes" rows="3" placeholder="Add any additional notes about this status update..."></textarea>
+                        <textarea class="form-control" id="statusNotes" name="notes" rows="3"
+                            placeholder="Add any additional notes about this status update..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -665,7 +711,8 @@
                     </button>
                     <button type="submit" class="btn btn-primary" id="statusSubmitBtn">
                         <i class="fas fa-save"></i> <span id="statusSubmitText">Update Status</span>
-                        <span id="statusSubmitSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
+                        <span id="statusSubmitSpinner" class="spinner-border spinner-border-sm d-none ms-2"
+                            role="status" aria-hidden="true"></span>
                     </button>
                 </div>
             </form>
@@ -677,168 +724,192 @@
 {% block extra_js %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-// Debug: Check if jQuery is loaded
-console.log('jQuery loaded:', typeof jQuery !== 'undefined');
-console.log('Bootstrap loaded:', typeof bootstrap !== 'undefined');
+    // Debug: Check if jQuery is loaded
+    console.log('jQuery loaded:', typeof jQuery !== 'undefined');
+    console.log('Bootstrap loaded:', typeof bootstrap !== 'undefined');
 
-$(document).ready(function() {
-    console.log('=== Transportation Status JS Loaded ===');
-    console.log('Number of update buttons:', $('.update-status-btn').length);
-    
-    // Handle status update button clicks using event delegation
-    // This ensures buttons work even if they're hidden/paginated
-    $(document).on('click', '.update-status-btn', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('=== Update Status Button Clicked ===');
-        var transportId = $(this).data('transport-id');
-        var currentStatus = $(this).data('current-status');
-        var material = $(this).data('material');
-        var transporter = $(this).data('transporter');
-        var driver = $(this).data('driver');
-        var orderCode = $(this).data('order-code');
-        var consignmentNumber = $(this).data('consignment-number');
-        
-        // Populate hidden field
-        $('#transportId').val(transportId);
-        
-        // Populate transport details
-        $('#modalOrderCode').text(orderCode);
-        $('#modalMaterial').text(material);
-        $('#modalTransporter').text(transporter);
-        $('#modalDriver').text(driver || 'N/A');
-        
-        // Show/hide bulk consignment warning
-        if (consignmentNumber) {
-            $('#modalConsignmentNumber').text(consignmentNumber);
-            $('#bulkConsignmentWarning').show();
-        } else {
-            $('#bulkConsignmentWarning').hide();
-        }
-        
-        // Show current status with appropriate badge color
-        var statusBadge = $('#currentStatusBadge');
-        statusBadge.removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
-        statusBadge.text(currentStatus);
-        
-        if (currentStatus === 'Assigned') statusBadge.addClass('bg-secondary');
-        else if (currentStatus === 'Loading') statusBadge.addClass('bg-warning text-dark');
-        else if (currentStatus === 'Loaded') statusBadge.addClass('bg-info');
-        else if (currentStatus === 'In Transit') statusBadge.addClass('bg-primary');
-        else if (currentStatus === 'Delivered') statusBadge.addClass('bg-success');
-        
-        // Set default new status (next in workflow)
-        var nextStatus = '';
-        if (currentStatus === 'Assigned') nextStatus = 'Loading';
-        else if (currentStatus === 'Loading') nextStatus = 'Loaded';
-        else if (currentStatus === 'Loaded') nextStatus = 'In Transit';
-        else if (currentStatus === 'In Transit') nextStatus = 'Delivered';
-        
-        $('#newStatus').val(nextStatus);
-        
-        console.log('All data populated, showing modal...');
-        
-        // Show modal using Bootstrap 5
-        try {
-            var modalElement = document.getElementById('statusUpdateModal');
-            var modal = new bootstrap.Modal(modalElement);
-            modal.show();
-            console.log('Modal shown successfully');
-        } catch (error) {
-            console.error('Error showing modal:', error);
-            // Fallback to jQuery if Bootstrap 5 not available
-            $('#statusUpdateModal').modal('show');
-        }
-    });
-    
-    // Handle status update form submission
-    $('#statusUpdateForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        // Prevent double submission
-        var $submitBtn = $('#statusSubmitBtn');
-        if ($submitBtn.prop('disabled')) {
-            return false;
-        }
-        
-        var transportId = $('#transportId').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            type: 'POST',
-            url: '{% url "update_transport_status" 0 %}'.replace('0', transportId),
-            data: formData,
-            beforeSend: function() {
-                // Disable button and show loading
-                $submitBtn.prop('disabled', true);
-                $('#statusSubmitText').text('Updating...');
-                $('#statusSubmitSpinner').removeClass('d-none');
-            },
-            success: function(response) {
-                if (response.success) {
-                    $('#statusSubmitText').text('Success!');
-                    $('#statusSubmitSpinner').addClass('d-none');
-                    
-                    // Show success message with details
-                    if (response.is_bulk && response.updated_count > 1) {
-                        // Bulk consignment update
-                        var message = 'Bulk consignment updated! ' + response.updated_count + ' transport(s) updated to ' + response.status;
-                        if (response.updated_orders && response.updated_orders.length > 0) {
-                            message += '\n\nUpdated orders: ' + response.updated_orders.join(', ');
+    $(document).ready(function () {
+        console.log('=== Transportation Status JS Loaded ===');
+        console.log('Number of update buttons:', $('.update-status-btn').length);
+
+        // Handle status update button clicks using event delegation
+        // This ensures buttons work even if they're hidden/paginated
+        $(document).on('click', '.update-status-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('=== Update Status Button Clicked ===');
+            var transportId = $(this).data('transport-id');
+            var currentStatus = $(this).data('current-status');
+            var material = $(this).data('material');
+            var transporter = $(this).data('transporter');
+            var driver = $(this).data('driver');
+            var orderCode = $(this).data('order-code');
+            var consignmentNumber = $(this).data('consignment-number');
+
+            // Populate hidden field
+            $('#transportId').val(transportId);
+
+            // Populate transport details
+            $('#modalOrderCode').text(orderCode);
+            $('#modalMaterial').text(material);
+            $('#modalTransporter').text(transporter);
+            $('#modalDriver').text(driver || 'N/A');
+
+            // Show/hide bulk consignment warning
+            if (consignmentNumber) {
+                $('#modalConsignmentNumber').text(consignmentNumber);
+                $('#bulkConsignmentWarning').show();
+            } else {
+                $('#bulkConsignmentWarning').hide();
+            }
+
+            // Show current status with appropriate badge color
+            var statusBadge = $('#currentStatusBadge');
+            statusBadge.removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
+            statusBadge.text(currentStatus);
+
+            if (currentStatus === 'Assigned') statusBadge.addClass('bg-secondary');
+            else if (currentStatus === 'Loading') statusBadge.addClass('bg-warning text-dark');
+            else if (currentStatus === 'Loaded') statusBadge.addClass('bg-info');
+            else if (currentStatus === 'In Transit') statusBadge.addClass('bg-primary');
+            else if (currentStatus === 'Delivered') statusBadge.addClass('bg-success');
+
+            // Set default new status (next in workflow)
+            var nextStatus = '';
+            if (currentStatus === 'Assigned') nextStatus = 'Loading';
+            else if (currentStatus === 'Loading') nextStatus = 'Loaded';
+            else if (currentStatus === 'Loaded') nextStatus = 'In Transit';
+            else if (currentStatus === 'In Transit') nextStatus = 'Delivered';
+
+            $('#newStatus').val(nextStatus);
+
+            console.log('All data populated, showing modal...');
+
+            // Show modal using Bootstrap 5
+            try {
+                var modalElement = document.getElementById('statusUpdateModal');
+                var modal = new bootstrap.Modal(modalElement);
+                modal.show();
+                console.log('Modal shown successfully');
+            } catch (error) {
+                console.error('Error showing modal:', error);
+                // Fallback to jQuery if Bootstrap 5 not available
+                $('#statusUpdateModal').modal('show');
+            }
+        });
+
+        // Handle status update form submission
+        $('#statusUpdateForm').on('submit', function (e) {
+            e.preventDefault();
+
+            // Prevent double submission
+            var $submitBtn = $('#statusSubmitBtn');
+            if ($submitBtn.prop('disabled')) {
+                return false;
+            }
+
+            var transportId = $('#transportId').val();
+            var formData = $(this).serialize();
+
+            $.ajax({
+                type: 'POST',
+                url: '{% url "update_transport_status" 0 %}'.replace('0', transportId),
+                data: formData,
+                beforeSend: function () {
+                    // Disable button and show loading
+                    $submitBtn.prop('disabled', true);
+                    $('#statusSubmitText').text('Updating...');
+                    $('#statusSubmitSpinner').removeClass('d-none');
+                },
+                success: function (response) {
+                    if (response.success) {
+                        $('#statusSubmitText').text('Success!');
+                        $('#statusSubmitSpinner').addClass('d-none');
+
+                        // Show success message with details
+                        if (response.is_bulk && response.updated_count > 1) {
+                            // Bulk consignment update
+                            var message = 'Bulk consignment updated! ' + response.updated_count + ' transport(s) updated to ' + response.status;
+                            if (response.updated_orders && response.updated_orders.length > 0) {
+                                message += '\n\nUpdated orders: ' + response.updated_orders.join(', ');
+                            }
+                            alert(message);
                         }
-                        alert(message);
+
+                        setTimeout(function () {
+                            $('#statusUpdateModal').modal('hide');
+                            location.reload();
+                        }, 500);
+                    } else {
+                        alert('Error: ' + (response.error || 'Unknown error occurred'));
+                        // Re-enable button
+                        $submitBtn.prop('disabled', false);
+                        $('#statusSubmitText').text('Update Status');
+                        $('#statusSubmitSpinner').addClass('d-none');
                     }
-                    
-                    setTimeout(function() {
-                        $('#statusUpdateModal').modal('hide');
-                        location.reload();
-                    }, 500);
-                } else {
-                    alert('Error: ' + (response.error || 'Unknown error occurred'));
+                },
+                error: function (xhr, status, error) {
+                    console.error('AJAX error:', error);
+                    alert('An error occurred. Please try again.');
                     // Re-enable button
                     $submitBtn.prop('disabled', false);
                     $('#statusSubmitText').text('Update Status');
                     $('#statusSubmitSpinner').addClass('d-none');
                 }
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX error:', error);
-                alert('An error occurred. Please try again.');
-                // Re-enable button
-                $submitBtn.prop('disabled', false);
+            });
+        });
+
+        // Reset modal state when closed (Bootstrap 5 event)
+        var statusModal = document.getElementById('statusUpdateModal');
+        if (statusModal) {
+            statusModal.addEventListener('hidden.bs.modal', function () {
+                console.log('Modal closed, resetting state...');
+                $('#statusUpdateForm')[0].reset();
+                $('#transportId').val('');
+                $('#modalOrderCode').text('');
+                $('#modalMaterial').text('');
+                $('#modalTransporter').text('');
+                $('#modalDriver').text('');
+                $('#currentStatusBadge').text('').removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
+
+                // Reset submit button
+                $('#statusSubmitBtn').prop('disabled', false);
                 $('#statusSubmitText').text('Update Status');
                 $('#statusSubmitSpinner').addClass('d-none');
-            }
-        });
+            });
+        }
+
+        // Log final setup completion
+        setTimeout(function () {
+            console.log('=== Final Setup Check ===');
+            console.log('Update buttons with class:', $('.update-status-btn').length);
+            console.log('Modal element:', $('#statusUpdateModal').length > 0 ? 'Found' : 'NOT FOUND');
+            console.log('First button data:', $('.update-status-btn').first().data());
+        }, 500);
     });
-    
-    // Reset modal state when closed (Bootstrap 5 event)
-    var statusModal = document.getElementById('statusUpdateModal');
-    if (statusModal) {
-        statusModal.addEventListener('hidden.bs.modal', function () {
-            console.log('Modal closed, resetting state...');
-            $('#statusUpdateForm')[0].reset();
-            $('#transportId').val('');
-            $('#modalOrderCode').text('');
-            $('#modalMaterial').text('');
-            $('#modalTransporter').text('');
-            $('#modalDriver').text('');
-            $('#currentStatusBadge').text('').removeClass('bg-secondary bg-warning bg-info bg-primary bg-success');
-            
-            // Reset submit button
-            $('#statusSubmitBtn').prop('disabled', false);
-            $('#statusSubmitText').text('Update Status');
-            $('#statusSubmitSpinner').addClass('d-none');
-        });
-    }
-    
-    // Log final setup completion
-    setTimeout(function() {
-        console.log('=== Final Setup Check ===');
-        console.log('Update buttons with class:', $('.update-status-btn').length);
-        console.log('Modal element:', $('#statusUpdateModal').length > 0 ? 'Found' : 'NOT FOUND');
-        console.log('First button data:', $('.update-status-btn').first().data());
-    }, 500);
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'transportation_status',
+        title: 'Transportation Status',
+        subtitle: 'Monitor material shipments in real-time',
+        icon: '🚚',
+        features: [
+            { icon: '📍', title: 'Live Tracking', desc: 'Track shipments from warehouse to site' },
+            { icon: '🔄', title: 'Status Updates', desc: 'Update delivery status in real-time' },
+            { icon: '📋', title: 'Waybill Management', desc: 'Generate and track waybills' },
+            { icon: '✅', title: 'Delivery Confirmation', desc: 'Confirm receipt at destination' }
+        ],
+        tips: [
+            'Use filters to find specific shipments',
+            'Click Update Status to change delivery stage',
+            'Colors indicate current shipment status'
+        ]
+    });
 });
 </script>
 {% endblock %}

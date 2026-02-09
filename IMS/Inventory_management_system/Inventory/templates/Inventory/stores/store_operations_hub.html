@@ -1,0 +1,881 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}Store Operations Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+    :root {
+        --hub-primary: #1a5490;
+        --hub-accent: #0dcaf0;
+        --hub-success: #10b981;
+        --hub-warning: #f59e0b;
+        --hub-danger: #ef4444;
+        --hub-dark: #1e293b;
+    }
+    
+    /* Stats Cards with Glassmorphism */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.25rem;
+        border: 1px solid rgba(255,255,255,0.3);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        border-radius: 16px 0 0 16px;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    
+    .stat-card.today::before { background: var(--hub-accent); }
+    .stat-card.pending::before { background: var(--hub-warning); }
+    .stat-card.progress::before { background: #6366f1; }
+    .stat-card.transit::before { background: #8b5cf6; }
+    .stat-card.completed::before { background: var(--hub-success); }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--hub-dark);
+        line-height: 1;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-top: 0.25rem;
+    }
+    
+    .stat-icon {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        font-size: 1.5rem;
+        opacity: 0.2;
+    }
+    
+    /* View Tabs */
+    .view-tabs {
+        display: flex;
+        gap: 0.5rem;
+        background: #f1f5f9;
+        padding: 0.25rem;
+        border-radius: 12px;
+        width: fit-content;
+    }
+    
+    .view-tab {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: #64748b;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .view-tab:hover {
+        color: var(--hub-primary);
+        background: rgba(26, 84, 144, 0.05);
+    }
+    
+    .view-tab.active {
+        background: white;
+        color: var(--hub-primary);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    /* Filter Bar */
+    .filter-bar {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    
+    /* Table Styles */
+    .hub-table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    
+    .hub-table table {
+        margin-bottom: 0;
+    }
+    
+    .hub-table thead th {
+        background: var(--hub-dark);
+        color: white;
+        font-weight: 600;
+        padding: 1rem;
+        border: none;
+        white-space: nowrap;
+    }
+    
+    .hub-table tbody tr {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .hub-table tbody tr:hover {
+        background: #f8fafc;
+    }
+    
+    .hub-table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    /* Progress Bar */
+    .mini-progress {
+        width: 100px;
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .mini-progress-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+    
+    .mini-progress-bar.low { background: var(--hub-danger); }
+    .mini-progress-bar.medium { background: var(--hub-warning); }
+    .mini-progress-bar.high { background: var(--hub-success); }
+    
+    /* Status Badges */
+    .status-chip {
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    
+    .status-chip.pending { background: #fef3c7; color: #92400e; }
+    .status-chip.approved { background: #dbeafe; color: #1e40af; }
+    .status-chip.in-progress { background: #e0e7ff; color: #3730a3; }
+    .status-chip.partial { background: #fce7f3; color: #9d174d; }
+    .status-chip.completed { background: #d1fae5; color: #065f46; }
+    
+    /* Priority Indicators */
+    .priority-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    
+    .priority-dot.urgent { background: var(--hub-danger); }
+    .priority-dot.high { background: #f97316; }
+    .priority-dot.medium { background: var(--hub-warning); }
+    .priority-dot.low { background: #94a3b8; }
+    
+    /* Process Modal */
+    .process-modal .modal-content {
+        border-radius: 16px;
+        border: none;
+    }
+    
+    .process-modal .modal-header {
+        background: linear-gradient(135deg, var(--hub-primary), #2563eb);
+        color: white;
+        border-radius: 16px 16px 0 0;
+    }
+    
+    .quantity-slider {
+        margin: 1rem 0;
+    }
+    
+    .quantity-display {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--hub-primary);
+        text-align: center;
+    }
+    
+    /* Expandable Row Details */
+    .row-details {
+        background: #f8fafc;
+        padding: 1rem;
+        display: none;
+    }
+    
+    .row-details.show {
+        display: block;
+    }
+    
+    /* Kanban View */
+    .kanban-board {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        min-height: 500px;
+    }
+    
+    .kanban-column {
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 1rem;
+    }
+    
+    .kanban-column-header {
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .kanban-count {
+        background: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+    }
+    
+    .kanban-card {
+        background: white;
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .kanban-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+    
+    /* Timeline View */
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 0.5rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e2e8f0;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+    }
+    
+    .timeline-dot {
+        position: absolute;
+        left: -1.75rem;
+        top: 0.25rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--hub-primary);
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .timeline-content {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    /* Action Buttons */
+    .btn-process {
+        background: linear-gradient(135deg, var(--hub-primary), #2563eb);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-process:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(26, 84, 144, 0.3);
+        color: white;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .kanban-board {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block full_width_content %}
+{% csrf_token %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-1">🏢 Store Operations Hub</h1>
+            <p class="text-muted mb-0">
+                {% if user_role == 'store_officer' %}Your assigned orders and processing dashboard
+                {% elif user_role == 'schedule_officer' %}Archive view - All store operations
+                {% else %}Complete store operations management
+                {% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_assign %}
+            <a href="{% url 'stores_pending_orders' %}" class="btn btn-outline-primary">
+                <i class="fas fa-clipboard-list me-1"></i>Pending Orders
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card today">
+            <i class="fas fa-calendar-day stat-icon"></i>
+            <div class="stat-value">{{ stats.today_new }}</div>
+            <div class="stat-label">Today's New</div>
+        </div>
+        <div class="stat-card pending">
+            <i class="fas fa-hourglass-half stat-icon"></i>
+            <div class="stat-value">{{ stats.pending_start }}</div>
+            <div class="stat-label">Pending Start</div>
+        </div>
+        <div class="stat-card progress">
+            <i class="fas fa-spinner stat-icon"></i>
+            <div class="stat-value">{{ stats.in_progress|add:stats.partially_fulfilled }}</div>
+            <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card transit">
+            <i class="fas fa-truck stat-icon"></i>
+            <div class="stat-value">{{ stats.in_transit }}</div>
+            <div class="stat-label">In Transit</div>
+        </div>
+        <div class="stat-card completed">
+            <i class="fas fa-check-circle stat-icon"></i>
+            <div class="stat-value">{{ stats.completed }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+    </div>
+
+    <!-- View Tabs & Filters -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <div class="view-tabs">
+            <a href="?view=table{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" 
+               class="view-tab {% if view_mode == 'table' %}active{% endif %}">
+                <i class="fas fa-table"></i> Table
+            </a>
+            <a href="?view=kanban{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" 
+               class="view-tab {% if view_mode == 'kanban' %}active{% endif %}">
+                <i class="fas fa-columns"></i> Kanban
+            </a>
+            <a href="?view=timeline{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" 
+               class="view-tab {% if view_mode == 'timeline' %}active{% endif %}">
+                <i class="fas fa-stream"></i> Timeline
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <input type="hidden" name="view" value="{{ view_mode }}">
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Status</label>
+                <select class="form-select form-select-sm" name="status">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Priority</label>
+                <select class="form-select form-select-sm" name="priority">
+                    <option value="">All Priorities</option>
+                    {% for value, label in priority_choices %}
+                    <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Date Range</label>
+                <select class="form-select form-select-sm" name="date_range">
+                    {% for value, label in date_range_choices %}
+                    <option value="{{ value }}" {% if selected_date_range == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-muted small">Search</label>
+                <input type="text" class="form-control form-control-sm" name="search" 
+                       placeholder="Request code, material, user..." value="{{ search_query }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="fas fa-filter me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Content Views -->
+    {% if view_mode == 'table' %}
+    <!-- TABLE VIEW -->
+    {% if orders %}
+    <div class="hub-table">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Request Code</th>
+                        <th>Material</th>
+                        <th>Quantity</th>
+                        <th>Progress</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Requested By</th>
+                        <th>Date</th>
+                        {% if can_process %}<th>Actions</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr data-order-id="{{ order.id }}">
+                        <td><strong>{{ order.request_code }}</strong></td>
+                        <td>
+                            <div>{{ order.name|truncatechars:30 }}</div>
+                            <small class="text-muted">{{ order.category }}</small>
+                        </td>
+                        <td>
+                            <div>{{ order.quantity|floatformat:0|intcomma }} {{ order.unit }}</div>
+                            <small class="text-muted">Proc: {{ order.processed_quantity|default:0|floatformat:0|intcomma }}</small>
+                        </td>
+                        <td>
+                            {% with percent=order.fulfillment_percentage|default:0 %}
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="mini-progress">
+                                    <div class="mini-progress-bar {% if percent < 30 %}low{% elif percent < 70 %}medium{% else %}high{% endif %}" 
+                                         style="width: {{ percent }}%"></div>
+                                </div>
+                                <small>{{ percent|floatformat:0 }}%</small>
+                            </div>
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <span class="status-chip {% if order.status == 'Pending' %}pending{% elif order.status == 'Approved' %}approved{% elif order.status == 'In Progress' %}in-progress{% elif order.status == 'Partially Fulfilled' %}partial{% elif order.status == 'Completed' %}completed{% endif %}">
+                                {{ order.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="priority-dot {{ order.priority|lower }}"></span>{{ order.priority }}
+                        </td>
+                        <td>
+                            <div>{{ order.user.get_full_name|default:order.user.username }}</div>
+                            <small class="text-muted">{{ order.region|default:"" }}</small>
+                        </td>
+                        <td>
+                            <small>{{ order.date_requested|date:"M d, Y" }}</small>
+                        </td>
+                        {% if can_process %}
+                        <td>
+                            {% if order.status != 'Completed' %}
+                            <button type="button" class="btn btn-process btn-sm" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#processModal"
+                                    data-order-id="{{ order.id }}"
+                                    data-order-code="{{ order.request_code }}"
+                                    data-order-name="{{ order.name }}"
+                                    data-order-quantity="{{ order.quantity }}"
+                                    data-order-processed="{{ order.processed_quantity|default:0 }}"
+                                    data-order-unit="{{ order.unit }}">
+                                <i class="fas fa-cog me-1"></i>Process
+                            </button>
+                            {% else %}
+                            <span class="text-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+        <h5 class="text-muted">No orders found</h5>
+        <p class="text-muted">Try adjusting your filters or check back later.</p>
+    </div>
+    {% endif %}
+
+    {% elif view_mode == 'kanban' %}
+    <!-- KANBAN VIEW -->
+    <div class="kanban-board">
+        <div class="kanban-column">
+            <div class="kanban-column-header">
+                <span><i class="fas fa-clipboard-list me-2 text-warning"></i>Assigned</span>
+                <span class="kanban-count">{{ kanban_columns.assigned|length }}</span>
+            </div>
+            {% for order in kanban_columns.assigned %}
+            <div class="kanban-card">
+                <div class="fw-bold mb-1">{{ order.request_code }}</div>
+                <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">{{ order.quantity|floatformat:0 }} {{ order.unit }}</small>
+                    <span class="priority-dot {{ order.priority|lower }}"></span>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-muted small text-center py-3">No orders</div>
+            {% endfor %}
+        </div>
+        
+        <div class="kanban-column">
+            <div class="kanban-column-header">
+                <span><i class="fas fa-spinner me-2 text-primary"></i>In Progress</span>
+                <span class="kanban-count">{{ kanban_columns.in_progress|length }}</span>
+            </div>
+            {% for order in kanban_columns.in_progress %}
+            <div class="kanban-card">
+                <div class="fw-bold mb-1">{{ order.request_code }}</div>
+                <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+                <div class="mini-progress mb-1">
+                    <div class="mini-progress-bar medium" style="width: {{ order.fulfillment_percentage|default:0 }}%"></div>
+                </div>
+                <small>{{ order.fulfillment_percentage|default:0|floatformat:0 }}% complete</small>
+            </div>
+            {% empty %}
+            <div class="text-muted small text-center py-3">No orders</div>
+            {% endfor %}
+        </div>
+        
+        <div class="kanban-column">
+            <div class="kanban-column-header">
+                <span><i class="fas fa-adjust me-2 text-info"></i>Partial</span>
+                <span class="kanban-count">{{ kanban_columns.partial|length }}</span>
+            </div>
+            {% for order in kanban_columns.partial %}
+            <div class="kanban-card">
+                <div class="fw-bold mb-1">{{ order.request_code }}</div>
+                <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+                <div class="mini-progress mb-1">
+                    <div class="mini-progress-bar medium" style="width: {{ order.fulfillment_percentage|default:0 }}%"></div>
+                </div>
+                <small>{{ order.processed_quantity|default:0|floatformat:0 }}/{{ order.quantity|floatformat:0 }} {{ order.unit }}</small>
+            </div>
+            {% empty %}
+            <div class="text-muted small text-center py-3">No orders</div>
+            {% endfor %}
+        </div>
+        
+        <div class="kanban-column">
+            <div class="kanban-column-header">
+                <span><i class="fas fa-check-circle me-2 text-success"></i>Completed</span>
+                <span class="kanban-count">{{ kanban_columns.completed|length }}</span>
+            </div>
+            {% for order in kanban_columns.completed %}
+            <div class="kanban-card">
+                <div class="fw-bold mb-1">{{ order.request_code }}</div>
+                <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-success"><i class="fas fa-check"></i> Done</small>
+                    <small class="text-muted">{{ order.date_requested|timesince }} ago</small>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-muted small text-center py-3">No orders</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% elif view_mode == 'timeline' %}
+    <!-- TIMELINE VIEW -->
+    <div class="card">
+        <div class="card-body">
+            <div class="timeline">
+                {% for order in timeline_items %}
+                <div class="timeline-item">
+                    <div class="timeline-dot" style="background: {% if order.status == 'Completed' %}var(--hub-success){% elif order.status == 'In Progress' or order.status == 'Partially Fulfilled' %}var(--hub-accent){% else %}var(--hub-warning){% endif %}"></div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>{{ order.request_code }}</strong>
+                                <span class="status-chip ms-2 {% if order.status == 'Completed' %}completed{% elif order.status == 'In Progress' %}in-progress{% elif order.status == 'Partially Fulfilled' %}partial{% else %}pending{% endif %}">
+                                    {{ order.status }}
+                                </span>
+                            </div>
+                            <small class="text-muted">{{ order.date_requested|timesince }} ago</small>
+                        </div>
+                        <div class="mb-2">{{ order.name }}</div>
+                        <div class="d-flex gap-3 text-muted small">
+                            <span><i class="fas fa-box me-1"></i>{{ order.quantity|floatformat:0|intcomma }} {{ order.unit }}</span>
+                            <span><i class="fas fa-user me-1"></i>{{ order.user.username }}</span>
+                            {% if order.region %}<span><i class="fas fa-map-marker-alt me-1"></i>{{ order.region }}</span>{% endif %}
+                        </div>
+                        {% if order.processed_quantity and order.processed_quantity > 0 %}
+                        <div class="mt-2">
+                            <div class="mini-progress" style="width: 150px;">
+                                <div class="mini-progress-bar high" style="width: {{ order.fulfillment_percentage|default:0 }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ order.processed_quantity|floatformat:0|intcomma }}/{{ order.quantity|floatformat:0|intcomma }} processed</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-history fa-3x mb-3"></i>
+                    <p>No activity to show</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&view={{ view_mode }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&view={{ view_mode }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Process Modal -->
+{% if can_process %}
+<div class="modal fade process-modal" id="processModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Process Order</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong id="modalOrderCode"></strong>
+                    <div class="text-muted" id="modalOrderName"></div>
+                </div>
+                
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <div class="text-muted small">Requested</div>
+                        <div class="fw-bold" id="modalRequested">0</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Processed</div>
+                        <div class="fw-bold text-primary" id="modalProcessed">0</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Remaining</div>
+                        <div class="fw-bold text-warning" id="modalRemaining">0</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Quantity to Process</label>
+                    <div class="quantity-display" id="quantityDisplay">0</div>
+                    <input type="range" class="form-range quantity-slider" id="quantitySlider" min="0" max="100" value="0">
+                    <div class="d-flex justify-content-between text-muted small">
+                        <span>0</span>
+                        <span id="maxQuantity">0</span>
+                    </div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="assignTransport">
+                    <label class="form-check-label" for="assignTransport">
+                        Assign to transporter after processing
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-process" id="processBtn" onclick="processOrder()">
+                    <i class="fas fa-check me-1"></i>Process
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+let currentOrderId = null;
+let currentMax = 0;
+let currentUnit = '';
+
+// Handle modal open
+document.querySelectorAll('[data-bs-target="#processModal"]').forEach(btn => {
+    btn.addEventListener('click', function() {
+        currentOrderId = this.dataset.orderId;
+        const code = this.dataset.orderCode;
+        const name = this.dataset.orderName;
+        const quantity = parseFloat(this.dataset.orderQuantity);
+        const processed = parseFloat(this.dataset.orderProcessed);
+        currentUnit = this.dataset.orderUnit;
+        currentMax = quantity - processed;
+        
+        document.getElementById('modalOrderCode').textContent = code;
+        document.getElementById('modalOrderName').textContent = name;
+        document.getElementById('modalRequested').textContent = quantity.toLocaleString() + ' ' + currentUnit;
+        document.getElementById('modalProcessed').textContent = processed.toLocaleString() + ' ' + currentUnit;
+        document.getElementById('modalRemaining').textContent = currentMax.toLocaleString() + ' ' + currentUnit;
+        document.getElementById('maxQuantity').textContent = currentMax.toLocaleString();
+        
+        const slider = document.getElementById('quantitySlider');
+        slider.max = currentMax;
+        slider.value = 0;
+        document.getElementById('quantityDisplay').textContent = '0 ' + currentUnit;
+    });
+});
+
+// Handle slider change
+document.getElementById('quantitySlider')?.addEventListener('input', function() {
+    document.getElementById('quantityDisplay').textContent = parseFloat(this.value).toLocaleString() + ' ' + currentUnit;
+});
+
+// Process order
+function processOrder() {
+    const quantity = parseFloat(document.getElementById('quantitySlider').value);
+    
+    if (quantity <= 0) {
+        alert('Please select a quantity to process');
+        return;
+    }
+    
+    const btn = document.getElementById('processBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
+    
+    const formData = new FormData();
+    formData.append('quantity', quantity);
+    
+    fetch(`/stores/order/${currentOrderId}/process-partial/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal and reload
+            bootstrap.Modal.getInstance(document.getElementById('processModal')).hide();
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Process';
+        }
+    })
+    .catch(error => {
+        alert('Error processing order: ' + error);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Process';
+    });
+}
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'store_operations_hub',
+        title: 'Store Operations Hub',
+        subtitle: 'Your central dashboard for managing store orders',
+        icon: '🏢',
+        features: [
+            { icon: '📊', title: 'Live Statistics', desc: 'Real-time metrics for all your orders' },
+            { icon: '📋', title: 'Multiple Views', desc: 'Switch between Table, Kanban, and Timeline' },
+            { icon: '⚙️', title: 'Partial Processing', desc: 'Process orders in increments' },
+            { icon: '🔍', title: 'Smart Filters', desc: 'Filter by status, priority, and date' },
+            { icon: '📱', title: 'Responsive Design', desc: 'Works on desktop and mobile' },
+            { icon: '🚀', title: 'Quick Actions', desc: 'Process orders with one click' }
+        ],
+        tips: [
+            'Use the Kanban view to visualize order flow',
+            'Click on Process to handle partial quantities',
+            'Filter by date range to see historical orders'
+        ]
+    });
+});
+</script>
+{% endblock %}

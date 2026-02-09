@@ -42,6 +42,8 @@
                         </li>
                         <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'requisition_status' %}">📋 Requisition Status</a>
+                        </li>
                         <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
                         <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                         <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📋 Release
@@ -75,6 +77,8 @@
                         </li>
                         <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'requisition_status' %}">📋 Requisition Status</a>
+                        </li>
                         <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
                         <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
                         <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📋 Release
@@ -98,6 +102,7 @@
                         <li>
                             <h6 class="dropdown-header">My Work</h6>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned
                                 Orders</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
@@ -155,6 +160,7 @@
                         <li>
                             <h6 class="dropdown-header">My Work</h6>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned
                                 Orders</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
@@ -212,6 +218,7 @@
                         <li>
                             <h6 class="dropdown-header">Order Assignment</h6>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a>
                         </li>
@@ -271,6 +278,7 @@
                         <li>
                             <h6 class="dropdown-header">Order Assignment</h6>
                         </li>
+                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
                         <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a>
                         </li>
@@ -369,6 +377,24 @@
                                 Analysis</a></li>
                         <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📊 Release
                                 Letter Tracking</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li>
+                            <h6 class="dropdown-header">SHEP Community Management</h6>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'shep_community_list' %}">🏘️ SHEP Communities</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'shep_community_create' %}">➕ Add SHEP Community</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'upload_shep_communities' %}">📤 Bulk Upload
+                                Communities</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'download_shep_community_template' %}">📥 Download
+                                Template</a>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">📖 Abbreviation Legend</a>
+                        </li>
                     </ul>
                 </li>
 

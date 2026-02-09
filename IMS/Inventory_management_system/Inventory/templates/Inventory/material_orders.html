@@ -434,11 +434,12 @@
             <li class="page-item active" aria-current="page">
                 <span class="page-link">{{ num }}</span>
             </li>
-            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <li class="page-item">
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
                 <a class="page-link" href="{% url 'material_orders' %}?page={{ num }}">{{ num }}</a>
-                </li>
-                {% endif %}
-                {% endfor %}
+            </li>
+            {% endif %}
+            {% endfor %}
 
                 <!-- Last page -->
                 {% if page_obj.has_next %}
@@ -729,5 +730,53 @@
             }
         }
     });
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'material_orders',
+        title: 'Material Orders',
+        subtitle: 'Manage and track all material requisitions',
+        icon: '📦',
+        features: [
+            { icon: '📋', title: 'Order Management', desc: 'View and manage all orders' },
+            { icon: '✅', title: 'Approval Workflow', desc: 'Approve or reject requests' },
+            { icon: '🔍', title: 'Advanced Search', desc: 'Filter by status, date, or user' },
+            { icon: '📊', title: 'Status Tracking', desc: 'Track from pending to completed' }
+        ],
+        tips: [
+            'Expand rows to see order details',
+            'Use bulk actions for multiple orders',
+            'Filter by status for quick access'
+        ]
+    });
+});
+</script>
+{% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'material_orders',
+        title: 'Material Orders',
+        subtitle: 'Track and manage material requests',
+        icon: '📦',
+        features: [
+            { icon: '📊', title: 'Order Status', desc: 'Monitor request progress' },
+            { icon: '💬', title: 'Comments', desc: 'View approval notes and feedback' },
+            { icon: '🔽', title: 'Expand Details', desc: 'See full breakdown of large orders' },
+            { icon: '📑', title: 'Waybills', desc: 'Access generated transport documents' }
+        ],
+        tips: [
+            'Click the expand button for item details',
+            'Check comments for rejection reasons',
+            'Status updates happen in real-time'
+        ]
+    });
+});
 </script>
 {% endblock %}

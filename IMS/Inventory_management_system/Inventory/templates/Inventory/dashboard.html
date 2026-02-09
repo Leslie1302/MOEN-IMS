@@ -245,3 +245,27 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock content %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'dashboard',
+        title: 'Inventory Dashboard',
+        subtitle: 'Your central hub for warehouse management',
+        icon: '📦',
+        features: [
+            { icon: '📊', title: 'Live Inventory', desc: 'View all stock levels in real-time' },
+            { icon: '🔍', title: 'Smart Filtering', desc: 'Sort and filter by category, warehouse' },
+            { icon: '⚠️', title: 'Low Stock Alerts', desc: 'Get notified when items run low' },
+            { icon: '📤', title: 'Excel Export', desc: 'Download inventory data anytime' }
+        ],
+        tips: [
+            'Click column headers to sort data',
+            'Use filters to narrow down results',
+            'Red quantities indicate low stock'
+        ]
+    });
+});
+</script>
+{% endblock %}

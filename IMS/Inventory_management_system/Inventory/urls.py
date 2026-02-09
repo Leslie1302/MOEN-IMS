@@ -17,7 +17,7 @@ from .views import (
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
     update_obsolete_material_status, release_letter_tracking_dashboard,
-    AdjustReleaseLetterQuantityView, AboutView,
+    AdjustReleaseLetterQuantityView, AboutView, requisition_status,
 )
 
 # Import project management views
@@ -85,7 +85,18 @@ from .signature_lookup_view import signature_lookup, signature_verify, signature
 from .stores_management_views import (
     PendingOrdersView, AssignedOrdersView, AssignOrderView,
     MyAssignedOrdersView, update_assignment_status, bulk_assign_orders,
-    StoreOfficerPerformanceDashboard
+    StoreOfficerPerformanceDashboard, StoreOperationsHubView,
+    process_order_partial, store_hub_stats_api
+)
+
+# Import SHEP community management views
+from .shep_community_views import (
+    SHEPCommunityListView, SHEPCommunityCreateView, SHEPCommunityUpdateView,
+    SHEPCommunityDeleteView, AbbreviationLegendView,
+    get_districts_by_region, get_communities_by_district,
+    get_packages_by_community, generate_auto_package_number,
+    download_material_template, download_shep_community_template,
+    upload_shep_communities
 )
 
 # Error handlers
@@ -147,6 +158,7 @@ urlpatterns = [
     path('request-material/', RequestMaterialView.as_view(), name='request_material'),
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
     path('material-orders-officers/', MaterialOrdersOfficersView.as_view(), name='material_orders_officers'),
+    path('requisition-status/', requisition_status, name='requisition_status'),
     # Parameterized routes
     path('update_material_status/<int:order_id>/<str:new_status>/', UpdateMaterialStatusView.as_view(), name='update_material_status'),
     path('delete-item/<int:pk>', DeleteItem.as_view(), name='delete-item'),
@@ -266,6 +278,9 @@ urlpatterns = [
     path('stores/assignment/<int:assignment_id>/update-status/', update_assignment_status, name='stores_update_assignment_status'),
     path('stores/bulk-assign/', bulk_assign_orders, name='stores_bulk_assign'),
     path('stores/performance/', StoreOfficerPerformanceDashboard.as_view(), name='stores_performance_dashboard'),
+    path('stores/hub/', StoreOperationsHubView.as_view(), name='store_operations_hub'),
+    path('stores/order/<int:order_id>/process-partial/', process_order_partial, name='process_order_partial'),
+    path('stores/hub/api/stats/', store_hub_stats_api, name='store_hub_stats_api'),
 
     # Weekly Report URLs
     path('weekly-reports/', weeklyreport_changelist, name='weekly_reports_list'),
@@ -285,4 +300,22 @@ urlpatterns = [
     path('obsolete-materials/register/', ObsoleteMaterialRegisterView.as_view(), name='obsolete_material_register'),
     path('obsolete-materials/<int:pk>/', ObsoleteMaterialDetailView.as_view(), name='obsolete_material_detail'),
     path('obsolete-materials/<int:pk>/update-status/', update_obsolete_material_status, name='update_obsolete_material_status'),
+    
+    # SHEP Community Management URLs
+    path('shep-communities/', SHEPCommunityListView.as_view(), name='shep_community_list'),
+    path('shep-communities/add/', SHEPCommunityCreateView.as_view(), name='shep_community_create'),
+    path('shep-communities/<int:pk>/edit/', SHEPCommunityUpdateView.as_view(), name='shep_community_update'),
+    path('shep-communities/<int:pk>/delete/', SHEPCommunityDeleteView.as_view(), name='shep_community_delete'),
+    path('abbreviation-legend/', AbbreviationLegendView.as_view(), name='abbreviation_legend'),
+    
+    # SHEP Community AJAX endpoints for cascading dropdowns
+    path('api/districts-by-region/', get_districts_by_region, name='api_districts_by_region'),
+    path('api/communities-by-district/', get_communities_by_district, name='api_communities_by_district'),
+    path('api/packages-by-community/', get_packages_by_community, name='api_packages_by_community'),
+    path('api/generate-package-number/', generate_auto_package_number, name='api_generate_package_number'),
+    
+    # Excel Template Downloads
+    path('download-material-template/', download_material_template, name='download_material_template'),
+    path('download-shep-community-template/', download_shep_community_template, name='download_shep_community_template'),
+    path('upload-shep-communities/', upload_shep_communities, name='upload_shep_communities'),
 ]

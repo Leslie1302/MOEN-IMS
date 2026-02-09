@@ -1,0 +1,190 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}SHEP Communities & Packages{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">SHEP Communities & Packages</h1>
+            <p class="text-muted mb-0">Manage communities and their associated package numbers for SHEP projects</p>
+        </div>
+        <div>
+            <a href="{% url 'abbreviation_legend' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-book"></i> View Legend
+            </a>
+            <a href="{% url 'shep_community_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Community
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control"
+                        placeholder="Search region, district, community..." value="{{ search }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Filter by Region</label>
+                    <select name="region" class="form-select">
+                        <option value="">All Regions</option>
+                        {% for region in regions %}
+                        <option value="{{ region }}" {% if selected_region == region %}selected{% endif %}>{{ region }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <a href="{% url 'shep_community_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Upload Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Bulk Upload Communities</h5>
+        </div>
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-2">Upload multiple SHEP communities at once using an Excel file.</p>
+                    <a href="{% url 'download_shep_community_template' %}" class="btn btn-outline-success">
+                        <i class="bi bi-download"></i> Download Template
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <form method="post" action="{% url 'upload_shep_communities' %}" enctype="multipart/form-data"
+                        class="d-flex gap-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="flex-grow-1">
+                            <label class="form-label">Select Excel File</label>
+                            <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-upload"></i> Upload
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Communities Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            {% if communities %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Region</th>
+                            <th>Abbr.</th>
+                            <th>District</th>
+                            <th>Abbr.</th>
+                            <th>Community</th>
+                            <th>Abbr.</th>
+                            <th>Package Number</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for community in communities %}
+                        <tr>
+                            <td>{{ community.region }}</td>
+                            <td><span class="badge bg-secondary">{{ community.region_abbr }}</span></td>
+                            <td>{{ community.district }}</td>
+                            <td><span class="badge bg-secondary">{{ community.district_abbr }}</span></td>
+                            <td>{{ community.community }}</td>
+                            <td><span class="badge bg-secondary">{{ community.community_abbr }}</span></td>
+                            <td><strong>{{ community.package_number }}</strong></td>
+                            <td>
+                                {% if community.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'shep_community_update' community.pk %}"
+                                    class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'shep_community_delete' community.pk %}"
+                                    class="btn btn-sm btn-outline-danger" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav class="p-3">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_region %}&region={{ selected_region }}{% endif %}">First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_region %}&region={{ selected_region }}{% endif %}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item disabled">
+                        <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_region %}&region={{ selected_region }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_region %}&region={{ selected_region }}{% endif %}">Last</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-geo-alt text-muted" style="font-size: 3rem;"></i>
+                <h4 class="mt-3">No Communities Found</h4>
+                <p class="text-muted">
+                    {% if search or selected_region %}
+                    No communities match your current filters.
+                    <a href="{% url 'shep_community_list' %}">Clear filters</a>
+                    {% else %}
+                    Get started by adding your first SHEP community.
+                    {% endif %}
+                </p>
+                {% if not search and not selected_region %}
+                <a href="{% url 'shep_community_create' %}" class="btn btn-primary mt-2">
+                    <i class="bi bi-plus-lg"></i> Add First Community
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

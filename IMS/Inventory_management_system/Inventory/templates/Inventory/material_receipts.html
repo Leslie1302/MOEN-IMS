@@ -489,3 +489,27 @@ filterTable();
   .filter-arrow { cursor: pointer; font-size: 0.85rem; margin-left: .35rem; }
 </style>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'material_receipts',
+        title: 'Receipt Table',
+        subtitle: 'Manage receipt statuses and filter records',
+        icon: '📋',
+        features: [
+            { icon: '👀', title: 'Mark as Seen', desc: 'Acknowledge new receipt requests' },
+            { icon: '➗', title: 'Partial Processing', desc: 'Process quantities incrementally' },
+            { icon: '✅', title: 'Complete Orders', desc: 'Mark full receipt completion' },
+            { icon: '🔍', title: 'Advanced Filters', desc: 'Filter by any column value' }
+        ],
+        tips: [
+            'Click column headers to filter data',
+            'Partial lets you process in batches',
+            'Completed orders cannot be edited'
+        ]
+    });
+});
+</script>
+{% endblock %}

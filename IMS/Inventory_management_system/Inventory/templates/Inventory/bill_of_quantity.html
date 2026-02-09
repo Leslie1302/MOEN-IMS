@@ -392,3 +392,27 @@
     });
 </script>
 {% endblock full_width_content %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'bill_of_quantity',
+        title: 'Bill of Quantity',
+        subtitle: 'View and manage project materials and quantities',
+        icon: '📋',
+        features: [
+            { icon: '📊', title: 'Contract Quantities', desc: 'Track contracted vs received amounts' },
+            { icon: '⚖️', title: 'Balance Tracking', desc: 'Monitor remaining quantities' },
+            { icon: '✏️', title: 'Bulk Edit', desc: 'Edit multiple entries at once' },
+            { icon: '⚠️', title: 'Overissuance Alerts', desc: 'Flag items exceeding quantities' }
+        ],
+        tips: [
+            'Use Community Bulk Edit for Excel-like editing',
+            'Red balances indicate overissuance',
+            'Select multiple rows for bulk operations'
+        ]
+    });
+});
+</script>
+{% endblock %}

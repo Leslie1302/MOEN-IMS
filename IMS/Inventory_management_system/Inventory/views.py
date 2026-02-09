@@ -2772,7 +2772,39 @@ class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     
     def get_queryset(self):
         # Schedule officers and superusers see all receipts
-        return SiteReceipt.objects.all().select_related('material_transport', 'received_by').order_by('-received_date')
+        return SiteReceipt.objects.all().select_related(
+            'material_transport', 'material_transport__material_order', 
+            'material_transport__transporter', 'material_transport__vehicle',
+            'received_by'
+        ).order_by('-received_date')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # For each receipt, determine if its waybill can be downloaded
+        # Waybill is downloadable only if ALL transports with the same waybill_number have site receipts
+        for receipt in context['receipts']:
+            transport = receipt.material_transport
+            if transport.waybill_number and transport.consignment_number:
+                # Bulk assignment - check if ALL transports with same waybill have receipts
+                bulk_transports = MaterialTransport.objects.filter(
+                    waybill_number=transport.waybill_number
+                ).select_related('site_receipt')
+                all_received = all(
+                    hasattr(t, 'site_receipt') and t.site_receipt is not None
+                    for t in bulk_transports
+                )
+                receipt.waybill_downloadable = all_received
+                receipt.pending_receipts_count = sum(
+                    1 for t in bulk_transports 
+                    if not (hasattr(t, 'site_receipt') and t.site_receipt)
+                )
+            else:
+                # Single assignment - waybill is downloadable since this receipt exists
+                receipt.waybill_downloadable = True
+                receipt.pending_receipts_count = 0
+        
+        return context
 
 
 
@@ -3505,3 +3537,173 @@ def release_letter_tracking_dashboard(request):
     }
     
     return render(request, 'Inventory/release_letter_tracking_dashboard.html', context)
+
+
+@login_required
+def requisition_status(request):
+    """
+    View for displaying requisition status with filters and summary statistics.
+    Shows full material lifecycle from stores to project site delivery.
+    """
+    from django.db.models import Q, Count, Prefetch, Exists, OuterRef
+    from .models import MaterialTransport, SiteReceipt
+    
+    # Prefetch transports with site receipts for efficiency
+    transports_prefetch = Prefetch(
+        'transports',
+        queryset=MaterialTransport.objects.select_related('transporter', 'vehicle').prefetch_related('site_receipt')
+    )
+    
+    # Get all material orders with related data
+    orders = MaterialOrder.objects.select_related(
+        'user', 'unit', 'category', 'warehouse'
+    ).prefetch_related(
+        transports_prefetch
+    ).order_by('-date_requested')
+    
+    # Apply filters
+    search_query = request.GET.get('search', '')
+    status_filter = request.GET.get('status', '')
+    region_filter = request.GET.get('region', '')
+    date_from = request.GET.get('date_from', '')
+    lifecycle_filter = request.GET.get('lifecycle', '')
+    
+    if search_query:
+        orders = orders.filter(
+            Q(name__icontains=search_query) |
+            Q(code__icontains=search_query) |
+            Q(request_code__icontains=search_query)
+        )
+    
+    if status_filter:
+        orders = orders.filter(status=status_filter)
+    
+    if region_filter:
+        orders = orders.filter(region=region_filter)
+    
+    if date_from:
+        orders = orders.filter(date_requested__gte=date_from)
+    
+    # Convert to list to add computed properties
+    orders_list = list(orders)
+    
+    # Add lifecycle stage data to each order
+    for order in orders_list:
+        transports = list(order.transports.all())
+        
+        if not transports:
+            # No transports yet - still in stores phase
+            order.lifecycle_stage = 'stores'
+            order.lifecycle_label = get_stores_phase_label(order.status)
+            order.transport_status = None
+            order.has_site_receipt = False
+            order.latest_transport = None
+        else:
+            # Has transports - check transport phase
+            delivered_transports = [t for t in transports if t.status == 'Delivered']
+            in_transit_transports = [t for t in transports if t.status == 'In Transit']
+            loading_transports = [t for t in transports if t.status in ['Loading', 'Loaded']]
+            
+            # Check for site receipts
+            site_confirmed = any(hasattr(t, 'site_receipt') and t.site_receipt for t in delivered_transports)
+            
+            # Determine latest transport for waybill download
+            order.latest_transport = transports[0] if transports else None
+            for t in transports:
+                if t.status == 'Delivered':
+                    order.latest_transport = t
+                    break
+            
+            if site_confirmed:
+                order.lifecycle_stage = 'site_confirmed'
+                order.lifecycle_label = '✅ Site Confirmed'
+                order.has_site_receipt = True
+            elif delivered_transports:
+                order.lifecycle_stage = 'delivered'
+                order.lifecycle_label = '📦 Delivered to Site'
+                order.has_site_receipt = False
+            elif in_transit_transports:
+                order.lifecycle_stage = 'in_transit'
+                order.lifecycle_label = '🚚 In Transit'
+                order.has_site_receipt = False
+            elif loading_transports:
+                order.lifecycle_stage = 'loading'
+                order.lifecycle_label = '📦 Loading'
+                order.has_site_receipt = False
+            else:
+                order.lifecycle_stage = 'transport_assigned'
+                order.lifecycle_label = '🚛 Transport Assigned'
+                order.has_site_receipt = False
+            
+            # Get latest transport status
+            order.transport_status = transports[0].status if transports else None
+    
+    # Filter by lifecycle stage if requested
+    if lifecycle_filter:
+        orders_list = [o for o in orders_list if o.lifecycle_stage == lifecycle_filter]
+    
+    # Get statistics from MaterialOrder
+    order_stats = MaterialOrder.objects.aggregate(
+        pending_count=Count('id', filter=Q(status='Pending')),
+        approved_count=Count('id', filter=Q(status='Approved')),
+        in_progress_count=Count('id', filter=Q(status='In Progress')),
+        partially_fulfilled_count=Count('id', filter=Q(status='Partially Fulfilled')),
+        completed_count=Count('id', filter=Q(status='Completed')),
+        rejected_count=Count('id', filter=Q(status='Rejected')),
+    )
+    
+    # Get transport-phase statistics
+    transport_stats = MaterialTransport.objects.aggregate(
+        transport_in_transit_count=Count('id', filter=Q(status='In Transit')),
+        transport_delivered_count=Count('id', filter=Q(status='Delivered')),
+        transport_loading_count=Count('id', filter=Q(status__in=['Loading', 'Loaded'])),
+    )
+    
+    # Count site-confirmed deliveries
+    site_confirmed_count = SiteReceipt.objects.count()
+    
+    # Get unique regions for filter dropdown
+    regions = MaterialOrder.objects.values_list('region', flat=True).distinct().order_by('region')
+    regions = [r for r in regions if r]  # Filter out empty values
+    
+    # Lifecycle stage choices for filter dropdown
+    lifecycle_choices = [
+        ('stores', '📋 Stores Phase'),
+        ('transport_assigned', '🚛 Transport Assigned'),
+        ('loading', '📦 Loading'),
+        ('in_transit', '🚚 In Transit'),
+        ('delivered', '📦 Delivered to Site'),
+        ('site_confirmed', '✅ Site Confirmed'),
+    ]
+    
+    context = {
+        'orders': orders_list,
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'region_filter': region_filter,
+        'date_from': date_from,
+        'lifecycle_filter': lifecycle_filter,
+        'status_choices': MaterialOrder.STATUS_CHOICES,
+        'lifecycle_choices': lifecycle_choices,
+        'regions': regions,
+        'site_confirmed_count': site_confirmed_count,
+        **order_stats,
+        **transport_stats,
+    }
+    
+    return render(request, 'Inventory/requisition_status.html', context)
+
+
+def get_stores_phase_label(status):
+    """Helper function to get stores phase label based on order status."""
+    labels = {
+        'Draft': '📝 Draft',
+        'Pending': '⏳ Pending Approval',
+        'Approved': '✅ Approved',
+        'In Progress': '🔄 In Progress',
+        'Partially Fulfilled': '📊 Partially Fulfilled',
+        'Ready for Pickup': '📦 Ready for Pickup',
+        'Rejected': '❌ Rejected',
+        'Cancelled': '🚫 Cancelled',
+    }
+    return labels.get(status, f'📋 {status}')

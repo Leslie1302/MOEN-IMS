@@ -112,3 +112,27 @@
     }
 </style>
 {% endblock content %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'welcome_index',
+        title: 'Welcome to MOEGT IEPS',
+        subtitle: 'Integrated Energy Project System',
+        icon: '⚡',
+        features: [
+            { icon: '🚀', title: 'Project Tracking', desc: 'End-to-end energy project management' },
+            { icon: '📦', title: 'Inventory Control', desc: 'Real-time stock and material tracking' },
+            { icon: '👥', title: 'Collaboration', desc: 'Connects schedules, stores, and sites' },
+            { icon: '📊', title: 'Analytics', desc: 'Data-driven insights and reporting' }
+        ],
+        tips: [
+            'Sign in to access your dashboard',
+            'Contact support if you need an account',
+            'Check the About section for system details'
+        ]
+    });
+});
+</script>
+{% endblock %}

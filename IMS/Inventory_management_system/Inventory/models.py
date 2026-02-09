@@ -20,6 +20,62 @@ except ImportError:
 # Import transporter models
 from .transporter_models import Transporter, TransportVehicle
 
+
+def generate_abbreviation(name, max_length=5):
+    """
+    Generate abbreviation from name.
+    Uses first letters of each word for multi-word names,
+    or truncates single words.
+    
+    Examples:
+        "Accra Metropolitan" -> "AM"
+        "Greater Accra" -> "GA"
+        "Osu" -> "OSU"
+    """
+    if not name:
+        return ""
+    words = name.strip().upper().split()
+    if len(words) > 1:
+        # Use first letter of each word
+        abbr = ''.join(w[0] for w in words if w)
+        return abbr[:max_length]
+    # Single word - use first characters
+    return name[:max_length].upper()
+
+
+class SHEPCommunity(auto_prefetch.Model):
+    """
+    Model for managing SHEP communities and their associated package numbers.
+    Used to populate cascading dropdowns in material request forms.
+    Abbreviations are auto-generated on save.
+    """
+    region = models.CharField(max_length=100, help_text="Region name")
+    region_abbr = models.CharField(max_length=10, blank=True, editable=False, help_text="Auto-generated region abbreviation")
+    district = models.CharField(max_length=100, help_text="District name")
+    district_abbr = models.CharField(max_length=10, blank=True, editable=False, help_text="Auto-generated district abbreviation")
+    community = models.CharField(max_length=100, help_text="Community name")
+    community_abbr = models.CharField(max_length=10, blank=True, editable=False, help_text="Auto-generated community abbreviation")
+    package_number = models.CharField(max_length=50, help_text="SHEP package number for this community")
+    is_active = models.BooleanField(default=True, help_text="Whether this community is currently active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta(auto_prefetch.Model.Meta):
+        verbose_name = 'SHEP Community'
+        verbose_name_plural = 'SHEP Communities'
+        ordering = ['region', 'district', 'community']
+        unique_together = ['region', 'district', 'community', 'package_number']
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate abbreviations on save."""
+        self.region_abbr = generate_abbreviation(self.region)
+        self.district_abbr = generate_abbreviation(self.district)
+        self.community_abbr = generate_abbreviation(self.community)
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.region} > {self.district} > {self.community} ({self.package_number})"
+
 class Warehouse(auto_prefetch.Model):
     """
     Model for representing warehouses where inventory items are stored.
@@ -486,6 +542,33 @@ class MaterialOrder(auto_prefetch.Model):
         default='Release'
     )
     
+    # Project type for material requests
+    PROJECT_TYPE_CHOICES = [
+        ('SHEP', 'SHEP'),
+        ('COST', 'Cost-sharing'),
+        ('SPEC', 'Special/other'),
+    ]
+    project_type = models.CharField(
+        max_length=10,
+        choices=PROJECT_TYPE_CHOICES,
+        default='SHEP',
+        help_text="Type of project this request is for"
+    )
+    
+    # Requestor tracking for unique package generation
+    requestor = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Person/factory/institute making the request"
+    )
+    requestor_abbr = models.CharField(
+        max_length=10,
+        blank=True,
+        editable=False,
+        help_text="Auto-generated requestor abbreviation"
+    )
+    
     # Quantity tracking
     processed_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     remaining_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -559,6 +642,10 @@ class MaterialOrder(auto_prefetch.Model):
         # Set last_updated_by if user is available
         if hasattr(self, '_current_user'):
             self.last_updated_by = self._current_user
+        
+        # Auto-generate requestor abbreviation
+        if self.requestor and not self.requestor_abbr:
+            self.requestor_abbr = generate_abbreviation(self.requestor)
         
         # Generate request code for new orders
         if is_new and not self.request_code:

@@ -11,7 +11,8 @@ from .models import (
     InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, 
     BillOfQuantity, Notification, BoQOverissuanceJustification,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial
+    SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
+    SHEPCommunity
 )
 from .forms import ExcelUserImportForm
 from .user_import import ExcelUserImporter
@@ -489,6 +490,42 @@ class ProfileAdmin(admin.ModelAdmin):
     generate_missing_stamps.short_description = 'Generate stamps for profiles without one'
 
 admin.site.register(Warehouse)
+
+
+@admin.register(SHEPCommunity)
+class SHEPCommunityAdmin(admin.ModelAdmin):
+    """Admin for managing SHEP Communities and their packages."""
+    list_display = ('region', 'region_abbr', 'district', 'district_abbr', 'community', 'community_abbr', 'package_number', 'is_active', 'created_at')
+    list_filter = ('region', 'is_active', 'created_at')
+    search_fields = ('region', 'district', 'community', 'package_number', 'region_abbr', 'district_abbr', 'community_abbr')
+    readonly_fields = ('region_abbr', 'district_abbr', 'community_abbr', 'created_at', 'updated_at')
+    ordering = ('region', 'district', 'community')
+    
+    fieldsets = (
+        ('Location Information', {
+            'fields': ('region', 'region_abbr', 'district', 'district_abbr', 'community', 'community_abbr'),
+            'description': 'Abbreviations are auto-generated based on the full names.'
+        }),
+        ('Package Details', {
+            'fields': ('package_number', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    actions = ['activate_communities', 'deactivate_communities']
+    
+    def activate_communities(self, request, queryset):
+        count = queryset.update(is_active=True)
+        self.message_user(request, f'{count} community(ies) activated.')
+    activate_communities.short_description = 'Activate selected communities'
+    
+    def deactivate_communities(self, request, queryset):
+        count = queryset.update(is_active=False)
+        self.message_user(request, f'{count} community(ies) deactivated.')
+    deactivate_communities.short_description = 'Deactivate selected communities'
 
 # Register LogEntry
 @admin.register(BillOfQuantity)

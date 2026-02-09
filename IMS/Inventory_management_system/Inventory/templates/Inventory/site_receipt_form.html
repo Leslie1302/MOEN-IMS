@@ -144,20 +144,6 @@
                         <!-- File Uploads -->
                         <div class="row mb-4">
                             <div class="col-md-6">
-                                <label for="{{ form.waybill_pdf.id_for_label }}" class="form-label fw-semibold">
-                                    <i class="fas fa-file-pdf me-1 text-primary"></i>Endorsed Waybill (PDF) *
-                                </label>
-                                {{ form.waybill_pdf }}
-                                <div class="form-text">
-                                    Upload the waybill endorsed by the consultant confirming receipt
-                                </div>
-                                {% if form.waybill_pdf.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.waybill_pdf.errors.0 }}
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
                                 <label for="{{ form.site_photos.id_for_label }}" class="form-label fw-semibold">
                                     <i class="fas fa-camera me-1 text-primary"></i>Site Photos *
                                 </label>
@@ -211,7 +197,6 @@
                         <div class="col-md-6">
                             <h6 class="fw-bold">Required Documentation:</h6>
                             <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success me-2"></i>Endorsed waybill (PDF format)</li>
                                 <li><i class="fas fa-check text-success me-2"></i>Clear photos of materials on site</li>
                                 <li><i class="fas fa-check text-success me-2"></i>Accurate quantity received</li>
                                 <li><i class="fas fa-check text-success me-2"></i>Material condition assessment</li>
@@ -226,8 +211,9 @@
                                     discrepancies in notes</li>
                                 <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Photos should show
                                     material condition</li>
-                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Endorsed waybill is
-                                    mandatory</li>
+                                <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Waybill will be
+                                    generated
+                                    after receipt</li>
                             </ul>
                         </div>
                     </div>
@@ -240,19 +226,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // File upload preview
-        const waybillInput = document.getElementById('{{ form.waybill_pdf.id_for_label }}');
         const photoInput = document.getElementById('{{ form.site_photos.id_for_label }}');
-
-        if (waybillInput) {
-            waybillInput.addEventListener('change', function (e) {
-                const file = e.target.files[0];
-                if (file) {
-                    const fileName = file.name;
-                    const fileSize = (file.size / 1024 / 1024).toFixed(2);
-                    console.log(`Waybill selected: ${fileName} (${fileSize} MB)`);
-                }
-            });
-        }
 
         if (photoInput) {
             photoInput.addEventListener('change', function (e) {
@@ -269,7 +243,7 @@
         const form = document.getElementById('siteReceiptForm');
         if (form) {
             form.addEventListener('submit', function (e) {
-                const requiredFields = ['{{ form.received_quantity.id_for_label }}', '{{ form.condition.id_for_label }}', '{{ form.waybill_pdf.id_for_label }}', '{{ form.site_photos.id_for_label }}'];
+                const requiredFields = ['{{ form.received_quantity.id_for_label }}', '{{ form.condition.id_for_label }}', '{{ form.site_photos.id_for_label }}'];
                 let isValid = true;
 
                 requiredFields.forEach(fieldId => {

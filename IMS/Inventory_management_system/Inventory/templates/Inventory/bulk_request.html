@@ -156,3 +156,27 @@
     });
 </script>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'bulk_request',
+        title: 'Bulk Material Request',
+        subtitle: 'Upload multiple material requests via Excel',
+        icon: '📤',
+        features: [
+            { icon: '📥', title: 'Template Download', desc: 'Get the standardized Excel format' },
+            { icon: '📝', title: 'Bulk Processing', desc: 'Submit hundreds of items at once' },
+            { icon: '📎', title: 'Release Letters', desc: 'Attach PDF authorizations' },
+            { icon: '⚡', title: 'Auto-Validation', desc: 'Instant feedback on file errors' }
+        ],
+        tips: [
+            'Always use the latest template',
+            'Ensure all required columns are filled',
+            'Release letters are mandatory for Release type'
+        ]
+    });
+});
+</script>
+{% endblock %}

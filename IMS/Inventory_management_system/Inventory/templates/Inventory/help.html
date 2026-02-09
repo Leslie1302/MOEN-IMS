@@ -148,3 +148,27 @@
     </div>
 </div>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'help',
+        title: 'Help Center',
+        subtitle: 'Get assistance with MOEGT IEPS',
+        icon: '❓',
+        features: [
+            { icon: '🚀', title: 'Getting Started', desc: 'Navigate the dashboard and navbar' },
+            { icon: '👥', title: 'Role-Based Guide', desc: 'Learn your role-specific workflows' },
+            { icon: '🔐', title: 'Security', desc: 'Profile settings and 2FA setup' },
+            { icon: '📧', title: 'Support', desc: 'Contact admin for troubleshooting' }
+        ],
+        tips: [
+            'Check your role for specific features',
+            'Use notifications to stay updated',
+            'Enable 2FA for enhanced security'
+        ]
+    });
+});
+</script>
+{% endblock %}

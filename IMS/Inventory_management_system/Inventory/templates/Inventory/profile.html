@@ -152,3 +152,27 @@
 </style>
 
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'profile',
+        title: 'Your Profile',
+        subtitle: 'Manage your account settings',
+        icon: '👤',
+        features: [
+            { icon: '📷', title: 'Profile Picture', desc: 'Upload and update your photo' },
+            { icon: '✏️', title: 'Update Info', desc: 'Edit your personal information' },
+            { icon: '🔒', title: 'Change Password', desc: 'Secure your account' },
+            { icon: '📧', title: 'Email Settings', desc: 'Manage contact details' }
+        ],
+        tips: [
+            'Keep your profile picture professional',
+            'Use a strong password with mixed characters',
+            'Update your email to receive notifications'
+        ]
+    });
+});
+</script>
+{% endblock %}

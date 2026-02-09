@@ -1309,8 +1309,39 @@ class WaybillTemplate(SimpleDocTemplate):
 
 @login_required
 def download_waybill_pdf(request, transport_id):
-    """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments)."""
+    """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments).
+    
+    Waybill is only available for download after site receipt has been logged by the consultant.
+    This ensures all stamps (Store Manager, Store Officer, Driver, Recipient) are present on the final document.
+    """
     transport = get_object_or_404(MaterialTransport, id=transport_id)
+    
+    # Check if site receipt exists - waybill can only be downloaded after receipt is confirmed
+    has_site_receipt = hasattr(transport, 'site_receipt') and transport.site_receipt is not None
+    
+    # For bulk assignments, check if ALL transports have site receipts
+    if transport.waybill_number and transport.consignment_number:
+        bulk_transports = MaterialTransport.objects.filter(
+            waybill_number=transport.waybill_number
+        )
+        all_received = all(
+            hasattr(t, 'site_receipt') and t.site_receipt is not None 
+            for t in bulk_transports
+        )
+        if not all_received:
+            messages.error(
+                request, 
+                'Waybill cannot be downloaded until ALL materials in this shipment are confirmed received on site. '
+                'Please ensure the consultant has logged site receipt for all items.'
+            )
+            return redirect('transportation_status')
+    elif not has_site_receipt:
+        messages.error(
+            request, 
+            'Waybill cannot be downloaded until materials are confirmed received on site. '
+            'The consultant must first log the site receipt.'
+        )
+        return redirect('transportation_status')
     
     # Increment download count
     transport.waybill_download_count += 1
@@ -2165,6 +2196,91 @@ def download_waybill_pdf(request, transport_id):
     # Build store manager signature cell
     store_manager_signature_cell_main = store_manager_stamp_image_main if store_manager_stamp_image_main else Paragraph(store_manager_stamp_text_main or '_________________', small_text)
     
+    # Get driver stamp info (auto-generated from transport details)
+    driver_name = transport.driver_name or 'N/A'
+    driver_stamp_text = ''
+    driver_date = ''
+    
+    if transport.driver_name:
+        vehicle_info = transport.vehicle.registration_number if transport.vehicle else 'N/A'
+        pickup_time = transport.date_assigned.strftime('%d %B %Y at %H:%M') if transport.date_assigned else 'N/A'
+        driver_stamp_text = f"{driver_name}\nVehicle: {vehicle_info}\nPickup: {pickup_time}"
+        driver_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+    
+    driver_signature_cell = Paragraph(driver_stamp_text or '_________________', small_text)
+    
+    # Get recipient/consultant stamp from SiteReceipt
+    recipient_name = transport.consultant or 'N/A'
+    recipient_stamp_image = None
+    recipient_stamp_text = ''
+    recipient_date = ''
+    
+    if hasattr(transport, 'site_receipt') and transport.site_receipt:
+        receipt = transport.site_receipt
+        recipient_user = receipt.received_by
+        recipient_name = recipient_user.get_full_name() or recipient_user.username
+        recipient_date = receipt.received_date.strftime('%d %B %Y') if receipt.received_date else ''
+        
+        # Try to get digital stamp for recipient
+        try:
+            from .models import Profile
+            profile = Profile.objects.filter(user=recipient_user).first()
+            if profile:
+                # Look for PNG stamp in media/digital_signatures/ folder
+                stamp_filenames = [
+                    f"{recipient_user.username}.png",
+                    f"{recipient_user.id}.png",
+                    f"{recipient_user.username}.jpg",
+                    f"{recipient_user.id}.jpg",
+                ]
+                
+                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+                if not os.path.exists(digital_signatures_dir):
+                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+                
+                for filename in stamp_filenames:
+                    stamp_path = os.path.join(digital_signatures_dir, filename)
+                    if os.path.exists(stamp_path):
+                        try:
+                            recipient_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                            break
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Could not load recipient digital stamp image: {str(e)}")
+                            continue
+                
+                # Generate stamp if no PNG found
+                if not recipient_stamp_image and profile:
+                    try:
+                        if hasattr(profile, 'generate_digital_stamp_png'):
+                            stamp_path = profile.generate_digital_stamp_png()
+                            if stamp_path and os.path.exists(stamp_path):
+                                recipient_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
+                    except Exception:
+                        pass
+                
+                # Fallback to text-based stamp
+                if not recipient_stamp_image:
+                    stamp = profile.get_or_create_signature_stamp() if profile else None
+                    if stamp:
+                        try:
+                            stamp_data = profile.display_signature_stamp()
+                            if stamp_data:
+                                recipient_stamp_text = f"{stamp_data.get('SIGNED_BY', recipient_name)}\nID: {stamp_data.get('ID', '')}"
+                        except Exception:
+                            if '|' in stamp:
+                                parts = stamp.split('|')
+                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else recipient_name
+                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
+                                recipient_stamp_text = f"{signed_by}\nID: {stamp_id}"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting recipient stamp: {str(e)}")
+    
+    recipient_signature_cell = recipient_stamp_image if recipient_stamp_image else Paragraph(recipient_stamp_text or '_________________', small_text)
+    
     signature_data = [
         [
             Paragraph('<b>Role</b>', normal_style),
@@ -2185,16 +2301,16 @@ def download_waybill_pdf(request, transport_id):
             Paragraph(store_manager_date_main or '_________________', small_text)
         ],
         [
-            Paragraph('<b>Received By</b><br/>(Driver)', small_text),
-            Paragraph(transport.driver_name or '_________________', small_text),
-            Paragraph('_________________', small_text),  # Driver signs physically
-            Paragraph('_________________', small_text)
+            Paragraph('<b>Picked Up By</b><br/>(Driver)', small_text),
+            Paragraph(driver_name or '_________________', small_text),
+            driver_signature_cell,
+            Paragraph(driver_date or '_________________', small_text)
         ],
         [
-            Paragraph('<b>Delivered To</b><br/>(Consultant)', small_text),
-            Paragraph(transport.consultant or '_________________', small_text),
-            Paragraph('_________________', small_text),  # Consultant signs physically
-            Paragraph('_________________', small_text)
+            Paragraph('<b>Received By</b><br/>(Consultant)', small_text),
+            Paragraph(recipient_name or '_________________', small_text),
+            recipient_signature_cell,
+            Paragraph(recipient_date or '_________________', small_text)
         ],
     ]
     

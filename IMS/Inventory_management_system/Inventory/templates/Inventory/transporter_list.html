@@ -352,3 +352,27 @@ $(document).ready(function() {
 });
 </script>
 {% endblock %}
+
+{% block page_splash %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    PageSplash.init({
+        pageId: 'transporter_list',
+        title: 'Transporters',
+        subtitle: 'Manage transport providers and vehicles',
+        icon: '🚚',
+        features: [
+            { icon: '📋', title: 'Transporter Directory', desc: 'View all registered transporters' },
+            { icon: '🚐', title: 'Vehicle Tracking', desc: 'Monitor fleet by transporter' },
+            { icon: '📥', title: 'Excel Import', desc: 'Bulk upload transporters' },
+            { icon: '📊', title: 'Status Overview', desc: 'Active, inactive, or in-transit' }
+        ],
+        tips: [
+            'Click on a transporter to see details',
+            'Use search to find specific transporters',
+            'Download template before bulk importing'
+        ]
+    });
+});
+</script>
+{% endblock %}

@@ -6,7 +6,8 @@ from .models import (
     MaterialTransport, ReleaseLetter, Transporter, TransportVehicle, SiteReceipt, 
     Supplier, Warehouse, BoQOverissuanceJustification, BillOfQuantity,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
-    SupplierInvoice, SupplierInvoiceItem, ObsoleteMaterial, Project
+    SupplierInvoice, SupplierInvoiceItem, ObsoleteMaterial, Project,
+    SHEPCommunity
 )
 from django.forms import ModelForm, formset_factory, modelformset_factory
 from django.core.validators import FileExtensionValidator
@@ -63,6 +64,44 @@ class MaterialOrderForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-control material-select'})
     )
     
+    # Project type selection
+    project_type = forms.ChoiceField(
+        choices=[('', '-- Select Project Type --')] + [
+            ('SHEP', 'SHEP'),
+            ('COST', 'Cost-sharing'),
+            ('SPEC', 'Special/other'),
+        ],
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_project_type'
+        }),
+        help_text="Select the type of project for this material request"
+    )
+    
+    # Requestor field (required for uniqueness in package number generation)
+    requestor = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter requestor name',
+            'id': 'id_requestor'
+        }),
+        help_text="Person, factory, or institute making the request (used for package number generation)"
+    )
+    
+    # Community field (for SHEP projects, cascading from district)
+    community = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control shep-dropdown',
+            'id': 'id_community'
+        }),
+        help_text="Select community (available after selecting district)"
+    )
+    
     release_letter_pdf = forms.FileField(
         required=False,
         label="Release Letter (PDF)",
@@ -109,16 +148,17 @@ class MaterialOrderForm(forms.ModelForm):
     class Meta:
         model = MaterialOrder
         fields = [
-            'name', 'quantity', 'region', 'district', 
+            'name', 'quantity', 'project_type', 'requestor',
+            'region', 'district', 'community',
             'consultant', 'contractor', 'package_number', 'warehouse'
         ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'region': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
-            'district': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'region': forms.Select(attrs={'class': 'form-control shep-dropdown', 'id': 'id_region'}),
+            'district': forms.Select(attrs={'class': 'form-control shep-dropdown', 'id': 'id_district'}),
             'consultant': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
             'contractor': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
-            'package_number': forms.Select(attrs={'class': 'form-control boq-dropdown'}),
+            'package_number': forms.Select(attrs={'class': 'form-control boq-dropdown', 'id': 'id_package_number'}),
             'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
@@ -128,26 +168,47 @@ class MaterialOrderForm(forms.ModelForm):
         # Show all inventory items to all users for transparency
         self.fields['name'].queryset = InventoryItem.objects.all()
         
-        # Populate dropdowns from BillOfQuantity data
-        from .models import BillOfQuantity
+        # Import models for dropdown population
+        from .models import BillOfQuantity, SHEPCommunity
         
-        # Get distinct values from BOQ (community field removed)
-        regions = BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')
+        # Get regions from SHEP communities (for unified cascading)
+        shep_regions = SHEPCommunity.objects.filter(is_active=True).values_list('region', flat=True).distinct().order_by('region')
+        
+        # Get distinct values from BOQ for backward compatibility
+        boq_regions = BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')
         districts = BillOfQuantity.objects.values_list('district', flat=True).distinct().order_by('district')
         consultants = BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')
         contractors = BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')
         package_numbers = BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')
         
+        # Combine regions (SHEP + BOQ), removing duplicates
+        all_regions = list(set(list(shep_regions) + list(boq_regions)))
+        all_regions = [r for r in all_regions if r]
+        all_regions.sort()
+        
         # Convert to choices format
-        self.fields['region'].widget.choices = [('', '-- Select Region --')] + [(r, r) for r in regions if r]
+        self.fields['region'].widget.choices = [('', '-- Select Region --')] + [(r, r) for r in all_regions]
         self.fields['district'].widget.choices = [('', '-- Select District --')] + [(d, d) for d in districts if d]
+        self.fields['community'].widget.choices = [('', '-- Select Community --')]
         self.fields['consultant'].widget.choices = [('', '-- Select Consultant --')] + [(c, c) for c in consultants if c]
         self.fields['contractor'].widget.choices = [('', '-- Select Contractor --')] + [(c, c) for c in contractors if c]
         self.fields['package_number'].widget.choices = [('', '-- Select Package Number --')] + [(p, p) for p in package_numbers if p]
     
+    def clean(self):
+        cleaned_data = super().clean()
+        project_type = cleaned_data.get('project_type')
+        requestor = cleaned_data.get('requestor')
+        
+        # Requestor is required for Cost-sharing and Special projects
+        if project_type in ['COST', 'SPEC'] and not requestor:
+            self.add_error('requestor', 'Requestor is required for Cost-sharing and Special projects.')
+        
+        return cleaned_data
+    
     def save(self, commit=True):
         instance = super().save(commit=commit)
         return instance
+
 
 MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1, can_delete=True)
 
@@ -1322,3 +1383,23 @@ class ObsoleteMaterialForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class SHEPCommunityForm(forms.ModelForm):
+    """Form for creating and editing SHEP communities."""
+    class Meta:
+        model = SHEPCommunity
+        fields = ['region', 'district', 'community', 'package_number', 'is_active']
+        widgets = {
+            'region': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter region name'}),
+            'district': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter district name'}),
+            'community': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter community name'}),
+            'package_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter package number'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        help_texts = {
+            'region': 'Full region name (abbreviation will be auto-generated)',
+            'district': 'Full district name (abbreviation will be auto-generated)',
+            'community': 'Full community name (abbreviation will be auto-generated)',
+            'package_number': 'SHEP package number for this community',
+        }

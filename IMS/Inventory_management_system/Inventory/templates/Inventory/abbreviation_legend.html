@@ -1,0 +1,145 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Abbreviation Legend{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Abbreviation Legend</h1>
+            <p class="text-muted mb-0">Reference mapping of full names to abbreviations used in package numbers</p>
+        </div>
+        <a href="{% url 'shep_community_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Communities
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Regions -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-globe me-2"></i>Regions</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if regions %}
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Full Name</th>
+                                <th>Abbreviation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in regions %}
+                            <tr>
+                                <td>{{ item.region }}</td>
+                                <td><span class="badge bg-primary">{{ item.region_abbr }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        No regions found
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Districts -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-map me-2"></i>Districts</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if districts %}
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>Full Name</th>
+                                    <th>Abbreviation</th>
+                                    <th>Region</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in districts %}
+                                <tr>
+                                    <td>{{ item.district }}</td>
+                                    <td><span class="badge bg-success">{{ item.district_abbr }}</span></td>
+                                    <td><small class="text-muted">{{ item.region }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        No districts found
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Communities -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Communities</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if communities %}
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>Full Name</th>
+                                    <th>Abbreviation</th>
+                                    <th>District</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in communities %}
+                                <tr>
+                                    <td>{{ item.community }}</td>
+                                    <td><span class="badge bg-info text-dark">{{ item.community_abbr }}</span></td>
+                                    <td><small class="text-muted">{{ item.district }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        No communities found
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Package Number Format Info -->
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Package Number Format</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-2">Auto-generated package numbers follow this format:</p>
+            <div class="alert alert-info">
+                <code>[PROJECT_TYPE]-[DISTRICT_ABBR]-[COMMUNITY_ABBR]-[REQUESTOR_ABBR]-[RANDOM]</code>
+            </div>
+            <p class="mb-0">
+                <strong>Example:</strong> <code>COST-AM-OSU-FAC-AB3X5</code><br>
+                <small class="text-muted">Where AM = Accra Metropolitan, OSU = Osu, FAC = Factory (requestor), AB3X5 =
+                    random unique identifier</small>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
