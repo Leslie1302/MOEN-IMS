@@ -307,29 +307,6 @@
 </script>
 {% endblock %}
 
-{% block page_splash %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'site_receipts',
-        title: 'Site Receipts',
-        subtitle: 'History of materials received at project sites',
-        icon: '📝',
-        features: [
-            { icon: '📋', title: 'Receipt Records', desc: 'View all logged material receipts' },
-            { icon: '🔍', title: 'Search & Filter', desc: 'Find receipts by site, date, or material' },
-            { icon: '📄', title: 'Print Waybill', desc: 'Generate waybills for completed deliveries' },
-            { icon: '✅', title: 'Verification', desc: 'Track confirmed vs pending receipts' }
-        ],
-        tips: [
-            'Click on a receipt card to view details',
-            'Use date filters for faster searching',
-            'Download waybills for documentation'
-        ]
-    });
-});
-</script>
-{% endblock %}
 
 {% block page_splash %}
 <script>
