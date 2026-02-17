@@ -3,7 +3,8 @@
 
 {% block title %}Dashboard - Warehouse Management Tool{% endblock %}
 
-{% block content %}
+{% block full_width_content %}
+<div class="container-fluid px-4 mt-4">
 {% if messages %}
     <div class="row mt-3">
         {% for message in messages %}
@@ -30,8 +31,8 @@
     </div>
 {% endif %}
 
-<div class="row">
-    <div class="col-12 mx-auto mt-5">
+<div class="container-fluid px-3">
+    <div class="mt-4">
         {% if user.is_superuser %}
         <div class="d-flex justify-content-end mb-3">
             <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
@@ -244,7 +245,8 @@ document.addEventListener('DOMContentLoaded', function() {
     filterTable();
 });
 </script>
-{% endblock content %}
+</div>
+{% endblock full_width_content %}
 
 {% block page_splash %}
 <script>

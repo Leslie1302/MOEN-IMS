@@ -102,25 +102,32 @@
     </div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{{ chart_labels|json_script:"chart-labels" }}
+{{ contract_data|json_script:"contract-data" }}
+{{ received_data|json_script:"received-data" }}
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const chartLabels = JSON.parse(document.getElementById('chart-labels').textContent);
+    const contractData = JSON.parse(document.getElementById('contract-data').textContent);
+    const receivedData = JSON.parse(document.getElementById('received-data').textContent);
+
     const ctx = document.getElementById('materialChart').getContext('2d');
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: {{ chart_labels|safe }},
+            labels: chartLabels,
             datasets: [{
                 label: 'Contract Quantity',
-                data: {{ contract_data|safe }},
+                data: contractData,
                 backgroundColor: 'rgba(255, 193, 7, 0.6)',
                 borderColor: 'rgba(255, 193, 7, 1)',
                 borderWidth: 1
             }, {
                 label: 'Received Quantity',
-                data: {{ received_data|safe }},
+                data: receivedData,
                 backgroundColor: 'rgba(25, 135, 84, 0.6)',
                 borderColor: 'rgba(25, 135, 84, 1)',
                 borderWidth: 1

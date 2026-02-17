@@ -168,8 +168,9 @@
 </div>
 
 <!-- JavaScript for Autofill and Serial Number Handling -->
+{{ inventory_items|json_script:"inventory-data" }}
 <script>
-    const inventoryItems = {{ inventory_items|safe }};
+    const inventoryItems = JSON.parse(document.getElementById('inventory-data').textContent);
 
     document.addEventListener("DOMContentLoaded", function () {
         const materialSelect = document.querySelector(".material-select");

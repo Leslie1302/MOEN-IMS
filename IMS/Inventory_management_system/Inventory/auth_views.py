@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import login, authenticate
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.db.models import Q
 from django.shortcuts import redirect
@@ -43,7 +44,7 @@ class CustomLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class Dashboard(TemplateView):
+class Dashboard(LoginRequiredMixin, TemplateView):
     template_name = 'Inventory/dashboard.html'
 
     def get_context_data(self, **kwargs):
@@ -56,9 +57,7 @@ class Dashboard(TemplateView):
         low_inventory_items = items.filter(quantity__lte=10)
         low_inventory_names = list(low_inventory_items.values_list('name', flat=True))
         
-        # Debug information
-        print(f"Found {items.count()} items in the database")
-        print(f"Found {low_inventory_items.count()} low inventory items")
+
         
         context.update({
             'items': items,  # This is what the template is looking for

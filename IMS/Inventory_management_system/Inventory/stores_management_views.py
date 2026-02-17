@@ -9,7 +9,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
 from django.views import View
 from django.views.generic import ListView, DetailView
-from django.db.models import Q, Count, Prefetch, Avg, F, ExpressionWrapper, fields
+from django.db.models import Q, Count, Prefetch, Avg, F, ExpressionWrapper, fields, Case, When, Value, FloatField, DecimalField
+from django.db.models.functions import Coalesce, Cast
 from django.http import JsonResponse
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -706,6 +707,16 @@ class StoreOperationsHubView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             'user', 'unit', 'category', 'warehouse', 'assigned_to', 'assigned_by'
         ).prefetch_related(
             'store_assignments', 'transports'
+        ).annotate(
+            processed_qty_val=Coalesce('processed_quantity', Value(0, output_field=DecimalField())),
+            fulfillment_percentage=Case(
+                When(quantity__gt=0, then=ExpressionWrapper(
+                    (Cast('processed_qty_val', FloatField()) * 100.0) / Cast('quantity', FloatField()),
+                    output_field=FloatField()
+                )),
+                default=Value(0.0),
+                output_field=FloatField()
+            )
         ).order_by('-date_requested')
         
         # Role-based filtering

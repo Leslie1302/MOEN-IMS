@@ -1,0 +1,88 @@
+{% load humanize %}
+{% if orders %}
+<div class="hub-table">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Request Code</th>
+                    <th>Material</th>
+                    <th>Quantity</th>
+                    <th>Progress</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Requested By</th>
+                    <th>Date</th>
+                    {% if can_process %}<th>Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr data-order-id="{{ order.id }}">
+                    <td><strong>{{ order.request_code }}</strong></td>
+                    <td>
+                        <div>{{ order.name|truncatechars:30 }}</div>
+                        <small class="text-muted">{{ order.category }}</small>
+                    </td>
+                    <td>
+                        <div>{{ order.quantity|floatformat:0|intcomma }} {{ order.unit }}</div>
+                        <small class="text-muted">Proc: {{ order.processed_quantity|default:0|floatformat:0|intcomma }}</small>
+                    </td>
+                    <td>
+                        {% with percent=order.fulfillment_percentage|default:0 %}
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="mini-progress">
+                                <div class="mini-progress-bar {% if percent < 30 %}low{% elif percent < 70 %}medium{% else %}high{% endif %}" 
+                                     style="width: {{ percent }}%"></div>
+                            </div>
+                            <small>{{ percent|floatformat:0 }}%</small>
+                        </div>
+                        {% endwith %}
+                    </td>
+                    <td>
+                        <span class="status-chip {% if order.status == 'Pending' %}pending{% elif order.status == 'Approved' %}approved{% elif order.status == 'In Progress' %}in-progress{% elif order.status == 'Partially Fulfilled' %}partial{% elif order.status == 'Completed' %}completed{% endif %}">
+                            {{ order.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="priority-dot {{ order.priority|lower }}"></span>{{ order.priority }}
+                    </td>
+                    <td>
+                        <div>{{ order.user.get_full_name|default:order.user.username }}</div>
+                        <small class="text-muted">{{ order.region|default:"" }}</small>
+                    </td>
+                    <td>
+                        <small>{{ order.date_requested|date:"M d, Y" }}</small>
+                    </td>
+                    {% if can_process %}
+                    <td>
+                        {% if order.status != 'Completed' %}
+                        <button type="button" class="btn btn-process btn-sm" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#processModal"
+                                data-order-id="{{ order.id }}"
+                                data-order-code="{{ order.request_code }}"
+                                data-order-name="{{ order.name }}"
+                                data-order-quantity="{{ order.quantity }}"
+                                data-order-processed="{{ order.processed_quantity|default:0 }}"
+                                data-order-unit="{{ order.unit }}">
+                            <i class="fas fa-cog me-1"></i>Process
+                        </button>
+                        {% else %}
+                        <span class="text-success"><i class="fas fa-check"></i></span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+    <h5 class="text-muted">No orders found</h5>
+    <p class="text-muted">Try adjusting your filters or check back later.</p>
+</div>
+{% endif %}

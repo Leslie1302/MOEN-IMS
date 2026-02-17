@@ -815,16 +815,12 @@ class SiteReceiptForm(forms.ModelForm):
     
     class Meta:
         model = SiteReceipt
-        fields = ['received_quantity', 'waybill_pdf', 'acknowledgement_sheet', 'site_photos', 'condition', 'notes']
+        fields = ['received_quantity', 'acknowledgement_sheet', 'site_photos', 'condition', 'notes']
         widgets = {
             'received_quantity': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
                 'min': '0'
-            }),
-            'waybill_pdf': forms.FileInput(attrs={
-                'class': 'form-control',
-                'accept': 'application/pdf'
             }),
             'acknowledgement_sheet': forms.FileInput(attrs={
                 'class': 'form-control',

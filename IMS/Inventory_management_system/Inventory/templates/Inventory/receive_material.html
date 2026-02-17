@@ -136,9 +136,10 @@
     </div>
 </div>
 
+{{ inventory_items|json_script:"inventory-data" }}
 <script>
 // Receipt form JS (autofill + dynamic add/remove)
-const inventoryItems = {{ inventory_items|safe }};
+const inventoryItems = JSON.parse(document.getElementById('inventory-data').textContent);
 
 document.addEventListener("DOMContentLoaded", function () {
     function autofillFields(selectElement) {

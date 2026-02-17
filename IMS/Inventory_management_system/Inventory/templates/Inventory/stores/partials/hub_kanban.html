@@ -1,0 +1,78 @@
+{% load humanize %}
+<div class="kanban-board">
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span><i class="fas fa-clipboard-list me-2 text-warning"></i>Assigned</span>
+            <span class="kanban-count">{{ kanban_columns.assigned|length }}</span>
+        </div>
+        {% for order in kanban_columns.assigned %}
+        <div class="kanban-card">
+            <div class="fw-bold mb-1">{{ order.request_code }}</div>
+            <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted">{{ order.quantity|floatformat:0 }} {{ order.unit }}</small>
+                <span class="priority-dot {{ order.priority|lower }}"></span>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-muted small text-center py-3">No orders</div>
+        {% endfor %}
+    </div>
+    
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span><i class="fas fa-spinner me-2 text-primary"></i>In Progress</span>
+            <span class="kanban-count">{{ kanban_columns.in_progress|length }}</span>
+        </div>
+        {% for order in kanban_columns.in_progress %}
+        <div class="kanban-card">
+            <div class="fw-bold mb-1">{{ order.request_code }}</div>
+            <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+            <div class="mini-progress mb-1">
+                <div class="mini-progress-bar medium" style="width: {{ order.fulfillment_percentage|default:0 }}%"></div>
+            </div>
+            <small>{{ order.fulfillment_percentage|default:0|floatformat:0 }}% complete</small>
+        </div>
+        {% empty %}
+        <div class="text-muted small text-center py-3">No orders</div>
+        {% endfor %}
+    </div>
+    
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span><i class="fas fa-adjust me-2 text-info"></i>Partial</span>
+            <span class="kanban-count">{{ kanban_columns.partial|length }}</span>
+        </div>
+        {% for order in kanban_columns.partial %}
+        <div class="kanban-card">
+            <div class="fw-bold mb-1">{{ order.request_code }}</div>
+            <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+            <div class="mini-progress mb-1">
+                <div class="mini-progress-bar medium" style="width: {{ order.fulfillment_percentage|default:0 }}%"></div>
+            </div>
+            <small>{{ order.processed_quantity|default:0|floatformat:0 }}/{{ order.quantity|floatformat:0 }} {{ order.unit }}</small>
+        </div>
+        {% empty %}
+        <div class="text-muted small text-center py-3">No orders</div>
+        {% endfor %}
+    </div>
+    
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span><i class="fas fa-check-circle me-2 text-success"></i>Completed</span>
+            <span class="kanban-count">{{ kanban_columns.completed|length }}</span>
+        </div>
+        {% for order in kanban_columns.completed %}
+        <div class="kanban-card">
+            <div class="fw-bold mb-1">{{ order.request_code }}</div>
+            <div class="small text-muted mb-2">{{ order.name|truncatechars:25 }}</div>
+            <div class="d-flex justify-content-between">
+                <small class="text-success"><i class="fas fa-check"></i> Done</small>
+                <small class="text-muted">{{ order.date_requested|timesince }} ago</small>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-muted small text-center py-3">No orders</div>
+        {% endfor %}
+    </div>
+</div>

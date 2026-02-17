@@ -176,11 +176,22 @@
                     <td>{{ order.date_requested|date:"M d, Y" }}</td>
                     <td>
                         {% if order.release_letter %}
-                        <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
-                            <i class="fas fa-file-pdf text-danger me-1"></i>View PDF
-                        </a>
+                        <div class="d-flex flex-column">
+                            <span class="fw-bold small">{{ order.release_letter.reference_number|default:"RL-..." }}</span>
+                            {% if order.release_letter.pdf_file %}
+                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none small">
+                                <i class="fas fa-file-pdf text-danger me-1"></i>View PDF
+                            </a>
+                            {% endif %}
+                        </div>
                         {% else %}
-                        <span class="text-muted">—</span>
+                            {% if order.request_type == "Release" and order.status != "Rejected" and order.status != "Cancelled" %}
+                            <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}" class="btn btn-sm btn-outline-primary" title="Create Release Letter">
+                                <i class="fas fa-plus me-1"></i>Create RL
+                            </a>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
                         {% endif %}
                     </td>
                     {% if user.is_superuser or 'Store Officer' in user.groups.all|join:', ' %}
@@ -757,26 +768,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endblock %}
 
-{% block page_splash %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'material_orders',
-        title: 'Material Orders',
-        subtitle: 'Track and manage material requests',
-        icon: '📦',
-        features: [
-            { icon: '📊', title: 'Order Status', desc: 'Monitor request progress' },
-            { icon: '💬', title: 'Comments', desc: 'View approval notes and feedback' },
-            { icon: '🔽', title: 'Expand Details', desc: 'See full breakdown of large orders' },
-            { icon: '📑', title: 'Waybills', desc: 'Access generated transport documents' }
-        ],
-        tips: [
-            'Click the expand button for item details',
-            'Check comments for rejection reasons',
-            'Status updates happen in real-time'
-        ]
-    });
-});
-</script>
-{% endblock %}

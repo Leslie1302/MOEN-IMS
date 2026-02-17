@@ -278,27 +278,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-
-{% block page_splash %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'consultant_deliveries',
-        title: 'Pending Deliveries',
-        subtitle: 'Materials requiring receipt confirmation',
-        icon: '📦',
-        features: [
-            { icon: '🚚', title: 'In-Transit', desc: 'Track materials currently on the way' },
-            { icon: '📍', title: 'Site Tracking', desc: 'Confirm delivery location' },
-            { icon: '📝', title: 'Receipt Log', desc: 'Quickly log new site receipts' },
-            { icon: '⏱️', title: 'Time Tracking', desc: 'Monitor delivery delays' }
-        ],
-        tips: [
-            'Confirm receipt only after physical verification',
-            'Check material condition before signing',
-            'Use filters to find specific priority items'
-        ]
-    });
-});
-</script>
-{% endblock %}

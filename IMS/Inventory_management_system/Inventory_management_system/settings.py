@@ -28,11 +28,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 from django.core.exceptions import ImproperlyConfigured
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-for-build-only')
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
+
+# SECURITY WARNING: keep the secret key used in production secret!
+_secret_key = os.environ.get('DJANGO_SECRET_KEY')
+if _secret_key:
+    SECRET_KEY = _secret_key
+elif DEBUG:
+    SECRET_KEY = 'django-insecure-local-dev-only-do-not-use-in-production'
+else:
+    raise ValueError(
+        "DJANGO_SECRET_KEY environment variable is required in production. "
+        "Set it in your Heroku config vars or .env file."
+    )
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -45,7 +54,7 @@ ALLOWED_HOSTS = [
     'moen-ims-28b53393a6a5.herokuapp.com',
     'moen-ims-defea5f92ea2.herokuapp.com',
     'moen-ims-8b7793040010.herokuapp.com',
-    '.herokuapp.com',
+
 ]
 
 if not DEBUG:
@@ -248,9 +257,33 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'Inventory': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
     'root': {
@@ -279,3 +312,8 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'MOEN IMS <noreply@moen-ims.org>')
+
+# File upload limits
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024    # 10 MB
+DATA_UPLOAD_MAX_NUMBER_FILES = 20

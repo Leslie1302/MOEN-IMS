@@ -80,8 +80,9 @@
 </div>
 
 <!-- JavaScript for Autofill and Dynamic Forms -->
+{{ inventory_items|json_script:"inventory-data" }}
 <script>
-    const inventoryItems = {{ inventory_items|safe }};
+    const inventoryItems = JSON.parse(document.getElementById('inventory-data').textContent);
 
     document.addEventListener("DOMContentLoaded", function () {
         function autofillFields(selectElement) {

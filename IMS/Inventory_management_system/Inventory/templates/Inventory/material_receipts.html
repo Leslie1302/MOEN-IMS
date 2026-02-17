@@ -112,9 +112,9 @@
                     <button id="seen-btn-{{ order.id }}" class="btn btn-secondary btn-sm seen-btn action-btn" data-order-id="{{ order.id }}"
                             {% if order.status != 'Pending' and order.status != 'Draft' %}disabled{% endif %}>👀 Seen</button>
                     <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn action-btn" data-order-id="{{ order.id }}"
-                             {% if (order.status != 'Seen' and order.status != 'Approved') or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>➗ Partial</button>
+                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>➗ Partial</button>
                     <button id="complete-btn-{{ order.id }}" class="btn btn-success btn-sm complete-btn action-btn" data-order-id="{{ order.id }}"
-                             {% if (order.status != 'Seen' and order.status != 'Approved') or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>✅ Completed</button>
+                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>✅ Completed</button>
                   </div>
                 </td>
               </tr>

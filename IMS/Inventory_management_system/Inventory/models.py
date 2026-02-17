@@ -1424,7 +1424,9 @@ class SiteReceipt(auto_prefetch.Model):
     waybill_pdf = models.FileField(
         upload_to='site_receipts/waybills/%Y/%m/%d/',
         validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
-        help_text="Upload the endorsed waybill PDF"
+        help_text="Upload the endorsed waybill PDF",
+        null=True,
+        blank=True
     )
     acknowledgement_sheet = models.FileField(
         upload_to='site_receipts/acknowledgements/%Y/%m/%d/',
