@@ -40,10 +40,7 @@ def setup_2fa(request):
         device.save()
     
     # Generate OTP URL for QR code
-    issuer = 'MOEN-IMS'
-    label = f'{issuer}:{user.username}'
-    totp = pyotp.TOTP(device.key)
-    otpauth_url = totp.provisioning_uri(name=label, issuer_name=issuer)
+    otpauth_url = device.config_url
     
     context = {
         'device': device,
@@ -65,11 +62,8 @@ def setup_2fa_qr(request):
     if not device:
         return HttpResponse(status=404)
     
-    # Generate OTP URL
-    issuer = 'MOEN-IMS'
-    label = f'{issuer}:{user.username}'
-    totp = pyotp.TOTP(device.key)
-    otpauth_url = totp.provisioning_uri(name=label, issuer_name=issuer)
+    # Generate OTP URL natively from device
+    otpauth_url = device.config_url
     
     # Generate QR code
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -99,11 +93,17 @@ def confirm_2fa(request):
             return redirect('setup_2fa')
         
         code = request.POST.get('code', '').strip()
+        print(f"DEBUG: Validating 2FA token. Code entered: '{code}'")
         
-        if device.verify_token(code):
+        # Log the verification result
+        is_valid = device.verify_token(code)
+        print(f"DEBUG: Token verification result: {is_valid}")
+        
+        if is_valid:
             # Confirm the device
             device.confirmed = True
             device.save()
+            print("DEBUG: Device confirmed successfully.")
             
             # Generate backup codes
             generate_backup_codes(user)
@@ -111,6 +111,7 @@ def confirm_2fa(request):
             messages.success(request, '2FA has been successfully enabled! Please save your backup codes.')
             return redirect('2fa_backup_codes')
         else:
+            print("DEBUG: Invalid code, sending error response.")
             messages.error(request, 'Invalid code. Please try again.')
             return redirect('setup_2fa')
     

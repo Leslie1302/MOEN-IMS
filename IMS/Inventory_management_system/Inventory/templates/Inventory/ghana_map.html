@@ -1,0 +1,401 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Ghana Electrification Progress Map{% endblock %}
+
+{% block extra_head %}
+<!-- Optional extra CSS for dashboard map container if needed -->
+<style>
+    .map-container {
+        height: 600px;
+        width: 100%;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stats-card {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 text-gray-800">Regional Electrification Map</h2>
+            <p class="text-muted mb-0">Visual representation of completed vs planned project sites</p>
+        </div>
+        <div>
+            <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i> Back to Project Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Summary Row dynamically updated by JS -->
+    <div class="row mb-4" id="national-stats">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stats-card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
+                        Total Sites Nationwide</div>
+                    <div class="h3 mb-0 font-weight-bold" id="total-sites-count">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stats-card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
+                        Completed Sites</div>
+                    <div class="h3 mb-0 font-weight-bold" id="completed-sites-count">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stats-card bg-warning text-white h-100">
+                <div class="card-body">
+                    <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
+                        Active Sites</div>
+                    <div class="h3 mb-0 font-weight-bold text-dark" id="active-sites-count">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stats-card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
+                        National Progress</div>
+                    <div class="h3 mb-0 font-weight-bold" id="national-progress">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Map Column -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Map View</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div id="ghana-map-container" class="map-container">
+                        <div class="d-flex justify-content-center align-items-center h-100 text-muted" id="map-loading">
+                            <div class="spinner-border me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            Loading Map Data...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Region Details Sidebar -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary" id="region-detail-title">Region Selection</h6>
+                </div>
+                <!-- Default State -->
+                <div class="card-body" id="default-region-view">
+                    <div class="text-center text-muted p-4">
+                        <i class="fas fa-hand-pointer fa-3x mb-3 opacity-50"></i>
+                        <p>Hover over or click a region on the map to see detailed electrification statistics here.</p>
+                    </div>
+                </div>
+                <!-- Content State -->
+                <div class="card-body d-none" id="populated-region-view">
+                    <div class="text-center mb-4">
+                        <h2 class="display-4 text-primary font-weight-bold mb-0" id="detail-progress">0%</h2>
+                        <span class="text-muted text-uppercase"
+                            style="font-size: 0.8rem; letter-spacing: 1px;">Completion</span>
+                    </div>
+
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Total Project Sites
+                            <span class="badge bg-primary rounded-pill fs-6" id="detail-total">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Completed Sites
+                            <span class="badge bg-success rounded-pill fs-6" id="detail-completed">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Active / In Progress
+                            <span class="badge bg-warning text-dark rounded-pill fs-6" id="detail-active">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Planned / Not Started
+                            <span class="badge bg-secondary rounded-pill fs-6" id="detail-planned">0</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card shadow border-left-info py-2">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Methodology Note</div>
+                            <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
+                                Region progress is calculated as the percentage of sites marked as <strong
+                                    class="text-success">Completed</strong> against the total number of sites assigned
+                                to that region.
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-info-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow border-left-warning py-2 mt-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1"
+                                style="opacity: 0.9;">National Access Rate</div>
+                            <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
+                                Ghana's national electricity access rate is around
+                                <strong class="text-dark" style="font-size: 1.1rem;">88.8%</strong>
+                                (World Bank, 2022), one of the highest in Sub-Saharan Africa.
+                            </div>
+                            <div class="mt-2">
+                                <a href="https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=GH"
+                                    target="_blank" class="text-xs font-weight-bold text-primary"
+                                    style="text-decoration: none;">
+                                    <i class="fas fa-external-link-alt mr-1"></i> View World Bank Data
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-bolt fa-2x text-warning" style="opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Include ECharts library locally to prevent network blocks -->
+<script src="{% static 'js/echarts.min.js' %}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // UI Elements
+        const detailTitle = document.getElementById('region-detail-title');
+        const defaultView = document.getElementById('default-region-view');
+        const populatedView = document.getElementById('populated-region-view');
+
+        const dProgress = document.getElementById('detail-progress');
+        const dTotal = document.getElementById('detail-total');
+        const dCompleted = document.getElementById('detail-completed');
+        const dActive = document.getElementById('detail-active');
+        const dPlanned = document.getElementById('detail-planned');
+
+        const nTotal = document.getElementById('total-sites-count');
+        const nCompleted = document.getElementById('completed-sites-count');
+        const nActive = document.getElementById('active-sites-count');
+        const nProgress = document.getElementById('national-progress');
+
+        // Fetch Backend Data and GeoJSON simultaneously
+        Promise.all([
+            fetch("{% static 'geojson/ghana_regions.json' %}").then(res => res.json()),
+            fetch("{% url 'ghana_map_data_api' %}").then(res => res.json())
+        ])
+            .then(([geoJsonData, apiResponse]) => {
+                // Document Loading elements
+                document.getElementById('map-loading').style.display = 'none';
+
+                const serverData = apiResponse.data;
+                const regionMap = {};
+
+                let totalNational = 0;
+                let completedNational = 0;
+                let activeNational = 0;
+
+                // Process data map for tooltip lookup and national counts
+                serverData.forEach(item => {
+                    // standardize names roughly
+                    let stdName = item.name.toLowerCase().replace(' region', '');
+                    regionMap[stdName] = item;
+
+                    totalNational += item.total_sites;
+                    completedNational += item.completed_sites;
+                    activeNational += item.active_sites;
+                });
+
+                // Update National Dashboard View
+                nTotal.innerText = totalNational.toLocaleString();
+                nCompleted.innerText = completedNational.toLocaleString();
+                nActive.innerText = activeNational.toLocaleString();
+                if (totalNational > 0) {
+                    nProgress.innerText = ((completedNational / totalNational) * 100).toFixed(1) + '%';
+                }
+
+                // Initialize ECharts instance
+                try {
+                    const chartDom = document.getElementById('ghana-map-container');
+                    const myChart = echarts.init(chartDom);
+
+                    // Register map with strict naming so properties match
+                    echarts.registerMap('Ghana', geoJsonData);
+
+                    // Map GeoJSON Feature names to server data exactly
+                    const mappedDataForEcharts = geoJsonData.features.map(feature => {
+                        const rawName = feature.properties.region || feature.properties.name;
+                        const lookupName = rawName.toLowerCase().replace(' region', '');
+
+                        const stats = regionMap[lookupName] || {
+                            value: 0,
+                            total_sites: 0,
+                            completed_sites: 0,
+                            active_sites: 0,
+                            planned_sites: 0
+                        };
+
+                        return {
+                            name: rawName, // Name must match geojson property
+                            value: stats.value,
+                            total_sites: stats.total_sites,
+                            completed_sites: stats.completed_sites,
+                            active_sites: stats.active_sites,
+                            planned_sites: stats.planned_sites,
+                        };
+                    });
+
+                    const option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: function (params) {
+                                if (params.data) {
+                                    return `
+                            <div style="font-weight:bold;font-size:14px;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:5px;">
+                                ${params.name} Region
+                            </div>
+                            <span>Progress: <strong style="color:${params.data.value > 70 ? '#28a745' : params.data.value > 30 ? '#ffc107' : '#dc3545'}">${params.data.value}%</strong></span><br/>
+                            <span>Total Sites: ${params.data.total_sites}</span><br/>
+                            <span>Completed: ${params.data.completed_sites}</span>
+                        `;
+                                } else {
+                                    return params.name + '<br/>No Data available';
+                                }
+                            }
+                        },
+                        visualMap: {
+                            left: 'right',
+                            min: 0,
+                            max: 100,
+                            inRange: {
+                                // Default Color scale: Red (0-30), Yellow (30-70), Green (70-100)
+                                color: ['#dc3545', '#ffc107', '#28a745']
+                            },
+                            text: ['100% Completed', '0% Progress'],
+                            calculable: true,
+                            formatter: '{value}%'
+                        },
+                        series: [
+                            {
+                                name: 'Electrification Progress',
+                                type: 'map',
+                                map: 'Ghana',
+                                roam: true,
+                                scaleLimit: {
+                                    min: 1,
+                                    max: 5
+                                },
+                                itemStyle: {
+                                    borderColor: '#ffffff',
+                                    borderWidth: 1.5,
+                                    areaColor: '#eee'
+                                },
+                                emphasis: {
+                                    itemStyle: {
+                                        shadowBlur: 10,
+                                        shadowOffsetX: 0,
+                                        shadowColor: 'rgba(0, 0, 0, 0.5)',
+                                        areaColor: '#add8e6' // Light blue hover
+                                    },
+                                    label: {
+                                        show: true,
+                                        color: '#333',
+                                        fontWeight: 'bold'
+                                    }
+                                },
+                                data: mappedDataForEcharts
+                            }
+                        ]
+                    };
+
+                    myChart.setOption(option);
+
+                    // Handle window resize
+                    window.addEventListener('resize', () => {
+                        myChart.resize();
+                    });
+
+                    // Add Hover/Click interactiveness to update Sidebar Panels
+                    myChart.on('mouseover', function (params) {
+                        if (params.data) {
+                            defaultView.classList.add('d-none');
+                            populatedView.classList.remove('d-none');
+
+                            detailTitle.innerHTML = `<i class="fas fa-map-marker-alt me-2"></i> ${params.name} Region`;
+
+                            dProgress.innerText = params.data.value + '%';
+                            // Adjust text color based on threshold
+                            if (params.data.value > 70) dProgress.className = "display-4 text-success font-weight-bold mb-0";
+                            else if (params.data.value > 30) dProgress.className = "display-4 text-warning font-weight-bold mb-0";
+                            else dProgress.className = "display-4 text-danger font-weight-bold mb-0";
+
+                            dTotal.innerText = params.data.total_sites;
+                            dCompleted.innerText = params.data.completed_sites;
+                            dActive.innerText = params.data.active_sites;
+                            dPlanned.innerText = params.data.planned_sites;
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("Echarts initialization error:", e);
+                    document.getElementById('ghana-map-container').innerHTML = `
+                <div class="d-flex justify-content-center align-items-center h-100 flex-column text-danger p-4 text-center">
+                    <i class="fas fa-bug fa-3x mb-3"></i>
+                    <h5>Map Render Error</h5>
+                    <p class="text-muted small">` + e.toString() + `</p>
+                </div>
+            `;
+                }
+            })
+            .catch(error => {
+                console.error("Error loading map view:", error);
+                document.getElementById('map-loading').innerHTML = `
+            <div class="text-danger flex-column d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <p>Failed to load the map data.</p>
+            </div>
+        `;
+            });
+    });
+</script>
+{% endblock %}

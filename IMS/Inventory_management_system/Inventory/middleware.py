@@ -57,6 +57,15 @@ class UserRoleMiddleware(MiddlewareMixin):
             '/password-reset/done/',  # Password reset email sent confirmation
             '/password-reset-confirm/',  # Password reset confirmation (accepts uidb64/token)
             '/password-reset-complete/',  # Password reset complete page
+            
+            # 2FA Allowed URLs (these should be accessible when logged in but not 2FA verified)
+            '/2fa/setup/', 
+            '/2fa/setup/qr/', 
+            '/2fa/confirm/', 
+            '/2fa/verify/',
+            '/2fa/disable/',
+            '/auth/login/',
+            '/auth/callback/',
         ]
         
         # Add static and media URLs to allowed paths
@@ -94,6 +103,20 @@ class UserRoleMiddleware(MiddlewareMixin):
         # Allow superusers to access everything
         if request.user.is_superuser:
             return None
+
+        # --- MFA Enforcement Block ---
+        # If user is authenticated but hasn't verified using 2FA, 
+        # and has at least one 2FA device, force redirect to /2fa/verify/
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django_otp.plugins.otp_static.models import StaticDevice
+        
+        has_2fa = TOTPDevice.objects.filter(user=request.user, confirmed=True).exists() or \
+                  StaticDevice.objects.filter(user=request.user).exists()
+                  
+        if has_2fa and not request.user.is_verified():
+            # Force verification page if trying to navigate to secure areas
+            return redirect('verify_2fa')
+        # -----------------------------
 
         # If user has no groups and not on the awaiting_authorization page
         if not hasattr(request.user, 'groups') or not request.user.groups.exists():

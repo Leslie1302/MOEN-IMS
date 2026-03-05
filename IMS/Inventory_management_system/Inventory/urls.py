@@ -19,6 +19,7 @@ from .views import (
     update_obsolete_material_status, release_letter_tracking_dashboard,
     AdjustReleaseLetterQuantityView, AboutView, requisition_status,
 )
+from .views.map_views import ghana_map_view, ghana_map_data_api
 
 # Import project management views
 from .project_management_views import (
@@ -186,6 +187,8 @@ urlpatterns = [
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
     path('project-management-dashboard/', ProjectManagementDashboardView.as_view(), name='project_management_dashboard'),
+    path('ghana-map/', ghana_map_view, name='ghana_map'),
+    path('api/ghana-map-data/', ghana_map_data_api, name='ghana_map_data_api'),
     path('project-analysis/community/', CommunityAnalysisView.as_view(), name='project_community_analysis'),
     path('project-analysis/package/', PackageAnalysisView.as_view(), name='project_package_analysis'),
     path('project-analysis/material/', MaterialAnalysisView.as_view(), name='project_material_analysis'),

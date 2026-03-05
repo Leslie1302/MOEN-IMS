@@ -1399,3 +1399,45 @@ class SHEPCommunityForm(forms.ModelForm):
             'community': 'Full community name (abbreviation will be auto-generated)',
             'package_number': 'SHEP package number for this community',
         }
+
+class ExcelProjectSiteImportForm(forms.Form):
+    """
+    Form for importing Project Sites from Excel files.
+    """
+    excel_file = forms.FileField(
+        label='Excel File',
+        help_text='Upload the Project Sites Excel template file (.xlsx)',
+        validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])]
+    )
+    
+    def clean_excel_file(self):
+        excel_file = self.cleaned_data['excel_file']
+        
+        if excel_file.size > 10 * 1024 * 1024:
+            raise forms.ValidationError("File size must be less than 10MB.")
+            
+        try:
+            df = pd.read_excel(excel_file)
+            excel_file.seek(0)
+            
+            if df.empty:
+                raise forms.ValidationError("The Excel file is empty.")
+                
+            required_columns = ['Project Code', 'Site Code', 'Site Name', 'Region', 'District']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                raise forms.ValidationError(
+                    f"Missing required columns: {', '.join(missing_columns)}."
+                )
+                
+            df_clean = df.dropna(how='all')
+            if df_clean.empty:
+                raise forms.ValidationError("No valid data found in the Excel file.")
+                
+        except Exception as e:
+            if "Missing required columns" in str(e) or "No valid data" in str(e) or "empty" in str(e):
+                raise
+            raise forms.ValidationError(f"Error reading Excel file: {str(e)}")
+            
+        return excel_file

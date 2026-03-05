@@ -58,6 +58,31 @@ ALLOWED_HOSTS = [
 ]
 
 if not DEBUG:
+    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to whitenoise)
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
+    # and renames the files with unique names for each version to support long-term caching
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Microsoft 365 Configuration
+MICROSOFT = {
+    "CLIENT_ID":     os.environ.get("MS_CLIENT_ID", ""),
+    "CLIENT_SECRET": os.environ.get("MS_CLIENT_SECRET", ""),
+    "TENANT_ID":     os.environ.get("MS_TENANT_ID", ""),
+    "AUTHORITY":     f"https://login.microsoftonline.com/{os.environ.get('MS_TENANT_ID', '')}",
+    "REDIRECT_URI":  os.environ.get("MS_REDIRECT_URI", "http://localhost:8000/auth/callback/"),
+    "SCOPES": [
+        "openid",
+        "profile",
+        "email",
+        "User.Read",
+        "Mail.Send",
+        "offline_access",
+    ],
+}
+TOKEN_ENCRYPTION_KEY = os.environ.get("TOKEN_ENCRYPTION_KEY", "DFEmz1R5YgxfDWuM9jaad8jiT77Hb-8x3xvTPgWZos4=")
+
+if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
@@ -133,6 +158,7 @@ INSTALLED_APPS = [
     'django_otp',
     'django_otp.plugins.otp_totp',
     'django_otp.plugins.otp_static',
+    'accounts',
 ]
 
 MIDDLEWARE = [

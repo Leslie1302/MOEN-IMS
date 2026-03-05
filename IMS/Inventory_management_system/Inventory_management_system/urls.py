@@ -23,6 +23,7 @@ def dcv_fileauth_view(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('.well-known/pki-validation/fileauth.txt', dcv_fileauth_view),
+    path('auth/', include('accounts.urls')),
     path('', include('Inventory.urls')),  # Includes your Inventory/urls.py
 ]
 

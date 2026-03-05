@@ -12,10 +12,11 @@ from .models import (
     BillOfQuantity, Notification, BoQOverissuanceJustification,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
     SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
-    SHEPCommunity
+    SHEPCommunity, ProjectSite, Project
 )
-from .forms import ExcelUserImportForm
+from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
 from .user_import import ExcelUserImporter
+from .project_site_import import ExcelProjectSiteImporter
 import tempfile
 import os
 
@@ -526,6 +527,106 @@ class SHEPCommunityAdmin(admin.ModelAdmin):
         count = queryset.update(is_active=False)
         self.message_user(request, f'{count} community(ies) deactivated.')
     deactivate_communities.short_description = 'Deactivate selected communities'
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'project_type', 'status', 'project_manager', 'created_at')
+    list_filter = ('project_type', 'status', 'created_at')
+    search_fields = ('name', 'code', 'consultant', 'contractor', 'project_manager__username')
+    readonly_fields = ('created_at', 'updated_at', 'created_by')
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'code', 'description', 'project_type', 'phase', 'status')
+        }),
+        ('Management', {
+            'fields': ('project_manager', 'consultant', 'contractor')
+        }),
+        ('Timeline', {
+            'fields': ('start_date', 'planned_end_date', 'actual_end_date')
+        }),
+        ('Financial', {
+            'fields': ('total_budget', 'spent_budget')
+        }),
+        ('Timestamps', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+@admin.register(ProjectSite)
+class ProjectSiteAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'project', 'region', 'district', 'status', 'site_supervisor', 'created_at')
+    list_filter = ('status', 'region', 'district')
+    search_fields = ('name', 'code', 'project__name', 'region', 'district', 'community')
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('project', 'name', 'code', 'status')
+        }),
+        ('Location Information', {
+            'fields': ('region', 'district', 'community', 'gps_coordinates')
+        }),
+        ('Management', {
+            'fields': ('site_supervisor',)
+        }),
+        ('Timeline', {
+            'fields': ('start_date', 'planned_completion_date', 'actual_completion_date')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('import-project-sites/', self.import_project_sites_view, name='admin_import_project_sites'),
+        ]
+        return custom_urls + urls
+        
+    def import_project_sites_view(self, request):
+        if not request.user.is_superuser:
+            self.message_user(request, 'Only superusers can import project sites.', level=messages.ERROR)
+            return redirect('admin:index')
+            
+        if request.method == 'POST':
+            form = ExcelProjectSiteImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                importer = ExcelProjectSiteImporter()
+                results = importer.import_from_excel(request.FILES['excel_file'], request.user)
+                
+                if results['success_count'] > 0:
+                    self.message_user(request, f"Successfully imported {results['success_count']} project sites.", level=messages.SUCCESS)
+                if results['warnings']:
+                    for w in results['warnings']:
+                        self.message_user(request, w, level=messages.WARNING)
+                if results['error_count'] > 0:
+                    self.message_user(request, f"Encountered {results['error_count']} errors during import.", level=messages.ERROR)
+                    for e in results['errors'][:5]:
+                        self.message_user(request, e, level=messages.ERROR)
+                        
+                return redirect('admin:Inventory_projectsite_changelist')
+        else:
+            form = ExcelProjectSiteImportForm()
+            
+        context = {
+            'title': 'Import Project Sites from Excel',
+            'form': form,
+            'opts': self.model._meta,
+            'has_change_permission': True,
+        }
+        return render(request, 'admin/Inventory/projectsite/import_project_sites.html', context)
 
 # Register LogEntry
 @admin.register(BillOfQuantity)

@@ -1,0 +1,16 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+{{ block.super }}
+<li>
+    <a href="import-project-sites/" class="importlink">
+        <i class="fas fa-file-import"></i> Import Sites
+    </a>
+</li>
+<li>
+    <a href="/static/project_sites_upload_template.xlsx" class="importlink" download>
+        <i class="fas fa-file-excel"></i> Template
+    </a>
+</li>
+{% endblock %}

@@ -1,6 +1,7 @@
 from django.db import models
 import auto_prefetch
 from django.contrib.auth.models import User
+from django.utils import timezone
 from .inventory import Warehouse
 from .orders import MaterialOrder
 
@@ -26,9 +27,9 @@ class MaterialTransport(auto_prefetch.Model):
         null=True,
         blank=True
     )
-    driver_name = models.CharField(max_length=200)
-    driver_phone = models.CharField(max_length=20)
-    waybill_number = models.CharField(max_length=100)
+    driver_name = models.CharField(max_length=200, default='Unknown')
+    driver_phone = models.CharField(max_length=20, default='Unknown')
+    waybill_number = models.CharField(max_length=100, default='Unknown')
     
     # Quantity tracking
     quantity = models.DecimalField(
@@ -47,7 +48,7 @@ class MaterialTransport(auto_prefetch.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Loaded')
     
     # Dates
-    date_dispatched = models.DateTimeField(auto_now_add=True)
+    date_dispatched = models.DateTimeField(default=timezone.now)
     date_delivered = models.DateTimeField(null=True, blank=True)
     
     # Additional info

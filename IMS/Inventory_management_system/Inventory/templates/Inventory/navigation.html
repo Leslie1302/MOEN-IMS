@@ -16,6 +16,9 @@
                     <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Stock Dashboard</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link text-dark fw-semibold" href="{% url 'ghana_map' %}">🗺️ Ghana Map</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link text-dark fw-semibold" href="{% url 'about' %}">ℹ️ About</a>
                 </li>
 
@@ -580,6 +583,7 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><a class="dropdown-item" href="{% url 'profile' %}">⚙️ Profile settings</a></li>
+                        <li><a class="dropdown-item" href="{% url 'setup_2fa' %}">🔒 Security / 2FA</a></li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>

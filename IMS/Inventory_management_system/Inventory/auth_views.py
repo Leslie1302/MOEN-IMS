@@ -32,8 +32,23 @@ class SignInView(LoginView):
     redirect_authenticated_user = True
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        
+        # Check if the user has a 2FA device configured
+        user = self.request.user
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django_otp.plugins.otp_static.models import StaticDevice
+        
+        has_2fa = TOTPDevice.objects.filter(user=user, confirmed=True).exists() or \
+                  StaticDevice.objects.filter(user=user).exists()
+                  
+        if has_2fa and not user.is_verified():
+            # If they have a 2FA device but haven't verified the current session,
+            # redirect them immediately to the 2FA verification page
+            return redirect('verify_2fa')
+            
         messages.success(self.request, 'You have been logged in successfully!')
-        return super().form_valid(form)
+        return response
 
 
 class CustomLogoutView(LogoutView):
