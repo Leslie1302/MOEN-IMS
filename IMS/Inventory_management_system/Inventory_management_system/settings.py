@@ -72,12 +72,9 @@ MICROSOFT = {
     "AUTHORITY":     f"https://login.microsoftonline.com/{os.environ.get('MS_TENANT_ID', '')}",
     "REDIRECT_URI":  os.environ.get("MS_REDIRECT_URI", "http://localhost:8000/auth/callback/"),
     "SCOPES": [
-        "openid",
-        "profile",
         "email",
         "User.Read",
         "Mail.Send",
-        "offline_access",
     ],
 }
 TOKEN_ENCRYPTION_KEY = os.environ.get("TOKEN_ENCRYPTION_KEY", "DFEmz1R5YgxfDWuM9jaad8jiT77Hb-8x3xvTPgWZos4=")

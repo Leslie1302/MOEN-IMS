@@ -2,137 +2,93 @@
 {% load static %}
 
 {% block content %}
-<div class="container text-center mt-5">
+<div class="container text-center py-5">
     <!-- Logo at the Top -->
-    <a href="https://freeimage.host/i/FsV36Yb"><img src="https://iili.io/FsV36Yb.md.png" alt="App Logo"></a>
+    <div class="mb-5 fade-in">
+        <a href="https://freeimage.host/i/FsV36Yb">
+            <img src="https://iili.io/FsV36Yb.md.png" alt="App Logo" class="img-fluid logo" style="max-width: 200px;">
+        </a>
+    </div>
 
     <!-- Centered Content -->
-    <div class="row justify-content-center fade-in">
-        <div class="col-md-6">
-            <h1 class="fw-light">Track and Manage Your Inventory</h1>
-            <p class="fw-light">Keep track of your inventory and receive quantity alerts for low stock.</p>
-            <a href="{% url 'dashboard' %}" class="btn btn-primary animated-btn">Get Started Now!</a>
+    <div class="row justify-content-center mb-5 fade-in" style="animation-delay: 0.1s;">
+        <div class="col-md-8">
+            <h1 class="display-5 mb-3">Track and Manage Your Inventory</h1>
+            <p class="lead text-muted mb-4">Keep track of your projects and inventory with real-time stock alerts.</p>
+            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg px-5 shadow-sm">
+                Get Started Now! <i class="bi bi-arrow-right ms-2"></i>
+            </a>
         </div>
     </div>
 
     <!-- About Section -->
-    <div class="row justify-content-center mt-5 fade-in">
-        <div class="col-md-8">
-            <h2>About the App</h2>
-            <p>
-                The MOEGT Integrated Energy Project System (IEPS) is designed to help the Ministry efficiently track
-                energy projects, stock levels,
-                manage material requests, and streamline procurement processes. With real-time updates and user-friendly
-                features,
-                you’ll always stay informed about your project and inventory status.
+    <div class="row justify-content-center py-5 fade-in"
+        style="background-color: #ffffff; border-radius: 1rem; border: 1px solid #e5e7eb; animation-delay: 0.2s;">
+        <div class="col-md-10 col-lg-8">
+            <h2 class="mb-4">About the System</h2>
+            <p class="text-secondary">
+                The **MOEGT Integrated Energy Project System (IEPS)** is designed to help the Ministry efficiently track
+                energy projects, stock levels, manage material requests, and streamline procurement processes.
+                With real-time updates and user-friendly features, you’ll always stay informed about your project and
+                inventory status.
             </p>
-            <p>
+            <p class="text-secondary">
                 Whether you're handling warehouse supplies or office resources, this system ensures smooth and
-                hassle-free inventory control.
+                hassle-free inventory control across all regions.
             </p>
         </div>
     </div>
 
-    <!-- Spacer to push Contact section lower -->
-    <div style="height: 150px;"></div>
-
     <!-- Contact Information Section -->
-    <div class="row justify-content-center mt-5 fade-in">
-        <div class="col-md-6">
+    <div class="row justify-content-center mt-5 fade-in" style="animation-delay: 0.3s;">
+        <div class="col-md-6 text-muted">
             <p>
-                Have any questions or need <a href="mailto:leslie.adjetey@energymin.gov.gh">support? </a> <br> Reach out
-                to us anytime!
+                Have any questions or need <a href="mailto:leslie.adjetey@energymin.gov.gh"
+                    class="text-primary font-bold">support?</a> <br>
+                Reach out to us anytime!
             </p>
         </div>
     </div>
 </div>
 
-<!-- JavaScript for Animations -->
+<!-- Simple JavaScript for Logo Bounce -->
 <script>
-    // Fade-in effect when scrolling
     document.addEventListener("DOMContentLoaded", function () {
-        const fadeIns = document.querySelectorAll(".fade-in");
-        const options = { threshold: 0.3 };
-
-        let observer = new IntersectionObserver(function (entries, observer) {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add("visible");
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, options);
-
-        fadeIns.forEach(section => observer.observe(section));
-
-        // Logo bounce effect
+        // Simple Bounce effect for logo
         setTimeout(() => {
-            document.querySelector(".logo").classList.add("bounce");
-        }, 500);
-    });
-
-    // Button hover effect
-    document.querySelector(".animated-btn").addEventListener("mouseover", function () {
-        this.style.backgroundColor = "#ffcc00";
-        this.style.color = "#000";
-    });
-
-    document.querySelector(".animated-btn").addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "#007bff";
-        this.style.color = "#fff";
+            const logo = document.querySelector(".logo");
+            if (logo) logo.style.transform = "translateY(-5px)";
+        }, 1000);
     });
 </script>
 
-<!-- CSS Styles for Animations -->
 <style>
-    /* Fade-in effect */
-    .fade-in {
-        opacity: 0;
-        transform: translateY(30px);
-        transition: opacity 1s ease-out, transform 1s ease-out;
-    }
-
-    .fade-in.visible {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    /* Logo bounce animation */
     .logo {
         transition: transform 0.5s ease-in-out;
-    }
-
-    .logo.bounce {
-        transform: translateY(-10px);
-    }
-
-    /* Button hover animation */
-    .animated-btn {
-        transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
     }
 </style>
 {% endblock content %}
 
 {% block page_splash %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'welcome_index',
-        title: 'Welcome to MOEGT IEPS',
-        subtitle: 'Integrated Energy Project System',
-        icon: '⚡',
-        features: [
-            { icon: '🚀', title: 'Project Tracking', desc: 'End-to-end energy project management' },
-            { icon: '📦', title: 'Inventory Control', desc: 'Real-time stock and material tracking' },
-            { icon: '👥', title: 'Collaboration', desc: 'Connects schedules, stores, and sites' },
-            { icon: '📊', title: 'Analytics', desc: 'Data-driven insights and reporting' }
-        ],
-        tips: [
-            'Sign in to access your dashboard',
-            'Contact support if you need an account',
-            'Check the About section for system details'
-        ]
+    document.addEventListener('DOMContentLoaded', function () {
+        PageSplash.init({
+            pageId: 'welcome_index',
+            title: 'Welcome to MOEGT IEPS',
+            subtitle: 'Integrated Energy Project System',
+            icon: '⚡',
+            features: [
+                { icon: '🚀', title: 'Project Tracking', desc: 'End-to-end energy project management' },
+                { icon: '📦', title: 'Inventory Control', desc: 'Real-time stock and material tracking' },
+                { icon: '👥', title: 'Collaboration', desc: 'Connects schedules, stores, and sites' },
+                { icon: '📊', title: 'Analytics', desc: 'Data-driven insights and reporting' }
+            ],
+            tips: [
+                'Sign in to access your dashboard',
+                'Contact support if you need an account',
+                'Check the About section for system details'
+            ]
+        });
     });
-});
 </script>
 {% endblock %}

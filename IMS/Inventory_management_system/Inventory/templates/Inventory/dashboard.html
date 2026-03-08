@@ -5,269 +5,181 @@
 
 {% block full_width_content %}
 <div class="container-fluid px-4 mt-4">
-{% if messages %}
+    {% if messages %}
     <div class="row mt-3">
         {% for message in messages %}
-            <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }}">{{ message }}</div>
+        <div class="col-md-10 col-12 mx-auto alert alert-{{ message.tags }}">{{ message }}</div>
         {% endfor %}
     </div>
-{% endif %}
+    {% endif %}
 
-{% if user.is_superuser %}
+    {% if user.is_superuser %}
     <div class="d-flex justify-content-end mb-3">
         <a href="{% url 'upload_inventory' %}" class="btn btn-success">📂 Upload Excel</a>
     </div>
-{% endif %}
+    {% endif %}
 
-{% if low_inventory_items %}
+    {% if low_inventory_items %}
     <div class="alert alert-warning text-center" role="alert">
         <strong>⚠️ Low Stock Alert:</strong>
-        {% if low_inventory_items|length <= 3 %}
-            The following materials are low: {{ low_inventory_items|join:", " }}
+        {% if low_inventory_items|length <= 3 %} The following materials are low: {{ low_inventory_items|join:", " }}
         {% else %}
             {{ low_inventory_items|length }} materials are low in stock!
         {% endif %}
-        <a href="{% url 'low_inventory_summary' %}" class="btn btn-outline-warning btn-sm ms-2">View Details</a>
+        <a href=" {% url 'low_inventory_summary' %}" class="btn btn-outline-warning btn-sm ms-2">View Details</a>
     </div>
-{% endif %}
+    {% endif %}
 
-<div class="container-fluid px-3">
-    <div class="mt-4">
-        {% if user.is_superuser %}
-        <div class="d-flex justify-content-end mb-3">
-            <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
-        </div>
-        {% endif %}
+    <div class="container-fluid px-3">
+        <div class="mt-4">
+            {% if user.is_superuser %}
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
+            </div>
+            {% endif %}
 
-        <div class="table-responsive">
-            <table class="table table-hover table-striped enhanced-table" id="inventory-table" data-export-filename="inventory">
-                <thead>
-                    <tr>
-                        <th scope="col" data-sort>ID</th>
-                        <th scope="col" data-sort>Name</th>
-                        <th scope="col" data-sort data-type="number">Qty</th>
-                        <th scope="col" data-sort>Unit</th>
-                        <th scope="col" data-sort>Category</th>
-                        <th scope="col" data-sort>Item Code</th>
-                        <th scope="col" data-sort>Warehouse</th>
-                        {% if user.is_superuser %}
-                        <th scope="col" colspan="2" class="text-center" data-no-filter>Actions</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if not items %}
-                        <tr><td colspan="9" class="text-center text-muted">No items available</td></tr>
-                    {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover enhanced-table" id="inventory-table"
+                    data-export-filename="inventory_list">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-sort>ID</th>
+                            <th scope="col" data-sort>Name</th>
+                            <th scope="col" data-sort data-type="number">Qty</th>
+                            <th scope="col" data-sort>Unit</th>
+                            <th scope="col" data-sort>Category</th>
+                            <th scope="col" data-sort>Item Code</th>
+                            <th scope="col" data-sort>Warehouse</th>
+                            {% if user.is_superuser %}
+                            <th scope="col" data-no-filter class="text-center">Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if not items %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">No items available in the inventory.
+                            </td>
+                        </tr>
+                        {% else %}
                         {% for item in items %}
-                            <tr>
-                                <th scope="row">{{ item.id }}</th>
-                                <td>{{ item.name }}</td>
-                                <td class="{% if item.id in low_inventory_ids %} text-danger {% endif %}">{{ item.quantity|intcomma }}</td>
-                                <td>{{ item.unit.name }}</td>
-                                <td>{{ item.category.name }}</td>
-                                <td>{{ item.code }}</td>
-                                <td>
-                                    {% if item.warehouse %}
-                                        <span class="badge bg-info">{{ item.warehouse.name }}</span>
-                                        <small class="text-muted d-block">{{ item.warehouse.code }}</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                {% if user.is_superuser %}
-                                <td class="text-center"><a href="{% url 'edit-item' item.id %}" class="btn btn-outline-secondary btn-sm">Edit</a></td>
-                                <td class="text-center"><a href="{% url 'delete-item' item.id %}" class="btn btn-danger btn-sm">Delete</a></td>
+                        <tr>
+                            <th scope="row" class="text-muted small">#{{ item.id }}</th>
+                            <td class="fw-medium">{{ item.name }}</td>
+                            <td>
+                                <span
+                                    class="{% if item.id in low_inventory_ids %}badge bg-danger{% else %}badge bg-success-subtle text-success{% endif %}">
+                                    {{ item.quantity|intcomma }}
+                                </span>
+                            </td>
+                            <td>{{ item.unit.name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ item.category.name }}</span></td>
+                            <td><code>{{ item.code }}</code></td>
+                            <td>
+                                {% if item.warehouse %}
+                                <span class="text-dark">{{ item.warehouse.name }}</span>
+                                <small class="text-muted d-block" style="font-size: 0.7rem;">{{ item.warehouse.code
+                                    }}</small>
+                                {% else %}
+                                <span class="text-muted small">—</span>
                                 {% endif %}
-                            </tr>
+                            </td>
+                            {% if user.is_superuser %}
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit-item' item.id %}" class="btn btn-sm btn-outline-primary"
+                                        title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'delete-item' item.id %}" class="btn btn-sm btn-outline-danger"
+                                        title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
                         {% endfor %}
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-                </tbody>
-            </table>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-</div>
 
-{% if user.is_superuser %}
-    <div class="d-flex justify-content-end mb-3">
-        <a href="{% url 'upload_categories_units' %}" class="btn btn-success">📂 Upload Categories & Units</a>
+    {% if user.is_superuser %}
+    <!-- Floating Action Button for Uploads -->
+    <div class="position-fixed bottom-0 start-0 m-4" style="z-index: 1000;">
+        <div class="dropdown">
+            <button class="btn btn-success btn-lg shadow-lg rounded-circle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+            <ul class="dropdown-menu shadow-lg border-0">
+                <li><a class="dropdown-item" href="{% url 'add-item' %}"><i class="bi bi-box-seam me-2"></i>Add Single
+                        Item</a></li>
+                <li><a class="dropdown-item" href="{% url 'upload_inventory' %}"><i
+                            class="bi bi-file-earmark-excel me-2"></i>Upload Inventory Excel</a></li>
+                <li><a class="dropdown-item" href="{% url 'upload_categories_units' %}"><i
+                            class="bi bi-tags me-2"></i>Upload Categories/Units</a></li>
+            </ul>
+        </div>
     </div>
-{% endif %}
-<div class="d-flex justify-content-end gap-2">
-    <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
-    <button class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; display: none; z-index: 1000;" id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
-</div>
+    {% endif %}
 
-<script>
-function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-window.onscroll = function() {
-    const btn = document.getElementById('scroll-top-btn');
-    btn.style.display = window.scrollY > 100 ? 'block' : 'none';
-};
-
-document.addEventListener('DOMContentLoaded', function() {
-    const table = document.getElementById('dashboard-table');
-    const headers = table.querySelectorAll('.filter-arrow');
-    const filters = {};
-    const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr')); // Store all rows initially
-
-    function populateDropdowns() {
-        headers.forEach(header => {
-            const colIndex = parseInt(header.getAttribute('data-column'));
-            const dropdown = document.getElementById(`filter-${colIndex}`);
-            const values = new Set();
-            const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            
-            for (let row of rows) {
-                if (row.style.display !== 'none') {
-                    const cells = row.getElementsByTagName('td');
-                    if (cells[colIndex]) {
-                        values.add(cells[colIndex].textContent.trim() || 'N/A');
-                    }
-                }
-            }
-            console.log(`Column ${colIndex} available values:`, Array.from(values));
-
-            const currentSelections = filters[colIndex] || [];
-            dropdown.innerHTML = '';
-            const selectAll = document.createElement('div');
-            selectAll.className = 'dropdown-item';
-            selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
-            dropdown.appendChild(selectAll);
-
-            values.forEach(value => {
-                const item = document.createElement('div');
-                item.className = 'dropdown-item';
-                const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
-                dropdown.appendChild(item);
-            });
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'btn btn-primary btn-sm dropdown-item';
-            confirmBtn.textContent = 'Confirm';
-            confirmBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                console.log(`Confirm clicked for column ${colIndex}`);
-                updateFilters(colIndex);
-                filterTable();
-                populateDropdowns();
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(confirmBtn);
-
-            selectAll.querySelector('input').addEventListener('change', function(e) {
-                e.stopPropagation();
-                const isChecked = this.checked;
-                dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
-                console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
-            });
-        });
-    }
-
-    headers.forEach(header => {
-        const colIndex = parseInt(header.getAttribute('data-column'));
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-
-        header.onclick = function(e) {
-            e.stopPropagation();
-            if (dropdown.style.display === 'block') {
-                dropdown.style.display = 'none';
-            } else {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-                dropdown.style.display = 'block';
-            }
-        };
-
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('filter-arrow')) {
-            document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-        }
-    });
-
-    function updateFilters(colIndex) {
-        const dropdown = document.getElementById(`filter-${colIndex}`);
-        filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-        console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
-    }
-
-    function filterTable() {
-        const rows = table.querySelector('tbody').getElementsByTagName('tr');
-        console.log(`Filtering ${rows.length} rows`);
-        for (let row of rows) {
-            let show = true;
-            const cells = row.getElementsByTagName('td');
-            for (let col in filters) {
-                const colIdx = parseInt(col);
-                const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                    show = false;
-                    break;
-                }
-            }
-            console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
-            row.style.display = show ? '' : 'none';
-        }
-        console.log('Filter applied');
-    }
-
-    function undoFilters() {
-        console.log('Undo filters triggered');
-        // Clear filters object
-        for (let col in filters) {
-            delete filters[col];
-        }
-        // Show all rows
-        allRows.forEach(row => row.style.display = '');
-        // Repopulate dropdowns with all original options
-        populateDropdowns();
-    }
-
-    // Attach undo filter event
-    document.getElementById('undo-filter-btn').addEventListener('click', function() {
-        undoFilters();
-    });
-
-    // Initial setup
-    populateDropdowns();
-    headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-    filterTable();
-});
-</script>
+    <button class="btn btn-primary d-none shadow-lg"
+        style="position: fixed; bottom: 20px; right: 20px; z-index: 1000; border-radius: 50%; width: 50px; height: 50px;"
+        id="scroll-top-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        <i class="bi bi-arrow-up"></i>
 </div>
 {% endblock full_width_content %}
 
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Standardized Table Initialization
+        const inventoryTable = new EnhancedTable({
+            table: '#inventory-table',
+            searchable: true,
+            sortable: true,
+            pagination: true,
+            rowsPerPage: 25,
+            exportable: true,
+            exportFileName: 'Inventory_Report'
+        });
+
+        // Scroll top button logic
+        const scrollBtn = document.getElementById('scroll-top-btn');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 300) {
+                scrollBtn.classList.remove('d-none');
+            } else {
+                scrollBtn.classList.add('d-none');
+            }
+        });
+    });
+</script>
+{% endblock extra_js %}
+
 {% block page_splash %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'dashboard',
-        title: 'Inventory Dashboard',
-        subtitle: 'Your central hub for warehouse management',
-        icon: '📦',
-        features: [
-            { icon: '📊', title: 'Live Inventory', desc: 'View all stock levels in real-time' },
-            { icon: '🔍', title: 'Smart Filtering', desc: 'Sort and filter by category, warehouse' },
-            { icon: '⚠️', title: 'Low Stock Alerts', desc: 'Get notified when items run low' },
-            { icon: '📤', title: 'Excel Export', desc: 'Download inventory data anytime' }
-        ],
-        tips: [
-            'Click column headers to sort data',
-            'Use filters to narrow down results',
-            'Red quantities indicate low stock'
-        ]
+    document.addEventListener('DOMContentLoaded', function () {
+        PageSplash.init({
+            pageId: 'dashboard',
+            title: 'Inventory Dashboard',
+            subtitle: 'Your central hub for warehouse management',
+            icon: '📦',
+            features: [
+                { icon: '📊', title: 'Live Inventory', desc: 'View all stock levels in real-time' },
+                { icon: '🔍', title: 'Smart Filtering', desc: 'Sort and filter by category, warehouse' },
+                { icon: '⚠️', title: 'Low Stock Alerts', desc: 'Get notified when items run low' },
+                { icon: '📤', title: 'Excel Export', desc: 'Download inventory data anytime' }
+            ],
+            tips: [
+                'Click column headers to sort data',
+                'Use filters to narrow down results',
+                'Red quantities indicate low stock'
+            ]
+        });
     });
-});
 </script>
 {% endblock %}

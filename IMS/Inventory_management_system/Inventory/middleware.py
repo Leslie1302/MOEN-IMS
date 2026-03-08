@@ -100,10 +100,6 @@ class UserRoleMiddleware(MiddlewareMixin):
             from django.contrib.auth.views import redirect_to_login
             return redirect_to_login(request.path, settings.LOGIN_URL)
 
-        # Allow superusers to access everything
-        if request.user.is_superuser:
-            return None
-
         # --- MFA Enforcement Block ---
         # If user is authenticated but hasn't verified using 2FA, 
         # and has at least one 2FA device, force redirect to /2fa/verify/
@@ -117,6 +113,10 @@ class UserRoleMiddleware(MiddlewareMixin):
             # Force verification page if trying to navigate to secure areas
             return redirect('verify_2fa')
         # -----------------------------
+
+        # Allow superusers to access everything
+        if request.user.is_superuser:
+            return None
 
         # If user has no groups and not on the awaiting_authorization page
         if not hasattr(request.user, 'groups') or not request.user.groups.exists():

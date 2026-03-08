@@ -13,13 +13,13 @@
                 {% if user.groups.exists or user.is_superuser %}
                 <!-- Dashboard -->
                 <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold" href="{% url 'dashboard' %}">📊 Stock Dashboard</a>
+                    <a class="nav-link" href="{% url 'dashboard' %}">📊 Stock Dashboard</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold" href="{% url 'ghana_map' %}">🗺️ Ghana Map</a>
+                    <a class="nav-link" href="{% url 'ghana_map' %}">🗺️ Ghana Map</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold" href="{% url 'about' %}">ℹ️ About</a>
+                    <a class="nav-link" href="{% url 'about' %}">ℹ️ About</a>
                 </li>
 
                 <!-- Schedule Officers Menu -->
