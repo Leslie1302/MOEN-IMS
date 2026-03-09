@@ -191,12 +191,12 @@
     <!-- Consignment Groups -->
     {% if consignments %}
     <h4 class="mt-4 mb-3"><i class="fas fa-boxes"></i> Bulk Shipments (Consignments)</h4>
-    {% for consignment_number, transports_in_consignment in consignments.items %}
+    {% for waybill_number, transports_in_consignment in consignments.items %}
     <div class="card mb-4 border-primary">
         <div class="card-header bg-primary text-white">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="mb-1"><i class="fas fa-shipping-fast"></i> Consignment: {{ consignment_number }}</h5>
+                    <h5 class="mb-1"><i class="fas fa-shipping-fast"></i> Bulk Waybill: {{ waybill_number }}</h5>
                     {% with first_transport=transports_in_consignment.0 %}
                     <div class="mb-1"><strong>Waybill:</strong> <code
                             class="text-white">{{ first_transport.waybill_number }}</code></div>
@@ -247,7 +247,7 @@
                                     data-transporter="{{ transport.transporter.name }}"
                                     data-driver="{{ transport.driver_name }}"
                                     data-order-code="{{ transport.material_order.request_code }}"
-                                    data-consignment-number="{{ transport.consignment_number|default:'' }}">
+                                    data-consignment-number="{{ transport.waybill_number|default:'' }}">
                                     <i class="fas fa-edit"></i> Update
                                 </button>
                             </div>
@@ -461,7 +461,7 @@
                         data-material="{{ transport.material_name }}"
                         data-transporter="{{ transport.transporter.name }}" data-driver="{{ transport.driver_name }}"
                         data-order-code="{{ transport.material_order.request_code }}"
-                        data-consignment-number="{{ transport.consignment_number|default:'' }}">
+                        data-consignment-number="{{ transport.waybill_number|default:'' }}">
                         <i class="fas fa-edit"></i> Update Status
                     </button>
                     {% endif %}
@@ -892,24 +892,24 @@
 
 {% block page_splash %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'transportation_status',
-        title: 'Transportation Status',
-        subtitle: 'Monitor material shipments in real-time',
-        icon: '🚚',
-        features: [
-            { icon: '📍', title: 'Live Tracking', desc: 'Track shipments from warehouse to site' },
-            { icon: '🔄', title: 'Status Updates', desc: 'Update delivery status in real-time' },
-            { icon: '📋', title: 'Waybill Management', desc: 'Generate and track waybills' },
-            { icon: '✅', title: 'Delivery Confirmation', desc: 'Confirm receipt at destination' }
-        ],
-        tips: [
-            'Use filters to find specific shipments',
-            'Click Update Status to change delivery stage',
-            'Colors indicate current shipment status'
-        ]
+    document.addEventListener('DOMContentLoaded', function () {
+        PageSplash.init({
+            pageId: 'transportation_status',
+            title: 'Transportation Status',
+            subtitle: 'Monitor material shipments in real-time',
+            icon: '🚚',
+            features: [
+                { icon: '📍', title: 'Live Tracking', desc: 'Track shipments from warehouse to site' },
+                { icon: '🔄', title: 'Status Updates', desc: 'Update delivery status in real-time' },
+                { icon: '📋', title: 'Waybill Management', desc: 'Generate and track waybills' },
+                { icon: '✅', title: 'Delivery Confirmation', desc: 'Confirm receipt at destination' }
+            ],
+            tips: [
+                'Use filters to find specific shipments',
+                'Click Update Status to change delivery stage',
+                'Colors indicate current shipment status'
+            ]
+        });
     });
-});
 </script>
 {% endblock %}

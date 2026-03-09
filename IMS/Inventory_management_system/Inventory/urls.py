@@ -212,9 +212,7 @@ urlpatterns = [
     path('update-transport-status/<int:pk>/', transporter_views.update_transport_status, name='update_transport_status'),
     path('download-waybill/<int:transport_id>/', transporter_views.download_waybill_pdf, name='download_waybill_pdf'),
     path('verify-waybill-qr/<str:waybill_identifier>/', transporter_views.verify_waybill_qr, name='verify_waybill_qr'),
-    path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
-    path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
-    path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
+
     
     # Transporter management
     path('transporters/', transporter_views.TransporterListView.as_view(), name='transporter_list'),
@@ -245,7 +243,7 @@ urlpatterns = [
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
     path('release-letters/tracking/', release_letter_tracking_dashboard, name='release_letter_tracking_dashboard'),
     path('release-letters/<int:pk>/adjust-quantity/', AdjustReleaseLetterQuantityView.as_view(), name='adjust_release_letter_quantity'),
-    path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
+
     
     # Notification management
     path('notifications/', NotificationListView.as_view(), name='notifications'),
@@ -322,3 +320,11 @@ urlpatterns = [
     path('download-shep-community-template/', download_shep_community_template, name='download_shep_community_template'),
     path('upload-shep-communities/', upload_shep_communities, name='upload_shep_communities'),
 ]
+
+# Debug-only URLs — only available when DEBUG=True
+if settings.DEBUG:
+    urlpatterns += [
+        path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
+        path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
+        path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
+    ]

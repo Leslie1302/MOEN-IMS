@@ -1,5 +1,6 @@
 venv/
 .venv/
+venv_pdf/
 __pycache__/
 *.pyc
 *.pyo
@@ -9,3 +10,8 @@ __pycache__/
 .env.*
 *.sqlite3
 staticfiles/
+*.log
+cookies.txt
+media/
+profile_pics/
+screenshots/

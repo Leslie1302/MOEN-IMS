@@ -1,0 +1,47 @@
+{# Management menu - shared between Management group and Superuser #}
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="managementDropdown" role="button"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        👔 Management
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="managementDropdown">
+        <li>
+            <h6 class="dropdown-header">Dashboards & Reports</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📈 Performance Reports</a>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'notifications' %}">🔔 System Notifications</a></li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">Digital Signatures</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">Weekly Reports</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'weekly_reports_list' %}">📋 View Reports</a></li>
+        <li><a class="dropdown-item" href="{% url 'generate_weekly_report' %}">📝 Generate Report</a></li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">Supply Chain</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'supplier_list' %}">🏭 Suppliers</a></li>
+        <li><a class="dropdown-item" href="{% url 'contract_list' %}">📄 Contracts</a></li>
+        <li><a class="dropdown-item" href="{% url 'invoice_list' %}">🧾 Invoices</a></li>
+        <li><a class="dropdown-item" href="{% url 'price_catalog_list' %}">💰 Price Catalog</a></li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">User Administration</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'bulk_user_upload' %}">👥 Bulk User Upload</a></li>
+    </ul>
+</li>

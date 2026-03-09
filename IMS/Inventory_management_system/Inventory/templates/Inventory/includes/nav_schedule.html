@@ -1,0 +1,40 @@
+{# Schedule Officers menu - shared between Schedule Officer group and Superuser #}
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdown" role="button"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        📋 Schedule
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
+        <li>
+            <h6 class="dropdown-header">Material Requests</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'request_material' %}">➕ Request Material</a></li>
+        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📦 Material Orders</a>
+        </li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">Tracking & Monitoring</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'requisition_status' %}">📋 Requisition Status</a>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+        <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
+        <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📋 Release
+                Letter Tracking</a></li>
+        <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance
+                Summary</a></li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <h6 class="dropdown-header">Analytics</h6>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'material_heatmap' %}">🗺️ Material Heatmap</a></li>
+        <li><a class="dropdown-item" href="{% url 'low_inventory_summary' %}">📉 Low Inventory Summary</a></li>
+        <li><a class="dropdown-item" href="{% url 'material_legend' %}">📖 Material Legend</a></li>
+    </ul>
+</li>

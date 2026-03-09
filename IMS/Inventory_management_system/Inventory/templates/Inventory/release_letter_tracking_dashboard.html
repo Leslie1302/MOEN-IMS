@@ -97,8 +97,8 @@
                         <div class="col-md-2">
                             <select name="status" class="form-select form-select-sm">
                                 <option value="">All Status</option>
-                                <option value="Open" {% if filter_status == "Open" %}selected{% endif %}>Open</option>
-                                <option value="Closed" {% if filter_status == "Closed" %}selected{% endif %}>Closed
+                                <option value="Open" {% if filter_status=="Open" %}selected{% endif %}>Open</option>
+                                <option value="Closed" {% if filter_status=="Closed" %}selected{% endif %}>Closed
                                 </option>
                             </select>
                         </div>
@@ -106,7 +106,7 @@
                             <select name="material_type" class="form-select form-select-sm">
                                 <option value="">All Materials</option>
                                 {% for type, label in material_types %}
-                                <option value="{{ type }}" {% if filter_material_type == type %}selected{% endif %}>{{
+                                <option value="{{ type }}" {% if filter_material_type==type %}selected{% endif %}>{{
                                     label }}</option>
                                 {% endfor %}
                             </select>
@@ -114,9 +114,9 @@
                         <div class="col-md-2">
                             <select name="threshold" class="form-select form-select-sm">
                                 <option value="">All Thresholds</option>
-                                <option value="exceeded" {% if filter_threshold == "exceeded" %}selected{% endif %}>
+                                <option value="exceeded" {% if filter_threshold=="exceeded" %}selected{% endif %}>
                                     Threshold Exceeded</option>
-                                <option value="normal" {% if filter_threshold == "normal" %}selected{% endif %}>Normal
+                                <option value="normal" {% if filter_threshold=="normal" %}selected{% endif %}>Normal
                                 </option>
                             </select>
                         </div>
@@ -128,7 +128,8 @@
                             <button type="submit" class="btn btn-primary btn-sm">
                                 <i class="bi bi-search"></i> Filter
                             </button>
-                            <a href="{% url 'release_letter_tracking_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                            <a href="{% url 'release_letter_tracking_dashboard' %}"
+                                class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-x"></i> Clear
                             </a>
                         </div>
@@ -216,7 +217,9 @@
                                         {{ rl.total_requested|floatformat:0|intcomma }}
                                     </td>
                                     <td class="text-end">
-                                        <span class="{% if rl.balance_to_request <= 0 %}text-danger fw-bold{% endif %}">{{ rl.balance_to_request|floatformat:0|intcomma }}</span>
+                                        <span
+                                            class="{% if rl.balance_to_request <= 0 %}text-danger fw-bold{% endif %}">{{
+                                            rl.balance_to_request|floatformat:0|intcomma }}</span>
                                     </td>
                                     <td class="text-center">
                                         <div class="progress" style="height: 20px;"
@@ -225,7 +228,8 @@
                                                 role="progressbar"
                                                 style="width: {{ rl.drawdown_percentage|floatformat:0 }}%;"
                                                 aria-valuenow="{{ rl.drawdown_percentage|floatformat:0 }}"
-                                                aria-valuemin="0" aria-valuemax="100">{{ rl.drawdown_percentage|floatformat:0 }}%</div>
+                                                aria-valuemin="0" aria-valuemax="100">{{
+                                                rl.drawdown_percentage|floatformat:0 }}%</div>
                                         </div>
                                     </td>
                                     <td class="text-end">
@@ -233,22 +237,29 @@
                                     </td>
                                     <td class="text-end">
                                         {% if rl.fulfillment_gap > 0 %}
-                                        <span class="badge bg-warning text-dark" title="Materials requested but not yet delivered">{{ rl.fulfillment_gap|floatformat:0|intcomma }}</span>
+                                        <span class="badge bg-warning text-dark"
+                                            title="Materials requested but not yet delivered">{{
+                                            rl.fulfillment_gap|floatformat:0|intcomma }}</span>
                                         {% else %}
                                         <span class="text-success"><i class="bi bi-check-circle"></i> 0</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge {% if rl.fulfillment_percentage >= 100 %}bg-success{% elif rl.fulfillment_percentage >= 50 %}bg-info{% else %}bg-secondary{% endif %}">{{ rl.fulfillment_percentage|floatformat:0 }}%</span>
+                                        <span
+                                            class="badge {% if rl.fulfillment_percentage >= 100 %}bg-success{% elif rl.fulfillment_percentage >= 50 %}bg-info{% else %}bg-secondary{% endif %}">{{
+                                            rl.fulfillment_percentage|floatformat:0 }}%</span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-primary" title="{{ rl.order_count }} material order(s)"><i class="bi bi-cart"></i> {{ rl.order_count }}</span>
+                                        <span class="badge bg-primary" title="{{ rl.order_count }} material order(s)"><i
+                                                class="bi bi-cart"></i> {{ rl.order_count }}</span>
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex flex-column gap-1 small">
-                                            <span class="badge bg-success" title="Delivered transports"><i class="bi bi-truck"></i> {{ rl.delivered_count }}</span>
+                                            <span class="badge bg-success" title="Delivered transports"><i
+                                                    class="bi bi-truck"></i> {{ rl.delivered_count }}</span>
                                             {% if rl.in_transit_count > 0 %}
-                                            <span class="badge bg-warning text-dark" title="In transit"><i class="bi bi-arrow-right"></i> {{ rl.in_transit_count }}</span>
+                                            <span class="badge bg-warning text-dark" title="In transit"><i
+                                                    class="bi bi-arrow-right"></i> {{ rl.in_transit_count }}</span>
                                             {% endif %}
                                             {% if rl.pending_count > 0 %}
                                             <span class="badge bg-secondary" title="Pending"><i class="bi bi-clock"></i>
@@ -258,22 +269,29 @@
                                     </td>
                                     <td>
                                         {% if rl.boq_item %}
-                                        <small title="{{ rl.boq_item.material_description }}"><i class="bi bi-link-45deg"></i> {{ rl.boq_item.material_description|truncatewords:3 }}</small>
+                                        <small title="{{ rl.boq_item.material_description }}"><i
+                                                class="bi bi-link-45deg"></i> {{
+                                            rl.boq_item.material_description|truncatewords:3 }}</small>
                                         {% else %}
                                         <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if rl.uploaded_by %}
-                                        <small><i class="bi bi-person"></i> {{ rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span class="text-muted">{{ rl.upload_time|date:"M d, Y" }}</span></small>
+                                        <small><i class="bi bi-person"></i> {{
+                                            rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span
+                                                class="text-muted">{{ rl.upload_time|date:"M d, Y" }}</span></small>
                                         {% else %}
                                         <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge {% if rl.status == 'Open' %}bg-success{% else %}bg-secondary{% endif %}">{{ rl.status }}</span>
+                                        <span
+                                            class="badge {% if rl.status == 'Open' %}bg-success{% else %}bg-secondary{% endif %}">{{
+                                            rl.status }}</span>
                                         {% if rl.is_threshold_exceeded %}
-                                        <br><span class="badge bg-warning text-dark mt-1" title="Threshold exceeded"><i class="bi bi-exclamation-triangle"></i></span>
+                                        <br><span class="badge bg-warning text-dark mt-1" title="Threshold exceeded"><i
+                                                class="bi bi-exclamation-triangle"></i></span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
@@ -320,12 +338,16 @@
                                                                 {% for order in rl.material_orders.all %}
                                                                 <tr>
                                                                     <td>
-                                                                        <a href="{% url 'material_orders' %}?search={{ order.request_code }}" target="_blank" class="text-decoration-none fw-bold small">
-                                                                            {{ order.request_code }} <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                                                                        <a href="{% url 'material_orders' %}?search={{ order.request_code }}"
+                                                                            target="_blank"
+                                                                            class="text-decoration-none fw-bold small">
+                                                                            {{ order.request_code }} <i
+                                                                                class="bi bi-box-arrow-up-right small text-muted"></i>
                                                                         </a>
                                                                     </td>
                                                                     <td>{{ order.name|truncatewords:4 }}</td>
-                                                                    <td class="text-end">{{ order.quantity|floatformat:0|intcomma }}</td>
+                                                                    <td class="text-end">{{
+                                                                        order.quantity|floatformat:0|intcomma }}</td>
                                                                     <td>
                                                                         {% if order.status == "Pending" %}
                                                                         <span class="badge bg-warning text-dark">⏳
@@ -357,7 +379,7 @@
                                                 <div class="col-md-6">
                                                     <h6 class="text-success mb-3"><i class="bi bi-truck"></i> Transport
                                                         Records</h6>
-                                                    {% if rl.transports.all %}
+                                                    {% if rl.all_transports %}
                                                     <div class="table-responsive">
                                                         <table class="table table-sm table-bordered">
                                                             <thead class="table-secondary">
@@ -369,10 +391,12 @@
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {% for transport in rl.transports.all|slice:":10" %}
+                                                                {% for transport in rl.all_transports|slice:":10" %}
                                                                 <tr>
                                                                     <td>{{ transport.vehicle_number|default:"—" }}</td>
-                                                                    <td>{{ transport.driver_name|default:"—"|truncatewords:2 }}</td>
+                                                                    <td>{{
+                                                                        transport.driver_name|default:"—"|truncatewords:2
+                                                                        }}</td>
                                                                     <td>
                                                                         {% if transport.status == "Delivered" %}
                                                                         <span class="badge bg-success">🚚
@@ -381,17 +405,20 @@
                                                                         <span class="badge bg-warning text-dark">➡️ In
                                                                             Transit</span>
                                                                         {% else %}
-                                                                        <span class="badge bg-secondary">{{ transport.status }}</span>
+                                                                        <span class="badge bg-secondary">{{
+                                                                            transport.status }}</span>
                                                                         {% endif %}
                                                                     </td>
-                                                                    <td>{{ transport.created_at|date:"M d, Y" }}</td>
+                                                                    <td>{{ transport.date_dispatched|date:"M d, Y" }}
+                                                                    </td>
                                                                 </tr>
                                                                 {% endfor %}
                                                             </tbody>
                                                         </table>
                                                     </div>
-                                                    {% if rl.transports.count > 10 %}
-                                                    <small class="text-muted">Showing 10 of {{ rl.transports.count }}
+                                                    {% if rl.all_transports|length > 10 %}
+                                                    <small class="text-muted">Showing 10 of {{ rl.all_transports|length
+                                                        }}
                                                         transports</small>
                                                     {% endif %}
                                                     {% else %}
@@ -409,19 +436,28 @@
                                                             <div class="row">
                                                                 <div class="col-md-3">
                                                                     <strong>Total Authorized:</strong><br>
-                                                                    <span class="text-primary">{{ rl.total_quantity|floatformat:0|intcomma }}</span>
+                                                                    <span class="text-primary">{{
+                                                                        rl.total_quantity|floatformat:0|intcomma
+                                                                        }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Total Requested:</strong><br>
-                                                                    <span class="text-warning">{{ rl.total_requested|floatformat:0|intcomma }}</span>
+                                                                    <span class="text-warning">{{
+                                                                        rl.total_requested|floatformat:0|intcomma
+                                                                        }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Total Released:</strong><br>
-                                                                    <span class="text-success">{{ rl.total_released|floatformat:0|intcomma }}</span>
+                                                                    <span class="text-success">{{
+                                                                        rl.total_released|floatformat:0|intcomma
+                                                                        }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Fulfillment Gap:</strong><br>
-                                                                    <span class="{% if rl.fulfillment_gap > 0 %}text-danger{% else %}text-success{% endif %}">{{ rl.fulfillment_gap|floatformat:0|intcomma }}</span>
+                                                                    <span
+                                                                        class="{% if rl.fulfillment_gap > 0 %}text-danger{% else %}text-success{% endif %}">{{
+                                                                        rl.fulfillment_gap|floatformat:0|intcomma
+                                                                        }}</span>
                                                                 </div>
                                                             </div>
                                                             {% if rl.boq_item %}
@@ -622,24 +658,24 @@
 
 {% block page_splash %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    PageSplash.init({
-        pageId: 'release_letter_tracking',
-        title: 'Release Letter Tracking',
-        subtitle: 'Track authorized material releases against stock movements',
-        icon: '📋',
-        features: [
-            { icon: '📄', title: 'Letter Overview', desc: 'View all release letters and their status' },
-            { icon: '📊', title: 'Utilization Metrics', desc: 'Track quantities released vs authorized' },
-            { icon: '🔍', title: 'Search & Filter', desc: 'Find letters by date, status, or ID' },
-            { icon: '✅', title: 'Status Tracking', desc: 'Monitor open, partial, and completed letters' }
-        ],
-        tips: [
-            'Filter by status to see open vs completed letters',
-            'Click on a letter to see detailed line items',
-            'Utilization percentage shows how much of authorized quantity was used'
-        ]
+    document.addEventListener('DOMContentLoaded', function () {
+        PageSplash.init({
+            pageId: 'release_letter_tracking',
+            title: 'Release Letter Tracking',
+            subtitle: 'Track authorized material releases against stock movements',
+            icon: '📋',
+            features: [
+                { icon: '📄', title: 'Letter Overview', desc: 'View all release letters and their status' },
+                { icon: '📊', title: 'Utilization Metrics', desc: 'Track quantities released vs authorized' },
+                { icon: '🔍', title: 'Search & Filter', desc: 'Find letters by date, status, or ID' },
+                { icon: '✅', title: 'Status Tracking', desc: 'Monitor open, partial, and completed letters' }
+            ],
+            tips: [
+                'Filter by status to see open vs completed letters',
+                'Click on a letter to see detailed line items',
+                'Utilization percentage shows how much of authorized quantity was used'
+            ]
+        });
     });
-});
 </script>
 {% endblock %}

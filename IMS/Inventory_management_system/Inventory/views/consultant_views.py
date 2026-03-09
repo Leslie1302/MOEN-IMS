@@ -27,7 +27,7 @@ class ConsultantDeliveriesView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
             status__in=['In Transit', 'Delivered']
         ).exclude(
             site_receipt__isnull=False  # Exclude those already logged
-        ).select_related('material_order', 'transporter').order_by('-created_at')
+        ).select_related('material_order', 'transporter').order_by('-date_dispatched')
 
 
 class SiteReceiptCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
@@ -105,7 +105,7 @@ class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         # Waybill is downloadable only if ALL transports with the same waybill_number have site receipts
         for receipt in context['receipts']:
             transport = receipt.material_transport
-            if transport.waybill_number and transport.consignment_number:
+            if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
                 # Bulk assignment - check if ALL transports with same waybill have receipts
                 bulk_transports = MaterialTransport.objects.filter(
                     waybill_number=transport.waybill_number

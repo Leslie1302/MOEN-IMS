@@ -325,7 +325,8 @@ class MaterialOrder(auto_prefetch.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='Draft'
+        default='Draft',
+        db_index=True
     )
     
     # Processing tracking

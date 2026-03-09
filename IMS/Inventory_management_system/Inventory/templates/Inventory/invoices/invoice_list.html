@@ -1,0 +1,206 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-0 text-gray-800">Supplier Invoices</h2>
+            <p class="text-muted mb-0">View and track invoices from material suppliers.</p>
+        </div>
+        <div>
+            <!-- Button reserved for future Add Invoice functionality -->
+            <button class="btn btn-primary" href="#" disabled>
+                <i class="fas fa-file-invoice-dollar fa-sm text-white-50"></i> Log Invoice
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Invoices</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_invoices|default:"0" }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Pending Verification</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_invoices|default:"0" }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Overdue Invoices</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ overdue_invoices|default:"0" }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="row gx-3 gy-2 align-items-center">
+                <div class="col-sm-4">
+                    <label class="visually-hidden" for="supplierFilter">Supplier</label>
+                    <select class="form-select" id="supplierFilter" name="supplier">
+                        <option value="">All Suppliers</option>
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}" {% if request.GET.supplier==supplier.id|stringformat:"s"
+                            %}selected{% endif %}>
+                            {{ supplier.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="visually-hidden" for="statusFilter">Status</label>
+                    <select class="form-select" id="statusFilter" name="status">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if request.GET.status=='pending' %}selected{% endif %}>Pending
+                        </option>
+                        <option value="verified" {% if request.GET.status=='verified' %}selected{% endif %}>Verified
+                        </option>
+                        <option value="approved" {% if request.GET.status=='approved' %}selected{% endif %}>Approved
+                        </option>
+                        <option value="paid" {% if request.GET.status=='paid' %}selected{% endif %}>Paid</option>
+                        <option value="rejected" {% if request.GET.status=='rejected' %}selected{% endif %}>Rejected
+                        </option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    {% if request.GET.supplier or request.GET.status %}
+                    <a href="?" class="btn btn-outline-secondary">Clear</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle w-100" id="invoicesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice Number</th>
+                            <th>Supplier</th>
+                            <th>Contract</th>
+                            <th>Amount</th>
+                            <th>Date Issued</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td><span class="fw-bold">{{ invoice.invoice_number }}</span></td>
+                            <td>{{ invoice.supplier.name }}</td>
+                            <td>
+                                {% if invoice.contract %}
+                                <span class="text-muted">{{ invoice.contract.contract_number }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ invoice.currency }} {{ invoice.total_amount|intcomma }}</td>
+                            <td>{{ invoice.invoice_date|date:"d M Y" }}</td>
+                            <td>
+                                {% if invoice.status == 'paid' %}
+                                <span class="badge bg-success">Paid</span>
+                                {% elif invoice.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif invoice.status == 'verified' %}
+                                <span class="badge bg-info">Verified</span>
+                                {% elif invoice.status == 'approved' %}
+                                <span class="badge bg-primary">Approved</span>
+                                {% elif invoice.status == 'rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ invoice.status|title }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="fas fa-file-invoice fa-3x mb-3 d-block text-gray-300"></i>
+                                No invoices found matching your criteria.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page=1{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">&laquo;
+                            First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.previous_page_number }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active"><span class="page-link">Page {{ page_obj.number }} of {{
+                            page_obj.paginator.num_pages }}</span></li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.next_page_number }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.supplier %}&supplier={{ request.GET.supplier }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Last
+                            &raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

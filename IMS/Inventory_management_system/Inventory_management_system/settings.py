@@ -19,6 +19,25 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# ---------------------------------------------------------------------------
+# Sentry Error Monitoring (only when SENTRY_DSN is set, typically production)
+# ---------------------------------------------------------------------------
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=0.2,      # 20 % performance monitoring
+            send_default_pii=True,       # Attach user context to events
+            environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+        )
+    except ImportError:
+        logging.warning("sentry-sdk not installed; Sentry error monitoring disabled.")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -77,7 +96,14 @@ MICROSOFT = {
         "Mail.Send",
     ],
 }
-TOKEN_ENCRYPTION_KEY = os.environ.get("TOKEN_ENCRYPTION_KEY", "DFEmz1R5YgxfDWuM9jaad8jiT77Hb-8x3xvTPgWZos4=")
+TOKEN_ENCRYPTION_KEY = os.environ.get("TOKEN_ENCRYPTION_KEY")
+if not TOKEN_ENCRYPTION_KEY and not DEBUG:
+    raise ValueError(
+        "TOKEN_ENCRYPTION_KEY environment variable is required in production. "
+        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
+elif not TOKEN_ENCRYPTION_KEY:
+    TOKEN_ENCRYPTION_KEY = "DFEmz1R5YgxfDWuM9jaad8jiT77Hb-8x3xvTPgWZos4="  # Dev only
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True

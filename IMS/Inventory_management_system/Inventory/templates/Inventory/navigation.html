@@ -11,6 +11,27 @@
             <ul class="navbar-nav align-items-center me-auto">
                 {% if user.is_authenticated %}
                 {% if user.groups.exists or user.is_superuser %}
+
+                {# Role-specific menus via include partials #}
+                {% if user.is_superuser %}
+                {% include "Inventory/includes/nav_menus.html" %}
+                {% else %}
+                {% for group in user.groups.all %}
+                {% if group.name == 'Schedule Officer' %}
+                {% include "Inventory/includes/nav_schedule.html" %}
+                {% endif %}
+                {% if group.name == 'Store Officer' %}
+                {% include "Inventory/includes/nav_store_ops.html" %}
+                {% endif %}
+                {% if group.name == 'Stores Management' %}
+                {% include "Inventory/includes/nav_stores_mgmt.html" %}
+                {% endif %}
+                {% if group.name == 'Management' %}
+                {% include "Inventory/includes/nav_management.html" %}
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+
                 <!-- Dashboard -->
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'dashboard' %}">📊 Stock Dashboard</a>
@@ -21,332 +42,6 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'about' %}">ℹ️ About</a>
                 </li>
-
-                <!-- Schedule Officers Menu -->
-                {% for group in user.groups.all %}
-                {% if group.name == 'Schedule Officer' %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        📋 Schedule
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="scheduleDropdown">
-                        <li>
-                            <h6 class="dropdown-header">Material Requests</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'request_material' %}">➕ Request Material</a></li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📦 Material Orders</a>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Monitoring</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'requisition_status' %}">📋 Requisition Status</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-                        <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
-                        <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📋 Release
-                                Letter Tracking</a></li>
-                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance
-                                Summary</a></li>
-
-                    </ul>
-                </li>
-                {% endif %}
-                {% endfor %}
-
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="scheduleDropdownSuper"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        📋 Schedule
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="scheduleDropdownSuper">
-                        <li>
-                            <h6 class="dropdown-header">Material Requests</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'request_material' %}">➕ Request Material</a></li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📦 Material Orders</a>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Monitoring</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Transport Status</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'requisition_status' %}">📋 Requisition Status</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-                        <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📊 Bill of Quantities</a></li>
-                        <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📋 Release
-                                Letter Tracking</a></li>
-                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance
-                                Summary</a></li>
-
-                    </ul>
-                </li>
-                {% endif %}
-
-                <!-- Store Operations Menu (for Store Officers) -->
-                {% for group in user.groups.all %}
-                {% if group.name == 'Store Officer' %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storeOperationsDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🏪 Store Operations
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="storeOperationsDropdown">
-                        <li>
-                            <h6 class="dropdown-header">My Work</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned
-                                Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
-                                Dashboard</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Release Processing</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material
-                                Orders</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Transport Management</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport
-                                Status</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Verification</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Obsolete Materials</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_list' %}">📦 Obsolete Register</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_register' %}">➕ Register
-                                Obsolete</a></li>
-                    </ul>
-                </li>
-                {% endif %}
-                {% endfor %}
-
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storeOperationsDropdownSuper"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🏪 Store Operations
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="storeOperationsDropdownSuper">
-                        <li>
-                            <h6 class="dropdown-header">My Work</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_my_assigned_orders' %}">📋 My Assigned
-                                Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
-                                Dashboard</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Release Processing</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material
-                                Orders</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Transport Management</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport
-                                Status</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Verification</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Obsolete Materials</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_list' %}">📦 Obsolete Register</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_register' %}">➕ Register
-                                Obsolete</a></li>
-                    </ul>
-                </li>
-                {% endif %}
-
-                <!-- Stores Management Menu (for Stores Management group and Superusers) -->
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storesManagementDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🏬 Stores Management
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="storesManagementDropdown">
-                        <li>
-                            <h6 class="dropdown-header">Order Assignment</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
-                                Dashboard</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Material Orders</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material
-                                Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release
-                                Orders</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Transport Management</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport
-                                Status</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Verification</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Obsolete Materials</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_list' %}">📦 Obsolete Register</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_register' %}">➕ Register
-                                Obsolete</a></li>
-                    </ul>
-                </li>
-                {% else %}
-                {% for group in user.groups.all %}
-                {% if group.name == 'Stores Management' %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="storesManagementDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🏬 Stores Management
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="storesManagementDropdown">
-                        <li>
-                            <h6 class="dropdown-header">Order Assignment</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'store_operations_hub' %}">🏢 Operations Hub</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_pending_orders' %}">⏳ Pending Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stores_assigned_orders' %}">✅ Assigned Orders</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'stores_performance_dashboard' %}">📊 Performance
-                                Dashboard</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Material Orders</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 All Material
-                                Orders</a></li>
-                        <li><a class="dropdown-item" href="{% url 'material_orders_officers' %}">📋 Process Release
-                                Orders</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Transport Management</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_list' %}">🚛 Manage Transporters</a></li>
-                        <li><a class="dropdown-item" href="{% url 'transporter_legend' %}">📋 Transporter Legend</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transport_assignment' %}">🚚 Assign Transporters</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'transportation_status' %}">📊 Update Transport
-                                Status</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Tracking & Verification</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">✅ View Site Receipts</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Obsolete Materials</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_list' %}">📦 Obsolete Register</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'obsolete_material_register' %}">➕ Register
-                                Obsolete</a></li>
-                    </ul>
-                </li>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
-
-                <!-- Site Work Menu -->
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        👷 Site Work
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="consultantDropdown">
-                        <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">📦 Pending Deliveries</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
-                    </ul>
-                </li>
-                {% endif %}
 
                 <!-- Projects Menu -->
                 <li class="nav-item dropdown">
@@ -372,8 +67,7 @@
                         <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">📈 Project
                                 Management</a></li>
                         <li><a class="dropdown-item" href="{% url 'project_community_analysis' %}">🏙️ Community
-                                Analysis</a>
-                        </li>
+                                Analysis</a></li>
                         <li><a class="dropdown-item" href="{% url 'project_package_analysis' %}">📦 Package Analysis</a>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'project_material_analysis' %}">📊 Material
@@ -391,120 +85,20 @@
                         <li><a class="dropdown-item" href="{% url 'shep_community_create' %}">➕ Add SHEP Community</a>
                         </li>
                         <li><a class="dropdown-item" href="{% url 'upload_shep_communities' %}">📤 Bulk Upload
-                                Communities</a>
-                        </li>
+                                Communities</a></li>
                         <li><a class="dropdown-item" href="{% url 'download_shep_community_template' %}">📥 Download
-                                Template</a>
-                        </li>
+                                Template</a></li>
                         <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">📖 Abbreviation Legend</a>
                         </li>
                     </ul>
                 </li>
 
-                <!-- Management Menu -->
-                {% for group in user.groups.all %}
-                {% if group.name == 'Management' %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="managementDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        👔 Management
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="managementDropdown">
-                        <li>
-                            <h6 class="dropdown-header">Dashboards & Reports</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📈 Performance Reports</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}">🔔 System Notifications</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Digital Signatures</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-
-                        <li>
-                            <h6 class="dropdown-header">Digital Signatures</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-
-                        <li>
-                            <h6 class="dropdown-header">Digital Signatures</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-
-                    </ul>
-                </li>
-                {% endif %}
-                {% endfor %}
-
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="managementDropdownSuper"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        👔 Management
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="managementDropdownSuper">
-                        <li>
-                            <h6 class="dropdown-header">Dashboards & Reports</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'management_dashboard' %}">📈 Performance Reports</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'notifications' %}">🔔 System Notifications</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <h6 class="dropdown-header">Digital Signatures</h6>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'signature_lookup' %}">🔍 Signature Lookup</a></li>
-
-                    </ul>
-                </li>
-                {% endif %}
-
-                <!-- Digital Signatures Dropdown -->
-                {% comment %}
-                {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="digitalSignaturesDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🖋️ Digital Signatures
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="digitalSignaturesDropdown">
-                        <li>
-                            <a class="dropdown-item" href="{% url 'generate_digital_signature' %}">
-                                <i class="fas fa-plus-circle me-2"></i>Create New Stamp
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="{% url 'user_stamps' %}">
-                                <i class="fas fa-images me-2"></i>View All Stamps
-                            </a>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="{% url 'user_lookup' %}">
-                                <i class="fas fa-search me-2"></i>User Lookup
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                {% endif %}
-                {% endcomment %}
-
+                {% endif %}{# end groups.exists or is_superuser #}
+                {% endif %}{# end is_authenticated for left nav #}
             </ul>
-            <ul class="navbar-nav align-items-center">
 
+            <ul class="navbar-nav align-items-center">
+                {% if user.is_authenticated %}
                 <!-- Notifications -->
                 <li class="nav-item">
                     <a class="nav-link text-dark fw-semibold position-relative" href="#" id="notificationsDropdown"
@@ -556,7 +150,6 @@
                         {% endif %}
                     </ul>
                 </li>
-                {% endif %}
 
                 <!-- Show "Awaiting Authorization" ONLY for users with no groups and not superuser -->
                 {% if not user.groups.exists and not user.is_superuser %}
@@ -600,13 +193,14 @@
                     </ul>
                 </li>
                 {% else %}
+                <!-- Not authenticated — show Sign In / Sign Up -->
                 <li class="nav-item">
                     <a class="nav-link text-dark fw-semibold" href="{% url 'signin' %}">🔑 Sign In</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link text-dark fw-semibold" href="{% url 'signup' %}">📝 Sign Up</a>
                 </li>
-                {% endif %}
+                {% endif %}{# end is_authenticated #}
             </ul>
         </div>
     </div>

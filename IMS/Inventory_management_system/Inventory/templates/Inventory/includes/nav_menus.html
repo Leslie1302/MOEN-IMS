@@ -1,0 +1,19 @@
+{# Superuser gets all menus #}
+{% include "Inventory/includes/nav_schedule.html" %}
+{% include "Inventory/includes/nav_store_ops.html" %}
+{% include "Inventory/includes/nav_stores_mgmt.html" %}
+
+<!-- Site Work Menu (superuser only) -->
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="consultantDropdown" role="button"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        👷 Site Work
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="consultantDropdown">
+        <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">📦 Pending Deliveries</a>
+        </li>
+        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">📋 Site Receipts</a></li>
+    </ul>
+</li>
+
+{% include "Inventory/includes/nav_management.html" %}

@@ -149,9 +149,9 @@ def management_dashboard(request):
                                     transport = MaterialTransport.objects.filter(
                                         material_order=order,
                                         status='In Transit'
-                                    ).order_by('date_assigned').first()
-                                    if transport and transport.date_assigned:
-                                        days = (transport.date_assigned.date() - order.date_requested).days
+                                    ).order_by('date_dispatched').first()
+                                    if transport and transport.date_dispatched:
+                                        days = (transport.date_dispatched.date() - order.date_requested).days
                                         total_days += days
                                         count_with_dates += 1
                             
@@ -176,13 +176,13 @@ def management_dashboard(request):
                             total_days = 0
                             count_with_dates = 0
                             for transport in completed_transports:
-                                if transport.date_assigned:
+                                if transport.date_dispatched:
                                     # Get the site receipt for this transport
                                     receipt = SiteReceipt.objects.filter(
                                         material_transport=transport
                                     ).order_by('-receipt_date').first()
                                     if receipt and receipt.receipt_date:
-                                        days = (receipt.receipt_date - transport.date_assigned.date()).days
+                                        days = (receipt.receipt_date - transport.date_dispatched.date()).days
                                         total_days += days
                                         count_with_dates += 1
                             
@@ -499,7 +499,10 @@ def release_letter_tracking_dashboard(request):
     search_query = request.GET.get('search', '')
     
     # Base queryset
-    queryset = ReleaseLetter.objects.select_related('boq_item', 'uploaded_by').prefetch_related('material_orders', 'transports')
+    queryset = ReleaseLetter.objects.select_related('boq_item', 'uploaded_by').prefetch_related(
+        'material_orders',
+        'material_orders__transports',
+    )
     
     # Apply filters
     if filter_status:
@@ -523,12 +526,20 @@ def release_letter_tracking_dashboard(request):
         # Add order count
         rl.order_count = rl.material_orders.count()
         
+        # Gather transports via material_orders → transports
+        all_transports = []
+        for order in rl.material_orders.all():
+            all_transports.extend(order.transports.all())
+        
         # Add transport status counts
-        rl.delivered_count = rl.transports.filter(status='Delivered').count()
-        rl.in_transit_count = rl.transports.filter(status='In Transit').count()
+        rl.delivered_count = sum(1 for t in all_transports if t.status == 'Delivered')
+        rl.in_transit_count = sum(1 for t in all_transports if t.status == 'In Transit')
+        
+        # Attach list to object for template access
+        rl.all_transports = all_transports
         
         # Calculate pending count
-        total_transports = rl.transports.count()
+        total_transports = len(all_transports)
         rl.pending_count = total_transports - rl.delivered_count - rl.in_transit_count
     
     # Filter by threshold if needed

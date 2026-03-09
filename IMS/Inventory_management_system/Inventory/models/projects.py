@@ -5,15 +5,15 @@ from .inventory import Warehouse
 
 class BillOfQuantity(auto_prefetch.Model):
     """Bill of Quantity model - tracks material quantities by community"""
-    region = models.CharField(max_length=100)
-    district = models.CharField(max_length=100)
-    community = models.CharField(max_length=100, null=True, blank=True)
+    region = models.CharField(max_length=100, db_index=True)
+    district = models.CharField(max_length=100, db_index=True)
+    community = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     consultant = models.CharField(max_length=200)
     contractor = models.CharField(max_length=200)
-    package_number = models.CharField(max_length=50)
+    package_number = models.CharField(max_length=50, db_index=True)
     phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4)")
     material_description = models.CharField(max_length=200)
-    item_code = models.CharField(max_length=200)
+    item_code = models.CharField(max_length=200, db_index=True)
     contract_quantity = models.FloatField()
     quantity_received = models.FloatField(default=0.0)
     warehouse = auto_prefetch.ForeignKey(

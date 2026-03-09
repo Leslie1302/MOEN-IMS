@@ -553,7 +553,7 @@ class Notification(auto_prefetch.Model):
     )
     
     # Status
-    is_read = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
     

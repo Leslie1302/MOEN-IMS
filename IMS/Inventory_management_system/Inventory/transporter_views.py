@@ -330,31 +330,17 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         # Create transport record
                         transport = MaterialTransport.objects.create(
                             material_order=order,
-                            release_letter=release_letter,
                             transporter=transporter,
                             vehicle=vehicle,
                             driver_name=driver_name,
                             driver_phone=driver_phone,
                             waybill_number=waybill_number,  # Same waybill for all materials in bulk assignment
-                            consignment_number=consignment_number,  # Same consignment for all in bulk assignment
                             status='Assigned',
                             
-                            # Material details
-                            material_name=order.name,
-                            material_code=order.code,
+                            # Quantity details
                             quantity=available_quantity,
-                            unit=order.unit.name if order.unit else '',
                             
-                            # Destination details
-                            recipient=order.contractor or '',
-                            consultant=order.consultant or '',
-                            region=order.region or '',
-                            district=order.district or '',
-                            community=order.community or '',
-                            package_number=order.package_number or '',
-                            
-                            date_assigned=timezone.now(),
-                            created_by=request.user
+                            date_dispatched=timezone.now()
                         )
                         
                         # Update order status
@@ -448,7 +434,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         material_order=order,
                         transporter=transporter,
                         quantity=transport_quantity,
-                        date_assigned__gte=ten_seconds_ago
+                        date_dispatched__gte=ten_seconds_ago
                     ).exists()
                     
                     if recent_duplicate:
@@ -460,7 +446,6 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                     # Create a new MaterialTransport record for this specific quantity
                     transport = MaterialTransport.objects.create(
                         material_order=order,
-                        release_letter=release_letter,
                         transporter=transporter,
                         vehicle=vehicle,
                         driver_name=request.POST.get('driver_name', ''),
@@ -469,22 +454,10 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         status='Assigned',
                         
                         # Set material details from the order
-                        material_name=order.name,
-                        material_code=order.code,
                         quantity=transport_quantity,  # Use the specific quantity for this transport
-                        unit=order.unit.name if order.unit else '',
-                        
-                        # Set destination details from the order
-                        recipient=order.contractor or '',
-                        consultant=order.consultant or '',
-                        region=order.region or '',
-                        district=order.district or '',
-                        community=order.community or '',
-                        package_number=order.package_number or '',
                         
                         # Set the assignment date
-                        date_assigned=timezone.now(),
-                        created_by=request.user
+                        date_dispatched=timezone.now()
                     )
                     
                     # Ensure status is set correctly (in case model save method interferes)
@@ -564,11 +537,12 @@ def update_transport_status(request, pk):
             updated_orders = []
             
             with transaction.atomic():
-                # Check if this transport is part of a bulk consignment
-                if transport.consignment_number:
-                    # Update ALL transports in the same consignment
+                # Check if this transport is part of a bulk consignment via waybill_number
+                waybill = getattr(transport, 'waybill_number', 'Unknown')
+                if waybill not in [None, '', 'Unknown']:
+                    # Update ALL transports in the same waybill
                     consignment_transports = MaterialTransport.objects.filter(
-                        consignment_number=transport.consignment_number
+                        waybill_number=waybill
                     ).select_related('material_order')
                     
                     for consignment_transport in consignment_transports:
@@ -597,14 +571,14 @@ def update_transport_status(request, pk):
                         # Create audit log
                         MaterialOrderAudit.objects.create(
                             order=order,
-                            action=f'Transport status updated to {new_status} (Consignment: {transport.consignment_number})',
+                            action=f'Transport status updated to {new_status} (Waybill: {waybill})',
                             performed_by=request.user
                         )
                     
                     messages.success(
                         request, 
                         f'Bulk consignment status updated to {transport.get_status_display()}. '
-                        f'Updated {updated_count} transport(s) in consignment {transport.consignment_number}.'
+                        f'Updated {updated_count} transport(s) in Waybill {waybill}.'
                     )
                 else:
                     # Single transport - update only this one
@@ -635,12 +609,13 @@ def update_transport_status(request, pk):
                     
                     messages.success(request, f'Status updated to {transport.get_status_display()}')
             
+            waybill = getattr(transport, 'waybill_number', 'Unknown')
             return JsonResponse({
                 'success': True, 
                 'status': transport.get_status_display(),
                 'updated_count': updated_count,
                 'updated_orders': updated_orders,
-                'is_bulk': bool(transport.consignment_number)
+                'is_bulk': waybill not in [None, '', 'Unknown']
             })
     
     return JsonResponse({'success': False, 'error': 'Invalid request'})
@@ -659,7 +634,7 @@ class TransporterListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     def get_queryset(self):
         queryset = Transporter.objects.all().annotate(
             active_vehicles=Count('vehicles', filter=Q(vehicles__is_active=True)),
-            total_transports=Count('transports')
+            total_transports=Count('materialtransport')
         )
         
         # Apply search
@@ -1010,7 +985,7 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
             site_receipt__isnull=True  # Exclude transports with site receipts logged
         ).select_related(
             'material_order', 'transporter', 'vehicle', 'material_order__release_letter'
-        ).order_by('-date_assigned', 'status')
+        ).order_by('-date_dispatched', 'status')
         
         # Apply search filters
         search_query = self.request.GET.get('search', '').strip()
@@ -1055,8 +1030,9 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         single_shipments = []
         
         for transport in context['transports']:
-            if transport.consignment_number:
-                consignments[transport.consignment_number].append(transport)
+            # Group by waybill number if it's explicitly set (not Unknown) to represent bulk consignments
+            if getattr(transport, 'waybill_number', 'Unknown') not in [None, '', 'Unknown']:
+                consignments[transport.waybill_number].append(transport)
             else:
                 single_shipments.append(transport)
         
@@ -1097,8 +1073,7 @@ def debug_transport_records(request):
             'material_order_code': transport.material_order.request_code if transport.material_order else None,
             'transporter_name': transport.transporter.name if transport.transporter else None,
             'status': transport.status,
-            'date_assigned': transport.date_assigned.isoformat() if transport.date_assigned else None,
-            'created_at': transport.created_at.isoformat() if hasattr(transport, 'created_at') and transport.created_at else None,
+            'date_dispatched': transport.date_dispatched.isoformat() if transport.date_dispatched else None,
         })
     
     # Also check the queryset used by TransportationStatusView
@@ -1148,18 +1123,8 @@ def create_test_transport(request):
             material_order=order,
             transporter=transporter,
             status='Assigned',
-            material_name=order.name,
-            material_code=order.code,
             quantity=order.quantity,
-            unit=order.unit.name if order.unit else '',
-            recipient=order.contractor or 'Test Recipient',
-            consultant=order.consultant or 'Test Consultant',
-            region=order.region or 'Test Region',
-            district=order.district or 'Test District',
-            community=order.community or 'Test Community',
-            package_number=order.package_number or 'TEST-001',
-            date_assigned=timezone.now(),
-            created_by=request.user
+            date_dispatched=timezone.now()
         )
         
         return JsonResponse({
@@ -1320,7 +1285,7 @@ def download_waybill_pdf(request, transport_id):
     has_site_receipt = hasattr(transport, 'site_receipt') and transport.site_receipt is not None
     
     # For bulk assignments, check if ALL transports have site receipts
-    if transport.waybill_number and transport.consignment_number:
+    if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
         bulk_transports = MaterialTransport.objects.filter(
             waybill_number=transport.waybill_number
         )
@@ -1354,7 +1319,7 @@ def download_waybill_pdf(request, transport_id):
         copy_label = f"DUPLICATE COPY {transport.waybill_download_count - 1}"
     
     # For bulk assignments, fetch ALL transports with the same waybill number
-    if transport.waybill_number and transport.consignment_number:
+    if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
         # Bulk assignment - get all materials on this waybill
         all_transports = MaterialTransport.objects.filter(
             waybill_number=transport.waybill_number
@@ -1509,7 +1474,7 @@ def download_waybill_pdf(request, transport_id):
     cover_elements.append(Spacer(1, 0.15*inch))
     
     # Waybill Number and Date - simple format matching template
-    waybill_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else timezone.now().strftime('%d %B %Y')
+    waybill_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else timezone.now().strftime('%d %B %Y')
     waybill_info_data = [
         ['Waybill No:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
         ['Date:', Paragraph(waybill_date, normal_style)],
@@ -1709,13 +1674,13 @@ def download_waybill_pdf(request, transport_id):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Error getting store officer stamp: {str(e)}")
-        # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
+        # Use processed_at date if available, otherwise assigned_at, otherwise date_dispatched
         if transport.material_order and transport.material_order.processed_at:
             store_officer_date = transport.material_order.processed_at.strftime('%d %B %Y')
         elif transport.material_order and transport.material_order.assigned_at:
             store_officer_date = transport.material_order.assigned_at.strftime('%d %B %Y')
         else:
-            store_officer_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+            store_officer_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
     
     # Build signature cell - use image if available, otherwise text
     store_officer_signature_cell = store_officer_stamp_image if store_officer_stamp_image else Paragraph(store_officer_stamp_text or '_________________', small_text)
@@ -1792,11 +1757,11 @@ def download_waybill_pdf(request, transport_id):
             logger = logging.getLogger(__name__)
             logger.error(f"Error getting store manager stamp: {str(e)}")
         
-        # Get date from material_order.assigned_at or transport.created_at
+        # Get date from material_order.assigned_at or transport.date_dispatched
         if transport.material_order and transport.material_order.assigned_at:
             store_manager_date = transport.material_order.assigned_at.strftime('%d %B %Y')
-        elif transport.created_at:
-            store_manager_date = transport.created_at.strftime('%d %B %Y')
+        elif transport.date_dispatched:
+            store_manager_date = transport.date_dispatched.strftime('%d %B %Y')
     
     # Build store manager signature cell
     store_manager_signature_cell = store_manager_stamp_image if store_manager_stamp_image else Paragraph(store_manager_stamp_text or '_________________', small_text)
@@ -1904,9 +1869,9 @@ def download_waybill_pdf(request, transport_id):
     
     waybill_data = [
         ['Waybill Number:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
-        ['Consignment Number:', Paragraph(f"<b>{transport.consignment_number or 'Single Shipment'}</b>", normal_style)],
+        ['Shipment Type:', Paragraph(f"<b>{'Bulk Shipment' if len(all_transports) > 1 else 'Single Shipment'}</b>", normal_style)],
         ['Total Materials:', Paragraph(f"<b>{len(all_transports)}</b> item{'s' if len(all_transports) > 1 else ''}", normal_style)],
-        ['Date Assigned:', transport.date_assigned.strftime('%d %B %Y, %H:%M') if transport.date_assigned else 'N/A'],
+        ['Date Assigned:', transport.date_dispatched.strftime('%d %B %Y, %H:%M') if transport.date_dispatched else 'N/A'],
         ['Status:', Paragraph(f"<b><font color='#28a745'>{transport.get_status_display()}</font></b>", normal_style)],
     ]
     
@@ -2102,13 +2067,13 @@ def download_waybill_pdf(request, transport_id):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Error getting store officer stamp for main waybill: {str(e)}")
-        # Use processed_at date if available, otherwise assigned_at, otherwise date_assigned
+        # Use processed_at date if available, otherwise assigned_at, otherwise date_dispatched
         if transport.material_order and transport.material_order.processed_at:
             store_officer_date_main = transport.material_order.processed_at.strftime('%d %B %Y')
         elif transport.material_order and transport.material_order.assigned_at:
             store_officer_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
         else:
-            store_officer_date_main = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+            store_officer_date_main = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
     
     # Build signature cell for main waybill - use image if available, otherwise text
     store_officer_signature_cell_main = store_officer_stamp_image_main if store_officer_stamp_image_main else Paragraph(store_officer_stamp_text_main or '_________________', small_text)
@@ -2187,11 +2152,11 @@ def download_waybill_pdf(request, transport_id):
             logger = logging.getLogger(__name__)
             logger.error(f"Error getting store manager stamp for main waybill: {str(e)}")
         
-        # Get date from material_order.assigned_at or transport.created_at
+        # Get date from material_order.assigned_at or transport.date_dispatched
         if transport.material_order and transport.material_order.assigned_at:
             store_manager_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
-        elif transport.created_at:
-            store_manager_date_main = transport.created_at.strftime('%d %B %Y')
+        elif transport.date_dispatched:
+            store_manager_date_main = transport.date_dispatched.strftime('%d %B %Y')
     
     # Build store manager signature cell
     store_manager_signature_cell_main = store_manager_stamp_image_main if store_manager_stamp_image_main else Paragraph(store_manager_stamp_text_main or '_________________', small_text)
@@ -2203,9 +2168,9 @@ def download_waybill_pdf(request, transport_id):
     
     if transport.driver_name:
         vehicle_info = transport.vehicle.registration_number if transport.vehicle else 'N/A'
-        pickup_time = transport.date_assigned.strftime('%d %B %Y at %H:%M') if transport.date_assigned else 'N/A'
+        pickup_time = transport.date_dispatched.strftime('%d %B %Y at %H:%M') if transport.date_dispatched else 'N/A'
         driver_stamp_text = f"{driver_name}\nVehicle: {vehicle_info}\nPickup: {pickup_time}"
-        driver_date = transport.date_assigned.strftime('%d %B %Y') if transport.date_assigned else ''
+        driver_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
     
     driver_signature_cell = Paragraph(driver_stamp_text or '_________________', small_text)
     
