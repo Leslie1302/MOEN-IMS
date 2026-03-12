@@ -193,12 +193,13 @@
                     </ul>
                 </li>
                 {% else %}
-                <!-- Not authenticated — show Sign In / Sign Up -->
+                <!-- Not authenticated — sign in via Microsoft 365 -->
                 <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold" href="{% url 'signin' %}">🔑 Sign In</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold" href="{% url 'signup' %}">📝 Sign Up</a>
+                    <a class="nav-link text-dark fw-semibold d-flex align-items-center gap-1" href="{% url 'ms_login' %}">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg"
+                             alt="Microsoft" style="width: 18px; height: 18px;">
+                        Sign In
+                    </a>
                 </li>
                 {% endif %}{# end is_authenticated #}
             </ul>

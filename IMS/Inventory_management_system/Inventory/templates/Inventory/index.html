@@ -15,9 +15,16 @@
         <div class="col-md-8">
             <h1 class="display-5 mb-3">Track and Manage Your Inventory</h1>
             <p class="lead text-muted mb-4">Keep track of your projects and inventory with real-time stock alerts.</p>
+            {% if user.is_authenticated %}
             <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg px-5 shadow-sm">
-                Get Started Now! <i class="bi bi-arrow-right ms-2"></i>
+                Go to Dashboard <i class="bi bi-arrow-right ms-2"></i>
             </a>
+            {% else %}
+            <a href="{% url 'ms_login' %}" class="btn btn-primary btn-lg px-5 shadow-sm d-inline-flex align-items-center gap-2">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style="width: 20px; height: 20px;">
+                Sign in with Microsoft
+            </a>
+            {% endif %}
         </div>
     </div>
 

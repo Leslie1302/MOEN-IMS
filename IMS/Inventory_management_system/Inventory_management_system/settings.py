@@ -282,8 +282,9 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 LOGIN_REDIRECT_URL = '/dashboard'
-LOGIN_URL = 'signin'
-LOGOUT_REDIRECT_URL = 'signin'
+# All authentication is handled via Microsoft 365 OAuth
+LOGIN_URL = '/auth/login/'
+LOGOUT_REDIRECT_URL = 'index'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]

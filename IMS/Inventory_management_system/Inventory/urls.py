@@ -1,7 +1,7 @@
 from django.urls import path, include, reverse_lazy
 from django.conf import settings
 from django.conf.urls import handler403, handler404, handler500
-from django.contrib.auth import views as auth_views
+# Password reset routes removed — authentication is handled exclusively via Microsoft 365 OAuth.
 
 # Import views from their respective modules
 from .views import (
@@ -115,34 +115,10 @@ urlpatterns = [
     path('awaiting-authorization/', AwaitingAuthorizationView.as_view(), name='awaiting_authorization'),
     path('help/', HelpView.as_view(), name='help'),
     
-    # Password Reset URLs
-    path('password-reset/', 
-         auth_views.PasswordResetView.as_view(
-             template_name='Inventory/password_reset_form.html',
-             email_template_name='Inventory/emails/password_reset_email.txt',
-             html_email_template_name='Inventory/emails/password_reset_email.html',
-             subject_template_name='Inventory/emails/password_reset_subject.txt',
-             success_url=reverse_lazy('password_reset_done')
-         ),
-         name='password_reset'),
-    path('password-reset/done/', 
-         auth_views.PasswordResetDoneView.as_view(
-             template_name='Inventory/password_reset_done.html'
-         ),
-         name='password_reset_done'),
-    path('password-reset-confirm/<uidb64>/<token>/', 
-         auth_views.PasswordResetConfirmView.as_view(
-             template_name='Inventory/password_reset_confirm.html',
-             success_url=reverse_lazy('password_reset_complete')
-         ),
-         name='password_reset_confirm'),
-    path('password-reset-complete/', 
-         auth_views.PasswordResetCompleteView.as_view(
-             template_name='Inventory/password_reset_complete.html'
-         ),
-         name='password_reset_complete'),
+    # Password reset routes removed — M365 handles password recovery
+    # for all company accounts. Superuser access is available via Django admin.
     
-    # Two-Factor Authentication URLs
+    # Two-Factor Authentication URLs (for reference; MFA is enforced via Azure AD)
     path('2fa/setup/', setup_2fa, name='setup_2fa'),
     path('2fa/setup/qr/', setup_2fa_qr, name='2fa_qr'),
     path('2fa/confirm/', confirm_2fa, name='confirm_2fa'),
