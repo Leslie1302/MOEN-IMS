@@ -14,6 +14,9 @@ from .models import (
     InventoryItem, BillOfQuantity, Notification, Profile
 )
 import logging
+from django.conf import settings
+from accounts.notifications import send_email_notification
+from accounts.models import MicrosoftCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +51,83 @@ def create_notification(notification_type, title, message, recipient_group,
             related_project=related_project
         )
         logger.info(f"Created notification: {title} for {recipient_group}")
+        
+        # Trigger email notification via M365
+        try:
+            _trigger_email_notification(notification)
+        except Exception as email_err:
+            logger.error(f"Failed to trigger email for notification {notification.id}: {str(email_err)}")
+            
         return notification
     except Exception as e:
         logger.error(f"Error creating notification: {str(e)}", exc_info=True)
         return None
+
+
+def _trigger_email_notification(notification):
+    """
+    Internal helper to send email alerts for a notification.
+    """
+    # 1. Resolve Recipient Emails
+    recipients = []
+    if notification.recipient_user and notification.recipient_user.email:
+        recipients.append(notification.recipient_user.email)
+    
+    if notification.recipient_group:
+        if notification.recipient_group == 'All':
+            users = User.objects.filter(is_active=True).exclude(email='')
+        else:
+            users = User.objects.filter(groups__name=notification.recipient_group, is_active=True).exclude(email='')
+        
+        for u in users:
+            if u.email and u.email not in recipients:
+                recipients.append(u.email)
+    
+    if not recipients:
+        logger.warning(f"No recipients found for email notification {notification.id}")
+        return
+
+    # 2. Resolve Sender (must have valid M365 token)
+    email_sender = None
+    # Try original sender first
+    if notification.sender and MicrosoftCredentials.objects.filter(user=notification.sender).exists():
+        email_sender = notification.sender
+    else:
+        # Fallback to any admin with creds
+        email_sender = User.objects.filter(is_superuser=True, microsoft_credentials__isnull=False).first()
+
+    if not email_sender:
+        logger.error(f"Cannot send email for notification {notification.id}: No user with M365 credentials found to act as sender.")
+        return
+
+    # 3. Construct and Send Email
+    subject = f"[MOEN-IMS] {notification.title}"
+    
+    # Simple HTML body
+    html_body = f"""
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #0078d4;">{notification.title}</h2>
+        <p style="font-size: 16px; color: #333;">{notification.message}</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #666;">
+            This is an automated notification from the MOEN Inventory Management System.<br>
+            <a href="{settings.BASE_URL if hasattr(settings, 'BASE_URL') else ''}/dashboard/" style="color: #0078d4; text-decoration: none;">View Dashboard</a>
+        </p>
+    </div>
+    """
+    
+    try:
+        send_email_notification(
+            user=email_sender,
+            to=recipients,
+            subject=subject,
+            body=html_body,
+            body_type="HTML"
+        )
+        logger.info(f"Email alert sent for notification {notification.id} to {len(recipients)} recipients.")
+    except Exception as e:
+        logger.error(f"Graph API Email Error for notification {notification.id}: {str(e)}")
+        # Don't re-raise, we don't want to break the app if email fails
 
 
 # ===== MATERIAL ORDER SIGNALS =====

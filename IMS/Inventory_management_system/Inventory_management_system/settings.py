@@ -156,6 +156,9 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 
+# BASE_URL for absolute links in emails
+BASE_URL = f"https://{CANONICAL_HOST}" if CANONICAL_HOST else "http://localhost:8000"
+
 # Exempt certificate validation path from HTTPS redirect so CA bots can fetch
 # HTTP-01 challenges without a valid certificate yet.
 # Django's SecurityMiddleware honors this list when SECURE_SSL_REDIRECT is True.
