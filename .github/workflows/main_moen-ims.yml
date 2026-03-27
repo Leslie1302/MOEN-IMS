@@ -63,4 +63,4 @@ jobs:
         with:
           app-name: 'moen-ims'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1DFB9EC2DC8C4D618C7AC6472E8630F4 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0B225A5EC8A74D08ABBB612A0B7F8364 }}
