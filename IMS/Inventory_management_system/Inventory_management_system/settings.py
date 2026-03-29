@@ -65,14 +65,11 @@ else:
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'inventory-management-system-1-1bbd774008d3.herokuapp.com',
     'testserver',
     'moen-ims.org',
     '.moen-ims.org',
     'www.moen-ims.org',
-    'moen-ims-28b53393a6a5.herokuapp.com',
-    'moen-ims-defea5f92ea2.herokuapp.com',
-    'moen-ims-8b7793040010.herokuapp.com',
+    'https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/'
 
 ]
 
