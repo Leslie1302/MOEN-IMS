@@ -31,10 +31,6 @@ jobs:
           python -m venv antenv
           source antenv/bin/activate
           pip install -r IMS/Inventory_management_system/requirements.txt
-      
-      - name: Prepare static assets
-        run: |
-          source antenv/bin/activate
           cd IMS/Inventory_management_system
           python manage.py collectstatic --noinput
                 
