@@ -17,6 +17,10 @@ gunicorn==25.0.3
 whitenoise==6.11.0
 plotly==6.5.2
 
+# Two-Factor Authentication
+django-otp==1.4.0
+qrcode[pil]==8.2
+
 # Microsoft 365 Integration
 msal==1.31.0
 requests>=2.32.3
