@@ -18,7 +18,7 @@ plotly==6.5.2
 
 # Two-Factor Authentication
 django-otp==1.4.0
-pyotp==2.10.0
+pyotp==2.9.0
 qrcode[pil]==8.2
 
 # Microsoft 365 Integration
