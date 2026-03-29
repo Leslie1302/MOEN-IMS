@@ -12,13 +12,13 @@ pandas==3.0.0
 reportlab==4.4.9
 seaborn==0.13.2
 xlsxwriter
-qrcode[pil]==8.2
 gunicorn==25.0.3
 whitenoise==6.11.0
 plotly==6.5.2
 
 # Two-Factor Authentication
 django-otp==1.4.0
+pyotp==2.10.0
 qrcode[pil]==8.2
 
 # Microsoft 365 Integration

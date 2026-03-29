@@ -69,8 +69,9 @@ ALLOWED_HOSTS = [
     'moen-ims.org',
     '.moen-ims.org',
     'www.moen-ims.org',
-    'moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net'
-
+    'moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net',
+    '169.254.129.3',  # Azure internal IP
+    '*.azurewebsites.net',  # Azure app service domains
 ]
 
 if not DEBUG:
