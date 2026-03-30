@@ -25,6 +25,7 @@ def ms_login(request):
     ms = settings.MICROSOFT
     state = str(uuid.uuid4())
     request.session["oauth_state"] = state
+    request.session.save() #Save the session to ensure state is stored before redirecting
     auth_url = _msal_app().get_authorization_request_url(
         scopes=ms["SCOPES"],
         state=state,
