@@ -87,7 +87,7 @@ MICROSOFT = {
     "CLIENT_SECRET": os.environ.get("MS_CLIENT_SECRET", ""),
     "TENANT_ID":     os.environ.get("MS_TENANT_ID", ""),
     "AUTHORITY":     f"https://login.microsoftonline.com/{os.environ.get('MS_TENANT_ID', '')}",
-    "REDIRECT_URI":  os.environ.get("MS_REDIRECT_URI", "http://localhost:8000/auth/callback/"),
+    "REDIRECT_URI":  os.environ.get("MS_REDIRECT_URI", "https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/"),
     "SCOPES": [
         "email",
         "User.Read",
