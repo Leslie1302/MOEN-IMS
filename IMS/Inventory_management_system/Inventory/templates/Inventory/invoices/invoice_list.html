@@ -78,8 +78,7 @@
                     <select class="form-select" id="supplierFilter" name="supplier">
                         <option value="">All Suppliers</option>
                         {% for supplier in suppliers %}
-                        <option value="{{ supplier.id }}" {% if request.GET.supplier==supplier.id|stringformat:"s"
-                            %}selected{% endif %}>
+                        <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
                             {{ supplier.name }}
                         </option>
                         {% endfor %}
@@ -89,14 +88,14 @@
                     <label class="visually-hidden" for="statusFilter">Status</label>
                     <select class="form-select" id="statusFilter" name="status">
                         <option value="">All Statuses</option>
-                        <option value="pending" {% if request.GET.status=='pending' %}selected{% endif %}>Pending
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending
                         </option>
-                        <option value="verified" {% if request.GET.status=='verified' %}selected{% endif %}>Verified
+                        <option value="verified" {% if request.GET.status == 'verified' %}selected{% endif %}>Verified
                         </option>
-                        <option value="approved" {% if request.GET.status=='approved' %}selected{% endif %}>Approved
+                        <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>Approved
                         </option>
-                        <option value="paid" {% if request.GET.status=='paid' %}selected{% endif %}>Paid</option>
-                        <option value="rejected" {% if request.GET.status=='rejected' %}selected{% endif %}>Rejected
+                        <option value="paid" {% if request.GET.status == 'paid' %}selected{% endif %}>Paid</option>
+                        <option value="rejected" {% if request.GET.status == 'rejected' %}selected{% endif %}>Rejected
                         </option>
                     </select>
                 </div>

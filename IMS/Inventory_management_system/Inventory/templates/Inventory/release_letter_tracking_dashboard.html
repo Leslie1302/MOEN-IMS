@@ -97,8 +97,8 @@
                         <div class="col-md-2">
                             <select name="status" class="form-select form-select-sm">
                                 <option value="">All Status</option>
-                                <option value="Open" {% if filter_status=="Open" %}selected{% endif %}>Open</option>
-                                <option value="Closed" {% if filter_status=="Closed" %}selected{% endif %}>Closed
+                                <option value="Open" {% if filter_status == "Open" %}selected{% endif %}>Open</option>
+                                <option value="Closed" {% if filter_status == "Closed" %}selected{% endif %}>Closed
                                 </option>
                             </select>
                         </div>
@@ -106,7 +106,7 @@
                             <select name="material_type" class="form-select form-select-sm">
                                 <option value="">All Materials</option>
                                 {% for type, label in material_types %}
-                                <option value="{{ type }}" {% if filter_material_type==type %}selected{% endif %}>{{
+                                <option value="{{ type }}" {% if filter_material_type == type %}selected{% endif %}>{{
                                     label }}</option>
                                 {% endfor %}
                             </select>
@@ -114,9 +114,9 @@
                         <div class="col-md-2">
                             <select name="threshold" class="form-select form-select-sm">
                                 <option value="">All Thresholds</option>
-                                <option value="exceeded" {% if filter_threshold=="exceeded" %}selected{% endif %}>
+                                <option value="exceeded" {% if filter_threshold == "exceeded" %}selected{% endif %}>
                                     Threshold Exceeded</option>
-                                <option value="normal" {% if filter_threshold=="normal" %}selected{% endif %}>Normal
+                                <option value="normal" {% if filter_threshold == "normal" %}selected{% endif %}>Normal
                                 </option>
                             </select>
                         </div>

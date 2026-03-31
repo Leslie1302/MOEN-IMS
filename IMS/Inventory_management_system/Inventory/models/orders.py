@@ -192,13 +192,10 @@ class ReleaseLetter(auto_prefetch.Model):
     
     @property
     def total_released(self):
-        """
-        Sum of quantities from Delivered transports (physical movement).
-        This represents what has actually left the warehouse.
-        """
         from decimal import Decimal
-        # Get from transports linked directly to this release letter
-        result = self.transports.filter(
+        from Inventory.models.transport import MaterialTransport  # import here to avoid circular ref
+        result = MaterialTransport.objects.filter(
+            material_order__release_letter=self,
             status='Delivered'
         ).aggregate(total=models.Sum('quantity'))['total']
         return Decimal(str(result)) if result else Decimal('0')
@@ -241,6 +238,8 @@ class ReleaseLetter(auto_prefetch.Model):
         Positive = materials requested but not yet delivered.
         """
         return self.total_requested - self.total_released
+
+    
 
 
 class MaterialOrder(auto_prefetch.Model):
