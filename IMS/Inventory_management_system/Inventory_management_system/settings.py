@@ -110,6 +110,7 @@ if not DEBUG:
     CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript from reading CSRF token
     SESSION_COOKIE_SAMESITE = 'Lax'  # or 'None' if you need cross-site cookies
     CSRF_COOKIE_SAMESITE = 'Lax'     # or 'None' if you need cross-site cookies
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Ensure request.is_secure() works behind proxies
     
     # Only set cookie domain if we have a canonical host
     if 'CANONICAL_HOST' in os.environ and os.environ['CANONICAL_HOST']:
