@@ -138,7 +138,7 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Optional: force a single canonical host (e.g., 'www.moen-ims.org') to avoid cross-host cookie issues
 # Default to www.moen-ims.org in production if not provided via env. Empty in DEBUG.
-CANONICAL_HOST = os.getenv('CANONICAL_HOST', ('' if DEBUG else 'www.moen-ims.org')).strip()
+CANONICAL_HOST = os.getenv('CANONICAL_HOST', '').strip()
 
 # Enforce HTTPS and secure cookies in production
 if not DEBUG:
@@ -146,7 +146,7 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     # Share cookies across apex and subdomains. Env can override the default.
-    _cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org').strip()
+    _cookie_domain = os.getenv('COOKIE_DOMAIN', '').strip()
     if _cookie_domain:
         SESSION_COOKIE_DOMAIN = _cookie_domain
         CSRF_COOKIE_DOMAIN = _cookie_domain

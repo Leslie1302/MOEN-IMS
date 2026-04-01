@@ -7,60 +7,63 @@
 
 ## Root Cause
 
-The OAuth 2.0 Authorization Code flow relies on a `state` parameter to prevent CSRF:
+The OAuth 2.0 Authorization Code flow stores a random `state` in `request.session["oauth_state"]` during `/auth/login/`, then checks it on `/auth/callback/`. The check was failing because the **session cookie was never sent back to the callback**.
 
-1. `/auth/login/` generates a random `state`, stores it in `request.session["oauth_state"]`, and redirects to Microsoft.
-2. Microsoft redirects back to `/auth/callback/?code=...&state=...`.
-3. The callback view compares `state` from the URL with `request.session["oauth_state"]`.
+### Primary cause — Cookie domain mismatch
 
-**The session cookie was being lost between step 1 and step 3** due to three compounding issues:
+`settings.py` had **two** blocks that hardcoded the cookie domain to `.moen-ims.org`:
 
-### Issue 1 — `SESSION_COOKIE_SAMESITE = 'None'`
+- Line ~120: `SESSION_COOKIE_DOMAIN = f".{domain}"` (derived from `CANONICAL_HOST` defaulting to `www.moen-ims.org`)
+- Line ~149: `_cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org')` → `SESSION_COOKIE_DOMAIN = '.moen-ims.org'`
 
-Setting `SameSite=None` tells browsers to treat the session cookie as a **third-party cookie**. Modern browsers (Chrome 80+, Firefox, Edge) increasingly restrict or block third-party cookies entirely. When Microsoft redirected back to the app, the browser did not send the session cookie, so `request.session["oauth_state"]` was `None`.
+The production site runs on `moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net`, but cookies were scoped to `.moen-ims.org`. **Browsers refuse to send cookies scoped to a domain that doesn't match the current host.** The session was always empty on the callback, so `oauth_state` was `None`.
 
-### Issue 2 — `CanonicalHostRedirectMiddleware` redirecting the callback
+### Contributing factors
 
-The `CanonicalHostRedirectMiddleware` runs **before** the session middleware processes the request. If Microsoft's redirect URI pointed to a non-canonical host (e.g., the Azure `*.azurewebsites.net` domain instead of `www.moen-ims.org`), the middleware issued a 301 redirect to the canonical host. This extra redirect could strip the session cookie (different domain) or cause the authorisation code to be consumed/expired.
-
-### Issue 3 — Mismatched `MS_REDIRECT_URI` default
-
-The default `MS_REDIRECT_URI` in `settings.py` was `http://localhost:8000/auth/callback/`, which is incorrect for production. If the environment variable wasn't set, the MSAL library would tell Microsoft to redirect to localhost — which obviously fails.
+1. **`SESSION_COOKIE_SAMESITE = 'None'`** — Treated the session cookie as a third-party cookie, which modern browsers block.
+2. **`CanonicalHostRedirectMiddleware`** — Could issue a 301 redirect on the callback, potentially dropping the session.
+3. **Default `MS_REDIRECT_URI`** — Was `http://localhost:8000/auth/callback/`, wrong for production.
 
 ---
 
-## Changes Made
+## All Changes Made
 
-### 1. `settings.py` — Changed `SameSite` from `None` to `Lax`
+### 1. `settings.py` — Removed hardcoded `.moen-ims.org` cookie domain
 
 ```diff
-- SESSION_COOKIE_SAMESITE = 'None'  # or 'None' if you need cross-site cookies
-- CSRF_COOKIE_SAMESITE = 'None'     # or 'None' if you need cross-site cookies
+- CANONICAL_HOST = os.getenv('CANONICAL_HOST', ('' if DEBUG else 'www.moen-ims.org')).strip()
++ CANONICAL_HOST = os.getenv('CANONICAL_HOST', '').strip()
+```
+
+```diff
+- _cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org').strip()
++ _cookie_domain = os.getenv('COOKIE_DOMAIN', '').strip()
+```
+
+With no cookie domain set, the browser scopes cookies to the exact host (`*.azurewebsites.net`), which is correct.
+
+### 2. `settings.py` — Changed `SameSite` from `None` to `Lax`
+
+```diff
+- SESSION_COOKIE_SAMESITE = 'None'
+- CSRF_COOKIE_SAMESITE = 'None'
 + SESSION_COOKIE_SAMESITE = 'Lax'
 + CSRF_COOKIE_SAMESITE = 'Lax'
 ```
 
-`Lax` is the correct setting for same-site OAuth flows. It sends the cookie on top-level navigations (like the Microsoft redirect back to your app) while still protecting against cross-site POST attacks. `None` should only be used for cross-site iframe embedding scenarios.
-
-### 2. `settings.py` — Updated default `MS_REDIRECT_URI`
+### 3. `settings.py` — Updated default `MS_REDIRECT_URI`
 
 ```diff
 - "REDIRECT_URI": os.environ.get("MS_REDIRECT_URI", "http://localhost:8000/auth/callback/"),
 + "REDIRECT_URI": os.environ.get("MS_REDIRECT_URI", "https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/"),
 ```
 
-The default now points to the actual Azure production domain. This ensures MSAL tells Microsoft to redirect to the correct host even if the `MS_REDIRECT_URI` environment variable isn't explicitly set.
-
-### 3. `middleware.py` — Exempted `/auth/callback` from canonical host redirect
+### 4. `middleware.py` — Exempted `/auth/callback` from canonical host redirect
 
 ```diff
-+ # Allow OAuth callback without redirect so the session cookie (containing
-+ # oauth_state) is preserved from the original login request.
 + if request.path.startswith('/auth/callback'):
 +     return None
 ```
-
-This prevents the `CanonicalHostRedirectMiddleware` from issuing a 301 redirect on the OAuth callback URL. The session cookie set during `/auth/login/` is preserved and the `state` parameter can be validated correctly.
 
 ---
 
@@ -68,27 +71,32 @@ This prevents the `CanonicalHostRedirectMiddleware` from issuing a 301 redirect 
 
 | File | Change |
 |------|--------|
-| `IMS/Inventory_management_system/Inventory_management_system/settings.py` | `SameSite` → `Lax`; default redirect URI → Azure domain |
-| `IMS/Inventory_management_system/Inventory/middleware.py` | Exempt `/auth/callback` from canonical host redirect |
+| `Inventory_management_system/settings.py` | Cookie domain defaults cleared; `SameSite` → `Lax`; redirect URI → Azure domain |
+| `Inventory/middleware.py` | Exempt `/auth/callback` from canonical host redirect |
 
 ---
 
 ## Azure App Registration Reminder
 
-Make sure the **Redirect URI** registered in your Azure AD App Registration matches exactly:
+Ensure the **Redirect URI** in Azure AD matches exactly:
 
 ```
 https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/
 ```
 
-You can verify this at:  
 **Azure Portal → App registrations → [Your App] → Authentication → Redirect URIs**
 
 ---
 
-## How to Verify the Fix
+## Future: Custom Domain
 
-1. Deploy the updated code to Azure.
-2. Open an incognito/private browser window.
-3. Navigate to the production URL and click "Sign in with Microsoft".
-4. You should be redirected to Microsoft login, and after authentication, redirected back to the app dashboard without the state mismatch error.
+If you later add a custom domain (e.g., `www.moen-ims.org`) pointing to the Azure app, set these environment variables:
+
+```
+CANONICAL_HOST=www.moen-ims.org
+COOKIE_DOMAIN=.moen-ims.org
+MS_REDIRECT_URI=https://www.moen-ims.org/auth/callback/
+```
+
+And update the Azure App Registration redirect URI accordingly.
+
