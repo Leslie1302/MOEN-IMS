@@ -20,6 +20,11 @@ class CanonicalHostRedirectMiddleware(MiddlewareMixin):
         if request.path.startswith('/.well-known/'):
             return None
 
+        # Allow OAuth callback without redirect so the session cookie (containing
+        # oauth_state) is preserved from the original login request.
+        if request.path.startswith('/auth/callback'):
+            return None
+
         # Determine current host from request
         host = request.get_host().split(':')[0]
         if host == canonical:

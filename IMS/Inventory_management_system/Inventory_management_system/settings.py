@@ -108,8 +108,8 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript from reading CSRF token
-    SESSION_COOKIE_SAMESITE = 'None'  # or 'None' if you need cross-site cookies
-    CSRF_COOKIE_SAMESITE = 'None'     # or 'None' if you need cross-site cookies
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SAMESITE = 'Lax'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Ensure request.is_secure() works behind proxies
     
     # Only set cookie domain if we have a canonical host
