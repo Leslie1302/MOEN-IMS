@@ -1,96 +1,68 @@
-# Fix: "State mismatch. Possible CSRF attack." on Production Sign-In
+# Production Sign-In Fix — Briefing Document
 
-**Date:** 2026-04-01  
-**Symptom:** Clicking "Sign in with Microsoft" in production always returned `State mismatch. Possible CSRF attack.` — across all browsers and incognito tabs.
-
----
-
-## Root Cause
-
-The OAuth 2.0 Authorization Code flow stores a random `state` in `request.session["oauth_state"]` during `/auth/login/`, then checks it on `/auth/callback/`. The check was failing because the **session cookie was never sent back to the callback**.
-
-### Primary cause — Cookie domain mismatch
-
-`settings.py` had **two** blocks that hardcoded the cookie domain to `.moen-ims.org`:
-
-- Line ~120: `SESSION_COOKIE_DOMAIN = f".{domain}"` (derived from `CANONICAL_HOST` defaulting to `www.moen-ims.org`)
-- Line ~149: `_cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org')` → `SESSION_COOKIE_DOMAIN = '.moen-ims.org'`
-
-The production site runs on `moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net`, but cookies were scoped to `.moen-ims.org`. **Browsers refuse to send cookies scoped to a domain that doesn't match the current host.** The session was always empty on the callback, so `oauth_state` was `None`.
-
-### Contributing factors
-
-1. **`SESSION_COOKIE_SAMESITE = 'None'`** — Treated the session cookie as a third-party cookie, which modern browsers block.
-2. **`CanonicalHostRedirectMiddleware`** — Could issue a 301 redirect on the callback, potentially dropping the session.
-3. **Default `MS_REDIRECT_URI`** — Was `http://localhost:8000/auth/callback/`, wrong for production.
+**Date:** 1 April 2026  
+**Issue:** All users unable to sign in via Microsoft 365 on production  
+**Error displayed:** `State mismatch. Possible CSRF attack.`  
+**Status:** Fix applied — pending deployment & verification
 
 ---
 
-## All Changes Made
+## Executive Summary
 
-### 1. `settings.py` — Removed hardcoded `.moen-ims.org` cookie domain
+A configuration mismatch between the application's cookie settings and the production domain prevented the sign-in flow from completing. The app was setting browser cookies for `moen-ims.org`, but the production site runs on `moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net`. Because the domains don't match, the browser silently discarded the cookies, breaking Microsoft sign-in for every user.
 
-```diff
-- CANONICAL_HOST = os.getenv('CANONICAL_HOST', ('' if DEBUG else 'www.moen-ims.org')).strip()
-+ CANONICAL_HOST = os.getenv('CANONICAL_HOST', '').strip()
-```
-
-```diff
-- _cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org').strip()
-+ _cookie_domain = os.getenv('COOKIE_DOMAIN', '').strip()
-```
-
-With no cookie domain set, the browser scopes cookies to the exact host (`*.azurewebsites.net`), which is correct.
-
-### 2. `settings.py` — Changed `SameSite` from `None` to `Lax`
-
-```diff
-- SESSION_COOKIE_SAMESITE = 'None'
-- CSRF_COOKIE_SAMESITE = 'None'
-+ SESSION_COOKIE_SAMESITE = 'Lax'
-+ CSRF_COOKIE_SAMESITE = 'Lax'
-```
-
-### 3. `settings.py` — Updated default `MS_REDIRECT_URI`
-
-```diff
-- "REDIRECT_URI": os.environ.get("MS_REDIRECT_URI", "http://localhost:8000/auth/callback/"),
-+ "REDIRECT_URI": os.environ.get("MS_REDIRECT_URI", "https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/"),
-```
-
-### 4. `middleware.py` — Exempted `/auth/callback` from canonical host redirect
-
-```diff
-+ if request.path.startswith('/auth/callback'):
-+     return None
-```
+**No data was compromised. No actual CSRF attack occurred.** The error message is a false alarm triggered by the lost session.
 
 ---
 
-## Files Modified
+## What Happened (Non-Technical)
 
-| File | Change |
-|------|--------|
-| `Inventory_management_system/settings.py` | Cookie domain defaults cleared; `SameSite` → `Lax`; redirect URI → Azure domain |
-| `Inventory/middleware.py` | Exempt `/auth/callback` from canonical host redirect |
+1. User clicks "Sign in with Microsoft" → the app creates a security token and stores it in the user's session.
+2. User logs in on Microsoft's page and is sent back to the app.
+3. The app checks for the security token in the session — **but the session is empty** because the browser never stored/returned the cookie.
+4. The app assumes foul play and blocks the login with the CSRF error.
 
----
-
-## Azure App Registration Reminder
-
-Ensure the **Redirect URI** in Azure AD matches exactly:
-
-```
-https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/
-```
-
-**Azure Portal → App registrations → [Your App] → Authentication → Redirect URIs**
+**Why was the session empty?** The app told the browser: *"This cookie belongs to `moen-ims.org`."* But the site is actually `*.azurewebsites.net`. The browser followed standard security rules and refused to store a cookie for a domain that doesn't match.
 
 ---
 
-## Future: Custom Domain
+## What Was Fixed
 
-If you later add a custom domain (e.g., `www.moen-ims.org`) pointing to the Azure app, set these environment variables:
+Four changes were made across two files:
+
+| # | File | What Changed | Why |
+|---|------|-------------|-----|
+| 1 | `settings.py` | Removed hardcoded cookie domain (`.moen-ims.org`) | Browser now correctly scopes cookies to the Azure domain |
+| 2 | `settings.py` | Changed cookie `SameSite` policy from `None` to `Lax` | Prevents browsers from blocking the session cookie as a third-party cookie |
+| 3 | `settings.py` | Updated default OAuth redirect URI to Azure domain | Ensures Microsoft sends users back to the correct URL |
+| 4 | `middleware.py` | Exempted `/auth/callback` from host redirect | Prevents an internal redirect from interfering with the sign-in callback |
+
+---
+
+## Risk Assessment
+
+| Area | Risk Level | Notes |
+|------|-----------|-------|
+| Security | **None** | All changes follow security best practices. `Lax` cookies are the browser default and recommended setting. |
+| Existing sessions | **Low** | Users may need to sign in again after deployment (expected — cookies were broken anyway). |
+| Other functionality | **None** | Changes only affect cookie scoping and the OAuth callback path. No business logic was modified. |
+
+---
+
+## Action Required After Deployment
+
+1. **Deploy** the updated code to Azure.
+2. **Test sign-in** in an incognito browser window at:  
+   `https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net`
+3. **Verify** in Azure Portal that the App Registration redirect URI matches:  
+   `https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/`  
+   *(Portal → App registrations → [MOEN-IMS App] → Authentication → Redirect URIs)*
+
+---
+
+## Future Consideration: Custom Domain
+
+If a custom domain (e.g., `www.moen-ims.org`) is configured to point to the Azure app in the future, three environment variables will need to be set:
 
 ```
 CANONICAL_HOST=www.moen-ims.org
@@ -98,5 +70,31 @@ COOKIE_DOMAIN=.moen-ims.org
 MS_REDIRECT_URI=https://www.moen-ims.org/auth/callback/
 ```
 
-And update the Azure App Registration redirect URI accordingly.
+The Azure App Registration redirect URI must also be updated to match.
 
+---
+
+## Technical Details (For Developers)
+
+### Files modified
+
+- **`IMS/Inventory_management_system/Inventory_management_system/settings.py`**
+  - Line 90: Default `MS_REDIRECT_URI` → `https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net/auth/callback/`
+  - Lines 111-112: `SESSION_COOKIE_SAMESITE` and `CSRF_COOKIE_SAMESITE` → `'Lax'`
+  - Line 141: `CANONICAL_HOST` default → `''` (was `'www.moen-ims.org'`)
+  - Line 149: `COOKIE_DOMAIN` default → `''` (was `'.moen-ims.org'`)
+
+- **`IMS/Inventory_management_system/Inventory/middleware.py`**
+  - Lines 22-24: Added exemption for `/auth/callback` in `CanonicalHostRedirectMiddleware`
+
+### Root cause in code
+
+```python
+# settings.py — These two lines set cookies for the WRONG domain:
+_cookie_domain = os.getenv('COOKIE_DOMAIN', '.moen-ims.org')  # ← hardcoded
+SESSION_COOKIE_DOMAIN = _cookie_domain                         # ← applied to all sessions
+
+# The browser sees: "Set-Cookie: sessionid=...; Domain=.moen-ims.org"
+# But the URL bar shows: moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net
+# Browser: "Domain mismatch — cookie rejected."
+```
