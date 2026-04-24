@@ -1308,15 +1308,23 @@ def download_waybill_pdf(request, transport_id):
         )
         return redirect('transportation_status')
     
-    # Increment download count
-    transport.waybill_download_count += 1
-    transport.save(update_fields=['waybill_download_count'])
-    
+    # Track download count without requiring a database field on the model.
+    # If a real field exists in a future migration, keep it in sync too.
+    download_count_key = f"waybill_download_count_{transport.pk}"
+    download_count = int(request.session.get(download_count_key, 0)) + 1
+    request.session[download_count_key] = download_count
+    if hasattr(transport, 'waybill_download_count'):
+        try:
+            transport.waybill_download_count = download_count
+            transport.save(update_fields=['waybill_download_count'])
+        except Exception:
+            pass
+
     # Determine copy label
-    if transport.waybill_download_count == 1:
+    if download_count == 1:
         copy_label = "ORIGINAL COPY"
     else:
-        copy_label = f"DUPLICATE COPY {transport.waybill_download_count - 1}"
+        copy_label = f"DUPLICATE COPY {download_count - 1}"
     
     # For bulk assignments, fetch ALL transports with the same waybill number
     if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:

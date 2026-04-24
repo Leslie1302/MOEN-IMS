@@ -7,7 +7,19 @@ from django.http import HttpResponseBadRequest
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.models import User
+from django.urls import reverse
 from .models import MicrosoftCredentials
+
+def _callback_redirect_uri(request):
+    """
+    Keep localhost dynamic so the session cookie and callback host match,
+    but use the configured production redirect URI outside local development.
+    """
+    configured = settings.MICROSOFT.get("REDIRECT_URI", "").strip()
+    host = request.get_host().split(":")[0].lower()
+    if host in {"localhost", "127.0.0.1"}:
+        return request.build_absolute_uri(reverse("ms_callback"))
+    return configured or request.build_absolute_uri(reverse("ms_callback"))
 
 def _msal_app():
     ms = settings.MICROSOFT
@@ -26,10 +38,11 @@ def ms_login(request):
     state = str(uuid.uuid4())
     request.session["oauth_state"] = state
     request.session.save() #Save the session to ensure state is stored before redirecting
+    callback_uri = _callback_redirect_uri(request)
     auth_url = _msal_app().get_authorization_request_url(
         scopes=ms["SCOPES"],
         state=state,
-        redirect_uri=ms["REDIRECT_URI"],
+        redirect_uri=callback_uri,
     )
     return redirect(auth_url)
 
@@ -47,10 +60,11 @@ def ms_callback(request):
     if not code:
         return HttpResponseBadRequest("No authorization code returned from Microsoft.")
         
+    callback_uri = _callback_redirect_uri(request)
     result = _msal_app().acquire_token_by_authorization_code(
         code=code,
         scopes=ms["SCOPES"],
-        redirect_uri=ms["REDIRECT_URI"],
+        redirect_uri=callback_uri,
     )
     
     if "error" in result:

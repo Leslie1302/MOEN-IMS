@@ -30,6 +30,10 @@ class MaterialTransport(auto_prefetch.Model):
     driver_name = models.CharField(max_length=200, default='Unknown')
     driver_phone = models.CharField(max_length=20, default='Unknown')
     waybill_number = models.CharField(max_length=100, default='Unknown')
+    waybill_download_count = models.IntegerField(
+        default=0,
+        help_text="Number of times this waybill has been downloaded"
+    )
     
     # Quantity tracking
     quantity = models.DecimalField(
@@ -67,12 +71,82 @@ class MaterialTransport(auto_prefetch.Model):
         return self.material_order.name
 
     @property
+    def material_code(self):
+        return self.material_order.code if self.material_order else None
+
+    @property
     def unit(self):
         return self.material_order.unit
 
     @property
     def project(self):
         return self.material_order.project_name
+
+    @property
+    def warehouse(self):
+        return self.material_order.warehouse if self.material_order else None
+
+    @property
+    def consultant(self):
+        return self.material_order.consultant if self.material_order else None
+
+    @property
+    def region(self):
+        return self.material_order.region if self.material_order else None
+
+    @property
+    def district(self):
+        return self.material_order.district if self.material_order else None
+
+    @property
+    def community(self):
+        return self.material_order.community if self.material_order else None
+
+    @property
+    def package_number(self):
+        return self.material_order.package_number if self.material_order else None
+
+    @property
+    def created_by(self):
+        return self.material_order.created_by if self.material_order else None
+
+    @property
+    def assigned_by(self):
+        return self.material_order.assigned_by if self.material_order else None
+
+    @property
+    def assigned_at(self):
+        return self.material_order.assigned_at if self.material_order else None
+
+    @property
+    def processed_by(self):
+        return self.material_order.processed_by if self.material_order else None
+
+    @property
+    def processed_at(self):
+        return self.material_order.processed_at if self.material_order else None
+
+    @property
+    def recipient(self):
+        receipt = getattr(self, "site_receipt", None)
+        if receipt and receipt.received_by:
+            return receipt.received_by.get_full_name() or receipt.received_by.get_username()
+        return None
+
+    @property
+    def destination_contact(self):
+        warehouse = self.warehouse
+        return getattr(warehouse, "contact_person", None) if warehouse else None
+
+    @property
+    def destination_phone(self):
+        warehouse = self.warehouse
+        return getattr(warehouse, "contact_phone", None) if warehouse else None
+
+    @property
+    def waybill_scan(self):
+        receipt = getattr(self, "site_receipt", None)
+        return receipt.waybill_pdf if receipt else None
         
     @property
     def delivery_location(self):
