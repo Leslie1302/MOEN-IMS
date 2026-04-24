@@ -977,12 +977,9 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         return is_store_officer(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
-        # Get all active transports that haven't been logged as received on site
-        # Transports persist on this page until a site receipt is logged
+        # Keep only active transports here; delivered consignments move to the archive view.
         queryset = MaterialTransport.objects.filter(
-            status__in=['Assigned', 'Loading', 'Loaded', 'In Transit', 'Delivered']
-        ).filter(
-            site_receipt__isnull=True  # Exclude transports with site receipts logged
+            status__in=['Assigned', 'Loading', 'Loaded', 'In Transit']
         ).select_related(
             'material_order', 'transporter', 'vehicle', 'material_order__release_letter'
         ).order_by('-date_dispatched', 'status')
@@ -1041,19 +1038,83 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
         
         # Add summary statistics
         all_transports = MaterialTransport.objects.filter(
-            status__in=['Assigned', 'Loading', 'Loaded', 'In Transit', 'Delivered']
+            status__in=['Assigned', 'Loading', 'Loaded', 'In Transit']
         )
         
         context['total_active'] = all_transports.count()
         context['in_transit_count'] = all_transports.filter(status='In Transit').count()
         context['loading_count'] = all_transports.filter(status__in=['Loading', 'Loaded']).count()
         context['assigned_count'] = all_transports.filter(status='Assigned').count()
-        context['delivered_count'] = all_transports.filter(status='Delivered').count()
+        context['archive_count'] = MaterialTransport.objects.filter(status='Delivered').count()
         
         # Add user role information for template
         context['is_schedule_officer'] = is_schedule_officer(self.request.user)
         context['is_store_officer'] = is_store_officer(self.request.user)
         
+        return context
+
+
+class TransportArchiveView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
+    """
+    Read-only archive for completed consignments and delivered transports.
+    """
+    model = MaterialTransport
+    template_name = 'Inventory/transportation_archive.html'
+    context_object_name = 'transports'
+    paginate_by = 20
+
+    def test_func(self):
+        return is_store_officer(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+
+    def get_queryset(self):
+        queryset = MaterialTransport.objects.filter(
+            status='Delivered'
+        ).select_related(
+            'material_order',
+            'transporter',
+            'vehicle',
+            'material_order__release_letter',
+            'site_receipt',
+            'site_receipt__received_by',
+        ).order_by('-date_delivered', '-date_dispatched')
+
+        search_query = self.request.GET.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(material_order__request_code__icontains=search_query) |
+                Q(material_order__name__icontains=search_query) |
+                Q(transporter__name__icontains=search_query) |
+                Q(driver_name__icontains=search_query) |
+                Q(vehicle__registration_number__icontains=search_query) |
+                Q(waybill_number__icontains=search_query)
+            )
+
+        transporter_filter = self.request.GET.get('transporter')
+        if transporter_filter:
+            queryset = queryset.filter(transporter_id=transporter_filter)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['search_query'] = self.request.GET.get('search', '')
+        context['transporter_filter'] = self.request.GET.get('transporter', '')
+        context['transporters'] = Transporter.objects.filter(is_active=True).order_by('name')
+        context['archive_count'] = self.get_queryset().count()
+
+        from collections import defaultdict
+        consignments = defaultdict(list)
+        single_shipments = []
+        for transport in context['transports']:
+            if getattr(transport, 'waybill_number', 'Unknown') not in [None, '', 'Unknown']:
+                consignments[transport.waybill_number].append(transport)
+            else:
+                single_shipments.append(transport)
+
+        context['consignments'] = dict(consignments)
+        context['single_shipments'] = single_shipments
+        context['is_schedule_officer'] = is_schedule_officer(self.request.user)
+        context['is_store_officer'] = is_store_officer(self.request.user)
         return context
 
 

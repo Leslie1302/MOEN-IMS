@@ -185,6 +185,7 @@ urlpatterns = [
     # Transportation and Transport Assignment URLs
     path('transporter-assignment/', transporter_views.TransporterAssignmentView.as_view(), name='transport_assignment'),
     path('transportation-status/', transporter_views.TransportationStatusView.as_view(), name='transportation_status'),
+    path('transportation-archive/', transporter_views.TransportArchiveView.as_view(), name='transportation_archive'),
     path('update-transport-status/<int:pk>/', transporter_views.update_transport_status, name='update_transport_status'),
     path('download-waybill/<int:transport_id>/', transporter_views.download_waybill_pdf, name='download_waybill_pdf'),
     path('verify-waybill-qr/<str:waybill_identifier>/', transporter_views.verify_waybill_qr, name='verify_waybill_qr'),

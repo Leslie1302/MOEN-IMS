@@ -144,6 +144,10 @@ class MaterialTransport(auto_prefetch.Model):
         return getattr(warehouse, "contact_phone", None) if warehouse else None
 
     @property
+    def vehicle_registration_number(self):
+        return self.vehicle.registration_number if self.vehicle else None
+
+    @property
     def waybill_scan(self):
         receipt = getattr(self, "site_receipt", None)
         return receipt.waybill_pdf if receipt else None

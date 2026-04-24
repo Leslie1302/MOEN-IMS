@@ -525,6 +525,13 @@ def release_letter_tracking_dashboard(request):
     for rl in release_letters:
         # Add order count
         rl.order_count = rl.material_orders.count()
+        rl.authorized_display = f"{rl.total_quantity:,.0f}"
+        rl.requested_display = f"{rl.total_requested:,.0f}"
+        rl.balance_display = f"{rl.balance_to_request:,.0f}"
+        rl.drawdown_display = f"{float(rl.drawdown_percentage):.0f}"
+        rl.released_display = f"{rl.total_released:,.0f}"
+        rl.gap_display = f"{rl.fulfillment_gap:,.0f}"
+        rl.fulfillment_display = f"{float(rl.fulfillment_percentage):.0f}"
         
         # Gather transports via material_orders → transports
         all_transports = []

@@ -124,7 +124,10 @@ def update_release_letter_on_delivery(sender, instance, created, **kwargs):
     When a transport is marked as delivered, check if this affects 
     the release letter's fulfillment metrics and create notifications.
     """
-    if not instance.release_letter_id:
+    material_order = getattr(instance, 'material_order', None)
+    release_letter = getattr(material_order, 'release_letter', None) if material_order else None
+
+    if not release_letter:
         return
     
     # Only trigger on status change to 'Delivered'
@@ -139,10 +142,6 @@ def update_release_letter_on_delivery(sender, instance, created, **kwargs):
         return  # Status didn't actually change
     
     try:
-        release_letter = instance.release_letter
-        if not release_letter:
-            return
-            
         from .models import Notification
         
         # Calculate fulfillment percentage

@@ -211,43 +211,41 @@
                                         <span class="badge bg-secondary">{{ rl.material_type }}</span>
                                     </td>
                                     <td class="text-end">
-                                        {{ rl.total_quantity|floatformat:0|intcomma }}
+                                        {{ rl.authorized_display }}
                                     </td>
                                     <td class="text-end">
-                                        {{ rl.total_requested|floatformat:0|intcomma }}
+                                        {{ rl.requested_display }}
                                     </td>
                                     <td class="text-end">
                                         <span
-                                            class="{% if rl.balance_to_request <= 0 %}text-danger fw-bold{% endif %}">{{
-                                            rl.balance_to_request|floatformat:0|intcomma }}</span>
+                                            class="{% if rl.balance_to_request <= 0 %}text-danger fw-bold{% endif %}">{{ rl.balance_display }}</span>
                                     </td>
                                     <td class="text-center">
                                         <div class="progress" style="height: 20px;"
                                             title="{{ rl.drawdown_percentage|floatformat:1 }}%">
                                             <div class="progress-bar bg-{{ rl.tracking_status_color }}"
                                                 role="progressbar"
-                                                style="width: {{ rl.drawdown_percentage|floatformat:0 }}%;"
-                                                aria-valuenow="{{ rl.drawdown_percentage|floatformat:0 }}"
+                                                style="width: {{ rl.drawdown_display }}%;"
+                                                aria-valuenow="{{ rl.drawdown_display }}"
                                                 aria-valuemin="0" aria-valuemax="100">{{
-                                                rl.drawdown_percentage|floatformat:0 }}%</div>
+                                                rl.drawdown_display }}%</div>
                                         </div>
                                     </td>
                                     <td class="text-end">
-                                        {{ rl.total_released|floatformat:0|intcomma }}
+                                        {{ rl.released_display }}
                                     </td>
                                     <td class="text-end">
                                         {% if rl.fulfillment_gap > 0 %}
                                         <span class="badge bg-warning text-dark"
                                             title="Materials requested but not yet delivered">{{
-                                            rl.fulfillment_gap|floatformat:0|intcomma }}</span>
+                                            rl.gap_display }}</span>
                                         {% else %}
                                         <span class="text-success"><i class="bi bi-check-circle"></i> 0</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
                                         <span
-                                            class="badge {% if rl.fulfillment_percentage >= 100 %}bg-success{% elif rl.fulfillment_percentage >= 50 %}bg-info{% else %}bg-secondary{% endif %}">{{
-                                            rl.fulfillment_percentage|floatformat:0 }}%</span>
+                                            class="badge {% if rl.fulfillment_percentage >= 100 %}bg-success{% elif rl.fulfillment_percentage >= 50 %}bg-info{% else %}bg-secondary{% endif %}">{{ rl.fulfillment_display }}%</span>
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-primary" title="{{ rl.order_count }} material order(s)"><i

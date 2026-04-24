@@ -1,0 +1,199 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Transport Archive - IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .archive-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-left: 4px solid #198754;
+    }
+
+    .archive-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    }
+
+    .archive-badge {
+        background: #e9f7ef;
+        color: #198754;
+        border: 1px solid #b7e4c7;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-2">Transport Archive</h1>
+            <p class="text-muted">Read-only archive of delivered consignments and completed transports.</p>
+        </div>
+        <div>
+            <a href="{% url 'transportation_status' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Active Board
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">Archived Transports</div>
+                    <div class="h4 mb-0">{{ archive_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">Delivered Consignments</div>
+                    <div class="h4 mb-0">{{ consignments|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">Transporters In Archive</div>
+                    <div class="h4 mb-0">{{ transporters|length }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label for="search" class="form-label">Search Archive</label>
+                    <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}"
+                        placeholder="Search request code, waybill, transporter, driver...">
+                </div>
+                <div class="col-md-4">
+                    <label for="transporter" class="form-label">Transporter</label>
+                    <select class="form-select" id="transporter" name="transporter">
+                        <option value="">All Transporters</option>
+                        {% for transporter in transporters %}
+                        <option value="{{ transporter.id }}" {% if transporter_filter == transporter.id|stringformat:"s" %}selected{% endif %}>
+                            {{ transporter.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                    <a href="{% url 'transportation_archive' %}" class="btn btn-outline-secondary w-100">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if consignments or single_shipments %}
+        {% if consignments %}
+        <h4 class="mt-4 mb-3">Archived Consignments</h4>
+        {% for waybill_number, transports_in_consignment in consignments.items %}
+        <div class="card archive-card mb-4">
+            <div class="card-header bg-success text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">Waybill: {{ waybill_number }}</h5>
+                        {% with first_transport=transports_in_consignment.0 %}
+                        <div class="mb-1"><strong>Transporter:</strong> {{ first_transport.transporter.name|default:"N/A" }}</div>
+                        <div class="mb-0"><strong>Driver:</strong> {{ first_transport.driver_name|default:"N/A" }}</div>
+                        {% endwith %}
+                    </div>
+                    <div class="text-end">
+                        <div class="archive-badge badge rounded-pill px-3 py-2">Delivered</div>
+                        <div class="small mt-2">{{ transports_in_consignment|length }} transport{{ transports_in_consignment|length|pluralize }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for transport in transports_in_consignment %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100 border-light shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="text-primary fw-bold">{{ transport.material_order.request_code }}</div>
+                                        <h6 class="mb-1">{{ transport.material_name }}</h6>
+                                        <div class="text-muted small">{{ transport.material_code }}</div>
+                                    </div>
+                                    <span class="badge bg-success">{{ transport.get_status_display }}</span>
+                                </div>
+
+                                <p class="mb-2">Quantity: <strong>{{ transport.quantity|floatformat:0 }}</strong> {{ transport.unit }}</p>
+                                <p class="mb-2">Destination: <strong>{{ transport.region }}, {{ transport.district }}</strong></p>
+                                <p class="mb-2">Date Dispatched: <strong>{{ transport.date_dispatched|date:"M d, Y" }}</strong></p>
+                                <p class="mb-2">Date Delivered: <strong>{{ transport.date_delivered|date:"M d, Y"|default:"N/A" }}</strong></p>
+
+                                {% if transport.site_receipt %}
+                                <div class="mt-3 p-2 bg-light rounded">
+                                    <div class="small text-uppercase text-muted mb-1">Site Receipt</div>
+                                    <div><strong>Received by:</strong> {{ transport.site_receipt.received_by.get_full_name|default:transport.site_receipt.received_by.username }}</div>
+                                    <div><strong>Received on:</strong> {{ transport.site_receipt.received_date|date:"M d, Y" }}</div>
+                                    {% if transport.site_receipt.site_photos %}
+                                    <div class="mt-2">
+                                        <a href="{{ transport.site_receipt.site_photos.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                            View Photos
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    {% if transport.site_receipt.waybill_pdf %}
+                                    <div class="mt-2">
+                                        <a href="{{ transport.site_receipt.waybill_pdf.url }}" target="_blank" class="btn btn-sm btn-outline-danger">
+                                            View Waybill PDF
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if single_shipments %}
+        <h4 class="mt-4 mb-3">Archived Single Shipments</h4>
+        <div class="row">
+            {% for transport in single_shipments %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card archive-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <div class="text-primary fw-bold">{{ transport.material_order.request_code }}</div>
+                                <h6 class="mb-1">{{ transport.material_name }}</h6>
+                            </div>
+                            <span class="badge bg-success">{{ transport.get_status_display }}</span>
+                        </div>
+                        <p class="mb-1"><strong>Quantity:</strong> {{ transport.quantity|floatformat:0 }} {{ transport.unit }}</p>
+                        <p class="mb-1"><strong>Transporter:</strong> {{ transport.transporter.name|default:"N/A" }}</p>
+                        <p class="mb-1"><strong>Driver:</strong> {{ transport.driver_name|default:"N/A" }}</p>
+                        <p class="mb-1"><strong>Waybill:</strong> {{ transport.waybill_number|default:"N/A" }}</p>
+                        <p class="mb-0"><strong>Delivered:</strong> {{ transport.date_delivered|date:"M d, Y"|default:"N/A" }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <h4 class="text-muted">No archived consignments yet</h4>
+            <p class="text-muted mb-0">Delivered transports will appear here after they leave the active board.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

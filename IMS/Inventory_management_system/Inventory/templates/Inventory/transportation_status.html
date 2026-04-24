@@ -68,6 +68,9 @@
             <a href="{% url 'transport_assignment' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> New Assignment
             </a>
+            <a href="{% url 'transportation_archive' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-archive"></i> Archive
+            </a>
         </div>
     </div>
 
@@ -130,8 +133,8 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Delivered</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ delivered_count }}</div>
+                                Archived</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ archive_count }}</div>
                         </div>
                         <div class="col-auto">
                             <i class="fas fa-check-circle truck-icon text-gray-300"></i>
@@ -209,7 +212,7 @@
                     <div><strong>Transporter:</strong> {{ first_transport.transporter.name }}</div>
                     <div><strong>Driver:</strong> {{ first_transport.driver_name|default:"Not assigned" }}</div>
                     {% if first_transport.vehicle %}
-                    <div><strong>Vehicle:</strong> {{ first_transport.vehicle.registration_number }}</div>
+                    <div><strong>Vehicle:</strong> {{ first_transport.vehicle_registration_number|default:"N/A" }}</div>
                     {% endif %}
                     <div class="mt-2">
                         <!-- Waybill download moved to Site Receipts page -->
@@ -227,7 +230,7 @@
                             <h6 class="text-primary">{{ transport.material_order.request_code }}</h6>
                             <p class="mb-1"><strong>{{ transport.material_name }}</strong></p>
                             <p class="mb-1"><small class="text-muted">{{ transport.material_code }}</small></p>
-                            <p class="mb-1">Quantity: <strong>{{ transport.quantity }} {{ transport.unit }}</strong></p>
+                            <p class="mb-1">Quantity: <strong>{{ transport.quantity|floatformat:0 }} {{ transport.unit|default:"N/A" }} transport.unit|default:"N/A" }}</strong></p>
                             <p class="mb-2">
                                 <span class="badge 
                                     {% if transport.status == 'Assigned' %}bg-secondary
@@ -244,7 +247,7 @@
                                 <button type="button" class="btn btn-sm btn-primary update-status-btn"
                                     data-transport-id="{{ transport.id }}" data-current-status="{{ transport.status }}"
                                     data-material="{{ transport.material_name }}"
-                                    data-transporter="{{ transport.transporter.name }}"
+                                    data-transporter="{{ transport.transporter.name|default:"N/A" }}"
                                     data-driver="{{ transport.driver_name }}"
                                     data-order-code="{{ transport.material_order.request_code }}"
                                     data-consignment-number="{{ transport.waybill_number|default:'' }}">
@@ -349,13 +352,11 @@
                             <div
                                 style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
                                 <span style="color: #00f2fe; font-size: 0.8rem; font-weight: 600;">
-                                    Processed: {{ transport.material_order.processed_quantity|default:"0" }} {{
-                                    transport.material_order.unit }}
+                                    Processed: {{ transport.material_order.processed_quantity|default:"0" }} {{ transport.unit|default:"N/A" }}
                                 </span>
                                 <span style="color: rgba(255,255,255,0.6);">|</span>
                                 <span style="color: rgba(255,255,255,0.9); font-size: 0.8rem; font-weight: 500;">
-                                    This Transport: {{ transport.quantity|floatformat:0 }} {{
-                                    transport.material_order.unit }}
+                                    This Transport: {{ transport.quantity|floatformat:0 }} {{ transport.unit|default:"N/A" }}
                                 </span>
                             </div>
 
@@ -384,7 +385,7 @@
                 <div style="display: grid; gap: 8px; font-size: 0.85rem;">
                     <div
                         style="background: rgba(102, 126, 234, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #667eea;">
-                        <strong style="color: #667eea;">ðŸš› Transporter:</strong> {{ transport.transporter.name }}
+                        <strong style="color: #667eea;">ðŸš› Transporter:</strong> {{ transport.transporter.name|default:"N/A" }}
                     </div>
                     <div
                         style="background: rgba(40, 167, 69, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #28a745;">
@@ -393,8 +394,7 @@
                     </div>
                     <div
                         style="background: rgba(255, 193, 7, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #ffc107;">
-                        <strong style="color: #e67e22;">ðŸ“ Destination:</strong> {{ transport.region }}, {{
-                        transport.district }}
+                        <strong style="color: #e67e22;">ðŸ“ Destination:</strong> {{ transport.delivery_location|default:"N/A" }}
                     </div>
                 </div>
 
@@ -459,7 +459,7 @@
                         style="border-radius: 20px; padding: 5px 20px; font-size: 0.8rem;"
                         data-transport-id="{{ transport.id }}" data-current-status="{{ transport.status }}"
                         data-material="{{ transport.material_name }}"
-                        data-transporter="{{ transport.transporter.name }}" data-driver="{{ transport.driver_name }}"
+                        data-transporter="{{ transport.transporter.name|default:"N/A" }}" data-driver="{{ transport.driver_name }}"
                         data-order-code="{{ transport.material_order.request_code }}"
                         data-consignment-number="{{ transport.waybill_number|default:'' }}">
                         <i class="fas fa-edit"></i> Update Status
@@ -913,3 +913,5 @@
     });
 </script>
 {% endblock %}
+
+
