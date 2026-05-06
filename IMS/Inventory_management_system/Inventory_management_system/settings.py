@@ -41,6 +41,19 @@ if SENTRY_DSN:
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ---------------------------------------------------------------------------
+# Azure App Service detection
+# ---------------------------------------------------------------------------
+# Azure App Service automatically sets WEBSITE_SITE_NAME on every container.
+# We use it to: (a) pick a persistent path for the SQLite file (Azure wipes
+# everything outside /home/ between deploys/restarts), and (b) drive sane
+# production defaults even when DJANGO_DEBUG hasn't been configured yet.
+ON_AZURE_APP_SERVICE = bool(os.environ.get('WEBSITE_SITE_NAME'))
+
+# /home/ is the persistent mount on Azure App Service Linux. Everything else
+# (including the deployment dir under /tmp/<hash>/) is ephemeral.
+AZURE_PERSISTENT_DATA_DIR = '/home/site/data'
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -228,24 +241,53 @@ WSGI_APPLICATION = 'Inventory_management_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# Local development always uses SQLite so it cannot accidentally write to production.
+# Pick a SQLite path that survives deploys on Azure. The previous default
+# (BASE_DIR/db.sqlite3) lived under /tmp/<deployment-hash>/ on App Service,
+# which Azure replaces on every push -- meaning a brand-new empty database on
+# every deploy. /home/site/data/ is the persistent mount on App Service Linux.
+if ON_AZURE_APP_SERVICE:
+    try:
+        os.makedirs(AZURE_PERSISTENT_DATA_DIR, exist_ok=True)
+        _sqlite_path = os.path.join(AZURE_PERSISTENT_DATA_DIR, 'db.sqlite3')
+    except OSError:
+        # If /home/site/data isn't writable for any reason, fall back to BASE_DIR
+        # so the app at least starts (data won't persist, but we'll log clearly).
+        logging.warning(
+            "Could not create %s; falling back to ephemeral BASE_DIR for SQLite. "
+            "Data WILL be lost on deploy.", AZURE_PERSISTENT_DATA_DIR,
+        )
+        _sqlite_path = os.path.join(BASE_DIR, 'db.sqlite3')
+else:
+    _sqlite_path = os.path.join(BASE_DIR, 'db.sqlite3')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'NAME': _sqlite_path,
     }
 }
 
-# Production must use an external database. Do not silently fall back to SQLite
-# because that can cause deploys to overwrite or lose live data.
+# Production must normally use an external database. Two escape hatches:
+#   1. Set DATABASE_URL / SCHEMATOGO_URL -- preferred path (Postgres/MySQL).
+#   2. Set ALLOW_SQLITE_IN_PROD=1 -- emergency only. Lets us keep using SQLite
+#      on the persistent /home/site/data/ mount until a real DB is provisioned.
 if not DEBUG:
     database_url = os.getenv('SCHEMATOGO_URL') or os.getenv('DATABASE_URL')
-    if not database_url:
+    allow_sqlite_prod = os.getenv('ALLOW_SQLITE_IN_PROD', '').lower() in ('1', 'true', 'yes')
+    if database_url:
+        DATABASES['default'] = dj_database_url.config(default=database_url)
+    elif allow_sqlite_prod:
+        logging.warning(
+            "Running in production on SQLite at %s because ALLOW_SQLITE_IN_PROD is set. "
+            "This is an emergency fallback -- migrate to Postgres/MySQL ASAP.",
+            _sqlite_path,
+        )
+    else:
         raise ImproperlyConfigured(
             "Production database is not configured. Set SCHEMATOGO_URL or DATABASE_URL "
-            "in the deployment environment."
+            "in the deployment environment, or set ALLOW_SQLITE_IN_PROD=1 as a "
+            "temporary fallback."
         )
-    DATABASES['default'] = dj_database_url.config(default=database_url)
 
 
 # Password validation

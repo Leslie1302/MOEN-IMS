@@ -6,7 +6,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User, Group
 from Inventory.models import (
-    Category, Unit, Warehouse, InventoryItem,
+    Category, Unit, Warehouse, InventoryItem, MaterialOrder,
 )
 
 
@@ -166,6 +166,17 @@ class StoreOperationsAccessTests(TestCase):
         self.user = User.objects.create_user(username="storekeeper1", password="pass12345")
         group = Group.objects.create(name="Storekeeper")
         self.user.groups.add(group)
+        self.category = Category.objects.create(name="Test Category")
+        self.unit = Unit.objects.create(name="pcs")
+        self.warehouse = Warehouse.objects.create(name="Test WH", code="TWH01", location="Test")
+        InventoryItem.objects.create(
+            name="Test Item",
+            quantity=100,
+            category=self.category,
+            unit=self.unit,
+            code="TST01",
+            warehouse=self.warehouse,
+        )
         self.client.login(username="storekeeper1", password="pass12345")
 
     def test_dashboard_shows_store_operations_menu(self):
@@ -190,3 +201,22 @@ class StoreOperationsAccessTests(TestCase):
                 resp.status_code, 200,
                 f"{url_name} should be accessible to store operations users"
             )
+
+    def test_material_orders_handles_missing_related_users(self):
+        MaterialOrder.objects.create(
+            name="Test Item",
+            quantity=10,
+            category=self.category,
+            code="TST01",
+            unit=self.unit,
+            warehouse=self.warehouse,
+            status="Draft",
+            processed_quantity=0,
+            remaining_quantity=10,
+            request_type="Release",
+            project_type="SHEP",
+            request_code="REQ-TEST-001",
+        )
+        resp = self.client.get(reverse('material_orders'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Material Orders")

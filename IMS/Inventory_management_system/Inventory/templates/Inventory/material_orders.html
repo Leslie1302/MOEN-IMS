@@ -121,7 +121,13 @@
                         </button>
                     </td>
                     <td class="fw-bold">{{ order.request_code|default:"N/A" }}</td>
-                    <td>{{ order.user.username }}</td>
+                    <td>
+                        {% if order.user %}
+                        {{ order.user.get_full_name|default:order.user.username }}
+                        {% else %}
+                        <span class="text-muted">Unassigned</span>
+                        {% endif %}
+                    </td>
                     <td>{{ order.name }}</td>
                     <td>
                         {% if order.request_type == "Release" %}
@@ -194,7 +200,7 @@
                             {% endif %}
                         {% endif %}
                     </td>
-                    {% if user.is_superuser or 'Store Officer' in user.groups.all|join:', ' %}
+                    {% if user.is_superuser or user|has_any_group:"Store Officer,Store Officers,Storekeeper,Storekeepers,Stores Officer,Stores Officers" %}
                     <td class="text-center action-cell">
                         {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                         {% if order.assigned_to == user or user.is_superuser or not order.assigned_to %}
@@ -215,11 +221,17 @@
                         </div>
                         {% else %}
                         {# Order is assigned to someone else - show message #}
+                        {% if order.assigned_to %}
                         <span class="text-muted small"
                             title="This order is assigned to {{ order.assigned_to.get_full_name|default:order.assigned_to.username }}">
                             <i class="fas fa-lock"></i> Assigned to {{
                             order.assigned_to.get_full_name|default:order.assigned_to.username }}
                         </span>
+                        {% else %}
+                        <span class="text-muted small">
+                            <i class="fas fa-lock-open"></i> Unassigned
+                        </span>
+                        {% endif %}
                         {% endif %}
                         {% else %}
                         <span class="text-success">
@@ -325,7 +337,13 @@
                                 </tr>
                                 <tr>
                                     <th>Requested By:</th>
-                                    <td>{{ order.user.get_full_name|default:order.user.username }}</td>
+                                    <td>
+                                        {% if order.user %}
+                                        {{ order.user.get_full_name|default:order.user.username }}
+                                        {% else %}
+                                        <span class="text-muted">Unassigned</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th>Date Requested:</th>
@@ -337,7 +355,13 @@
                                 </tr>
                                 <tr>
                                     <th>Last Updated By:</th>
-                                    <td>{{ order.last_updated_by.username|default:"N/A" }}</td>
+                                    <td>
+                                        {% if order.last_updated_by %}
+                                        {{ order.last_updated_by.get_full_name|default:order.last_updated_by.username }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             </table>
                         </div>
@@ -378,7 +402,13 @@
                                 </tr>
                                 <tr>
                                     <th>Processed By:</th>
-                                    <td>{{ order.processed_by.username|default:"N/A" }}</td>
+                                    <td>
+                                        {% if order.processed_by %}
+                                        {{ order.processed_by.get_full_name|default:order.processed_by.username }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th>Processed At:</th>
@@ -394,8 +424,13 @@
                             <div class="alert alert-info">
                                 <i class="fas fa-file-pdf text-danger me-2"></i>
                                 <strong>{{ order.release_letter.title }}</strong><br>
-                                <small>Uploaded by {{ order.release_letter.uploaded_by.username }} on {{
-                                    order.release_letter.upload_time|date:"F d, Y H:i" }}</small><br>
+                                <small>Uploaded by
+                                    {% if order.release_letter.uploaded_by %}
+                                    {{ order.release_letter.uploaded_by.get_full_name|default:order.release_letter.uploaded_by.username }}
+                                    {% else %}
+                                    Unknown
+                                    {% endif %}
+                                    on {{ order.release_letter.upload_time|date:"F d, Y H:i" }}</small><br>
                                 <a href="{{ order.release_letter.pdf_file.url }}" target="_blank"
                                     class="btn btn-sm btn-primary mt-2">
                                     <i class="fas fa-download me-1"></i>Download PDF
