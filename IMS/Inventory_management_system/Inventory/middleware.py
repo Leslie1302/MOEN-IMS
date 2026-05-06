@@ -70,6 +70,7 @@ class UserRoleMiddleware(MiddlewareMixin):
             '/2fa/verify/',
             '/2fa/disable/',
             '/auth/login/',
+            '/auth/logout/',
             '/auth/callback/',
         ]
         

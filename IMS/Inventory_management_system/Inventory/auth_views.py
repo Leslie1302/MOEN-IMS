@@ -36,10 +36,15 @@ class CustomLogoutView(LogoutView):
     """
     Logs the user out of Django and then redirects to the Microsoft
     logout endpoint so the M365 session is also terminated.
+    POST-only to prevent logout-CSRF via crafted links.
     """
     next_page = 'index'
+    http_method_names = ['post']
 
     def dispatch(self, request, *args, **kwargs):
+        if request.method != 'POST':
+            from django.http import HttpResponseNotAllowed
+            return HttpResponseNotAllowed(['POST'])
         messages.info(request, 'You have been signed out successfully.')
         logout(request)
         ms_logout_url = (

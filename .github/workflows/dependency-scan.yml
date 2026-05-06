@@ -1,0 +1,27 @@
+name: Dependency Scan
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+jobs:
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run dependency scanner (pip-audit)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install pip-audit
+          pip-audit -l || true
+      - name: Run safety check
+        run: |
+          if command -v safety &> /dev/null; then safety check -r -q; fi

@@ -17,13 +17,13 @@ class PublicPageTests(TestCase):
         resp = self.client.get(reverse('index'))
         self.assertEqual(resp.status_code, 200)
 
-    def test_signup_page(self):
+    def test_signup_page_redirects_to_oauth(self):
         resp = self.client.get(reverse('signup'))
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)  # Redirects to M365 OAuth
 
-    def test_signin_page(self):
+    def test_signin_page_redirects_to_oauth(self):
         resp = self.client.get(reverse('signin'))
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)  # Redirects to M365 OAuth
 
     def test_about_requires_login(self):
         resp = self.client.get(reverse('about'))
@@ -119,16 +119,19 @@ class DashboardViewTests(TestCase):
 
 
 class SignUpViewTests(TestCase):
-    """Tests for user registration."""
+    """Tests for user registration (now handled via M365 OAuth)."""
 
-    def test_signup_creates_user(self):
+    def test_signup_redirects_to_oauth(self):
+        """POST to signup should redirect to OAuth, not create a user."""
         resp = self.client.post(reverse('signup'), {
             'username': 'newuser',
             'email': 'new@example.com',
             'password1': 'SecurePass12345!',
             'password2': 'SecurePass12345!',
         })
-        self.assertTrue(User.objects.filter(username='newuser').exists())
+        # Signup is now a redirect to M365 OAuth — no local user creation
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(User.objects.filter(username='newuser').exists())
 
     def test_signup_password_mismatch(self):
         resp = self.client.post(reverse('signup'), {
@@ -138,3 +141,52 @@ class SignUpViewTests(TestCase):
             'password2': 'DifferentPass12345!',
         })
         self.assertFalse(User.objects.filter(username='failuser').exists())
+
+
+class LogoutHardeningTests(TestCase):
+    """Tests for POST-only logout endpoints."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="logoutuser", password="pass12345")
+        self.client.login(username="logoutuser", password="pass12345")
+
+    def test_inventory_logout_rejects_get(self):
+        resp = self.client.get(reverse('logout'))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_accounts_logout_rejects_get(self):
+        resp = self.client.get(reverse('ms_logout'))
+        self.assertEqual(resp.status_code, 405)
+
+
+class StoreOperationsAccessTests(TestCase):
+    """Tests for store operations aliases and reconciliation pages."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="storekeeper1", password="pass12345")
+        group = Group.objects.create(name="Storekeeper")
+        self.user.groups.add(group)
+        self.client.login(username="storekeeper1", password="pass12345")
+
+    def test_dashboard_shows_store_operations_menu(self):
+        resp = self.client.get(reverse('dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Store Operations")
+
+    def test_store_operations_can_open_reconciliation_pages(self):
+        allowed_urls = [
+            'bill_of_quantity',
+            'boq_overissuance_summary',
+            'boq_overissuance_justification_list',
+            'project_management_dashboard',
+            'project_community_analysis',
+            'project_package_analysis',
+            'project_material_analysis',
+        ]
+
+        for url_name in allowed_urls:
+            resp = self.client.get(reverse(url_name))
+            self.assertEqual(
+                resp.status_code, 200,
+                f"{url_name} should be accessible to store operations users"
+            )

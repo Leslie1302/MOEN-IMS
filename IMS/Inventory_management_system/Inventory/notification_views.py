@@ -6,6 +6,7 @@ Users see notifications based on their group membership.
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.generic import ListView
+from django.views.decorators.http import require_POST
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.db.models import Q
@@ -119,61 +120,57 @@ def notification_detail(request, pk):
 
 
 @login_required
+@require_POST
 def mark_notification_read(request, pk):
     """
-    Mark a notification as read via AJAX.
+    Mark a notification as read via AJAX (POST only).
     """
-    if request.method == 'POST':
-        notification = get_object_or_404(Notification, pk=pk)
-        
-        # Check if user has access
-        user = request.user
-        user_groups = user.groups.values_list('name', flat=True)
-        
-        has_access = (
-            user.is_superuser or
-            notification.recipient_group == 'All' or
-            notification.recipient_group in user_groups or
-            notification.recipient_user == user
-        )
-        
-        if not has_access:
-            return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
-        
-        notification.mark_as_read(user)
-        
-        return JsonResponse({'success': True})
+    notification = get_object_or_404(Notification, pk=pk)
     
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+    # Check if user has access
+    user = request.user
+    user_groups = user.groups.values_list('name', flat=True)
+    
+    has_access = (
+        user.is_superuser or
+        notification.recipient_group == 'All' or
+        notification.recipient_group in user_groups or
+        notification.recipient_user == user
+    )
+    
+    if not has_access:
+        return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
+    
+    notification.mark_as_read(user)
+    
+    return JsonResponse({'success': True})
 
 
 @login_required
+@require_POST
 def mark_all_notifications_read(request):
     """
-    Mark all notifications for the current user as read.
+    Mark all notifications for the current user as read (POST only).
     """
-    if request.method == 'POST':
-        user = request.user
-        user_groups = user.groups.values_list('name', flat=True)
-        
-        # Build query for user's notifications
-        query = Q(recipient_group='All', is_read=False)
-        for group_name in user_groups:
-            query |= Q(recipient_group=group_name, is_read=False)
-        query |= Q(recipient_user=user, is_read=False)
-        
-        if user.is_superuser:
-            notifications = Notification.objects.filter(is_read=False)
-        else:
-            notifications = Notification.objects.filter(query)
-        
-        # Mark all as read
-        count = notifications.count()
-        notifications.update(is_read=True, read_at=timezone.now())
-        
-        return JsonResponse({'success': True, 'count': count})
+    user = request.user
+    user_groups = user.groups.values_list('name', flat=True)
     
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+    # Build query for user's notifications
+    query = Q(recipient_group='All', is_read=False)
+    for group_name in user_groups:
+        query |= Q(recipient_group=group_name, is_read=False)
+    query |= Q(recipient_user=user, is_read=False)
+    
+    if user.is_superuser:
+        notifications = Notification.objects.filter(is_read=False)
+    else:
+        notifications = Notification.objects.filter(query)
+    
+    # Mark all as read
+    count = notifications.count()
+    notifications.update(is_read=True, read_at=timezone.now())
+    
+    return JsonResponse({'success': True, 'count': count})
 
 
 @login_required
@@ -199,19 +196,17 @@ def get_unread_count(request):
 
 
 @login_required
+@require_POST
 def delete_notification(request, pk):
     """
-    Delete a notification (superusers only).
+    Delete a notification (superusers only, POST only).
     """
     if not request.user.is_superuser:
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
     
-    if request.method == 'POST':
-        notification = get_object_or_404(Notification, pk=pk)
-        notification.delete()
-        return JsonResponse({'success': True})
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+    notification = get_object_or_404(Notification, pk=pk)
+    notification.delete()
+    return JsonResponse({'success': True})
 
 
 @login_required

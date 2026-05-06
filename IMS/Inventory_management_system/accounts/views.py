@@ -8,6 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 from .models import MicrosoftCredentials
 
 def _callback_redirect_uri(request):
@@ -104,10 +105,11 @@ def ms_callback(request):
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return redirect("/")
 
+@require_POST
 def ms_logout(request):
     """
     Ends the Django session and redirects to Microsoft's logout endpoint.
-    Route: GET /auth/logout/
+    Route: POST /auth/logout/
     """
     logout(request)
     ms_logout_url = (

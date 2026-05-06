@@ -43,6 +43,8 @@ from .models import (
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
 from Inventory.utils import is_store_officer, is_superuser, is_schedule_officer
 
+from django.views.decorators.http import require_POST
+
 # Superuser-only access mixin that returns 404 for non-superusers
 class SuperuserOnlyMixin(UserPassesTestMixin):
     def test_func(self):
@@ -521,6 +523,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
 
 @login_required
 @user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
+@require_POST
 def update_transport_status(request, pk):
     """
     Update the status of a transport assignment.

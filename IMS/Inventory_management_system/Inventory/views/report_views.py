@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
+from django.views.decorators.http import require_POST
 from django.urls import reverse_lazy
 from django.conf import settings
 
@@ -65,7 +66,8 @@ def generate_weekly_report(request):
             return redirect('weeklyreport_changelist', report_id=report.pk)
         
         except Exception as e:
-            messages.error(request, f'Failed to generate report: {str(e)}')
+            logger.exception("Failed to generate weekly report")
+            messages.error(request, 'Failed to generate report. Please contact support if the problem persists.')
     
     # GET request - show form
     
@@ -125,8 +127,10 @@ class ReportSubmissionListView(LoginRequiredMixin, ListView):
     context_object_name = 'reports'
     
     def get_queryset(self):
-        # Show all reports to all users for transparency
-        return ReportSubmission.objects.all()
+        # Management/superusers see all; regular users see only their own
+        if self.request.user.is_superuser or self.request.user.groups.filter(name='Management').exists():
+            return ReportSubmission.objects.all()
+        return ReportSubmission.objects.filter(user=self.request.user)
 
 class ReportSubmissionCreateView(LoginRequiredMixin, CreateView):
     model = ReportSubmission
@@ -184,33 +188,45 @@ class ReportSubmissionDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'report'
 
     def get_queryset(self):
-        # Show all reports to all users for transparency
-        return ReportSubmission.objects.all()
+        # Management/superusers see all; regular users see only their own
+        if self.request.user.is_superuser or self.request.user.groups.filter(name='Management').exists():
+            return ReportSubmission.objects.all()
+        return ReportSubmission.objects.filter(user=self.request.user)
 
+@login_required
+@require_POST
 def submit_report(request, pk):
-    """View to handle report submission"""
-    report = ReportSubmission.objects.get(pk=pk)
+    """View to handle report submission (POST only)."""
+    report = get_object_or_404(ReportSubmission, pk=pk)
     if request.user == report.user and report.status == 'Draft':
         report.status = 'Submitted'
         report.save()
     return redirect('report-submission-list')
 
+
+@login_required
+@require_POST
 def approve_report(request, pk):
-    """View to handle report approval"""
-    if request.user.is_superuser:
-        report = ReportSubmission.objects.get(pk=pk)
-        if report.status == 'Submitted':
-            report.status = 'Approved'
-            report.save()
-            # Create or update corresponding BOQ
-            report.create_or_update_boq()
+    """View to handle report approval (superuser only, POST only)."""
+    if not request.user.is_superuser:
+        return redirect('report-submission-list')
+    report = get_object_or_404(ReportSubmission, pk=pk)
+    if report.status == 'Submitted':
+        report.status = 'Approved'
+        report.save()
+        # Create or update corresponding BOQ
+        report.create_or_update_boq()
     return redirect('report-submission-list')
 
+
+@login_required
+@require_POST
 def reject_report(request, pk):
-    """View to handle report rejection"""
-    if request.user.is_superuser:
-        report = ReportSubmission.objects.get(pk=pk)
-        if report.status == 'Submitted':
-            report.status = 'Rejected'
-            report.save()
+    """View to handle report rejection (superuser only, POST only)."""
+    if not request.user.is_superuser:
+        return redirect('report-submission-list')
+    report = get_object_or_404(ReportSubmission, pk=pk)
+    if report.status == 'Submitted':
+        report.status = 'Rejected'
+        report.save()
     return redirect('report-submission-list')

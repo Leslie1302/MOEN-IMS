@@ -144,6 +144,7 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 class AdjustReleaseLetterQuantityView(LoginRequiredMixin, UserPassesTestMixin, View):
     """View for adjusting the total authorized quantity of a release letter."""
+    http_method_names = ['post']
     
     def test_func(self):
         return self.request.user.is_superuser or self.request.user.groups.filter(name='Schedule Officers').exists()

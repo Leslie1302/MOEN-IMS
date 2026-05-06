@@ -6,6 +6,7 @@ Handles suppliers, price catalogs, contracts, and invoices
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.decorators.http import require_POST
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib import messages
@@ -414,6 +415,7 @@ class InvoiceCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 
 @login_required
+@require_POST
 def verify_invoice(request, pk):
     """Verify an invoice (Store Officer/Management)"""
     invoice = get_object_or_404(SupplierInvoice, pk=pk)
@@ -426,23 +428,22 @@ def verify_invoice(request, pk):
         messages.warning(request, 'This invoice cannot be verified at this stage.')
         return redirect('invoice_detail', pk=pk)
     
-    if request.method == 'POST':
-        form = InvoiceVerificationForm(request.POST)
-        if form.is_valid():
-            invoice.status = form.cleaned_data['status']
-            invoice.verified_by = request.user
-            invoice.verified_date = timezone.now()
-            if form.cleaned_data['notes']:
-                invoice.discrepancy_notes = form.cleaned_data['notes']
-            invoice.save()
-            
-            messages.success(request, f'Invoice {invoice.invoice_number} has been {invoice.status}.')
-            return redirect('invoice_detail', pk=pk)
     
+    form = InvoiceVerificationForm(request.POST)
+    if form.is_valid():
+        invoice.status = form.cleaned_data['status']
+        invoice.verified_by = request.user
+        invoice.verified_date = timezone.now()
+        if form.cleaned_data['notes']:
+            invoice.discrepancy_notes = form.cleaned_data['notes']
+        invoice.save()
+        
+        messages.success(request, f'Invoice {invoice.invoice_number} has been {invoice.status}.')
     return redirect('invoice_detail', pk=pk)
 
 
 @login_required
+@require_POST
 def approve_invoice(request, pk):
     """Approve an invoice for payment (Management only)"""
     invoice = get_object_or_404(SupplierInvoice, pk=pk)
@@ -455,27 +456,25 @@ def approve_invoice(request, pk):
         messages.warning(request, 'Invoice must be verified before approval.')
         return redirect('invoice_detail', pk=pk)
     
-    if request.method == 'POST':
-        form = InvoiceApprovalForm(request.POST)
-        if form.is_valid():
-            if form.cleaned_data['approved']:
-                invoice.status = 'approved'
-                invoice.approved_by = request.user
-                invoice.approved_date = timezone.now()
-                if form.cleaned_data['payment_reference']:
-                    invoice.payment_reference = form.cleaned_data['payment_reference']
-                invoice.save()
-                
-                messages.success(request, f'Invoice {invoice.invoice_number} approved for payment!')
-            else:
-                messages.info(request, 'Invoice approval cancelled.')
+    form = InvoiceApprovalForm(request.POST)
+    if form.is_valid():
+        if form.cleaned_data['approved']:
+            invoice.status = 'approved'
+            invoice.approved_by = request.user
+            invoice.approved_date = timezone.now()
+            if form.cleaned_data['payment_reference']:
+                invoice.payment_reference = form.cleaned_data['payment_reference']
+            invoice.save()
             
-            return redirect('invoice_detail', pk=pk)
+            messages.success(request, f'Invoice {invoice.invoice_number} approved for payment!')
+        else:
+            messages.info(request, 'Invoice approval cancelled.')
     
     return redirect('invoice_detail', pk=pk)
 
 
 @login_required
+@require_POST
 def mark_invoice_paid(request, pk):
     """Mark an invoice as paid (Management only)"""
     invoice = get_object_or_404(SupplierInvoice, pk=pk)

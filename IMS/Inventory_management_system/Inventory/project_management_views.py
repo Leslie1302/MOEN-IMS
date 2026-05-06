@@ -4,7 +4,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Sum, Count, Q, F, FloatField, ExpressionWrapper
 from django.db.models.functions import Coalesce
 from .models import BillOfQuantity
-from .utils import is_superuser
+from .utils import is_superuser, is_store_officer, is_management
 import json
 import logging
 
@@ -20,9 +20,9 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
     template_name = 'Inventory/project_management_dashboard.html'
     
     def test_func(self):
-        """Allow access to Management group members and superusers"""
+        """Allow access to Management, store operations users, and superusers"""
         user = self.request.user
-        return user.groups.filter(name='Management').exists() or is_superuser(user)
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -184,7 +184,7 @@ class CommunityAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
     
     def test_func(self):
         user = self.request.user
-        return user.groups.filter(name='Management').exists() or is_superuser(user)
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -263,7 +263,7 @@ class PackageAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
     
     def test_func(self):
         user = self.request.user
-        return user.groups.filter(name='Management').exists() or is_superuser(user)
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -327,7 +327,7 @@ class MaterialAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
     
     def test_func(self):
         user = self.request.user
-        return user.groups.filter(name='Management').exists() or is_superuser(user)
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

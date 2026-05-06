@@ -1,16 +1,20 @@
 """
 View for digital signature lookup and verification.
 Allows searching and viewing signatures by user ID, username, or signature ID.
+
+Restricted to Management and superuser roles only.
 """
 
 from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.db.models import Q, Count
 from .models import Profile
+from .utils import is_management
 
 
 @login_required
+@user_passes_test(is_management, login_url='/', redirect_field_name=None)
 def signature_lookup(request):
     """
     Display a searchable list of all digital signatures.
@@ -66,6 +70,7 @@ def signature_lookup(request):
 
 
 @login_required
+@user_passes_test(is_management, login_url='/', redirect_field_name=None)
 def signature_verify(request, user_id):
     """
     Verify a specific user's signature by user ID.
@@ -97,6 +102,7 @@ def signature_verify(request, user_id):
 
 
 @login_required
+@user_passes_test(is_management, login_url='/', redirect_field_name=None)
 def signature_api_lookup(request):
     """
     API endpoint for signature lookup.
@@ -119,19 +125,14 @@ def signature_api_lookup(request):
         Q(signature_stamp__icontains=search_query)
     ).select_related('user')[:10]  # Limit to 10 results
     
-    # Build response data
+    # Build response data — redacted to avoid leaking sensitive details
     results = []
     for profile in profiles:
-        stamp_data = profile.display_signature_stamp()
         results.append({
-            'user_id': profile.user.id,
             'username': profile.user.username,
-            'email': profile.user.email,
             'full_name': profile.user.get_full_name(),
             'is_active': profile.user.is_active,
-            'is_staff': profile.user.is_staff,
-            'signature_stamp': profile.signature_stamp,
-            'stamp_data': stamp_data,
+            'has_signature': bool(profile.signature_stamp),
         })
     
     return JsonResponse({

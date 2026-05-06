@@ -130,3 +130,19 @@ class ProductionSecuritySettingsTest(TestCase):
             hasattr(settings, 'SECURE_SSL_REDIRECT') or True,
             "SECURE_SSL_REDIRECT should be defined for production"
         )
+
+
+class SecretsHygieneTest(TestCase):
+    """Basic guardrail so a committed plaintext .env is harder to miss."""
+
+    def test_repo_env_file_not_committed(self):
+        """The app tree should not contain a plaintext .env secrets file."""
+        from pathlib import Path
+
+        app_root = Path(settings.BASE_DIR)
+        committed_env = app_root / '.env'
+
+        self.assertFalse(
+            committed_env.exists(),
+            f"Remove plaintext secrets file: {committed_env}"
+        )

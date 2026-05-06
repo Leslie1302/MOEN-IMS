@@ -25,6 +25,7 @@ from Inventory.forms import (
     ExcelUploadForm, ObsoleteMaterialForm
 )
 from .main_views import SuperuserOnlyMixin
+from Inventory.utils import is_store_officer, is_management, is_superuser
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -502,8 +503,9 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_orphans = 5
     
     def test_func(self):
-        from Inventory.utils import is_schedule_officer, is_superuser
-        return is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+        from Inventory.utils import is_schedule_officer
+        user = self.request.user
+        return is_schedule_officer(user) or is_store_officer(user) or is_management(user) or is_superuser(user)
 
     def get_queryset(self):
         """

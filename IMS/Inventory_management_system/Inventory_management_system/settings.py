@@ -48,7 +48,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 from django.core.exceptions import ImproperlyConfigured
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
+# Default to local development when no environment is provided, but require an
+# explicit opt-out for production deployments.
+_debug_env = os.getenv('DJANGO_DEBUG')
+DEBUG = _debug_env.lower() == 'true' if _debug_env is not None else True
 
 # SECURITY WARNING: keep the secret key used in production secret!
 _secret_key = os.environ.get('DJANGO_SECRET_KEY')
@@ -59,7 +62,7 @@ elif DEBUG:
 else:
     raise ValueError(
         "DJANGO_SECRET_KEY environment variable is required in production. "
-        "Set it in your Heroku config vars or .env file."
+        "Set it in your deployment environment."
     )
 
 ALLOWED_HOSTS = [
@@ -126,9 +129,6 @@ _default_csrf = [
     'https://127.0.0.1',
     'https://moen-ims.org',
     'https://www.moen-ims.org',
-    'https://inventory-management-system-1-1bbd774008d3.herokuapp.com',
-    'https://moen-ims-28b53393a6a5.herokuapp.com',
-    'https://moen-ims-gqcci.ondigitalocean.app/',
     'https://moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net',
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
@@ -236,12 +236,16 @@ DATABASES = {
     }
 }
 
-# Production overrides the local database only when DEBUG is off.
+# Production must use an external database. Do not silently fall back to SQLite
+# because that can cause deploys to overwrite or lose live data.
 if not DEBUG:
-    if os.getenv('SCHEMATOGO_URL'):
-        DATABASES['default'] = dj_database_url.config(default=os.getenv('SCHEMATOGO_URL'))
-    elif os.getenv('DATABASE_URL'):
-        DATABASES['default'] = dj_database_url.config(default=os.getenv('DATABASE_URL'))
+    database_url = os.getenv('SCHEMATOGO_URL') or os.getenv('DATABASE_URL')
+    if not database_url:
+        raise ImproperlyConfigured(
+            "Production database is not configured. Set SCHEMATOGO_URL or DATABASE_URL "
+            "in the deployment environment."
+        )
+    DATABASES['default'] = dj_database_url.config(default=database_url)
 
 
 # Password validation

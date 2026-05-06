@@ -3,8 +3,9 @@ Views for managing Bill of Quantity overissuances
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, CreateView, DetailView, UpdateView
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.db.models import Q, Sum, Count, F
 from django.urls import reverse_lazy, reverse
@@ -14,17 +15,24 @@ from collections import defaultdict
 
 from .models import BillOfQuantity, BoQOverissuanceJustification
 from .forms import BoQOverissuanceJustificationForm
+from .utils import is_store_officer, is_management, is_superuser
 
 
-class BoQOverissuanceSummaryView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class BoQOverissuanceAccessMixin(UserPassesTestMixin):
+    """Allow read/write access to store operations, management, and superusers."""
+
+    def test_func(self):
+        user = self.request.user
+        return is_store_officer(user) or is_management(user) or is_superuser(user)
+
+
+class BoQOverissuanceSummaryView(LoginRequiredMixin, BoQOverissuanceAccessMixin, ListView):
     """
     Display a summary of all projects with BoQ overissuances (negative balances)
     """
     model = BillOfQuantity
     template_name = 'Inventory/boq_overissuance_summary.html'
     context_object_name = 'overissuance_data'
-    permission_required = 'Inventory.can_view_overissuance_summary'
-    
     def get_queryset(self):
         """Get all BoQ items with overissuances"""
         # Get all BoQ items where quantity_received > contract_quantity
@@ -93,15 +101,15 @@ class BoQOverissuanceSummaryView(LoginRequiredMixin, PermissionRequiredMixin, Li
         return context
 
 
-class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, CreateView):
+class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, BoQOverissuanceAccessMixin, CreateView):
     """
-    Allow authorized users to submit justification for a BoQ overissuance
+    Allow authorized users to submit justification for a BoQ overissuance.
+    Restricted to users with overissuance view permission.
     """
     model = BoQOverissuanceJustification
     form_class = BoQOverissuanceJustificationForm
     template_name = 'Inventory/boq_overissuance_justification_form.html'
     success_url = reverse_lazy('boq_overissuance_summary')
-    
     def dispatch(self, request, *args, **kwargs):
         """Ensure the BoQ item exists and has overissuance"""
         self.boq_item = get_object_or_404(BillOfQuantity, id=self.kwargs['boq_id'])
@@ -141,15 +149,15 @@ class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
-class BoQOverissuanceJustificationListView(LoginRequiredMixin, ListView):
+class BoQOverissuanceJustificationListView(LoginRequiredMixin, BoQOverissuanceAccessMixin, ListView):
     """
-    List all overissuance justifications
+    List all overissuance justifications.
+    Restricted to users with overissuance view permission.
     """
     model = BoQOverissuanceJustification
     template_name = 'Inventory/boq_overissuance_justification_list.html'
     context_object_name = 'justifications'
     paginate_by = 20
-    
     def get_queryset(self):
         """Get justifications based on user permissions"""
         queryset = BoQOverissuanceJustification.objects.select_related(
@@ -176,14 +184,14 @@ class BoQOverissuanceJustificationListView(LoginRequiredMixin, ListView):
         return context
 
 
-class BoQOverissuanceJustificationDetailView(LoginRequiredMixin, DetailView):
+class BoQOverissuanceJustificationDetailView(LoginRequiredMixin, BoQOverissuanceAccessMixin, DetailView):
     """
-    View details of a specific overissuance justification
+    View details of a specific overissuance justification.
+    Restricted to users with overissuance view permission.
     """
     model = BoQOverissuanceJustification
     template_name = 'Inventory/boq_overissuance_justification_detail.html'
     context_object_name = 'justification'
-    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['can_review'] = self.request.user.has_perm('Inventory.can_review_overissuance')
@@ -191,27 +199,27 @@ class BoQOverissuanceJustificationDetailView(LoginRequiredMixin, DetailView):
 
 
 @login_required
+@require_POST
 @permission_required('Inventory.can_review_overissuance', raise_exception=True)
 def review_overissuance_justification(request, pk):
     """
-    Review and approve/reject an overissuance justification
+    Review and approve/reject an overissuance justification (POST only).
     """
     justification = get_object_or_404(BoQOverissuanceJustification, pk=pk)
     
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        review_comments = request.POST.get('review_comments', '')
+    action = request.POST.get('action')
+    review_comments = request.POST.get('review_comments', '')
+    
+    if action in ['Approved', 'Rejected', 'Under Review']:
+        justification.status = action
+        justification.review_comments = review_comments
+        justification.reviewed_by = request.user
+        justification.reviewed_at = timezone.now()
+        justification.save()
         
-        if action in ['Approved', 'Rejected', 'Under Review']:
-            justification.status = action
-            justification.review_comments = review_comments
-            justification.reviewed_by = request.user
-            justification.reviewed_at = timezone.now()
-            justification.save()
-            
-            messages.success(request, f"Justification {action.lower()} successfully.")
-        else:
-            messages.error(request, "Invalid action.")
+        messages.success(request, f"Justification {action.lower()} successfully.")
+    else:
+        messages.error(request, "Invalid action.")
     
     return redirect('boq_overissuance_justification_detail', pk=pk)
 
