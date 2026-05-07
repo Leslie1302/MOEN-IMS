@@ -1,4 +1,6 @@
+import os
 import uuid
+import logging
 import msal
 from django.conf import settings
 from django.contrib.auth import login, logout
@@ -10,6 +12,32 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import MicrosoftCredentials
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Trusted admin bootstrap.
+#
+# Emails listed here (or in TRUSTED_ADMIN_EMAILS env var, comma-separated) are
+# automatically promoted to is_superuser/is_staff on Microsoft OAuth login.
+# This is the only way to recover from a fresh database when no superuser
+# exists yet -- without it, every signed-in user gets bounced to the
+# "awaiting authorization" page by UserRoleMiddleware.
+#
+# When portal/Kudu access is restored, prefer the env var and remove the
+# hardcoded list.
+# ---------------------------------------------------------------------------
+_HARDCODED_TRUSTED_ADMIN_EMAILS = {
+    "leslie.adjetey@energymin.gov.gh",
+}
+_ENV_TRUSTED_ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.environ.get("TRUSTED_ADMIN_EMAILS", "").split(",")
+    if e.strip()
+}
+TRUSTED_ADMIN_EMAILS = {
+    e.lower() for e in _HARDCODED_TRUSTED_ADMIN_EMAILS
+} | _ENV_TRUSTED_ADMIN_EMAILS
 
 def _callback_redirect_uri(request):
     """
@@ -86,7 +114,17 @@ def ms_callback(request):
             "last_name": " ".join(display_name.split()[1:]) if display_name else "",
         }
     )
-    
+
+    # Auto-promote trusted admin emails to superuser. Idempotent: only writes
+    # when the user isn't already staff+superuser. See TRUSTED_ADMIN_EMAILS.
+    if ms_email and ms_email.lower() in TRUSTED_ADMIN_EMAILS:
+        if not user.is_superuser or not user.is_staff:
+            user.is_superuser = True
+            user.is_staff = True
+            user.is_active = True
+            user.save(update_fields=["is_superuser", "is_staff", "is_active"])
+            logger.warning("Auto-promoted trusted admin email %s to superuser.", ms_email)
+
     creds, creds_created = MicrosoftCredentials.objects.get_or_create(
         user=user,
         defaults={
