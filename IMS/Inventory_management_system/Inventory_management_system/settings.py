@@ -61,10 +61,18 @@ AZURE_PERSISTENT_DATA_DIR = '/home/site/data'
 from django.core.exceptions import ImproperlyConfigured
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Default to local development when no environment is provided, but require an
-# explicit opt-out for production deployments.
+# Resolution order:
+#   1. DJANGO_DEBUG env var (explicit override -- wins everywhere).
+#   2. On Azure App Service (WEBSITE_SITE_NAME set), default to False so
+#      we don't leak the settings page even if no env var is configured.
+#   3. Local dev default: True.
 _debug_env = os.getenv('DJANGO_DEBUG')
-DEBUG = _debug_env.lower() == 'true' if _debug_env is not None else True
+if _debug_env is not None:
+    DEBUG = _debug_env.lower() == 'true'
+elif ON_AZURE_APP_SERVICE:
+    DEBUG = False
+else:
+    DEBUG = True
 
 # SECURITY WARNING: keep the secret key used in production secret!
 _secret_key = os.environ.get('DJANGO_SECRET_KEY')
@@ -273,12 +281,19 @@ DATABASES = {
 #      on the persistent /home/site/data/ mount until a real DB is provisioned.
 if not DEBUG:
     database_url = os.getenv('SCHEMATOGO_URL') or os.getenv('DATABASE_URL')
-    allow_sqlite_prod = os.getenv('ALLOW_SQLITE_IN_PROD', '').lower() in ('1', 'true', 'yes')
+    # Until Postgres is provisioned, default to allowing SQLite on Azure
+    # (where /home/site/data/ is persistent) so the app boots without a
+    # DATABASE_URL. Explicit ALLOW_SQLITE_IN_PROD=0 still disables it.
+    _sqlite_flag = os.getenv('ALLOW_SQLITE_IN_PROD')
+    if _sqlite_flag is None:
+        allow_sqlite_prod = ON_AZURE_APP_SERVICE
+    else:
+        allow_sqlite_prod = _sqlite_flag.lower() in ('1', 'true', 'yes')
     if database_url:
         DATABASES['default'] = dj_database_url.config(default=database_url)
     elif allow_sqlite_prod:
         logging.warning(
-            "Running in production on SQLite at %s because ALLOW_SQLITE_IN_PROD is set. "
+            "Running in production on SQLite at %s. "
             "This is an emergency fallback -- migrate to Postgres/MySQL ASAP.",
             _sqlite_path,
         )
