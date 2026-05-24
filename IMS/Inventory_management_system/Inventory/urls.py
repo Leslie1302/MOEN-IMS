@@ -175,7 +175,17 @@ urlpatterns = [
     # for emergency fallback during the transition; remove that route after
     # one stable production cycle.
     path('request-material/', SelectProjectView.as_view(), name='request_material'),
+    # Alias name used by the Step 2 template ({% url 'request_material_select' %}).
+    path('request-material/', SelectProjectView.as_view(), name='request_material_select'),
     path('request-material/legacy/', RequestMaterialView.as_view(), name='request_material_legacy'),
+
+    # Phase C: routes for the two-step Material Request flow. These views
+    # were imported above but never registered, which caused NoReverseMatch
+    # on {% url 'download_request_template' %} in the Step 1 page.
+    path('request-material/start/<str:project_code>/', RequestMaterialForProjectView.as_view(), name='request_material_for_project'),
+    path('request-material/template/', download_request_template, name='download_request_template'),
+    path('request-material/upload/', upload_requests, name='upload_requests'),
+    path('api/resolve-consignee/', resolve_consignee_for_community, name='api_resolve_consignee'),
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
     path('material-orders/archive/', MaterialOrdersArchiveView.as_view(), name='material_orders_archive'),
     path('material-orders-officers/', MaterialOrdersOfficersView.as_view(), name='material_orders_officers'),
