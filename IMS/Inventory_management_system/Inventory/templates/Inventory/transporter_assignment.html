@@ -107,9 +107,19 @@
                     <td>{{ order.region }}, {{ order.district }}</td>
                     <td>
                         {% if order.release_letter %}
-                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
-                                <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"View PDF" }}
-                            </a>
+                            {% if order.release_letter.pdf_file %}
+                                <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"Signed scan" }}
+                                </a>
+                            {% elif order.release_letter.letter_pdf %}
+                                <a href="{{ order.release_letter.letter_pdf.url }}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-file-alt text-success me-1"></i>{{ order.release_letter.title|default:"Unsigned letter" }}
+                                </a>
+                            {% else %}
+                                <a href="{% url 'release_letter_detail' order.release_letter.pk %}" class="text-decoration-none">
+                                    <i class="fas fa-clock text-muted me-1"></i>{{ order.release_letter.title|default:"Draft" }}
+                                </a>
+                            {% endif %}
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}

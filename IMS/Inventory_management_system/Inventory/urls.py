@@ -1,25 +1,37 @@
 from django.urls import path, include, reverse_lazy
 from django.conf import settings
 from django.conf.urls import handler403, handler404, handler500
+from django.views.generic.base import RedirectView
 # Password reset routes removed — authentication is handled exclusively via Microsoft 365 OAuth.
 
 # Import views from their respective modules
 from .views import (
-    Index, RequestMaterialView, MaterialOrdersView, UpdateMaterialStatusView, 
-    ProfileView, UploadInventoryView, UploadCategoriesAndUnitsView, list_categories, 
-    list_units, get_boq_data, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView, 
-    BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard, 
-    MaterialReceiptView, update_material_receipt, ReportSubmissionListView, 
-    ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView, 
+    Index, RequestMaterialView, MaterialOrdersView, UpdateMaterialStatusView,
+    ProfileView, UploadInventoryView, UploadCategoriesAndUnitsView, list_categories,
+    list_units, get_boq_data, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView,
+    BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard,
+    MaterialReceiptView, update_material_receipt, ReportSubmissionListView,
+    ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView,
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
     AdjustReleaseLetterQuantityView,
-    StaffProfileView, MaterialOrdersOfficersView, DownloadSampleTemplateView,
+    StaffProfileView, MaterialOrdersOfficersView, MaterialOrdersArchiveView, DownloadSampleTemplateView,
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
     update_obsolete_material_status, release_letter_tracking_dashboard,
     AdjustReleaseLetterQuantityView, AboutView, requisition_status,
+    # Geospatial API views (Phase 2) - commented until djangorestframework is installed
+    # ghana_map_project_sites_api, ghana_map_region_heatmap_api,
+    # ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api,
 )
 from .views.map_views import ghana_map_view, ghana_map_data_api
+from .views.geospatial_views import (
+    ghana_map_project_sites_api, ghana_map_region_heatmap_api,
+    ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api
+)
+from .views.kpi_views import (
+    StaffProfilePerformanceView, ManagementDashboardKPIView,
+    staff_performance_api, management_dashboard_kpi_api
+)
 
 # Import project management views
 from .project_management_views import (
@@ -27,6 +39,12 @@ from .project_management_views import (
     CommunityAnalysisView,
     PackageAnalysisView,
     MaterialAnalysisView
+)
+
+# Import project creation and assignment views
+from .views.project_views import (
+    ProjectListView, ProjectCreateView, ProjectDetailView, ProjectUpdateView,
+    project_assignment_view, project_site_create_view
 )
 
 # Import transporter views
@@ -96,8 +114,27 @@ from .shep_community_views import (
     SHEPCommunityDeleteView, AbbreviationLegendView,
     get_districts_by_region, get_communities_by_district,
     get_packages_by_community, generate_auto_package_number,
+    get_mps_by_constituency, stock_for_item, inventory_stock_api, community_detail_api,
     download_material_template, download_shep_community_template,
-    upload_shep_communities
+    download_community_template, download_mp_template,
+    download_consultant_template,
+    upload_communities, upload_members_of_parliament,
+    upload_project_consultants,
+    upload_shep_communities,
+)
+
+# Phase C: two-step Material Request flow
+from .views.request_flow_views import (
+    SelectProjectView, RequestMaterialForProjectView,
+    resolve_consignee_for_community,
+    download_request_template, upload_requests,
+)
+
+# Phase F: release-side document workflow
+from .views.release_document_views import (
+    ReleaseLetterDetailView, GenerateReleaseDocumentsView,
+    CreateReleaseLetterFromRequestView,
+    UploadSignedScanView, ConfirmSignedScanView, MarkReleasedView,
 )
 
 # Error handlers
@@ -132,8 +169,15 @@ urlpatterns = [
     path('add-item', AddItem.as_view(), name='add-item'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('staff-profile/<str:username>/', StaffProfileView.as_view(), name='staff_profile'),
-    path('request-material/', RequestMaterialView.as_view(), name='request_material'),
+    path('staff-profile/<str:username>/performance/', StaffProfilePerformanceView.as_view(), name='staff_profile_performance'),
+    # Phase C: the two-step flow IS now /request-material/. The legacy
+    # single-page RequestMaterialView is preserved at /request-material/legacy/
+    # for emergency fallback during the transition; remove that route after
+    # one stable production cycle.
+    path('request-material/', SelectProjectView.as_view(), name='request_material'),
+    path('request-material/legacy/', RequestMaterialView.as_view(), name='request_material_legacy'),
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
+    path('material-orders/archive/', MaterialOrdersArchiveView.as_view(), name='material_orders_archive'),
     path('material-orders-officers/', MaterialOrdersOfficersView.as_view(), name='material_orders_officers'),
     path('requisition-status/', requisition_status, name='requisition_status'),
     # Parameterized routes
@@ -162,12 +206,30 @@ urlpatterns = [
     path('bill-of-quantity/api/bulk-update/', BulkUpdateBOQAPIView.as_view(), name='bulk_update_boq_api'),
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
+    path('management-dashboard-kpi/', ManagementDashboardKPIView.as_view(), name='management_dashboard_kpi'),
     path('project-management-dashboard/', ProjectManagementDashboardView.as_view(), name='project_management_dashboard'),
     path('ghana-map/', ghana_map_view, name='ghana_map'),
+    path('ghana-map-total-sites/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_total_sites.html')(request), name='ghana_map_total_sites'),
+    path('ghana-map-completed-sites/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_completed_sites.html')(request), name='ghana_map_completed_sites'),
+    path('ghana-map-active-sites/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_active_sites.html')(request), name='ghana_map_active_sites'),
+    path('ghana-map-progress/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_progress.html')(request), name='ghana_map_progress'),
     path('api/ghana-map-data/', ghana_map_data_api, name='ghana_map_data_api'),
+    path('api/inventory-stock/', inventory_stock_api, name='inventory_stock_api'),
+    path('api/community-detail/', community_detail_api, name='community_detail_api'),
+    path('api/staff-performance/', staff_performance_api, name='staff_performance_api'),
+    path('api/management-dashboard-kpi/', management_dashboard_kpi_api, name='management_dashboard_kpi_api'),
     path('project-analysis/community/', CommunityAnalysisView.as_view(), name='project_community_analysis'),
     path('project-analysis/package/', PackageAnalysisView.as_view(), name='project_package_analysis'),
     path('project-analysis/material/', MaterialAnalysisView.as_view(), name='project_material_analysis'),
+
+    # Project creation and management
+    path('projects/', ProjectListView.as_view(), name='project_list'),
+    path('projects/create/', ProjectCreateView.as_view(), name='project_create'),
+    path('projects/assign/', project_assignment_view, name='project_assignment'),
+    path('projects/<str:code>/edit/', ProjectUpdateView.as_view(), name='project_update'),
+    path('projects/<str:code>/add-site/', project_site_create_view, name='project_site_create'),
+    path('projects/<str:code>/', ProjectDetailView.as_view(), name='project_detail'),
+
     path('update_material_receipt/<int:order_id>/<str:new_status>/', update_material_receipt, name='update_material_receipt'),
     path('reports/', ReportSubmissionListView.as_view(), name='report-submission-list'),
     path('reports/new/', ReportSubmissionCreateView.as_view(), name='report-submission-create'),
@@ -220,6 +282,19 @@ urlpatterns = [
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
     path('release-letters/tracking/', release_letter_tracking_dashboard, name='release_letter_tracking_dashboard'),
     path('release-letters/<int:pk>/adjust-quantity/', AdjustReleaseLetterQuantityView.as_view(), name='adjust_release_letter_quantity'),
+
+    # Phase F.1: release-letter detail page + document generation.
+    path('release-letters/<int:pk>/', ReleaseLetterDetailView.as_view(), name='release_letter_detail'),
+    path('release-letters/<int:pk>/generate-documents/', GenerateReleaseDocumentsView.as_view(), name='generate_release_documents'),
+
+    # Phase F.1: one-click 'Create RL' that replaces the buggy legacy upload page.
+    # Takes ?request_code=X, creates the ReleaseLetter, redirects to the detail page.
+    path('release-letters/create/', CreateReleaseLetterFromRequestView.as_view(), name='create_release_letter_from_request'),
+
+    # Phase F.2: signed-scan upload, two-person confirmation, mark-released.
+    path('release-letters/<int:pk>/upload-scan/', UploadSignedScanView.as_view(), name='release_letter_upload_scan'),
+    path('release-letters/<int:pk>/confirm-scan/', ConfirmSignedScanView.as_view(), name='release_letter_confirm_scan'),
+    path('release-letters/<int:pk>/mark-released/', MarkReleasedView.as_view(), name='release_letter_mark_released'),
 
     
     # Notification management
@@ -279,11 +354,29 @@ urlpatterns = [
     path('obsolete-materials/<int:pk>/', ObsoleteMaterialDetailView.as_view(), name='obsolete_material_detail'),
     path('obsolete-materials/<int:pk>/update-status/', update_obsolete_material_status, name='update_obsolete_material_status'),
     
-    # SHEP Community Management URLs
-    path('shep-communities/', SHEPCommunityListView.as_view(), name='shep_community_list'),
-    path('shep-communities/add/', SHEPCommunityCreateView.as_view(), name='shep_community_create'),
-    path('shep-communities/<int:pk>/edit/', SHEPCommunityUpdateView.as_view(), name='shep_community_update'),
-    path('shep-communities/<int:pk>/delete/', SHEPCommunityDeleteView.as_view(), name='shep_community_delete'),
+    # Community management URLs (renamed from shep-communities in Phase B.2).
+    # The new canonical paths live under /communities/, with permanent
+    # redirects from /shep-communities/* for any external bookmarks.
+    # Both URL names (shep_community_* and community_*) resolve so existing
+    # template references keep working through the transition.
+    path('communities/', SHEPCommunityListView.as_view(), name='community_list'),
+    path('communities/add/', SHEPCommunityCreateView.as_view(), name='community_create'),
+    path('communities/<int:pk>/edit/', SHEPCommunityUpdateView.as_view(), name='community_update'),
+    path('communities/<int:pk>/delete/', SHEPCommunityDeleteView.as_view(), name='community_delete'),
+
+    # Backward-compat URL names — point at the same views so any old
+    # template using {% url 'shep_community_list' %} still resolves.
+    path('communities/', SHEPCommunityListView.as_view(), name='shep_community_list'),
+    path('communities/add/', SHEPCommunityCreateView.as_view(), name='shep_community_create'),
+    path('communities/<int:pk>/edit/', SHEPCommunityUpdateView.as_view(), name='shep_community_update'),
+    path('communities/<int:pk>/delete/', SHEPCommunityDeleteView.as_view(), name='shep_community_delete'),
+
+    # 301 redirects from the old paths so external bookmarks still land.
+    path('shep-communities/', RedirectView.as_view(pattern_name='community_list', permanent=True)),
+    path('shep-communities/add/', RedirectView.as_view(pattern_name='community_create', permanent=True)),
+    path('shep-communities/<int:pk>/edit/', RedirectView.as_view(pattern_name='community_update', permanent=True)),
+    path('shep-communities/<int:pk>/delete/', RedirectView.as_view(pattern_name='community_delete', permanent=True)),
+
     path('abbreviation-legend/', AbbreviationLegendView.as_view(), name='abbreviation_legend'),
     
     # SHEP Community AJAX endpoints for cascading dropdowns
@@ -291,17 +384,27 @@ urlpatterns = [
     path('api/communities-by-district/', get_communities_by_district, name='api_communities_by_district'),
     path('api/packages-by-community/', get_packages_by_community, name='api_packages_by_community'),
     path('api/generate-package-number/', generate_auto_package_number, name='api_generate_package_number'),
+    # Auto-populate MP from constituency / district / region.
+    path('api/mps-by-constituency/', get_mps_by_constituency, name='api_mps_by_constituency'),
+    path('api/stock/', stock_for_item, name='api_stock_for_item'),
     
     # Excel Template Downloads
     path('download-material-template/', download_material_template, name='download_material_template'),
     path('download-shep-community-template/', download_shep_community_template, name='download_shep_community_template'),
     path('upload-shep-communities/', upload_shep_communities, name='upload_shep_communities'),
-]
 
-# Debug-only URLs — only available when DEBUG=True
-if settings.DEBUG:
-    urlpatterns += [
-        path('debug-transport-records/', transporter_views.debug_transport_records, name='debug_transport_records'),
-        path('debug-assignment-orders/', transporter_views.debug_assignment_orders, name='debug_assignment_orders'),
-        path('create-test-transport/', transporter_views.create_test_transport, name='create_test_transport'),
-    ]
+    # Phase B.3: project-aware bulk import.
+    # Same view handles all three project templates; pass ?project=shep / cost_sharing / streetlights.
+    path('download-community-template/', download_community_template, name='download_community_template'),
+    path('upload-communities/', upload_communities, name='upload_communities'),
+
+    # Members of Parliament bulk import.
+    path('download-mp-template/', download_mp_template, name='download_mp_template'),
+
+    # Geospatial API endpoints (Ghana Map - Phase 2)
+    path('api/ghana-map-project-sites/', ghana_map_project_sites_api, name='ghana_map_project_sites_api'),
+    path('api/ghana-map-region-heatmap/', ghana_map_region_heatmap_api, name='ghana_map_region_heatmap_api'),
+    path('api/ghana-map-stats/', ghana_map_stats_api, name='ghana_map_stats_api'),
+    path('api/ghana-map-districts/', ghana_map_districts_api, name='ghana_map_districts_api'),
+    path('api/ghana-map-communities/', ghana_map_communities_api, name='ghana_map_communities_api'),
+]

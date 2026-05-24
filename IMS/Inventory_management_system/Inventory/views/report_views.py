@@ -17,7 +17,7 @@ from Inventory.forms import ReportSubmissionForm
 logger = logging.getLogger(__name__)
 
 @login_required
-@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+@user_passes_test(lambda u: u.is_superuser)
 def generate_weekly_report(request):
     """
     View for generating weekly development reports.
@@ -63,7 +63,7 @@ def generate_weekly_report(request):
                 )
             
             # Redirect to the report detail page
-            return redirect('weeklyreport_changelist', report_id=report.pk)
+            return redirect('weeklyreport_detail', report_id=report.pk)
         
         except Exception as e:
             logger.exception("Failed to generate weekly report")
@@ -109,15 +109,24 @@ def weeklyreport_changelist(request, report_id=None):
         
         return render(request, 'Inventory/weeklyreport_detail.html', context)
     else:
-        # Show list of all reports
+        # Show list of all reports + per-status counts so the redesigned
+        # stats strip on the list page can render real numbers.
+        from django.db.models import Count, Q
         reports = WeeklyReport.objects.all().order_by('-generated_at')
-        
+        counts = WeeklyReport.objects.aggregate(
+            total=Count('id'),
+            sent=Count('id', filter=Q(status='sent')),
+            draft=Count('id', filter=Q(status='draft')),
+            failed=Count('id', filter=Q(status='failed')),
+        )
+
         context = {
             'title': 'Weekly Reports',
             'reports': reports,
             'object_list': reports,
+            'stats': counts,
         }
-        
+
         return render(request, 'Inventory/weekly_reports_list.html', context)
 
 

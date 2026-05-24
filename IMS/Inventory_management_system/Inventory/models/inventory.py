@@ -69,11 +69,21 @@ class InventoryItem(auto_prefetch.Model):
     quantity = models.IntegerField()
     category = auto_prefetch.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, help_text="Material code")
-    unit = auto_prefetch.ForeignKey('Unit', on_delete=models.CASCADE) 
+    unit = auto_prefetch.ForeignKey('Unit', on_delete=models.CASCADE)
     date_created = models.DateTimeField(auto_now_add=True)
     user = auto_prefetch.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     group = auto_prefetch.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = auto_prefetch.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, help_text="Warehouse where this item is stored")
+
+    # Phase P.2: Link to SupplyContract to track which supplier provided this stock batch
+    supply_contract = auto_prefetch.ForeignKey(
+        'Inventory.SupplyContract',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventory_items',
+        help_text="SupplyContract this stock batch was delivered under. Used to reconcile: 'How much of Contract #123 have we released to sites?'"
+    )
 
     class Meta(auto_prefetch.Model.Meta):
         unique_together = ['code', 'warehouse']

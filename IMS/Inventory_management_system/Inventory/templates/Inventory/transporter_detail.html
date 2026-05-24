@@ -428,7 +428,11 @@
                                         {{ doc.document_type }} • {{ doc.upload_date|date:"M d, Y" }}
                                     </p>
                                     <p class="card-text small text-muted mb-0">
-                                        {{ doc.file.size|filesizeformat }} • {{ doc.file.name|slice:"-4:"|upper }}
+                                        {% if doc.file %}
+                                            {{ doc.file.size|filesizeformat }} • {{ doc.file.name|slice:"-4:"|upper }}
+                                        {% else %}
+                                            <span class="text-warning"><i class="fas fa-exclamation-triangle"></i> No file</span>
+                                        {% endif %}
                                     </p>
                                 </div>
                                 <div class="dropdown">
@@ -436,6 +440,7 @@
                                         <i class="fas fa-ellipsis-v"></i>
                                     </button>
                                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="docDropdown{{ doc.id }}">
+                                        {% if doc.file %}
                                         <a class="dropdown-item" href="{{ doc.file.url }}" target="_blank">
                                             <i class="fas fa-eye mr-2"></i>View
                                         </a>
@@ -443,6 +448,7 @@
                                             <i class="fas fa-download mr-2"></i>Download
                                         </a>
                                         <div class="dropdown-divider"></div>
+                                        {% endif %}
                                         <a class="dropdown-item text-danger" href="#" data-toggle="modal" data-target="#deleteDocumentModal" data-doc-id="{{ doc.id }}" data-doc-name="{{ doc.name }}">
                                             <i class="fas fa-trash mr-2"></i>Delete
                                         </a>

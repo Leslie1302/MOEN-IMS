@@ -324,10 +324,16 @@ class GitAnalyzer:
     def categorize_commits(self, commits):
         """
         Categorize commits into features, fixes, refactoring, etc.
-        
+
+        Recognises conventional-commit prefixes (feat:, fix:, refactor:,
+        docs:, perf:, chore:), keyword matches, and a files-touched
+        heuristic so even bland one-word commits like "commit" get bucketed
+        based on what they actually changed.
+
         Args:
-            commits: List of commit dicts
-        
+            commits: List of commit dicts (each may carry a 'files' list
+                     with paths changed by the commit; not required).
+
         Returns:
             dict: Categorized commits
         """
@@ -338,40 +344,80 @@ class GitAnalyzer:
             'documentation': [],
             'other': []
         }
-        
-        # Keywords for categorization
-        feature_keywords = ['add', 'implement', 'create', 'new', 'feature']
-        fix_keywords = ['fix', 'bug', 'issue', 'resolve', 'patch']
-        refactor_keywords = ['refactor', 'improve', 'optimize', 'clean', 'update']
-        doc_keywords = ['doc', 'documentation', 'readme', 'comment']
-        
+
+        # Conventional-commit prefixes are the strongest signal -- they
+        # override any keyword guesswork.
+        conventional_prefixes = {
+            'features':      ('feat:', 'feature:'),
+            'fixes':         ('fix:', 'bugfix:', 'hotfix:'),
+            'refactoring':   ('refactor:', 'perf:', 'chore:', 'style:'),
+            'documentation': ('docs:', 'doc:'),
+        }
+
+        feature_keywords = ['add ', 'added ', 'adding ', 'implement', 'create ', 'created ',
+                            'new ', 'feature', 'enable', 'introduce']
+        fix_keywords     = ['fix', 'bug', 'issue', 'resolve', 'patch', 'broken',
+                            'crash', 'error', 'hotfix']
+        refactor_keywords = ['refactor', 'optimize', 'cleanup', 'clean up', 'rename',
+                             'reorganize', 'restructure']
+        improvement_keywords = ['improve', 'enhance', 'update', 'tweak', 'polish',
+                                'redesign', 'adjust']
+        doc_keywords = ['doc ', 'docs ', 'documentation', 'readme', 'comment', 'changelog']
+
+        def _looks_like_migration_path(paths):
+            return any('/migrations/' in (p or '') for p in (paths or []))
+
+        def _looks_like_template_or_view(paths):
+            return any(('templates/' in (p or '')) or ('/views/' in (p or '')) or
+                       (p or '').endswith('.html') for p in (paths or []))
+
         for commit in commits:
-            message = commit['message'].lower()
-            categorized = False
-            
-            # Check for features
-            if any(keyword in message for keyword in feature_keywords):
-                categories['features'].append(commit)
-                categorized = True
-            
-            # Check for fixes
-            elif any(keyword in message for keyword in fix_keywords):
-                categories['fixes'].append(commit)
-                categorized = True
-            
-            # Check for refactoring
-            elif any(keyword in message for keyword in refactor_keywords):
-                categories['refactoring'].append(commit)
-                categorized = True
-            
-            # Check for documentation
-            elif any(keyword in message for keyword in doc_keywords):
-                categories['documentation'].append(commit)
-                categorized = True
-            
-            # Everything else
-            if not categorized:
+            message_full = commit.get('message', '') or ''
+            message = message_full.lower().strip()
+            files = commit.get('files') or commit.get('changed_files') or []
+            placed = False
+
+            # 1. Conventional commit prefixes (strongest signal).
+            for bucket, prefixes in conventional_prefixes.items():
+                if any(message.startswith(p) for p in prefixes):
+                    categories[bucket].append(commit)
+                    placed = True
+                    break
+
+            # 2. Keyword matches.
+            if not placed:
+                if any(k in message for k in fix_keywords):
+                    categories['fixes'].append(commit)
+                    placed = True
+                elif any(k in message for k in feature_keywords):
+                    categories['features'].append(commit)
+                    placed = True
+                elif any(k in message for k in refactor_keywords):
+                    categories['refactoring'].append(commit)
+                    placed = True
+                elif any(k in message for k in improvement_keywords):
+                    categories['refactoring'].append(commit)
+                    placed = True
+                elif any(k in message for k in doc_keywords):
+                    categories['documentation'].append(commit)
+                    placed = True
+
+            # 3. Files-touched heuristic (only fires when the message itself
+            #    is uninformative -- e.g. "commit", "Update views.py").
+            if not placed and files:
+                if _looks_like_migration_path(files):
+                    # New schema in a migration that doesn't say "fix" anywhere
+                    # is almost always a feature. Reclassify accordingly.
+                    categories['features'].append(commit)
+                    placed = True
+                elif _looks_like_template_or_view(files):
+                    # Touched UI or controllers, no informative message --
+                    # call it an improvement.
+                    categories['refactoring'].append(commit)
+                    placed = True
+
+            if not placed:
                 categories['other'].append(commit)
-        
+
         return categories
 

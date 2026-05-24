@@ -5,68 +5,42 @@
 {{ block.super }}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
-    /* Custom file upload styling */
-    .file-upload-wrapper {
-        position: relative;
-        margin-bottom: 1.5rem;
+    .rl-step-strip {
+        display: flex; align-items: center; gap: 0; padding: 0.85rem 1rem;
+        background: #fff; border: 1px solid #e3e6ea; border-radius: 10px;
+        margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    }
+    .rl-step-strip .step {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.85rem; color: #94a0ad;
+    }
+    .rl-step-strip .step + .step { padding-left: 0.8rem; }
+    .rl-step-strip .step + .step::before {
+        content: ''; display: inline-block; width: 30px; height: 1px;
+        background: #e3e6ea; margin-right: 0.8rem;
+    }
+    .rl-step-strip .step-dot {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; border-radius: 50%;
+        background: #f1f4f8; color: #94a0ad; border: 1px solid #e3e6ea;
+        font-weight: 600; font-size: 0.75rem;
+    }
+    .rl-step-strip .step.is-done { color: #198754; }
+    .rl-step-strip .step.is-done .step-dot {
+        background: #198754; color: #fff; border-color: #198754;
+    }
+    .rl-step-strip .step.is-current { color: #1f2933; font-weight: 600; }
+    .rl-step-strip .step.is-current .step-dot {
+        background: #0d6efd; color: #fff; border-color: #0d6efd;
+        box-shadow: 0 0 0 4px #e7f1ff;
     }
 
-    .file-upload-input {
-        width: 0.1px;
-        height: 0.1px;
-        opacity: 0;
-        overflow: hidden;
-        position: absolute;
-        z-index: -1;
+    .rl-doc-card {
+        border: 1px solid #e3e6ea; border-radius: 8px; padding: 1rem;
+        background: #f7f8fa; transition: border-color .15s;
     }
-
-    .file-upload-label {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-        border: 2px dashed #dee2e6;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background-color: #f8f9fa;
-    }
-
-    .file-upload-label:hover {
-        border-color: #0d6efd;
-        background-color: #f1f8ff;
-    }
-
-    .file-upload-icon {
-        font-size: 2.5rem;
-        color: #6c757d;
-        margin-bottom: 0.5rem;
-    }
-
-    /* Order summary card */
-    .order-summary-card {
-        border-left: 4px solid #0d6efd;
-        transition: all 0.3s ease;
-    }
-
-    /* Recent uploads table */
-    .recent-uploads {
-        max-height: 400px;
-        overflow-y: auto;
-    }
-
-    /* Custom select2 styling */
-    .select2-container--bootstrap-5 .select2-selection {
-        min-height: 48px;
-        padding: 0.5rem 1rem;
-        font-size: 1rem;
-        border: 1px solid #ced4da;
-        border-radius: 0.5rem;
-    }
-
-    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-        padding-left: 0;
-    }
+    .rl-doc-card:hover { border-color: #0d6efd; }
+    .rl-doc-card .doc-icon { font-size: 2rem; color: #0d6efd; }
 </style>
 {% endblock %}
 
@@ -74,13 +48,16 @@
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-lg-10">
-            <!-- Main Card -->
+
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <h4 class="mb-0">
                             <i class="fas fa-file-upload me-2"></i>
-                            Upload Release Letter
+                            Release Letter
+                            {% if release_letter and release_letter.code %}
+                            — <span class="font-monospace">{{ release_letter.code }}</span>
+                            {% endif %}
                         </h4>
                         <a href="{% url 'material_orders' %}" class="btn btn-outline-light btn-sm">
                             <i class="fas fa-arrow-left me-1"></i> Back to Orders
@@ -89,180 +66,156 @@
                 </div>
 
                 <div class="card-body p-4">
-                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
-                        {% csrf_token %}
 
-                        <!-- Request Code Selection -->
+                    <!-- Progress strip -->
+                    <div class="rl-step-strip">
+                        <div class="step {% if release_letter %}is-done{% else %}is-current{% endif %}">
+                            <span class="step-dot">1</span>
+                            <span>Pick request code &amp; generate</span>
+                        </div>
+                        <div class="step {% if release_letter and release_letter.pdf_file %}is-done{% elif release_letter %}is-current{% endif %}">
+                            <span class="step-dot">2</span>
+                            <span>Upload signed scan</span>
+                        </div>
+                        <div class="step {% if release_letter.workflow_status == 'approved' or release_letter.workflow_status == 'released' %}is-done{% endif %}">
+                            <span class="step-dot">3</span>
+                            <span>Confirm &amp; release</span>
+                        </div>
+                    </div>
+
+                    {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} mb-3">{{ message }}</div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {# ─────────────── STEP 1: pick code + generate ─────────────── #}
+                    {% if not release_letter %}
+                    <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+                        <i class="fas fa-magic fa-lg mt-1"></i>
+                        <div>
+                            <strong>Auto-generate the memo and release letter.</strong>
+                            Pick a request code below. The system will mint a release event code,
+                            generate both PDFs with embedded QR, and bring you back here so you can
+                            download, print, and sign.
+                        </div>
+                    </div>
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="generate">
+
                         <div class="mb-4">
                             <label for="{{ form.request_code.id_for_label }}" class="form-label fw-bold">
                                 {{ form.request_code.label }}
                                 <span class="text-danger">*</span>
                             </label>
                             {{ form.request_code }}
-                            <div class="form-text">Search for a request code or select from the list</div>
-                            <div class="invalid-feedback">
-                                Please select a valid request code.
-                            </div>
+                            <div class="form-text">{{ form.request_code.help_text }}</div>
                         </div>
 
-                        <!-- Hidden field to store the full request code -->
-                        <input type="hidden" id="id_full_request_code" name="full_request_code">
-
-                        <!-- Tracked Fields Row -->
-                        <div class="row mb-4">
-                            <div class="col-md-4">
-                                <label for="{{ form.total_quantity.id_for_label }}" class="form-label fw-bold">
-                                    {{ form.total_quantity.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.total_quantity }}
-                                <div class="form-text small">Quantity authorized by letter</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="{{ form.material_type.id_for_label }}" class="form-label fw-bold">
-                                    {{ form.material_type.label }} <span class="text-danger">*</span>
-                                </label>
-                                {{ form.material_type }}
-                            </div>
-                            <div class="col-md-4">
-                                <label for="{{ form.project_phase.id_for_label }}" class="form-label fw-bold">
-                                    {{ form.project_phase.label }}
-                                </label>
-                                {{ form.project_phase }}
-                                <div class="form-text small">e.g. SHEP-4</div>
-                            </div>
-                        </div>
-
-                        <!-- Order Summary -->
+                        <!-- Order summary populated live via AJAX -->
                         <div id="orderSummary" class="mb-4">
                             {% if orders %}
                             {% include 'Inventory/includes/order_summary.html' %}
                             {% endif %}
                         </div>
 
-                        <!-- PDF Upload -->
-                        <div class="mb-4">
-                            <label class="form-label fw-bold d-block mb-3">
-                                {{ form.pdf_file.label }}
-                                <span class="text-danger">*</span>
-                            </label>
-
-                            <div class="file-upload-wrapper">
-                                <input type="file" name="{{ form.pdf_file.name }}" id="{{ form.pdf_file.id_for_label }}"
-                                    class="file-upload-input" accept=".pdf" required>
-
-                                <label for="{{ form.pdf_file.id_for_label }}" class="file-upload-label text-center">
-                                    <div>
-                                        <div class="file-upload-icon">
-                                            <i class="fas fa-cloud-upload-alt"></i>
-                                        </div>
-                                        <h5>Drag & drop your PDF here</h5>
-                                        <p class="text-muted mb-0">or click to browse</p>
-                                        <small class="text-muted d-block mt-2">Maximum file size: 10MB</small>
-                                    </div>
-                                </label>
-
-                                <div id="fileInfo" class="mt-2 d-none">
-                                    <div class="d-flex align-items-center">
-                                        <i class="fas fa-file-pdf text-danger me-2"></i>
-                                        <span id="fileName" class="text-truncate"></span>
-                                        <button type="button" class="btn btn-link text-danger ms-auto" id="clearFile">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {% if form.pdf_file.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.pdf_file.errors.0 }}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <!-- Notes -->
-                        <div class="mb-4">
-                            <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">
-                                <i class="fas fa-sticky-note me-1"></i>
-                                {{ form.notes.label }}
-                            </label>
-                            {{ form.notes }}
-                            <div class="form-text">Add any additional notes about this release letter (optional)</div>
-                        </div>
-
-                        <!-- Form Actions -->
                         <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                            <button type="reset" class="btn btn-outline-secondary">
-                                <i class="fas fa-undo me-1"></i> Reset
-                            </button>
                             <button type="submit" class="btn btn-primary px-4">
-                                <i class="fas fa-upload me-1"></i> Upload Release Letter
+                                <i class="fas fa-cogs me-1"></i> Generate memo &amp; letter
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
 
-            <!-- Recent Uploads Section -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-light py-3">
-                    <h5 class="mb-0">
-                        <i class="fas fa-history me-2"></i>Recently Uploaded Letters
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    {% if recent_letters %}
-                    <div class="recent-uploads">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Request #</th>
-                                        <th>Title</th>
-                                        <th>Uploaded By</th>
-                                        <th class="text-end">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for letter in recent_letters %}
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex flex-column">
-                                                <span class="fw-medium">{{ letter.uploaded_at|date:"M d, Y" }}</span>
-                                                <small class="text-muted">{{ letter.uploaded_at|date:"H:i" }}</small>
-                                            </div>
-                                        </td>
-                                        <td><span class="badge bg-primary">{{ letter.request_code }}</span></td>
-                                        <td>{{ letter.title|default:"Untitled"|truncatechars:30 }}</td>
-                                        <td>{{ letter.uploaded_by.get_full_name|default:letter.uploaded_by.username }}
-                                        </td>
-                                        <td class="text-end">
-                                            <div class="btn-group btn-group-sm" role="group">
-                                                <a href="{{ letter.pdf_file.url }}" class="btn btn-outline-primary"
-                                                    target="_blank" data-bs-toggle="tooltip" title="View PDF">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                <a href="{{ letter.pdf_file.url }}" class="btn btn-outline-secondary"
-                                                    download data-bs-toggle="tooltip" title="Download PDF">
-                                                    <i class="fas fa-download"></i>
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    {# ─────────────── STEP 2: download docs + upload signed scan ─────────────── #}
                     {% else %}
-                    <div class="text-center py-5">
-                        <div class="mb-3">
-                            <i class="fas fa-inbox fa-3x text-muted"></i>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="rl-doc-card text-center">
+                                <i class="fas fa-file-alt doc-icon mb-2"></i>
+                                <div class="fw-bold mb-1">Approval memo</div>
+                                {% if release_letter.memo_pdf %}
+                                <a href="{{ release_letter.memo_pdf.url }}" target="_blank"
+                                    class="btn btn-sm btn-outline-primary mt-2">
+                                    <i class="fas fa-download me-1"></i> Download
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">Not generated yet</span>
+                                {% endif %}
+                            </div>
                         </div>
-                        <h5 class="text-muted">No recent uploads</h5>
-                        <p class="text-muted">Uploaded release letters will appear here</p>
+                        <div class="col-md-6">
+                            <div class="rl-doc-card text-center">
+                                <i class="fas fa-file-signature doc-icon mb-2"></i>
+                                <div class="fw-bold mb-1">Release letter (unsigned)</div>
+                                {% if release_letter.letter_pdf %}
+                                <a href="{{ release_letter.letter_pdf.url }}" target="_blank"
+                                    class="btn btn-sm btn-outline-primary mt-2">
+                                    <i class="fas fa-download me-1"></i> Download
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">Not generated yet</span>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
+
+                    <div class="alert alert-light border d-flex align-items-start gap-2 mb-4">
+                        <i class="fas fa-info-circle text-primary mt-1"></i>
+                        <div class="small">
+                            Print both documents, get the release letter signed by the Chief Director,
+                            scan it, and upload the signed scan below. The QR code in the corner is
+                            checked against
+                            <code>{{ release_letter.code }}</code>
+                            — wrong-document uploads will be rejected.
+                        </div>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload_scan">
+                        <input type="hidden" name="release_letter_id" value="{{ release_letter.pk }}">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                Signed scan (PDF or image) <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" name="pdf_file" class="form-control"
+                                accept=".pdf,.png,.jpg,.jpeg" required>
+                            <div class="form-text small">
+                                QR-verified against the auto-allocated release code.
+                            </div>
+                        </div>
+
+                        {% if is_superuser %}
+                        <div class="form-check small mb-3">
+                            <input type="checkbox" name="force_accept" id="force_accept" class="form-check-input">
+                            <label for="force_accept" class="form-check-label text-warning">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <strong>Force accept</strong> — bypass QR check (superuser only; audit-logged)
+                            </label>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                            <a href="{% url 'release_letter_detail' release_letter.pk %}"
+                                class="btn btn-link btn-sm text-decoration-none">
+                                Open full release event →
+                            </a>
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'release-letter-upload' %}" class="btn btn-outline-secondary">
+                                    Start another
+                                </a>
+                                <button type="submit" class="btn btn-primary px-4">
+                                    <i class="fas fa-upload me-1"></i> Upload signed scan
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                     {% endif %}
+
                 </div>
             </div>
         </div>
@@ -275,217 +228,43 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function () {
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // File upload preview
-        const fileInput = document.getElementById('{{ form.pdf_file.id_for_label }}');
-        const fileInfo = document.getElementById('fileInfo');
-        const fileName = document.getElementById('fileName');
-        const clearFileBtn = document.getElementById('clearFile');
-        const fileUploadLabel = document.querySelector(`label[for="{{ form.pdf_file.id_for_label }}"]`);
-
-        if (fileInput) {
-            fileInput.addEventListener('change', function (e) {
-                if (this.files && this.files[0]) {
-                    const file = this.files[0];
-                    fileName.textContent = file.name;
-                    fileInfo.classList.remove('d-none');
-                    fileUploadLabel.classList.add('d-none');
-
-                    // Validate file size (10MB)
-                    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
-                    if (file.size > maxSize) {
-                        this.setCustomValidity('File size must be less than 10MB');
-                        this.reportValidity();
-                        this.value = '';
-                        fileInfo.classList.add('d-none');
-                        fileUploadLabel.classList.remove('d-none');
-                    } else {
-                        this.setCustomValidity('');
-                    }
-                }
+        // Activate Select2 on the request_code dropdown.
+        var $select = $('#id_request_code, select[name="request_code"]');
+        if ($select.length) {
+            $select.select2({
+                theme: 'default',
+                width: '100%',
+                placeholder: 'Search for a request code…',
+                allowClear: true,
             });
 
-            clearFileBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                fileInput.value = '';
-                fileInfo.classList.add('d-none');
-                fileUploadLabel.classList.remove('d-none');
+            // When the user picks a code, fetch the order summary via AJAX.
+            $select.on('change', function () {
+                var code = $(this).val();
+                if (!code) {
+                    $('#orderSummary').empty();
+                    return;
+                }
+                $('#orderSummary').html(
+                    '<div class="text-center py-3 text-muted">' +
+                    '<div class="spinner-border spinner-border-sm me-2"></div> Loading…</div>'
+                );
+                $.get(window.location.pathname, { request_code: code, ajax: 'true' })
+                    .done(function (data) { $('#orderSummary').html(data); })
+                    .fail(function () {
+                        $('#orderSummary').html(
+                            '<div class="alert alert-danger">Failed to load orders for this code.</div>'
+                        );
+                    });
             });
 
-            // Handle drag and drop
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                fileUploadLabel.addEventListener(eventName, preventDefaults, false);
-            });
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
+            // Preselect from URL if present.
+            var params = new URLSearchParams(window.location.search);
+            var preselect = params.get('request_code');
+            if (preselect) {
+                $select.val(preselect).trigger('change');
             }
-
-            ['dragenter', 'dragover'].forEach(eventName => {
-                fileUploadLabel.addEventListener(eventName, highlight, false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                fileUploadLabel.addEventListener(eventName, unhighlight, false);
-            });
-
-            function highlight() {
-                fileUploadLabel.classList.add('border-primary', 'bg-light');
-            }
-
-            function unhighlight() {
-                fileUploadLabel.classList.remove('border-primary', 'bg-light');
-            }
-
-            fileUploadLabel.addEventListener('drop', handleDrop, false);
-
-            function handleDrop(e) {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                if (files.length) {
-                    fileInput.files = files;
-                    const event = new Event('change');
-                    fileInput.dispatchEvent(event);
-                }
-            }
-        }
-
-        // Initialize Select2 for the request code dropdown
-        const $requestCodeSelect = $('#id_request_code');
-
-        $requestCodeSelect.select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Search for a request code...',
-            allowClear: true,
-            dropdownParent: $('form'),
-            language: {
-                noResults: function () {
-                    return "No matching request codes found";
-                },
-                searching: function () {
-                    return "Searching...";
-                }
-            },
-            templateResult: function (data) {
-                if (data.id === '') { return undefined; }
-                if (data.id === '__new__') {
-                    return $('<div class="text-primary"><i class="fas fa-plus-circle me-2"></i> Enter a new request code</div>');
-                }
-                return data.text;
-            }
-        });
-
-        // Handle request code selection
-        $requestCodeSelect.on('change', function () {
-            const requestCode = $(this).val();
-            if (requestCode) {
-                loadOrderSummary(requestCode);
-            } else {
-                $('#orderSummary').empty();
-                const url = new URL(window.location.href);
-                url.searchParams.delete('request_code');
-                window.history.pushState({}, '', url.toString());
-            }
-        });
-
-        // Set the selected value from URL parameter if exists
-        const urlParams = new URLSearchParams(window.location.search);
-        const requestCode = urlParams.get('request_code');
-        if (requestCode) {
-            $requestCodeSelect.val(requestCode).trigger('change');
-            // Small delay to ensure select2 is fully initialized
-            setTimeout(function () {
-                loadOrderSummary(requestCode);
-            }, 100);
-        }
-
-        // Handle the custom "Enter a new request code" option
-        $requestCodeSelect.on('select2:selecting', function (e) {
-            const selectedValue = e.params.args.data.id;
-
-            if (selectedValue === '__new__') {
-                e.preventDefault();
-
-                const newCode = prompt('Please enter the new request code (e.g., REQ-20230810-123456):');
-                if (newCode) {
-                    // Create a new option and select it
-                    const newOption = new Option(newCode, newCode, true, true);
-                    $requestCodeSelect.append(newOption).trigger('change');
-
-                    // Manually trigger the order summary load
-                    loadOrderSummary(newCode);
-                }
-            }
-        });
-
-        // Function to load orders for the selected request code
-        function loadOrderSummary(requestCode) {
-            if (!requestCode) return;
-
-            // Show loading state
-            const summaryContainer = $('#orderSummary');
-            if (summaryContainer.length) {
-                summaryContainer.html(`
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 mb-0">Loading order details...</p>
-                    </div>
-                `);
-            }
-
-            // Load orders via AJAX
-            $.ajax({
-                url: window.location.pathname,
-                data: { 'request_code': requestCode },
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                success: function (data) {
-                    const newContent = $(data).find('#orderSummary').html();
-                    if (newContent) {
-                        $('#orderSummary').html(newContent);
-                    }
-
-                    // Update the hidden field with the full request code
-                    $('#id_full_request_code').val(requestCode);
-
-                    // Update URL without reloading the page
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('request_code', requestCode);
-                    window.history.pushState({}, '', url.toString());
-                },
-                error: function () {
-                    const errorMsg = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Error loading order details. Please try again.
-                        </div>
-                    `;
-                    $('#orderSummary').html(errorMsg);
-                }
-            });
         }
     });
-    // Example starter JavaScript for disabling form submissions if there are invalid fields
-    (function () {
-        'use strict'
-        const forms = document.querySelectorAll('.needs-validation')
-        Array.from(forms).forEach(form => {
-            form.addEventListener('submit', event => {
-                if (!form.checkValidity()) {
-                    event.preventDefault()
-                    event.stopPropagation()
-                }
-                form.classList.add('was-validated')
-            }, false)
-        })
-    })()
 </script>
 {% endblock %}

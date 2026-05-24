@@ -43,7 +43,11 @@ class MaterialTransport(auto_prefetch.Model):
     )
     
     # Status tracking
+    # Phase F.5: 'Awaiting Transporter' added so we can auto-create a placeholder
+    # row when a MaterialOrder reaches Completed, surfacing it on the Transport
+    # Officer dashboard for assignment.
     STATUS_CHOICES = [
+        ('Awaiting Transporter', 'Awaiting Transporter Assignment'),
         ('Loaded', 'Loaded / Ready'),
         ('In Transit', 'In Transit'),
         ('Delivered', 'Delivered'),

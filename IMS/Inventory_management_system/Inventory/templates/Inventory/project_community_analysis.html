@@ -82,6 +82,7 @@
                 <table class="table table-hover mb-0" id="community-table">
                     <thead class="table-light sticky-top">
                         <tr>
+                            <th style="width: 40px;"></th>
                             <th>Community</th>
                             <th>Region</th>
                             <th>District</th>
@@ -97,7 +98,13 @@
                     </thead>
                     <tbody>
                         {% for comm in community_list %}
-                        <tr>
+                        <tr class="community-row" data-community-id="{{ comm.id }}">
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary expand-toggle" type="button"
+                                        title="View details" data-community-id="{{ comm.id }}">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </td>
                             <td><strong>{{ comm.name }}</strong></td>
                             <td>{{ comm.region }}</td>
                             <td>{{ comm.district }}</td>
@@ -127,6 +134,43 @@
                                 {% else %}
                                 <span class="badge bg-secondary">Not Started</span>
                                 {% endif %}
+                            </td>
+                        </tr>
+                        <!-- Expanded detail row (hidden by default) -->
+                        <tr class="community-detail-row" data-community-id="{{ comm.id }}" style="display: none;">
+                            <td colspan="12" class="p-0">
+                                <div class="community-detail-container bg-light border-top p-4">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">Project Progress</h6>
+                                                <div class="progress mb-2" style="height: 25px;">
+                                                    <div class="progress-bar bg-success" id="completion-bar-{{ comm.id }}"
+                                                         role="progressbar" style="width: {{ comm.completion }}%" aria-valuenow="{{ comm.completion }}"
+                                                         aria-valuemin="0" aria-valuemax="100">
+                                                        <small id="completion-text-{{ comm.id }}" class="text-dark">{{ comm.completion }}%</small>
+                                                    </div>
+                                                </div>
+                                                <small class="text-muted d-block">Contract: {{ comm.total_contract|floatformat:2 }} | Received: {{ comm.total_received|floatformat:2 }}</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">BoQ Summary</h6>
+                                                <small class="text-muted d-block"><strong>{{ comm.item_count }} items:</strong> {{ comm.total_received|floatformat:2 }} delivered / {{ comm.total_contract|floatformat:2 }} contracted</small>
+                                                <small class="text-muted d-block">Balance: {{ comm.balance|floatformat:2 }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="detail-section border-top pt-3">
+                                                <h6 class="text-muted mb-2">Package Details</h6>
+                                                <small class="text-muted d-block">Packages: {{ comm.package_count }} | Phase: {{ comm.phase|default:"-" }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -214,6 +258,27 @@
         downloadLink.click();
         document.body.removeChild(downloadLink);
     }
+
+    // Handle expand/collapse toggle
+    document.querySelectorAll('.expand-toggle').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const communityId = this.getAttribute('data-community-id');
+            const detailRow = document.querySelector(
+                `.community-detail-row[data-community-id="${communityId}"]`
+            );
+
+            if (detailRow.style.display === 'none') {
+                detailRow.style.display = 'table-row';
+                this.classList.add('expanded');
+                this.innerHTML = '<i class="bi bi-chevron-down"></i>';
+            } else {
+                detailRow.style.display = 'none';
+                this.classList.remove('expanded');
+                this.innerHTML = '<i class="bi bi-chevron-right"></i>';
+            }
+        });
+    });
 </script>
 
 <style>
@@ -225,6 +290,31 @@
         font-weight: 600;
         font-size: 0.875rem;
         text-transform: uppercase;
+    }
+
+    .community-detail-container {
+        border-radius: 0;
+    }
+
+    .detail-section {
+        padding: 0;
+    }
+
+    .expand-toggle {
+        transition: transform 0.2s ease-in-out;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .expand-toggle.expanded {
+        transform: rotate(90deg);
+    }
+
+    .community-detail-row td {
+        padding: 0 !important;
+    }
+
+    .progress {
+        background-color: #f0f0f0;
     }
 </style>
 {% endblock %}

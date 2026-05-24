@@ -14,6 +14,21 @@ class Transporter(auto_prefetch.Model):
     date_added = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True, null=True, help_text="Any additional notes about the transporter")
+
+    # Optional FK to the Django user that represents the day-to-day operator
+    # of this transport company. Once linked, the user's dashboard scopes to
+    # this transporter and they receive in-system alerts for any
+    # MaterialTransport assigned to it. Nullable so transporters added
+    # before a domain account is provisioned remain valid.
+    user = auto_prefetch.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='transporter_company',
+        help_text="Domain account that operates this transport company. "
+                  "Receives in-system alerts when transports are assigned.",
+    )
     
     class Meta(auto_prefetch.Model.Meta):
         ordering = ['name']

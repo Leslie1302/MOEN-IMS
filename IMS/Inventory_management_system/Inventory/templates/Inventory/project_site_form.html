@@ -1,0 +1,175 @@
+{% extends 'Inventory/base.html' %}
+
+{% block title %}{{ page_title }} - IMS{% endblock %}
+
+{% block content %}
+<div class="container py-4 max-w-lg" style="max-width: 800px;">
+    <!-- Header -->
+    <div class="mb-4">
+        <h2 class="mb-1">
+            <i class="bi bi-pin-map"></i> {{ page_title }}
+        </h2>
+        <p class="text-muted mb-0">Add location details for the new site</p>
+    </div>
+
+    <!-- Form -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- Project Info (Read-only) -->
+                <div class="alert alert-light border mb-4" role="alert">
+                    <strong class="text-muted">Project:</strong> {{ project.name }}
+                </div>
+
+                <!-- Row 1: Site Name & Code -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">
+                            {{ form.name.label }}
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.name.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.code.id_for_label }}" class="form-label">
+                            {{ form.code.label }}
+                        </label>
+                        {{ form.code }}
+                        {% if form.code.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.code.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Row 2: Region & District -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.region.id_for_label }}" class="form-label">
+                            {{ form.region.label }}
+                        </label>
+                        {{ form.region }}
+                        {% if form.region.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.region.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.district.id_for_label }}" class="form-label">
+                            {{ form.district.label }}
+                        </label>
+                        {{ form.district }}
+                        {% if form.district.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.district.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Row 3: Community & GPS -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.community.id_for_label }}" class="form-label">
+                            {{ form.community.label }}
+                        </label>
+                        {{ form.community }}
+                        {% if form.community.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.community.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.gps_coordinates.id_for_label }}" class="form-label">
+                            {{ form.gps_coordinates.label }}
+                        </label>
+                        {{ form.gps_coordinates }}
+                        {% if form.gps_coordinates.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.gps_coordinates.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Row 4: Supervisor & Status -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.site_supervisor.id_for_label }}" class="form-label">
+                            {{ form.site_supervisor.label }}
+                        </label>
+                        {{ form.site_supervisor }}
+                        {% if form.site_supervisor.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.site_supervisor.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.status.id_for_label }}" class="form-label">
+                            {{ form.status.label }}
+                        </label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.status.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Row 5: Dates -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="{{ form.start_date.id_for_label }}" class="form-label">
+                            {{ form.start_date.label }}
+                        </label>
+                        {{ form.start_date }}
+                        {% if form.start_date.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.start_date.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.planned_completion_date.id_for_label }}" class="form-label">
+                            {{ form.planned_completion_date.label }}
+                        </label>
+                        {{ form.planned_completion_date }}
+                        {% if form.planned_completion_date.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.planned_completion_date.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Add Site
+                    </button>
+                    <a href="{% url 'project_detail' project.code %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .max-w-lg {
+        max-width: 600px;
+    }
+</style>
+{% endblock %}

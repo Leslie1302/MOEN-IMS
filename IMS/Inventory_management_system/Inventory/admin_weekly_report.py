@@ -138,11 +138,15 @@ class WeeklyReportAdmin(admin.ModelAdmin):
             recipients = request.POST.get('recipients', '').strip()
             cc_recipients = request.POST.get('cc_recipients', '').strip()
             dry_run = request.POST.get('dry_run') == 'on'
-            
+            # 'technical' (default) or 'executive' (plain English for the Chief Director).
+            mode = request.POST.get('mode', 'technical')
+            if mode not in ('technical', 'executive'):
+                mode = 'technical'
+
             # Parse recipients
             recipients_list = [email.strip() for email in recipients.split(',') if email.strip()] if recipients else None
             cc_list = [email.strip() for email in cc_recipients.split(',') if email.strip()] if cc_recipients else None
-            
+
             try:
                 # Generate report
                 generator = WeeklyReportGenerator(days=days)
@@ -151,7 +155,8 @@ class WeeklyReportAdmin(admin.ModelAdmin):
                     custom_notes=custom_notes,
                     recipients=recipients_list,
                     cc_recipients=cc_list,
-                    dry_run=dry_run
+                    dry_run=dry_run,
+                    mode=mode,
                 )
                 
                 if dry_run:
@@ -216,23 +221,39 @@ class WeeklyReportAdmin(admin.ModelAdmin):
         
         for report in failed_reports:
             try:
-                # Re-send the report
-                from django.core.mail import EmailMultiAlternatives
-                from django.conf import settings
-                
-                email = EmailMultiAlternatives(
+                # Resend via Microsoft 365 (Graph API) -- same path used at
+                # initial generation. Sender priority: report.generated_by
+                # if they have valid M365 creds, else any superuser with creds.
+                from accounts.notifications import send_email_notification
+                from accounts.models import MicrosoftCredentials
+                from django.contrib.auth.models import User
+
+                sender = None
+                if getattr(report, 'generated_by_id', None) and \
+                        MicrosoftCredentials.objects.filter(user_id=report.generated_by_id).exists():
+                    sender = report.generated_by
+                else:
+                    sender = User.objects.filter(
+                        is_superuser=True, microsoft_credentials__isnull=False,
+                    ).first()
+                if not sender:
+                    raise RuntimeError(
+                        "No user with Microsoft credentials available to resend. "
+                        "Connect a superuser M365 account in Profile -> Microsoft Connection."
+                    )
+
+                send_email_notification(
+                    user=sender,
+                    to=report.get_recipients_list() or [],
                     subject=report.subject,
-                    body=report.plain_text_content,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=report.get_recipients_list(),
-                    cc=report.get_cc_recipients_list()
+                    body=report.html_content or report.plain_text_content or '',
+                    body_type='HTML',
+                    cc=report.get_cc_recipients_list() or None,
                 )
-                email.attach_alternative(report.html_content, "text/html")
-                email.send(fail_silently=False)
-                
+
                 report.mark_as_sent()
                 success_count += 1
-            
+
             except Exception as e:
                 report.mark_as_failed(str(e))
                 fail_count += 1

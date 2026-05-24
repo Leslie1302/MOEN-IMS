@@ -1,7 +1,7 @@
 {% extends 'Inventory/base.html' %}
 {% load static %}
 
-{% block title %}{% if object %}Edit{% else %}Add{% endif %} SHEP Community{% endblock %}
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Community{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -18,10 +18,23 @@
                     <form method="post" novalidate>
                         {% csrf_token %}
 
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        <!-- Project type drives downstream behaviour: package_number is required for SHEP, ignored otherwise. -->
+                        <div class="mb-3">
+                            <label for="id_project_type" class="form-label fw-semibold">Project type <span class="text-danger">*</span></label>
+                            {{ form.project_type }}
+                            {% if form.project_type.errors %}
+                            <div class="invalid-feedback d-block">{{ form.project_type.errors.0 }}</div>
+                            {% endif %}
+                            <small class="text-muted">{{ form.project_type.help_text }}</small>
+                        </div>
+
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="id_region" class="form-label fw-semibold">Region <span
-                                        class="text-danger">*</span></label>
+                                <label for="id_region" class="form-label fw-semibold">Region <span class="text-danger">*</span></label>
                                 {{ form.region }}
                                 {% if form.region.errors %}
                                 <div class="invalid-feedback d-block">{{ form.region.errors.0 }}</div>
@@ -30,8 +43,7 @@
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label for="id_district" class="form-label fw-semibold">District <span
-                                        class="text-danger">*</span></label>
+                                <label for="id_district" class="form-label fw-semibold">District <span class="text-danger">*</span></label>
                                 {{ form.district }}
                                 {% if form.district.errors %}
                                 <div class="invalid-feedback d-block">{{ form.district.errors.0 }}</div>
@@ -42,8 +54,7 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="id_community" class="form-label fw-semibold">Community <span
-                                        class="text-danger">*</span></label>
+                                <label for="id_community" class="form-label fw-semibold">Community <span class="text-danger">*</span></label>
                                 {{ form.community }}
                                 {% if form.community.errors %}
                                 <div class="invalid-feedback d-block">{{ form.community.errors.0 }}</div>
@@ -51,9 +62,12 @@
                                 <small class="text-muted">{{ form.community.help_text }}</small>
                             </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label for="id_package_number" class="form-label fw-semibold">Package Number <span
-                                        class="text-danger">*</span></label>
+                            <!-- package_number wrapper: shown only for SHEP via the JS at the bottom of this template. -->
+                            <div class="col-md-6 mb-3" data-role="community-package-number-wrapper">
+                                <label for="id_package_number" class="form-label fw-semibold">Package number
+                                    <span class="text-danger" data-role="community-package-number-required">*</span>
+                                    <span class="badge bg-info text-dark ms-1">SHEP only</span>
+                                </label>
                                 {{ form.package_number }}
                                 {% if form.package_number.errors %}
                                 <div class="invalid-feedback d-block">{{ form.package_number.errors.0 }}</div>
@@ -62,36 +76,83 @@
                             </div>
                         </div>
 
+                        <!-- MP-routed consignee inputs. Shown only for project types whose consignee_role is 'mp' (Cost Sharing / Streetlights). -->
+                        <fieldset class="border rounded p-3 mb-3" data-role="community-mp-section">
+                            <legend class="fs-6 fw-semibold text-muted px-2 w-auto">
+                                Consignee binding
+                                <span class="badge bg-secondary">Cost Sharing / Streetlights</span>
+                            </legend>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_constituency" class="form-label fw-semibold">Constituency</label>
+                                    {{ form.constituency }}
+                                    {% if form.constituency.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.constituency.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="text-muted">{{ form.constituency.help_text }}</small>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_member_of_parliament" class="form-label fw-semibold">Member of Parliament</label>
+                                    {{ form.member_of_parliament }}
+                                    {% if form.member_of_parliament.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.member_of_parliament.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="text-muted">{{ form.member_of_parliament.help_text }}</small>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Consultant-routed consignee inputs. Shown only for SHEP. -->
+                        <fieldset class="border rounded p-3 mb-3" data-role="community-consultant-section">
+                            <legend class="fs-6 fw-semibold text-muted px-2 w-auto">
+                                Consignee binding
+                                <span class="badge bg-success">SHEP</span>
+                            </legend>
+                            <div class="row">
+                                <div class="col-12 mb-2">
+                                    <small class="text-muted d-block mb-2">
+                                        SHEP consultants are assigned to regions in <a href="/admin/Inventory/projectconsultant/">Project consultants admin</a>.
+                                        The system auto-resolves the consultant from this community's region; use the explicit binding below only to override.
+                                    </small>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label for="id_project_consultant" class="form-label fw-semibold">Project consultant (override)</label>
+                                    {{ form.project_consultant }}
+                                    {% if form.project_consultant.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.project_consultant.errors.0 }}</div>
+                                    {% endif %}
+                                    <small class="text-muted">{{ form.project_consultant.help_text }}</small>
+                                </div>
+                            </div>
+                        </fieldset>
+
                         <div class="mb-4">
                             <div class="form-check">
                                 {{ form.is_active }}
-                                <label class="form-check-label" for="id_is_active">
-                                    Active Community
-                                </label>
+                                <label class="form-check-label" for="id_is_active">Active community</label>
                             </div>
-                            <small class="text-muted">Uncheck to hide this community from dropdown selections</small>
+                            <small class="text-muted">Uncheck to hide this community from dropdown selections.</small>
                         </div>
 
                         {% if object %}
                         <div class="alert alert-info mb-4">
-                            <h6 class="alert-heading mb-1"><i class="bi bi-info-circle me-1"></i> Current Abbreviations
-                            </h6>
+                            <h6 class="alert-heading mb-1"><i class="bi bi-info-circle me-1"></i> Current abbreviations</h6>
                             <p class="mb-0 small">
                                 Region: <strong>{{ object.region_abbr }}</strong> |
                                 District: <strong>{{ object.district_abbr }}</strong> |
                                 Community: <strong>{{ object.community_abbr }}</strong>
                             </p>
-                            <small class="text-muted">Abbreviations will be automatically regenerated if names
-                                change.</small>
+                            <small class="text-muted">Abbreviations will be automatically regenerated if names change.</small>
                         </div>
                         {% endif %}
 
                         <div class="d-flex justify-content-between">
-                            <a href="{% url 'shep_community_list' %}" class="btn btn-secondary">
+                            <a href="{% url 'community_list' %}" class="btn btn-secondary">
                                 <i class="bi bi-arrow-left me-1"></i> Cancel
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg me-1"></i> {% if object %}Save Changes{% else %}Add Community{% endif %}
+                                <i class="bi bi-check-lg me-1"></i> {% if object %}Save changes{% else %}Add community{% endif %}
                             </button>
                         </div>
                     </form>
@@ -100,4 +161,167 @@
         </div>
     </div>
 </div>
+
+<script>
+// Toggle SHEP-specific fields and Cost Sharing / Streetlights MP-section
+// based on the selected project type's code. The select has its options
+// labelled by ProjectType.name; we read the code from the label-to-code
+// mapping rendered server-side in the option text where possible. As a
+// pragmatic shortcut we match on the visible name -- 'SHEP' specifically.
+(function () {
+    var projectTypeSelect = document.getElementById('id_project_type');
+    var packageWrapper = document.querySelector('[data-role="community-package-number-wrapper"]');
+    var packageInput = document.getElementById('id_package_number');
+    var packageRequiredIndicator = document.querySelector('[data-role="community-package-number-required"]');
+    var mpSection = document.querySelector('[data-role="community-mp-section"]');
+    var consultantSection = document.querySelector('[data-role="community-consultant-section"]');
+
+    function selectedTypeName() {
+        if (!projectTypeSelect) return '';
+        var opt = projectTypeSelect.options[projectTypeSelect.selectedIndex];
+        return opt ? (opt.text || '').trim() : '';
+    }
+
+    function refresh() {
+        var name = selectedTypeName().toLowerCase();
+        var isShep = name === 'shep';
+        var isMpRouted = name === 'cost sharing' || name === 'streetlights';
+
+        if (packageWrapper) packageWrapper.style.display = isShep ? '' : 'none';
+        if (packageInput) packageInput.required = isShep;
+        if (packageRequiredIndicator) packageRequiredIndicator.style.display = isShep ? '' : 'none';
+
+        if (mpSection) mpSection.style.display = isMpRouted ? '' : 'none';
+        if (consultantSection) consultantSection.style.display = isShep ? '' : 'none';
+    }
+
+    if (projectTypeSelect) {
+        projectTypeSelect.addEventListener('change', refresh);
+        // Run once on load so an existing object's project_type drives the right initial state.
+        refresh();
+    }
+})();
+
+// ─────────── MP auto-populate by constituency / district / region ───────────
+// Wires the constituency / district / region fields to /api/mps-by-constituency/
+// and either auto-selects the matching MP or narrows the dropdown to the
+// matching candidates. Prevents users from picking the wrong MP.
+(function () {
+    var constituencyInput = document.getElementById('id_constituency');
+    var districtSelect = document.getElementById('id_district');
+    var regionSelect = document.getElementById('id_region');
+    var mpSelect = document.getElementById('id_member_of_parliament');
+    if (!mpSelect) return;
+
+    // Preserve the full original option list so we can restore it when filters clear.
+    var originalOptions = Array.from(mpSelect.options).map(function (opt) {
+        return { value: opt.value, text: opt.text, dataset: Object.assign({}, opt.dataset) };
+    });
+
+    function paramsFromInputs() {
+        return new URLSearchParams({
+            constituency: (constituencyInput && constituencyInput.value || '').trim(),
+            district: (districtSelect && districtSelect.value || '').trim(),
+            region: (regionSelect && regionSelect.value || '').trim(),
+        });
+    }
+
+    function restoreOriginal() {
+        // Restore the dropdown to its full server-rendered list (used when
+        // constituency/district/region are all empty so the user can still
+        // pick manually if needed).
+        var current = mpSelect.value;
+        mpSelect.innerHTML = '';
+        originalOptions.forEach(function (o) {
+            var opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.text;
+            mpSelect.appendChild(opt);
+        });
+        if (current) mpSelect.value = current;
+        mpSelect.removeAttribute('readonly');
+        mpSelect.classList.remove('mp-locked');
+    }
+
+    function setMpLockedNotice(text) {
+        // Tiny inline notice under the MP field so the user knows why it's pinned.
+        var existing = document.getElementById('mp-auto-notice');
+        if (existing) existing.remove();
+        if (!text) return;
+        var notice = document.createElement('div');
+        notice.id = 'mp-auto-notice';
+        notice.className = 'small mt-1';
+        notice.style.color = '#0a7d3a';
+        notice.innerHTML = '<i class="fas fa-check-circle me-1"></i>' + text;
+        mpSelect.parentNode.appendChild(notice);
+    }
+
+    var fetchTimer = null;
+    function refreshMp() {
+        if (fetchTimer) clearTimeout(fetchTimer);
+        var params = paramsFromInputs();
+        // If everything's blank, restore the full list and bail.
+        if (!params.get('constituency') && !params.get('district') && !params.get('region')) {
+            restoreOriginal();
+            setMpLockedNotice('');
+            return;
+        }
+        // Debounce 250ms so we don't hammer the endpoint on every keystroke.
+        fetchTimer = setTimeout(function () {
+            fetch('/api/mps-by-constituency/?' + params.toString(), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // Rebuild dropdown with the narrowed candidate set.
+                var keepBlank = mpSelect.querySelector('option[value=""]');
+                mpSelect.innerHTML = '';
+                if (keepBlank) {
+                    var b = document.createElement('option');
+                    b.value = ''; b.textContent = keepBlank.textContent || '— none —';
+                    mpSelect.appendChild(b);
+                }
+                (data.mps || []).forEach(function (mp) {
+                    var opt = document.createElement('option');
+                    opt.value = mp.id;
+                    opt.textContent = mp.label;
+                    opt.dataset.constituency = mp.constituency || '';
+                    opt.dataset.region = mp.region || '';
+                    mpSelect.appendChild(opt);
+                });
+                if (data.auto_select) {
+                    mpSelect.value = data.auto_select;
+                    // Visually pin the field so the user can't accidentally change it
+                    // when the constituency uniquely determines the MP.
+                    mpSelect.classList.add('mp-locked');
+                    setMpLockedNotice('MP locked to the selected constituency. Clear the constituency to change.');
+                } else if (data.exact_match && (data.mps || []).length > 1) {
+                    mpSelect.classList.remove('mp-locked');
+                    setMpLockedNotice('Multiple MPs map to this constituency — pick the right one.');
+                } else if ((data.mps || []).length === 0) {
+                    mpSelect.classList.remove('mp-locked');
+                    setMpLockedNotice('No MP found for this constituency / district / region. Use the MP roster to add one.');
+                } else {
+                    mpSelect.classList.remove('mp-locked');
+                    setMpLockedNotice('');
+                }
+            })
+            .catch(function () { /* network error — leave the dropdown as-is */ });
+        }, 250);
+    }
+
+    if (constituencyInput) constituencyInput.addEventListener('input', refreshMp);
+    if (districtSelect) districtSelect.addEventListener('change', refreshMp);
+    if (regionSelect) regionSelect.addEventListener('change', refreshMp);
+
+    // Run once on load so an edit-form whose fields are already populated
+    // gets the MP narrowed immediately.
+    refreshMp();
+})();
+</script>
+<style>
+    /* When the MP is uniquely determined by the constituency, soft-lock it. */
+    select.mp-locked { background-color: #e9f7ef; border-color: #198754; cursor: not-allowed; }
+</style>
 {% endblock %}

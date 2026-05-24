@@ -1,0 +1,208 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}{{ full_name }} — Performance Metrics{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 mb-5">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-primary">
+                <i class="bi bi-person-check"></i> {{ full_name }}
+            </h3>
+            <p class="text-muted mb-0">Performance Metrics & KPIs</p>
+        </div>
+        <div>
+            <span class="badge bg-{{ status_color }} fs-6">{{ overall_status }}</span>
+        </div>
+    </div>
+
+    <!-- User Info -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <strong class="text-muted">Email:</strong>
+                    <p>{{ staff_member.email }}</p>
+                    <strong class="text-muted">Roles/Groups:</strong>
+                    <p>
+                        {% for group in groups %}
+                        <span class="badge bg-secondary">{{ group }}</span>
+                        {% endfor %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <strong class="text-muted">Overall Status:</strong>
+                    <h4 class="text-{{ status_color }}">{{ overall_status }}</h4>
+                    <small class="text-muted">Last 30 days performance</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics by Role -->
+    {% for role, metrics in performance.items %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-graph-up"></i> {{ metrics.role }}
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% if metrics.role == 'Store Officer' %}
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.total_orders }}</div>
+                            <div class="metric-label">Total Orders</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.fulfilled_orders }}</div>
+                            <div class="metric-label">Completed Orders</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.fulfillment_rate }}%</div>
+                            <div class="metric-label">Fulfillment Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.avg_processing_hours }}h</div>
+                            <div class="metric-label">Avg Processing Time</div>
+                        </div>
+                    </div>
+
+                {% elif metrics.role == 'Schedule Officer' %}
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.total_assignments }}</div>
+                            <div class="metric-label">Assignments Created</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.delivered }}</div>
+                            <div class="metric-label">Delivered</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.delivery_rate }}%</div>
+                            <div class="metric-label">Delivery Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.on_time_rate }}%</div>
+                            <div class="metric-label">On-Time Rate</div>
+                        </div>
+                    </div>
+
+                {% elif metrics.role == 'Consultant' %}
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.total_receipts }}</div>
+                            <div class="metric-label">Site Receipts</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.good_condition }}</div>
+                            <div class="metric-label">Good Condition</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.quality_rate }}%</div>
+                            <div class="metric-label">Quality Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.total_quantity_received|floatformat:0 }}</div>
+                            <div class="metric-label">Total Qty Received</div>
+                        </div>
+                    </div>
+
+                {% elif metrics.role == 'Management' %}
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.total_orders }}</div>
+                            <div class="metric-label">Total Orders</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.completion_rate }}%</div>
+                            <div class="metric-label">Completion Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.avg_cycle_hours }}h</div>
+                            <div class="metric-label">Avg Cycle Time</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ metrics.budget_utilization }}%</div>
+                            <div class="metric-label">Budget Utilization</div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="alert alert-{{ 'danger' if metrics.status == 'Needs Improvement' else 'warning' if metrics.status == 'Fair' else 'success' }} alert-sm" role="alert">
+                        <strong>Status:</strong> {{ metrics.status }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- No metrics message -->
+    {% if not performance %}
+    <div class="alert alert-info" role="alert">
+        <i class="bi bi-info-circle"></i> No performance data available for this user yet. Metrics will appear after they begin using the system.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .metric-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+
+    .metric-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 8px;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+</style>
+{% endblock %}

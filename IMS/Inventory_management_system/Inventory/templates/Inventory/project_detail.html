@@ -1,0 +1,247 @@
+{% extends 'Inventory/base.html' %}
+
+{% block title %}{{ project.name }} - IMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-folder-check"></i> {{ project.name }}
+            </h2>
+            <p class="text-muted mb-0">
+                <strong>Code:</strong> {{ project.code }} |
+                <strong>Phase:</strong> {{ project.phase }}
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_edit %}
+            <a href="{% url 'project_update' project.code %}" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            <a href="{% url 'project_site_create' project.code %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add Site
+            </a>
+            {% endif %}
+            <a href="{% url 'project_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Type</h6>
+                    <p class="mb-0"><strong>{{ project.get_project_type_display }}</strong></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Status</h6>
+                    <p class="mb-0">
+                        <span class="badge bg-{% if project.status == 'Active' %}success{% elif project.status == 'Planning' %}info{% elif project.status == 'Completed' %}secondary{% elif project.status == 'On Hold' %}warning{% else %}danger{% endif %}">
+                            {{ project.get_status_display }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Manager</h6>
+                    <p class="mb-0">
+                        {% if project.project_manager %}
+                        <strong>{{ project.project_manager.get_full_name|default:project.project_manager.username }}</strong>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Total Sites</h6>
+                    <h3 class="mb-0">{{ site_count }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Project Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong class="text-muted">Description</strong>
+                        <p>{{ project.description }}</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Consultant</strong>
+                            <p class="mb-0">{{ project.consultant }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Contractor</strong>
+                            <p class="mb-0">{{ project.contractor }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">Start Date</strong>
+                            <p class="mb-0">
+                                {% if project.start_date %}
+                                {{ project.start_date|date:"M d, Y" }}
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong class="text-muted">End Date</strong>
+                            <p class="mb-0">
+                                {% if project.planned_end_date %}
+                                {{ project.planned_end_date|date:"M d, Y" }}
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if project.total_budget %}
+                    <div class="mt-3">
+                        <strong class="text-muted">Budget</strong>
+                        <p class="mb-0">GHS {{ project.total_budget|floatformat:2 }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Site Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Completion Status</span>
+                            <strong>{{ completed_sites }}/{{ site_count }}</strong>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-success" role="progressbar"
+                                 style="width: {% if site_count > 0 %}{{ completed_sites|add:0 }}0%{% else %}0%{% endif %}"
+                                 aria-valuenow="{{ completed_sites }}" aria-valuemin="0" aria-valuemax="{{ site_count }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h5 class="text-success mb-0">{{ completed_sites }}</h5>
+                                <small class="text-muted">Completed</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h5 class="text-warning mb-0">{{ active_sites }}</h5>
+                                <small class="text-muted">Active</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-3">
+                                <h5 class="text-secondary mb-0">{{ site_count }}</h5>
+                                <small class="text-muted">Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sites Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-pin-map"></i> Project Sites
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if sites %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Site Code</th>
+                            <th>Site Name</th>
+                            <th>Region</th>
+                            <th>Community</th>
+                            <th>Supervisor</th>
+                            <th>Status</th>
+                            <th>Start Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for site in sites %}
+                        <tr>
+                            <td><strong>{{ site.code }}</strong></td>
+                            <td>{{ site.name }}</td>
+                            <td>{{ site.region }}</td>
+                            <td>{{ site.community|default:"—" }}</td>
+                            <td>
+                                {% if site.site_supervisor %}
+                                <small>{{ site.site_supervisor.get_full_name|default:site.site_supervisor.username }}</small>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if site.status == 'Active' %}success{% elif site.status == 'Planning' %}info{% elif site.status == 'Completed' %}secondary{% elif site.status == 'On Hold' %}warning{% else %}danger{% endif %}">
+                                    {{ site.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if site.start_date %}
+                                {{ site.start_date|date:"M d, Y" }}
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-pin-map fs-1 text-muted mb-3 d-block"></i>
+                <p class="text-muted mb-3">No sites added to this project yet</p>
+                {% if can_edit %}
+                <a href="{% url 'project_site_create' project.code %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add First Site
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

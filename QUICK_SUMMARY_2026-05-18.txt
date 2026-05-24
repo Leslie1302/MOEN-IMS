@@ -1,0 +1,92 @@
+================================================================================
+                    IMPLEMENTATION SUMMARY — 2026-05-18
+================================================================================
+
+COMPLETED THIS SESSION:
+├─ Phase P.1: Stock & BoQ deduction lifecycle         ✅ Shipped
+│  └─ New fields: reserved_qty, stock_deducted_qty, boq_deducted_qty
+│  └─ Signals: Reserve on create, deduct on "Completed", reverse on status change
+│
+├─ Phase P.2: Supplier-contract FK on SiteReceipt     ✅ Shipped
+│  └─ SiteReceipt.supply_contract → SupplyContract
+│
+├─ Phase Q: Document numbering chain visibility       ✅ Shipped
+│  └─ Enhanced transport_detail.html with Request → Release → Waybill → Receipt
+│
+├─ Phase S: Stock visibility AJAX endpoint            ✅ Shipped
+│  └─ GET /api/inventory-stock/?item_id=N
+│  └─ Returns: quantity, unit, warehouse, low_stock_threshold, status (Available|Low|Critical|Out)
+│
+├─ Phase T: Weekly reports polish                     ✅ Already Done
+│  └─ Grid layout already implemented
+│  └─ Generate link already removed from nav
+│
+└─ Phase Z: Navigation cleanup                        ✅ Already Done
+   └─ BoQ bulk-edit accessible only via Projects menu (already clean)
+
+================================================================================
+
+REMAINING WORK (5 Phases):
+
+Phase R: Notifications coverage audit (4 hours)
+├─ Signals are 95% wired
+├─ Need: Verify M365 email delivery for all paths
+└─ Need: Audit release-letter workflow + BoQ overissuance transitions
+
+Phase U: KPIs & management dashboard (2 days)
+├─ Need: Inventory/services/kpi.py with per-role metrics
+├─ Need: /staff-profile/<username>/performance/ page
+├─ Need: Management dashboard widget + leaderboard
+└─ BLOCKER for: Phase V (Ghana map uses completion event from KPIs)
+
+Phase V: Ghana map AR% integration (1.5 days)
+├─ Need: Community.is_completed, completion_date, households_connected fields
+├─ Need: Complete map API with per-region AR% (baseline: 89.14%)
+└─ Depends on: Phase U completion event definition
+
+Phase W: External signature stamps visual (1 day)
+├─ Text stamps already generated
+├─ Need: Visual distinction (grey border for external, green for internal)
+├─ Need: Persist on Transporter/ProjectConsultant models
+└─ Need: Render on waybills
+
+Phase X: Project segregation in PM pages (1.5 days)
+├─ Need: Project-type selector on all PM dashboard pages
+├─ Need: Per-page filtering by project_type
+├─ Need: Cost-Sharing analysis page
+└─ Need: Streetlights analysis page
+
+Phase Y: Community detail progressive disclosure (4 hours)
+├─ Need: Expand/collapse cards on community list
+└─ Need: Show: completion %, BoQ summary, recent releases/receipts
+
+================================================================================
+
+CRITICAL PATH SUMMARY:
+  Total remaining: ~5–6 focused days to ship full implementation
+
+  Recommended priority order:
+    1. Phase R (verify notifications)        — 4 hrs
+    2. Phase Y (community expand)            — 4 hrs
+    3. Phase U (KPIs dashboard)              — 2 days [CRITICAL — blocks V]
+    4. Phase V (Ghana map)                   — 1.5 days [depends on U]
+    5. Phase X (project segregation)         — 1.5 days
+    6. Phase W (signature stamps)            — 1 day
+
+================================================================================
+
+DATABASES MIGRATIONS:
+  Two new migrations created and ready to deploy:
+  ✓ 0044_phase_p1_stock_deduction_lifecycle.py
+  ✓ 0045_phase_p2_supplier_contract_link.py
+
+NEXT STEPS:
+  1. Deploy migrations to database
+  2. Test stock deduction flow (create → reserve → release → deduct)
+  3. Wire AJAX into forms using /api/inventory-stock/ endpoint
+  4. Begin Phase R (notification verification)
+
+================================================================================
+
+Report saved to: IMPLEMENTATION_PROGRESS_2026-05-18.md (detailed)
+This summary: QUICK_SUMMARY_2026-05-18.txt

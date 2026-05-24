@@ -816,18 +816,32 @@ class EnhancedTable {
     }
 }
 
-// Auto-initialize tables with the 'enhanced-table' class
-document.addEventListener('DOMContentLoaded', () => {
+// Auto-initialize tables with the 'enhanced-table' class.
+//
+// IMPORTANT: skip tables that are also being enhanced by jQuery DataTables.
+// Several pages historically had both: `class="... enhanced-table"` and
+// `$('#table').DataTable(...)`. That produced two search bars and two
+// paginators stacked on top of each other. We defer to a microtask after
+// DOMContentLoaded so DataTables has a chance to wrap the table first,
+// then skip any table that's now under a `.dataTables_wrapper`, has the
+// `dataTable` class, or carries an explicit `data-no-enhanced` opt-out.
+const initEnhancedTables = () => {
     document.querySelectorAll('table.enhanced-table').forEach(table => {
-        // Check if Django pagination exists (look for pagination controls in the page)
+        if (table.classList.contains('dataTable')) return;
+        if (table.closest('.dataTables_wrapper')) return;
+        if (table.hasAttribute('data-no-enhanced')) return;
+
         const hasDjangoPagination = document.querySelector('.pagination');
-        
-        // If Django pagination exists, disable JavaScript pagination
-        new EnhancedTable({ 
+
+        new EnhancedTable({
             table,
-            pagination: !hasDjangoPagination  // Disable JS pagination if Django handles it
+            pagination: !hasDjangoPagination
         });
     });
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initEnhancedTables, 0);
 });
 
 // Make EnhancedTable available globally

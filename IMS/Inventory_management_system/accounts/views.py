@@ -124,6 +124,13 @@ def ms_callback(request):
             user.is_active = True
             user.save(update_fields=["is_superuser", "is_staff", "is_active"])
             logger.warning("Auto-promoted trusted admin email %s to superuser.", ms_email)
+            # Phase G audit trail.
+            try:
+                from Inventory.services.audit import audit as _audit
+                _audit(user, user, 'auth.superuser_auto_promoted',
+                       f"Trusted email {ms_email} auto-promoted to superuser via OAuth login")
+            except Exception:
+                pass
 
     creds, creds_created = MicrosoftCredentials.objects.get_or_create(
         user=user,

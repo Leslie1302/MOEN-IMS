@@ -369,9 +369,14 @@ class ReleaseLetterUploadForm(forms.ModelForm):
         import logging
         logger = logging.getLogger(__name__)
         
+        # Broaden the filter so any order that hasn't yet been released or
+        # cancelled shows up in the dropdown. The old filter (Pending|Approved
+        # only) hid most real-world orders since the system rarely sits in
+        # those two statuses for long.
         request_codes = MaterialOrder.objects.filter(
-            status__in=['Pending', 'Approved'],
-            release_letter__isnull=True
+            release_letter__isnull=True,
+        ).exclude(
+            status__in=['Cancelled', 'Rejected'],
         ).values_list('request_code', flat=True).distinct()
         
         logger.info(f"Found {len(request_codes)} request codes: {list(request_codes)}")
@@ -427,8 +432,9 @@ class ReleaseLetterUploadForm(forms.ModelForm):
     )
     pdf_file = forms.FileField(
         label="Signed Letter (PDF)",
-        help_text="Upload the signed release letter in PDF format",
-        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        help_text="Upload the signed scan of the auto-generated release letter (QR-verified)",
+        required=False,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'png', 'jpg', 'jpeg'])],
         widget=forms.FileInput(attrs={'class': 'form-control'})
     )
     notes = forms.CharField(

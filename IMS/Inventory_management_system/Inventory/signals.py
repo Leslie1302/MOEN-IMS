@@ -10,8 +10,9 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User, Group
 from django.db.models import F
 from .models import (
-    MaterialOrder, MaterialTransport, SiteReceipt, 
-    InventoryItem, BillOfQuantity, Notification, Profile
+    MaterialOrder, MaterialTransport, SiteReceipt,
+    InventoryItem, BillOfQuantity, Notification, Profile,
+    BoQOverissuanceJustification
 )
 import logging
 from django.conf import settings
@@ -604,3 +605,269 @@ def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
     except Exception as e:
         # Catch-all to prevent signal from breaking the save operation
         logger.error(f"Unexpected error in signature stamp signal for profile {instance.pk}: {str(e)}", exc_info=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase F.5 — Mandatory transport on order completion.
+# When a Storekeeper marks a MaterialOrder Completed, auto-create a
+# placeholder MaterialTransport row in "Awaiting Transporter" status so
+# Transport Officers get notified via the existing transport-creation
+# notification path.
+# ─────────────────────────────────────────────────────────────────────
+@receiver(post_save, sender=MaterialOrder)
+def auto_create_transport_on_complete(sender, instance, created, **kwargs):
+    try:
+        if not getattr(instance, '_status_changed', False):
+            return
+        if (instance.status or '').strip().lower() != 'completed':
+            return
+        # Idempotent — skip if a transport row already exists for this order.
+        if MaterialTransport.objects.filter(material_order=instance).exists():
+            return
+        MaterialTransport.objects.create(
+            material_order=instance,
+            status='Awaiting Transporter',
+            quantity=instance.quantity or 0,
+            district=getattr(instance, 'district', '') or '',
+            region=getattr(instance, 'region', '') or '',
+            notes='Auto-created on order completion. Awaiting Transport '
+                  'Officer to assign transporter + vehicle.',
+        )
+    except Exception as e:
+        logger.error(
+            f"auto_create_transport_on_complete failed for order {instance.pk}: {e}",
+            exc_info=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Transporter / consultant user-link notifications (Phase C.3 + parity).
+# When a transport is created with a transporter that has a linked Django
+# user, notify that user directly so external transport-company accounts
+# get in-system alerts the moment a transport is assigned to them. The
+# main `handle_transport_notifications` receiver above stays untouched
+# (the Transporter-as-recipient path is orthogonal to its other audiences).
+# ─────────────────────────────────────────────────────────────────────
+@receiver(post_save, sender=MaterialTransport)
+def notify_transporter_user_on_assignment(sender, instance, created, **kwargs):
+    if not created:
+        return
+    try:
+        transporter = getattr(instance, 'transporter', None)
+        if not transporter or not getattr(transporter, 'user_id', None):
+            return
+        order = instance.material_order
+        create_notification(
+            notification_type='transport_assigned',
+            title=f'New transport assigned: {order.name if order else "Materials"}',
+            message=(
+                f'Your company ({transporter.name}) has been assigned a new '
+                f'transport. Vehicle: '
+                f'{instance.vehicle.registration_number if instance.vehicle else "TBD"}. '
+                f'Quantity: {instance.quantity} '
+                f'{order.unit if order else "units"}. '
+                f'Destination: {instance.district or instance.region or "site"}.'
+            ),
+            recipient_group='Transporters',
+            sender=instance.created_by,
+            recipient_user=transporter.user,
+            related_transport=instance,
+            related_order=order,
+        )
+    except Exception as e:
+        logger.error(
+            f"notify_transporter_user_on_assignment failed for transport {instance.pk}: {e}",
+            exc_info=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase P.1 — Stock & BoQ deduction lifecycle
+# Request → Reserve stock (soft hold)
+# Release (Completed) → Deduct from stock
+# SiteReceipt confirmed → Deduct from BoQ
+# ─────────────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender=MaterialOrder)
+def handle_stock_reservation_on_creation(sender, instance, created, **kwargs):
+    """
+    When a MaterialOrder is created with request_type='Release', place a soft hold
+    (reserved_quantity) on the warehouse inventory so it's not double-allocated.
+    This happens immediately; the order doesn't need to be approved yet.
+
+    Only applies to Release requests (not Receipt requests).
+    """
+    if not created or instance.request_type != 'Release':
+        return
+
+    try:
+        # Check if this order already has a reservation (shouldn't happen on create, but be safe)
+        if instance.reserved_quantity > 0:
+            return
+
+        # For now, just mark the quantity as reserved in the MaterialOrder itself.
+        # The actual InventoryItem deduction happens later on release.
+        # Update without triggering signals again.
+        MaterialOrder.objects.filter(pk=instance.pk).update(
+            reserved_quantity=instance.quantity
+        )
+        logger.info(
+            f"MaterialOrder {instance.pk} ({instance.name}): Reserved {instance.quantity} {instance.unit.name} "
+            f"(soft hold on warehouse stock)"
+        )
+    except Exception as e:
+        logger.error(
+            f"Error reserving stock for MaterialOrder {instance.pk}: {e}",
+            exc_info=True,
+        )
+
+
+@receiver(pre_save, sender=MaterialOrder)
+def track_material_order_status_for_stock_deduction(sender, instance, **kwargs):
+    """
+    Before saving, detect if status is changing to/from 'Completed' so we can
+    properly deduct or reverse stock deductions.
+    """
+    if instance.pk:
+        try:
+            old_instance = MaterialOrder.objects.get(pk=instance.pk)
+            old_status = (old_instance.status or '').strip()
+            new_status = (instance.status or '').strip()
+
+            if old_status != new_status:
+                instance._status_changed_to = new_status
+                instance._status_changed_from = old_status
+        except MaterialOrder.DoesNotExist:
+            pass
+
+
+@receiver(post_save, sender=MaterialOrder)
+def handle_stock_deduction_on_completion(sender, instance, created, **kwargs):
+    """
+    When a MaterialOrder status changes to 'Completed' (storekeeper marks issued),
+    deduct the issued quantity from warehouse stock.
+
+    If status reverts to a non-issued state (e.g., back to 'In Progress'),
+    reverse the deduction.
+    """
+    if created:
+        return
+
+    try:
+        # Check if status changed
+        if not hasattr(instance, '_status_changed_to'):
+            return
+
+        old_status = getattr(instance, '_status_changed_from', '')
+        new_status = getattr(instance, '_status_changed_to', '')
+
+        if not new_status:
+            return
+
+        # Only handle Release requests
+        if instance.request_type != 'Release':
+            return
+
+        # Get the InventoryItem to deduct from
+        if not instance.code:
+            logger.warning(f"MaterialOrder {instance.pk} has no code; cannot deduct stock")
+            return
+
+        try:
+            inv_item = InventoryItem.objects.get(code=instance.code)
+        except InventoryItem.DoesNotExist:
+            logger.warning(f"InventoryItem with code {instance.code} not found for MaterialOrder {instance.pk}")
+            return
+
+        # Deduction: Completed status
+        if new_status == 'Completed' and old_status != 'Completed':
+            # Deduct the full requested quantity (or processed quantity if available)
+            deduct_qty = instance.processed_quantity if instance.processed_quantity > 0 else instance.quantity
+
+            # Only deduct if not already deducted
+            if instance.stock_deducted_quantity > 0:
+                logger.info(f"MaterialOrder {instance.pk}: Stock already deducted ({instance.stock_deducted_quantity}); skipping.")
+                return
+
+            # Check if enough stock available
+            if inv_item.quantity < deduct_qty:
+                logger.warning(
+                    f"Insufficient stock for MaterialOrder {instance.pk}. "
+                    f"Requested: {deduct_qty}, Available: {inv_item.quantity}. "
+                    f"Proceeding with partial deduction."
+                )
+                deduct_qty = inv_item.quantity
+
+            # Deduct stock
+            inv_item.quantity -= deduct_qty
+            inv_item.save()
+
+            # Update MaterialOrder tracking
+            MaterialOrder.objects.filter(pk=instance.pk).update(
+                stock_deducted_quantity=deduct_qty
+            )
+
+            logger.info(
+                f"MaterialOrder {instance.pk} ({instance.name}): Deducted {deduct_qty} {inv_item.unit.name} "
+                f"from warehouse stock (InventoryItem: {inv_item.code}). "
+                f"Remaining in stock: {inv_item.quantity}"
+            )
+
+        # Reversal: Status reverts from Completed to non-completed
+        elif old_status == 'Completed' and new_status != 'Completed':
+            # Reverse the deduction
+            if instance.stock_deducted_quantity > 0:
+                inv_item.quantity += instance.stock_deducted_quantity
+                inv_item.save()
+
+                MaterialOrder.objects.filter(pk=instance.pk).update(
+                    stock_deducted_quantity=0
+                )
+
+                logger.info(
+                    f"MaterialOrder {instance.pk}: Reversed stock deduction ({instance.stock_deducted_quantity}). "
+                    f"Stock restored to {inv_item.quantity}"
+                )
+
+    except Exception as e:
+        logger.error(
+            f"Error handling stock deduction for MaterialOrder {instance.pk}: {e}",
+            exc_info=True,
+        )
+
+
+# ===== BoQ OVERISSUANCE JUSTIFICATION SIGNALS =====
+
+@receiver(post_save, sender=BoQOverissuanceJustification)
+def handle_boq_overissuance_justification_notifications(sender, instance, created, **kwargs):
+    """
+    Create notifications when a BoQ overissuance justification is submitted.
+    Notifies Management and Superusers for review.
+    """
+    try:
+        if created:
+            # New justification submitted - notify Management and Superusers
+            create_notification(
+                notification_type='boq_overissuance_justification',
+                title=f'BoQ Overissuance Justification Submitted: {instance.boq_item.material_description}',
+                message=f'Package: {instance.package_number} | '
+                        f'Material: {instance.boq_item.material_description} | '
+                        f'Overissuance Amount: {instance.overissuance_quantity} | '
+                        f'Category: {instance.justification_category} | '
+                        f'Submitted by: {instance.submitted_by.username if instance.submitted_by else "Unknown"} | '
+                        f'Status: Pending Review',
+                recipient_group='Management',
+                sender=instance.submitted_by,
+                related_order=None
+            )
+
+            logger.info(
+                f"Notification created for BoQ overissuance justification {instance.pk}: "
+                f"{instance.boq_item.material_description} ({instance.package_number})"
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Error creating notification for BoQOverissuanceJustification {instance.pk}: {e}",
+            exc_info=True,
+        )

@@ -1,0 +1,241 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Request material — {{ project_type.name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="h3 mb-1">Request material</h1>
+                    <p class="text-muted mb-0">Step 2 of 2 — fill in the request details for {{ project_type.name }}.</p>
+                </div>
+                <span class="badge fs-6
+                    {% if project_type.code == 'shep' %}bg-success
+                    {% elif project_type.code == 'cost_sharing' %}bg-info text-dark
+                    {% elif project_type.code == 'streetlights' %}bg-warning text-dark
+                    {% else %}bg-secondary{% endif %}">
+                    {{ project_type.name }}
+                </span>
+            </div>
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Material</h5>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Material <span class="text-danger">*</span></label>
+                                {{ form.name }}
+                                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
+                                {{ form.quantity }}
+                                {% if form.quantity.errors %}<div class="invalid-feedback d-block">{{ form.quantity.errors.0 }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Warehouse</label>
+                                {{ form.warehouse }}
+                                <small class="text-muted">Optional. Leave blank to draw from any warehouse.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Location</h5>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Community <span class="text-danger">*</span></label>
+                            {{ form.community }}
+                            {% if form.community.errors %}<div class="invalid-feedback d-block">{{ form.community.errors.0 }}</div>{% endif %}
+                            <small class="text-muted">{{ form.community.help_text }}</small>
+                        </div>
+
+                        <div id="consignee-preview" class="alert alert-secondary mb-0" style="display: none;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div id="consignee-initials" class="rounded-circle d-flex align-items-center justify-content-center"
+                                     style="width:36px; height:36px; background:#e9ecef; font-size:13px; font-weight:500;">—</div>
+                                <div class="flex-grow-1">
+                                    <div class="small text-muted" id="consignee-label">Consignee</div>
+                                    <div class="fw-semibold" id="consignee-name">—</div>
+                                    <div class="small text-muted" id="consignee-detail"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if project_type.code == 'cost_sharing' %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Cost Sharing details</h5>
+                        <label class="form-label fw-semibold">Beneficiary contribution</label>
+                        {{ form.beneficiary_contribution }}
+                        <small class="text-muted">{{ form.beneficiary_contribution.help_text }}</small>
+                    </div>
+                </div>
+                {% elif project_type.code == 'streetlights' %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Streetlights specifications</h5>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Pole height (m)</label>
+                                {{ form.pole_height_m }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Lumen rating</label>
+                                {{ form.lumen_rating }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Pole type</label>
+                                {{ form.pole_type }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Notes</h5>
+                        <label class="form-label fw-semibold">Additional notes</label>
+                        {{ form.notes }}
+                        <div class="form-check mt-2">
+                            {{ form.is_urgent }}
+                            <label class="form-check-label" for="id_is_urgent">Mark as urgent</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'request_material_select' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        Submit request <i class="bi bi-check-lg ms-1"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Live consignee preview: hits the resolver endpoint when a community is
+// chosen, renders the kind/name/detail block.
+(function () {
+    var communitySelect = document.getElementById('id_community');
+    var preview = document.getElementById('consignee-preview');
+    var initials = document.getElementById('consignee-initials');
+    var label = document.getElementById('consignee-label');
+    var nameEl = document.getElementById('consignee-name');
+    var detail = document.getElementById('consignee-detail');
+    var projectCode = '{{ project_type.code|escapejs }}';
+
+    function refresh() {
+        var communityId = communitySelect.value;
+        if (!communityId) {
+            preview.style.display = 'none';
+            return;
+        }
+        var url = '{% url "api_resolve_consignee" %}'
+            + '?project=' + encodeURIComponent(projectCode)
+            + '&community=' + encodeURIComponent(communityId);
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                preview.style.display = '';
+                label.textContent = data.display_label || 'Consignee';
+                if (data.is_resolved) {
+                    preview.classList.remove('alert-warning');
+                    preview.classList.add('alert-secondary');
+                    nameEl.textContent = data.name || '—';
+                    detail.textContent = data.detail || '';
+                    initials.textContent = (data.name || '').split(' ').slice(0, 2).map(function (s) { return s[0] || ''; }).join('').toUpperCase() || '—';
+                } else {
+                    preview.classList.remove('alert-secondary');
+                    preview.classList.add('alert-warning');
+                    nameEl.textContent = 'Unresolved';
+                    detail.textContent = data.reason || '';
+                    initials.textContent = '!';
+                }
+            })
+            .catch(function () {
+                preview.style.display = 'none';
+            });
+    }
+
+    if (communitySelect) {
+        communitySelect.addEventListener('change', refresh);
+        // Trigger on load too in case the form was re-rendered with a value.
+        refresh();
+    }
+})();
+</script>
+
+
+<!-- Phase S: live stock display when material is picked -->
+<div id="stock-display" class="alert alert-light border d-none mt-2" role="status" aria-live="polite">
+    <i class="fas fa-warehouse me-2"></i>
+    <strong>Stock: <span id="stock-qty">—</span></strong>
+    <span id="stock-unit" class="text-muted ms-1"></span>
+    <span id="stock-warehouse" class="text-muted ms-2 small"></span>
+    <span id="stock-pill" class="badge ms-2"></span>
+</div>
+
+<script>
+(function () {
+    // Hook into the material select. Field name is 'name' on the request flow form.
+    var sel = document.querySelector('select[name="name"], input[name="name"]');
+    if (!sel) return;
+    var disp = document.getElementById('stock-display');
+    var qty = document.getElementById('stock-qty');
+    var unit = document.getElementById('stock-unit');
+    var wh = document.getElementById('stock-warehouse');
+    var pill = document.getElementById('stock-pill');
+
+    function refresh() {
+        var id = sel.value;
+        if (!id) { disp.classList.add('d-none'); return; }
+        fetch('/api/stock/?item_id=' + encodeURIComponent(id), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) { disp.classList.add('d-none'); return; }
+            disp.classList.remove('d-none');
+            qty.textContent = data.available;
+            unit.textContent = data.unit || '';
+            wh.textContent = data.warehouse ? ('· ' + data.warehouse) : '';
+            pill.className = 'badge ms-2';
+            if (data.status === 'out') {
+                pill.classList.add('bg-danger'); pill.textContent = 'Out of stock';
+            } else if (data.status === 'low') {
+                pill.classList.add('bg-warning', 'text-dark'); pill.textContent = 'Low';
+            } else {
+                pill.classList.add('bg-success'); pill.textContent = 'Available';
+            }
+        })
+        .catch(function () { disp.classList.add('d-none'); });
+    }
+
+    sel.addEventListener('change', refresh);
+    // Run once on load in case a value is preselected.
+    if (sel.value) refresh();
+})();
+</script>
+
+{% endblock %}

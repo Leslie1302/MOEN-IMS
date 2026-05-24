@@ -168,6 +168,21 @@
                 <textarea id="custom_notes" name="custom_notes" placeholder="Add any additional notes or highlights you want to include in the report..."></textarea>
                 <span class="help-text">These notes will appear in a special section of the report</span>
             </div>
+
+            <div class="form-row">
+                <label>Report Mode:</label>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-weight: normal;">
+                        <input type="radio" name="mode" value="technical" checked>
+                        <strong>Technical</strong> — full development log with migrations, commits, audit details. Best for engineering review.
+                    </label>
+                    <label style="font-weight: normal;">
+                        <input type="radio" name="mode" value="executive">
+                        <strong>Executive (plain English)</strong> — Chief-Director-friendly summary focused on business value and operational health. No technical jargon.
+                    </label>
+                </div>
+                <span class="help-text">Pick "Executive" when sending to non-technical readership.</span>
+            </div>
         </div>
         
         <!-- Email Configuration Section -->

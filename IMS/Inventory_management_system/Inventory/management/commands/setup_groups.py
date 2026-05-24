@@ -5,15 +5,21 @@ from Inventory.models import MaterialOrder, MaterialTransport, ReleaseLetter, Si
 
 
 class Command(BaseCommand):
-    help = 'Set up user groups and permissions for the inventory management system'
+    help = (
+        'Set up canonical user groups and permissions for the inventory '
+        'management system. Group names match the plural forms created by '
+        'migration 0031 and expected by Inventory/signals.py and most views.'
+    )
 
     def handle(self, *args, **options):
         self.stdout.write('Setting up user groups and permissions...')
-        
-        # Create groups
+
+        # Group names are intentionally plural (role) or single (department)
+        # to match what signals.py, Notification.recipient_group choices,
+        # and stores_management_views.py expect.
         groups_data = [
             {
-                'name': 'Schedule Officer',
+                'name': 'Schedule Officers',
                 'description': 'Users who can request materials and view orders',
                 'permissions': [
                     'add_materialorder',
@@ -24,7 +30,7 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'name': 'Store Officer',
+                'name': 'Store Officers',
                 'description': 'Users who manage inventory and process orders',
                 'permissions': [
                     'add_materialorder',
@@ -42,8 +48,31 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'name': 'Transport Officer',
-                'description': 'Users who manage transportation and logistics',
+                'name': 'Stores Management',
+                'description': 'Senior storekeepers with management oversight (storekeeper + management menus)',
+                'permissions': [
+                    'add_materialorder',
+                    'change_materialorder',
+                    'view_materialorder',
+                    'add_materialtransport',
+                    'change_materialtransport',
+                    'view_materialtransport',
+                    'add_releaseletter',
+                    'change_releaseletter',
+                    'view_releaseletter',
+                    'add_sitereceipt',
+                    'change_sitereceipt',
+                    'view_sitereceipt',
+                    'view_billofquantity',
+                ]
+            },
+            # ──────────────────────────────────────────────────────────
+            # Transport Officers — internal staff managing the transport
+            # function. Higher privileges than the external Transporters
+            # group below.
+            {
+                'name': 'Transport Officers',
+                'description': 'Internal staff managing the transport function',
                 'permissions': [
                     'view_materialorder',
                     'add_materialtransport',
@@ -53,9 +82,27 @@ class Command(BaseCommand):
                     'view_sitereceipt',
                 ]
             },
+            # Transporters — external transport companies given domain
+            # accounts so they can see deliveries assigned to their
+            # company and receive in-system alerts. Permission shape
+            # MIRRORS the Consultants group so the two external-partner
+            # group setups stay parallel; the per-user scoping to a
+            # specific transporter is done via Transporter.user FK
+            # (migration 0042).
             {
-                'name': 'Consultant',
-                'description': 'Users who work on site and log receipts',
+                'name': 'Transporters',
+                'description': 'External transport company accounts (per-company scoping via Transporter.user)',
+                'permissions': [
+                    'view_materialorder',
+                    'view_materialtransport',
+                    'add_sitereceipt',
+                    'change_sitereceipt',
+                    'view_sitereceipt',
+                ]
+            },
+            {
+                'name': 'Consultants',
+                'description': 'External consultant accounts (per-consultancy scoping via ProjectConsultant.user)',
                 'permissions': [
                     'view_materialorder',
                     'view_materialtransport',

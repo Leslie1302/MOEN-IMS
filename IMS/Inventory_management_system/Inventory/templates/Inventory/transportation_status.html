@@ -204,8 +204,7 @@
                     <div class="mb-1"><strong>Waybill:</strong> <code
                             class="text-white">{{ first_transport.waybill_number }}</code></div>
                     {% endwith %}
-                    <small>{{ transports_in_consignment|length }} material{{ transports_in_consignment|length|pluralize
-                        }} in this shipment</small>
+                    <small>{{ transports_in_consignment|length }} material{{ transports_in_consignment|length|pluralize }} in this shipment</small>
                 </div>
                 <div class="text-end">
                     {% with first_transport=transports_in_consignment.0 %}
@@ -363,8 +362,7 @@
                             <!-- Fulfillment Status Badge -->
                             {% if transport.quantity < transport.material_order.processed_quantity %} <div
                                 style="display: inline-block; background: rgba(255, 193, 7, 0.2); color: #ffc107; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 193, 7, 0.3);">
-                                âš ï¸ Partial Transport ({{ transport.quantity|floatformat:0 }}/{{
-                                transport.material_order.processed_quantity|floatformat:0 }})
+                                âš ï¸ Partial Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
                         </div>
                         {% elif transport.quantity == transport.material_order.processed_quantity %}
                         <div
@@ -374,8 +372,7 @@
                         {% else %}
                         <div
                             style="display: inline-block; background: rgba(255, 87, 34, 0.2); color: #ff5722; padding: 2px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; border: 1px solid rgba(255, 87, 34, 0.3);">
-                            âš ï¸ Over Transport ({{ transport.quantity|floatformat:0 }}/{{
-                            transport.material_order.processed_quantity|floatformat:0 }})
+                            âš ï¸ Over Transport ({{ transport.quantity|floatformat:0 }}/{{ transport.material_order.processed_quantity|floatformat:0 }})
                         </div>
                         {% endif %}
                     </div>
@@ -389,8 +386,7 @@
                     </div>
                     <div
                         style="background: rgba(40, 167, 69, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #28a745;">
-                        <strong style="color: #28a745;">ðŸ‘¤ Driver:</strong> {{ transport.driver_name|default:"Not
-                        assigned" }}
+                        <strong style="color: #28a745;">ðŸ‘¤ Driver:</strong> {{ transport.driver_name|default:"Not assigned" }}
                     </div>
                     <div
                         style="background: rgba(255, 193, 7, 0.1); padding: 8px 12px; border-radius: 8px; border-left: 3px solid #ffc107;">

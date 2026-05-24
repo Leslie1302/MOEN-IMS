@@ -4,7 +4,7 @@ from django.forms import modelformset_factory
 
 from ..models import (
     BillOfQuantity, BoQOverissuanceJustification, InventoryItem,
-    ObsoleteMaterial, Project, SiteReceipt,
+    ObsoleteMaterial, Project, SiteReceipt, SupplyContract, Supplier,
 )
 
 
@@ -39,8 +39,8 @@ class ProjectForm(forms.ModelForm):
 
 
 class SiteReceiptForm(forms.ModelForm):
-    """Form for consultants to log site receipts with waybill and photos"""
-    
+    """Form for consultants to log site receipts with waybill, photos"""
+
     class Meta:
         model = SiteReceipt
         fields = ['received_quantity', 'acknowledgement_sheet', 'site_photos', 'condition', 'notes']
@@ -65,11 +65,11 @@ class SiteReceiptForm(forms.ModelForm):
                 'placeholder': 'Additional notes about the delivery condition, location, etc.'
             })
         }
-    
+
     def __init__(self, *args, **kwargs):
         transport = kwargs.pop('transport', None)
         super().__init__(*args, **kwargs)
-        
+
         if transport:
             self.fields['received_quantity'].initial = transport.quantity
             self.fields['received_quantity'].help_text = f"Expected: {transport.quantity} {transport.unit}"

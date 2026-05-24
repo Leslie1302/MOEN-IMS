@@ -118,8 +118,13 @@
                     <div class="row">
                         <div class="col-md-6">
                             <p class="mb-0">
-                                <i class="bi bi-person"></i> 
-                                <strong>Submitted by:</strong> {{ justification.submitted_by.get_full_name|default:justification.submitted_by.username }}
+                                <i class="bi bi-person"></i>
+                                <strong>Submitted by:</strong>
+                                {% if justification.submitted_by %}
+                                    {{ justification.submitted_by.get_full_name|default:justification.submitted_by.username }}
+                                {% else %}
+                                    <span class="text-muted">Unknown</span>
+                                {% endif %}
                             </p>
                         </div>
                         <div class="col-md-6 text-end">

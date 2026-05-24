@@ -3,12 +3,51 @@ from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Sum, Count, Q, F, FloatField, ExpressionWrapper
 from django.db.models.functions import Coalesce
-from .models import BillOfQuantity
+from .models import BillOfQuantity, Project, ProjectSite
 from .utils import is_superuser, is_store_officer, is_management
 import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def get_user_accessible_projects(user):
+    """
+    Get projects that a user can access based on their role and assignments.
+
+    Access rules:
+    - Superusers: All projects
+    - Project managers: Own managed projects
+    - Management group: All projects (can view overall metrics)
+    - Store officers: Projects where they're assigned as site supervisors
+
+    Returns: Q object for filtering BoQ items
+    """
+    if is_superuser(user):
+        # Superusers see all data
+        return Q()
+
+    if is_management(user):
+        # Management can see all projects
+        return Q()
+
+    # Build a Q object for non-management users
+    accessible_projects = Q()
+
+    # Add projects where user is project manager
+    managed_projects = Project.objects.filter(project_manager=user).values_list('phase', flat=True).distinct()
+    if managed_projects:
+        accessible_projects |= Q(phase__in=managed_projects)
+
+    # Add projects where user is site supervisor (through ProjectSite)
+    supervised_sites = ProjectSite.objects.filter(site_supervisor=user).values_list(
+        'project__phase', flat=True
+    ).distinct()
+    if supervised_sites:
+        accessible_projects |= Q(phase__in=supervised_sites)
+
+    # If no access, return empty Q (user sees nothing)
+    return accessible_projects if accessible_projects else Q(id__isnull=True)
 
 
 class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -26,10 +65,11 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         try:
-            # Get all BOQ items
-            boq_items = BillOfQuantity.objects.all()
+            # Get BOQ items that user can access (project segregation)
+            access_filter = get_user_accessible_projects(self.request.user)
+            boq_items = BillOfQuantity.objects.filter(access_filter)
             
             # Overall statistics
             total_items = boq_items.count()
@@ -188,10 +228,12 @@ class CommunityAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         try:
-            boq_items = BillOfQuantity.objects.all()
-            
+            # Get BOQ items that user can access (project segregation)
+            access_filter = get_user_accessible_projects(self.request.user)
+            boq_items = BillOfQuantity.objects.filter(access_filter)
+
             # Community-level aggregation with full data
             community_data = boq_items.values('community', 'region', 'district', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
@@ -267,10 +309,12 @@ class PackageAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         try:
-            boq_items = BillOfQuantity.objects.all()
-            
+            # Get BOQ items that user can access (project segregation)
+            access_filter = get_user_accessible_projects(self.request.user)
+            boq_items = BillOfQuantity.objects.filter(access_filter)
+
             # Package-level aggregation with full data
             package_data = boq_items.values('package_number', 'contractor', 'consultant', 'region', 'phase').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
@@ -331,10 +375,12 @@ class MaterialAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         try:
-            boq_items = BillOfQuantity.objects.all()
-            
+            # Get BOQ items that user can access (project segregation)
+            access_filter = get_user_accessible_projects(self.request.user)
+            boq_items = BillOfQuantity.objects.filter(access_filter)
+
             # Material-level aggregation with full data
             material_data = boq_items.values('material_description', 'item_code').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),

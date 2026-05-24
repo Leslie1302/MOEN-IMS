@@ -84,6 +84,98 @@ class ReleaseLetter(auto_prefetch.Model):
         default='Other',
         help_text="Type of material covered by this release letter"
     )
+
+    # Phase D: project type derived from the underlying MaterialOrders. All
+    # orders sharing this letter MUST have the same project_type; the upload
+    # view enforces it and stamps this field at letter-creation time. Templates
+    # use this to render the right consignee label (Consultant for SHEP,
+    # Hon. Member of Parliament for Cost Sharing / Streetlights).
+    PROJECT_TYPE_CHOICES = [
+        ('SHEP', 'SHEP'),
+        ('COST', 'Cost-sharing'),
+        ('STREET', 'Streetlights'),
+        ('SPEC', 'Special/other'),
+    ]
+    project_type = models.CharField(
+        max_length=10,
+        choices=PROJECT_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Project type stamped from the underlying MaterialOrders. Drives consignee label rendering.",
+    )
+
+    # ========== Phase F: Document workflow fields ==========
+    # All optional/nullable so this slots onto existing ReleaseLetter rows
+    # without breaking anything. The state machine and PDF generation are
+    # additive features; legacy upload-the-scan flow continues to work.
+    code = models.CharField(
+        max_length=30,
+        blank=True,
+        unique=True,
+        null=True,
+        db_index=True,
+        help_text="System-generated release event code in the format RE-{year}-{4-digit-seq}. "
+                  "Printed on both the memo and the release letter, encoded in the QR code on the letter. "
+                  "Auto-populated on save when blank.",
+    )
+
+    WORKFLOW_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('memo_generated', 'Memo & letter generated'),
+        ('awaiting_signature', 'Awaiting CD signature'),
+        ('awaiting_scan_upload', 'Awaiting scan upload'),
+        ('approved', 'Approved (signed scan on file)'),
+        ('released', 'Released'),
+        ('voided', 'Voided'),
+        ('reissued', 'Reissued'),
+    ]
+    workflow_status = models.CharField(
+        max_length=30,
+        choices=WORKFLOW_STATUS_CHOICES,
+        default='draft',
+        help_text="State-machine position. 'memo_generated' is set automatically when the PDFs are produced; "
+                  "'approved' is set when a signed scan is uploaded and confirmed.",
+    )
+
+    # Generated PDFs. Stored separately from pdf_file (which is the
+    # uploaded signed-scan from the legacy upload flow).
+    memo_pdf = models.FileField(
+        upload_to='release_events/%Y/%m/memo/',
+        blank=True,
+        null=True,
+        help_text="System-generated approval memo (PDF, before wet signature).",
+    )
+    letter_pdf = models.FileField(
+        upload_to='release_events/%Y/%m/letter/',
+        blank=True,
+        null=True,
+        help_text="System-generated release letter to MMU (PDF, before wet signature). Carries QR code with the release code.",
+    )
+    documents_generated_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the memo + letter PDFs were generated.",
+    )
+    documents_generated_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='generated_release_documents',
+    )
+
+    # Two-person review on signed-scan upload (Phase F.2).
+    scan_uploaded_at = models.DateTimeField(blank=True, null=True)
+    scan_confirmed_by = auto_prefetch.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='confirmed_release_scans',
+        help_text="The second person who verified the uploaded scan matches the physical letter. "
+                  "Must differ from the uploader.",
+    )
+    scan_confirmed_at = models.DateTimeField(blank=True, null=True)
     
     # Project phase association
     project_phase = models.CharField(
@@ -377,10 +469,14 @@ class MaterialOrder(auto_prefetch.Model):
         default='Release'
     )
     
-    # Project type for material requests
+    # Project type for material requests.
+    # Phase C: STREET added so Streetlights orders can be created via the
+    # two-step request flow. The lowercase ProjectType.code values are
+    # mapped to these CharField values by Inventory.constants.
     PROJECT_TYPE_CHOICES = [
         ('SHEP', 'SHEP'),
         ('COST', 'Cost-sharing'),
+        ('STREET', 'Streetlights'),
         ('SPEC', 'Special/other'),
     ]
     project_type = models.CharField(
@@ -407,7 +503,30 @@ class MaterialOrder(auto_prefetch.Model):
     # Quantity tracking
     processed_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     remaining_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
+
+    # Phase P.1: Stock deduction lifecycle tracking
+    # reserved_quantity: soft hold placed on inventory when order is created (Pending approval)
+    # stock_deducted_quantity: actual deduction from warehouse stock when release is marked "Completed"
+    # boq_deducted_quantity: actual deduction from BoQ when SiteReceipt is confirmed received
+    reserved_quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Quantity reserved (soft hold) from warehouse stock. Set on order creation, cleared on release."
+    )
+    stock_deducted_quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Quantity actually deducted from warehouse stock. Set when order status='Completed' (storekeeper marks issued)."
+    )
+    boq_deducted_quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Quantity deducted from BoQ after site receipt confirmed. Updated by SiteReceipt.save()."
+    )
+
     # Location information
     region = models.CharField(max_length=100, blank=True, null=True)
     district = models.CharField(max_length=100, blank=True, null=True)
@@ -658,7 +777,7 @@ class SiteReceipt(auto_prefetch.Model):
         on_delete=models.CASCADE,
         related_name='site_receipt'
     )
-    
+
     # Receipt details
     received_quantity = models.DecimalField(max_digits=10, decimal_places=2)
     received_date = models.DateTimeField(auto_now_add=True)

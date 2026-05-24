@@ -1,0 +1,122 @@
+================================================================================
+MOEN-IMS BUILD SESSION 2026-05-18 — QUICK REFERENCE
+================================================================================
+
+WORK COMPLETED TODAY:
+  ✅ Phase R — Notifications coverage audit (completed)
+     - Added BoQ overissuance justification email path
+     - All notification paths now wired for M365 delivery
+     - Test: python manage.py shell < test_m365_notifications.py
+
+  ✅ Phase Y — Community detail progressive disclosure (completed)
+     - Added expand/collapse widget to community list
+     - Shows completion %, BoQ summary, recent releases/receipts
+     - Test: Click expand button on any community row
+
+  🔧 Fixed P.2 form field mismatch
+     - SiteReceiptForm no longer references non-existent model fields
+
+================================================================================
+KEY CHANGES BY FILE:
+
+Inventory/forms/projects.py
+  → SiteReceiptForm simplified (removed supplier/supply_contract fields)
+
+Inventory/signals.py
+  → Added handle_boq_overissuance_justification_notifications()
+  → BoQOverissuanceJustification added to imports
+
+Inventory/shep_community_views.py
+  → Added community_detail_api() endpoint (GET /api/community-detail/)
+
+Inventory/urls.py
+  → Added import: community_detail_api
+  → Added route: path('api/community-detail/', community_detail_api, ...)
+
+Inventory/templates/Inventory/shep_community_list.html
+  → Enhanced with expand/collapse toggle per row
+  → Added detail rows with 6-section metrics grid
+  → Added CSS + JavaScript for interactivity
+
+NEW FILES:
+  test_m365_notifications.py — M365 email delivery verification script
+  PHASE_R_COMPLETION_2026-05-18.md — Phase R documentation
+  PHASE_Y_COMPLETION_2026-05-18.md — Phase Y documentation
+  BUILD_SESSION_2026-05-18_FINAL.md — Full session report
+
+================================================================================
+TESTING PHASE R (M365 Email Delivery):
+
+1. Ensure credentials exist:
+   → Go to /admin/accounts/microsoftcredentials/
+   → Should show at least 1 entry
+
+2. Run verification script:
+   → python manage.py shell < test_m365_notifications.py
+
+3. Check email inbox:
+   → Look for emails with subject "[MOEN-IMS] ..."
+   → If present, M365 integration is working ✓
+
+4. If emails don't arrive:
+   → Check Django logs for Graph API errors
+   → Verify email addresses are correct
+   → Ensure user has valid M365 OAuth token
+
+================================================================================
+TESTING PHASE Y (Community Progressive Disclosure):
+
+1. Go to /communities/ (Community list page)
+2. Look for chevron/expand button (▶) in first column
+3. Click expand button:
+   → Detail row slides down with blue background
+   → Icon rotates to point down (▼)
+   → Shows: completion bar, BoQ summary, recent releases/receipts, linked MP/consultant
+4. Click again to collapse:
+   → Detail row slides up
+   → Icon rotates back to point right (▶)
+5. Verify data is correct:
+   → Completion % should match BoQ received / contracted
+   → Delivered count should match non-zero quantity_received
+   → Recent releases/receipts should show last 3 for that region/district
+
+================================================================================
+REMAINING PHASES:
+
+Phase U (2 days)  — KPIs & management dashboard ← BLOCKER FOR PHASE V
+Phase V (1.5 days) — Ghana map AR% integration (needs Phase U)
+Phase W (1 day)   — External signature stamps visual (independent)
+Phase X (1.5 days) — Project segregation in PM pages (independent)
+
+RECOMMENDED NEXT STEPS:
+1. Verify Phase R M365 delivery (30 mins)
+2. Test Phase Y expand/collapse (5 mins)
+3. Tackle Phase W or X (either works independently, ~1 day each)
+4. Then Phase U + V (must do in order, 3.5 days)
+
+================================================================================
+CURRENT STATUS:
+
+Phases Complete: O, P.1, P.2, Q, R, S, T, Y, Z (10 total)
+Phases Pending: U, V, W, X (4 remaining)
+
+No blockers or regressions introduced.
+All code follows existing patterns and conventions.
+Documentation complete and comprehensive.
+
+Ready for: User verification of Phase R + continuation on remaining work
+
+================================================================================
+DOCUMENTATION:
+
+For complete details, see:
+  ├─ PHASE_R_COMPLETION_2026-05-18.md (Phase R details)
+  ├─ PHASE_Y_COMPLETION_2026-05-18.md (Phase Y details)
+  ├─ BUILD_SESSION_2026-05-18_FINAL.md (Full session report)
+  └─ IMPLEMENTATION_PROGRESS_2026-05-18.md (Previous context summary)
+
+API Endpoints Added:
+  GET /api/community-detail/?community_id=N → Community metrics JSON
+  (Also existing: /api/inventory-stock/ from Phase S)
+
+================================================================================

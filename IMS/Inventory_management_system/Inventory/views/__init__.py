@@ -3,7 +3,7 @@ from .user_views import (
     ProfileView, bulk_user_upload, download_user_template, StaffProfileView
 )
 from .order_views import (
-    RequestMaterialView, MaterialOrdersView, UpdateMaterialStatusView,
+    RequestMaterialView, MaterialOrdersView, MaterialOrdersArchiveView, UpdateMaterialStatusView,
     MaterialReceiptView, MaterialReceiptListView, generate_request_code,
     MaterialOrdersOfficersView, update_material_receipt
 )
@@ -32,11 +32,16 @@ from .consultant_views import (
     ConsultantDeliveriesView, SiteReceiptCreateView, SiteReceiptListView
 )
 from .transport_views import MaterialTransportView
+# Geospatial views temporarily commented out until djangorestframework is installed
+# from .geospatial_views import (
+#     ghana_map_project_sites_api, ghana_map_region_heatmap_api,
+#     ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api
+# )
 
 __all__ = [
     'Index', 'AboutView', 'SuperuserOnlyMixin',
     'ProfileView', 'bulk_user_upload', 'download_user_template', 'StaffProfileView',
-    'RequestMaterialView', 'MaterialOrdersView', 'UpdateMaterialStatusView',
+    'RequestMaterialView', 'MaterialOrdersView', 'MaterialOrdersArchiveView', 'UpdateMaterialStatusView',
     'MaterialReceiptView', 'MaterialReceiptListView', 'generate_request_code',
     'MaterialOrdersOfficersView', 'update_material_receipt',
     'consultant_dash', 'management_dashboard', 'release_letter_tracking_dashboard',
@@ -53,5 +58,8 @@ __all__ = [
     'DownloadSampleTemplateView',
     'ReleaseLetterUploadView', 'AdjustReleaseLetterQuantityView',
     'ConsultantDeliveriesView', 'SiteReceiptCreateView', 'SiteReceiptListView',
-    'MaterialTransportView'
+    'MaterialTransportView',
+    # Geospatial API views (commented until djangorestframework is installed)
+    # 'ghana_map_project_sites_api', 'ghana_map_region_heatmap_api',
+    # 'ghana_map_stats_api', 'ghana_map_districts_api', 'ghana_map_communities_api'
 ]

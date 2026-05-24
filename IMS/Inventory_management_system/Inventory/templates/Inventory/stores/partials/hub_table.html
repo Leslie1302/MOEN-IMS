@@ -48,7 +48,7 @@
                         <span class="priority-dot {{ order.priority|lower }}"></span>{{ order.priority }}
                     </td>
                     <td>
-                        <div>{{ order.user.get_full_name|default:order.user.username }}</div>
+                        <div>{% if order.user %}{{ order.user.get_full_name|default:order.user.username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</div>
                         <small class="text-muted">{{ order.region|default:"" }}</small>
                     </td>
                     <td>

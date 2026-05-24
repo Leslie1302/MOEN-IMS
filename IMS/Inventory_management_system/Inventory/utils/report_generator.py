@@ -43,7 +43,7 @@ class WeeklyReportGenerator:
         self.eli5_generator = ELI5Generator()
         self.activity_analyzer = ActivityAnalyzer(self.start_date, self.end_date)
     
-    def generate_report(self, user=None, custom_notes='', recipients=None, cc_recipients=None, dry_run=False):
+    def generate_report(self, user=None, custom_notes='', recipients=None, cc_recipients=None, dry_run=False, mode='technical'):
         """
         Generate a complete weekly report.
         
@@ -110,6 +110,13 @@ class WeeklyReportGenerator:
             migrations_found=len(migrations),
         )
         
+        # K.3 -- pull audit-log entries for the report window so
+        # the report reflects operational events (scan uploads, two-person
+        # confirms, force-accepts, etc.).
+        audit_highlights = self._collect_audit_highlights()
+        report.audit_highlights = audit_highlights
+        report.audit_summary_text = self._format_audit_section(audit_highlights)
+
         # Scan for screenshots
         screenshots = self.screenshot_scanner.find_recent_screenshots(self.days)
         screenshots_by_category = self.screenshot_scanner.categorize_screenshots(screenshots)
@@ -124,12 +131,31 @@ class WeeklyReportGenerator:
             'code_improvements': code_improvements,
             'pending_tasks': pending_tasks,
             'next_priorities': next_priorities,
+            'audit_highlights': report.audit_summary_text,
         }
         eli5_sections = self.eli5_generator.generate_eli5_sections(report_data)
         
         # Generate email content
         html_content, plain_text_content = self._generate_email_content(report, commit_stats, screenshots_by_category)
         report.html_content = html_content
+        # Mode override: executive renderer rewrites the body in plain English.
+        if mode == 'executive':
+            try:
+                from Inventory.services.executive_renderer import render_executive_report
+                rendered = render_executive_report(
+                    report=report,
+                    commit_stats=commit_stats,
+                    activity_summary=activity_summary,
+                    categorized_commits=categorized_commits,
+                    migrations=migrations,
+                    audit_highlights=audit_highlights,
+                )
+                report.html_content = rendered['html']
+                plain_text_content = rendered['plain_text']
+                report.subject = rendered['subject']
+            except Exception:
+                logger.exception("Executive renderer failed; falling back to technical content")
+                # Keep the technical content in place rather than crash the send.
         report.plain_text_content = plain_text_content
         
         # Save report
@@ -308,6 +334,76 @@ class WeeklyReportGenerator:
         
         return "\n".join(priorities)
     
+    def _collect_audit_highlights(self):
+        """Pull audit-log entries for the report window, grouped by action.
+
+        Returns {'sections': [{'action': str, 'count': int, 'samples': [...]}, ...],
+                 'total': int}. Empty when audit_log isn't available.
+        """
+        from datetime import datetime, time
+        from django.utils import timezone
+        try:
+            from audit_log.models import AuditLog
+        except Exception:
+            return {'sections': [], 'total': 0}
+
+        try:
+            tz = timezone.get_current_timezone()
+            start_dt = timezone.make_aware(datetime.combine(self.start_date, time.min), tz)
+            end_dt = timezone.make_aware(datetime.combine(self.end_date, time.max), tz)
+        except Exception:
+            start_dt = datetime.combine(self.start_date, time.min)
+            end_dt = datetime.combine(self.end_date, time.max)
+
+        try:
+            qs = AuditLog.objects.filter(
+                timestamp__gte=start_dt, timestamp__lte=end_dt,
+            ).order_by('-timestamp')
+        except Exception:
+            logger.exception("AuditLog query failed; returning empty audit highlights")
+            return {'sections': [], 'total': 0}
+
+        sections = {}
+        total = 0
+        for entry in qs[:500]:
+            total += 1
+            action = entry.action or 'unknown'
+            bucket = sections.setdefault(action, {'count': 0, 'samples': []})
+            bucket['count'] += 1
+            if len(bucket['samples']) < 3:
+                who = entry.user.username if entry.user else 'system'
+                raw_msg = (entry.change_message or '').strip()
+                first_line = raw_msg.splitlines()[0] if raw_msg else ''
+                bucket['samples'].append({
+                    'when': entry.timestamp,
+                    'who': who,
+                    'message': first_line[:160],
+                })
+
+        ordered = sorted(
+            ({'action': action, **payload} for action, payload in sections.items()),
+            key=lambda s: -s['count'],
+        )
+        return {'sections': ordered, 'total': total}
+
+    def _format_audit_section(self, highlights):
+        """Plain-text audit summary suitable for the technical email body."""
+        if not highlights or not highlights.get('sections'):
+            return ""
+        out = []
+        for sec in highlights['sections'][:8]:
+            label = sec['action'].replace('_', ' ').replace('.', ' → ')
+            plural = 's' if sec['count'] != 1 else ''
+            out.append("• {} — {} event{}".format(label, sec['count'], plural))
+            for sample in sec['samples']:
+                if hasattr(sample['when'], 'strftime'):
+                    ts = sample['when'].strftime('%a %d %b %H:%M')
+                else:
+                    ts = str(sample['when'])
+                msg = ' — ' + sample['message'] if sample['message'] else ''
+                out.append("    · {} by {}{}".format(ts, sample['who'], msg))
+        return "\n".join(out)
+
     def _generate_email_content(self, report, commit_stats, screenshots_by_category=None):
         """
         Generate HTML and plain text email content.
@@ -345,6 +441,21 @@ class WeeklyReportGenerator:
     
     def _generate_fallback_html(self, report, commit_stats):
         """Generate fallback HTML content if template is missing."""
+        # Build optional audit-highlights blocks for the report body.
+        _audit_text = getattr(report, 'audit_summary_text', '') or ''
+        if _audit_text:
+            audit_html_block = (
+                '<h2 style="color: #2980b9;">Audit Highlights</h2>'
+                '<pre style="background: #f8f9fa; padding: 15px; border-left: 4px solid #2980b9;">'
+                + _audit_text + '</pre>'
+            )
+            audit_text_block = (
+                "AUDIT HIGHLIGHTS\n----------------\n" + _audit_text
+            )
+        else:
+            audit_html_block = ''
+            audit_text_block = ''
+
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -371,7 +482,9 @@ class WeeklyReportGenerator:
             
             <h2 style="color: #34495e;">Pending Tasks and Known Issues</h2>
             <pre style="background: #f8f9fa; padding: 15px; border-left: 4px solid #34495e;">{report.pending_tasks}</pre>
-            
+
+            {audit_html_block}
+
             <h2 style="color: #16a085;">Next Week's Priorities</h2>
             <pre style="background: #f8f9fa; padding: 15px; border-left: 4px solid #16a085;">{report.next_priorities}</pre>
             
@@ -424,6 +537,8 @@ PENDING TASKS AND KNOWN ISSUES
 -------------------------------
 {report.pending_tasks}
 
+{audit_text_block}
+
 NEXT WEEK'S PRIORITIES
 ----------------------
 {report.next_priorities}
@@ -444,42 +559,85 @@ Report Statistics:
     
     def _send_email(self, report, pdf_buffer=None):
         """
-        Send the report via email with PDF attachment.
-        
-        Args:
-            report: WeeklyReport object
-            pdf_buffer: BytesIO buffer containing PDF file
+        Send the weekly report via Microsoft 365 (Graph API) using the same
+        path the rest of the app uses for in-system email alerts.
+
+        Sender resolution:
+          1. report.generated_by (preferred -- the user who triggered generation)
+          2. Fallback to any superuser with valid M365 credentials.
+
+        If no sender with valid M365 creds is found, raises RuntimeError --
+        we don't silently fall back to SMTP because the user explicitly
+        asked for M365 to be the only delivery path.
         """
-        subject = report.subject
-        from_email = settings.DEFAULT_FROM_EMAIL
-        to_emails = report.get_recipients_list()
-        cc_emails = report.get_cc_recipients_list()
-        
-        # Create email
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=report.plain_text_content,
-            from_email=from_email,
-            to=to_emails,
-            cc=cc_emails
-        )
-        
-        # Attach HTML version
-        email.attach_alternative(report.html_content, "text/html")
-        
-        # Attach PDF if available
+        from accounts.notifications import send_email_notification
+        from accounts.models import MicrosoftCredentials
+        from django.contrib.auth.models import User
+
+        to_emails = report.get_recipients_list() or []
+        cc_emails = report.get_cc_recipients_list() or []
+
+        sender = None
+        if getattr(report, 'generated_by_id', None) and \
+                MicrosoftCredentials.objects.filter(user_id=report.generated_by_id).exists():
+            sender = report.generated_by
+        else:
+            sender = User.objects.filter(
+                is_superuser=True,
+                microsoft_credentials__isnull=False,
+            ).first()
+
+        if not sender:
+            raise RuntimeError(
+                "Cannot send weekly report via M365: no user with Microsoft "
+                "credentials is available as the sender. Connect a superuser "
+                "M365 account in Profile -> Microsoft Connection."
+            )
+
+        html_body = report.html_content or report.plain_text_content or ''
+
+        attachments = None
         if pdf_buffer:
             try:
-                pdf_filename = f"Weekly_Report_{report.report_id}.pdf"
-                email.attach(pdf_filename, pdf_buffer.read(), 'application/pdf')
-                logger.info(f"PDF attached: {pdf_filename}")
-            except Exception as e:
-                logger.warning(f"Could not attach PDF: {e}")
-        
-        # Send
-        email.send(fail_silently=False)
-        
-        logger.info(f"Email sent to {', '.join(to_emails)}")
+                import base64
+                pdf_buffer.seek(0)
+                pdf_bytes = pdf_buffer.read()
+                attachments = [{
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": f"Weekly_Report_{report.report_id}.pdf",
+                    "contentType": "application/pdf",
+                    "contentBytes": base64.b64encode(pdf_bytes).decode('ascii'),
+                }]
+            except Exception as exc:
+                logger.warning("Could not encode PDF for Graph attachment: %s", exc)
+                attachments = None
+
+        kwargs = {
+            "user": sender,
+            "to": to_emails,
+            "subject": report.subject,
+            "body": html_body,
+            "body_type": "HTML",
+            "cc": cc_emails or None,
+        }
+        try:
+            if attachments:
+                kwargs["attachments"] = attachments
+            send_email_notification(**kwargs)
+        except TypeError:
+            kwargs.pop("attachments", None)
+            send_email_notification(**kwargs)
+            if attachments:
+                logger.warning(
+                    "send_email_notification doesn't support attachments yet -- "
+                    "PDF was not delivered. Update accounts/notifications.py."
+                )
+
+        logger.info(
+            "Weekly report %s sent via M365 (sender=%s) to %s",
+            report.report_id, sender.username,
+            ', '.join(to_emails) or '(no recipients)',
+        )
     
     def _get_default_recipients(self):
         """Get default recipients from settings."""

@@ -1,18 +1,73 @@
 {% extends "Inventory/base.html" %}
 
+{% block title %}Transport {{ transport.waybill_number|default:transport.id }} — IMS{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
+    <div class="mb-4">
+        <a href="{% url 'transport_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Transport List
+        </a>
+    </div>
+
     <h1>Transport Details</h1>
+
+    {# ─────────── Phase Q: Numbering chain ─────────── #}
+    {% with order=transport.material_order letter=order.release_letter %}
+    <div class="d-flex flex-wrap gap-2 mb-3 small">
+        {% if order.request_code %}
+        <span class="badge bg-light text-dark border">
+            <i class="fas fa-paper-plane me-1"></i> Request <code>{{ order.request_code }}</code>
+        </span>
+        {% endif %}
+        {% if letter.code %}
+        <span class="badge bg-light text-dark border">
+            <i class="fas fa-file-signature me-1"></i> Release <code>{{ letter.code }}</code>
+        </span>
+        {% endif %}
+        {% if transport.waybill_number %}
+        <span class="badge bg-light text-dark border">
+            <i class="fas fa-truck me-1"></i> Waybill <code>{{ transport.waybill_number }}</code>
+        </span>
+        {% endif %}
+        {% if transport.site_receipt %}
+        <span class="badge bg-light text-dark border">
+            <i class="fas fa-receipt me-1"></i> Receipt <code>#{{ transport.site_receipt.id }}</code>
+        </span>
+        {% endif %}
+    </div>
+    {% endwith %}
+
     <div class="card">
         <div class="card-header">
-            <h2>Transport #{{ transport.id }}</h2>
+            <h2>
+                {% if transport.waybill_number %}
+                    Waybill {{ transport.waybill_number }}
+                {% else %}
+                    Transport #{{ transport.id }}
+                {% endif %}
+            </h2>
         </div>
         <div class="card-body">
             <table class="table table-bordered">
                 <tbody>
+                    {% if transport.material_order %}
+                    <tr>
+                        <th>Material</th>
+                        <td>{{ transport.material_order.name|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Request Code</th>
+                        <td><code>{{ transport.material_order.request_code }}</code></td>
+                    </tr>
+                    {% endif %}
                     <tr>
                         <th>Material Name</th>
                         <td>{{ transport.material_name|default:"N/A" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Quantity</th>
+                        <td>{{ transport.quantity|default:"N/A" }}</td>
                     </tr>
                     <tr>
                         <th>Recipient</th>
@@ -20,13 +75,34 @@
                     </tr>
                     <tr>
                         <th>Status</th>
-                        <td>{{ transport.status|default:"N/A" }}</td>
+                        <td><span class="badge bg-info">{{ transport.status|default:"N/A" }}</span></td>
                     </tr>
-                    <!-- Add more fields as needed based on your MaterialTransport model -->
+                    {% if transport.transporter %}
+                    <tr>
+                        <th>Transporter</th>
+                        <td>{{ transport.transporter.name|default:"N/A" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.vehicle %}
+                    <tr>
+                        <th>Vehicle</th>
+                        <td>{{ transport.vehicle.registration_number|default:"N/A" }}</td>
+                    </tr>
+                    {% endif %}
                     <tr>
                         <th>Created At</th>
                         <td>{{ transport.date_dispatched|date:"Y-m-d H:i"|default:"N/A" }}</td>
                     </tr>
+                    {% if transport.site_receipt %}
+                    <tr>
+                        <th>Site Receipt</th>
+                        <td>
+                            <a href="{% url 'site_receipt_detail' transport.site_receipt.id %}" class="btn btn-sm btn-outline-primary">
+                                View Receipt #{{ transport.site_receipt.id }}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

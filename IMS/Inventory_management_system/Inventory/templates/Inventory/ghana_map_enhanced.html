@@ -1,0 +1,1492 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Regional Electrification Map{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+<style>
+    :root {
+        --primary-color: #2c3e50;
+        --success-color: #00aa00;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --info-color: #2196f3;
+        --gray-color: #6c757d;
+        --light-gray: #f8f9fa;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: #f5f6fa;
+    }
+
+    /* Header Section */
+    .ghana-map-header {
+        background: white;
+        padding: 30px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-left h1 {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+    }
+
+    .header-left p {
+        font-size: 14px;
+        color: #999;
+    }
+
+    .btn-back {
+        padding: 10px 20px;
+        background: white;
+        color: var(--primary-color);
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .btn-back:hover {
+        background: var(--light-gray);
+        border-color: var(--primary-color);
+    }
+
+    /* Metrics Cards Section */
+    .metrics-section {
+        padding: 30px;
+        background: white;
+        margin-bottom: 20px;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+    }
+
+    .metric-card {
+        padding: 25px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 700;
+        display: flex;
+        flex-direction: column;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .metric-card:active {
+        transform: translateY(-2px);
+    }
+
+    .metric-card.total {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .metric-card.completed {
+        background: linear-gradient(135deg, #00aa00 0%, #66bb6a 100%);
+    }
+
+    .metric-card.active {
+        background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+    }
+
+    .metric-card.progress {
+        background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);
+    }
+
+    .metric-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+        margin-bottom: 10px;
+    }
+
+    .metric-value {
+        font-size: 36px;
+        line-height: 1;
+    }
+
+    /* Main Content Area */
+    .ghana-map-main {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 20px;
+        padding: 20px;
+        min-height: calc(100vh - 300px);
+    }
+
+    /* Map and Filters Section */
+    .map-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .filters-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .filters-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 15px;
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .filter-group label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 6px;
+    }
+
+    .filter-group select,
+    .filter-group input {
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+        transition: border-color 0.3s;
+    }
+
+    .filter-group select:focus,
+    .filter-group input:focus {
+        outline: none;
+        border-color: var(--info-color);
+        box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+    }
+
+    .filter-actions {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .btn-primary {
+        background: var(--info-color);
+        color: white;
+        flex: 1;
+    }
+
+    .btn-primary:hover {
+        background: #1976d2;
+        box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+    }
+
+    .btn-secondary {
+        background: #f0f0f0;
+        color: var(--primary-color);
+        border: 1px solid #ddd;
+        flex: 1;
+    }
+
+    .btn-secondary:hover {
+        background: #e8e8e8;
+    }
+
+    /* Map Container */
+    .map-card {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        flex: 1;
+        position: relative;
+        min-height: 500px;
+    }
+
+    #map {
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    .view-mode-toggle {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: white;
+        padding: 8px;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 200;
+        display: flex;
+        gap: 5px;
+    }
+
+    .view-btn {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.3s;
+        color: var(--primary-color);
+    }
+
+    .view-btn.active {
+        background: var(--info-color);
+        color: white;
+        border-color: var(--info-color);
+    }
+
+    /* Right Sidebar - Region Details */
+    .region-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .region-panel-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--info-color);
+        padding-bottom: 15px;
+    }
+
+    .region-completion {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    .completion-percentage {
+        font-size: 48px;
+        font-weight: 700;
+        color: var(--danger-color);
+        line-height: 1;
+        margin-bottom: 5px;
+    }
+
+    .completion-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .region-stats {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .stat-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+
+    .stat-item-label {
+        font-size: 13px;
+        color: #666;
+        font-weight: 500;
+    }
+
+    .stat-item-value {
+        font-weight: 700;
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .stat-badge.blue { background: var(--info-color); }
+    .stat-badge.green { background: var(--success-color); }
+    .stat-badge.yellow { background: var(--warning-color); color: black; }
+    .stat-badge.gray { background: var(--gray-color); }
+
+    .methodology-note {
+        background: #f0f7ff;
+        padding: 15px;
+        border-radius: 4px;
+        border-left: 4px solid var(--info-color);
+        margin-top: 20px;
+    }
+
+    .methodology-title {
+        font-size: 12px;
+        color: var(--info-color);
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+
+    .methodology-text {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.5;
+    }
+
+    /* Loading and Error States */
+    .loading-spinner {
+        display: none;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 300;
+    }
+
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--info-color);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .error-message {
+        padding: 12px;
+        background: #ffebee;
+        color: #c62828;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        display: none;
+        font-size: 13px;
+    }
+
+    /* Metric Card Interaction */
+    .metric-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        display: none !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        z-index: 9999 !important;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        animation: slideUp 0.3s ease;
+        z-index: 10000;
+        position: relative;
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+        padding: 25px;
+        border-bottom: 2px solid var(--info-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h2 {
+        font-size: 24px;
+        color: var(--primary-color);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 28px;
+        cursor: pointer;
+        color: #999;
+        transition: color 0.2s;
+    }
+
+    .modal-close:hover {
+        color: var(--primary-color);
+    }
+
+    .modal-body {
+        padding: 25px;
+    }
+
+    .modal-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .modal-stat-box {
+        padding: 20px;
+        background: var(--light-gray);
+        border-radius: 6px;
+        text-align: center;
+        border-left: 4px solid var(--info-color);
+    }
+
+    .modal-stat-box.completed {
+        border-left-color: var(--success-color);
+    }
+
+    .modal-stat-box.active {
+        border-left-color: var(--warning-color);
+    }
+
+    .modal-stat-box.planned {
+        border-left-color: var(--gray-color);
+    }
+
+    .modal-stat-box.on-hold {
+        border-left-color: var(--danger-color);
+    }
+
+    .modal-stat-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+
+    .modal-stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .modal-chart {
+        margin: 30px 0;
+        padding: 20px;
+        background: var(--light-gray);
+        border-radius: 6px;
+    }
+
+    .modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    .modal-table thead {
+        background: var(--light-gray);
+    }
+
+    .modal-table th {
+        padding: 15px;
+        text-align: left;
+        font-weight: 700;
+        color: var(--primary-color);
+        border-bottom: 2px solid #ddd;
+    }
+
+    .modal-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        font-size: 13px;
+    }
+
+    .modal-table tr:hover {
+        background: #f9f9f9;
+    }
+
+    .modal-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .status-pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .status-pill.completed {
+        background: var(--success-color);
+    }
+
+    .status-pill.active {
+        background: var(--warning-color);
+        color: black;
+    }
+
+    .status-pill.planned {
+        background: var(--gray-color);
+    }
+
+    .status-pill.on-hold {
+        background: var(--danger-color);
+    }
+
+    .region-breakdown {
+        margin-top: 20px;
+    }
+
+    .region-item {
+        padding: 15px;
+        background: var(--light-gray);
+        border-radius: 4px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .region-item-name {
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .region-item-stats {
+        display: flex;
+        gap: 20px;
+        font-size: 12px;
+    }
+
+    .completion-bar {
+        width: 200px;
+        height: 8px;
+        background: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .completion-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--success-color), #66bb6a);
+        transition: width 0.3s ease;
+    }
+
+    /* Leaflet Popup Styling */
+    .leaflet-popup-content {
+        font-size: 13px;
+        max-width: 300px;
+    }
+
+    .popup-title {
+        font-weight: 700;
+        font-size: 14px;
+        margin-bottom: 10px;
+        color: var(--primary-color);
+    }
+
+    .popup-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        font-size: 12px;
+    }
+
+    .popup-label {
+        font-weight: 600;
+        color: #666;
+    }
+
+    .popup-value {
+        color: var(--primary-color);
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .status-planned { background: var(--gray-color); }
+    .status-active { background: var(--warning-color); color: black; }
+    .status-completed { background: var(--success-color); }
+    .status-on-hold { background: var(--danger-color); }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .ghana-map-main {
+            grid-template-columns: 1fr;
+        }
+
+        .region-panel {
+            order: 2;
+        }
+
+        .metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .filters-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .ghana-map-header {
+            flex-direction: column;
+            gap: 15px;
+            text-align: center;
+        }
+
+        .header-left h1 {
+            font-size: 24px;
+        }
+
+        .metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .metric-card {
+            padding: 20px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+        }
+
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ghana-map-main {
+            grid-template-columns: 1fr;
+            gap: 15px;
+            padding: 15px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ghana-map-header">
+    <div class="header-left">
+        <h1>Regional Electrification Map</h1>
+        <p>Visual representation of completed vs planned project sites</p>
+    </div>
+    <button class="btn-back" onclick="window.history.back()">← Back to Project Dashboard</button>
+</div>
+
+<div class="metrics-section">
+    <div class="metrics-grid">
+        <a href="/ghana-map-total-sites/" class="metric-card total" id="card-total">
+            <div class="metric-label">Total Sites Nationwide</div>
+            <div class="metric-value" id="metric-total">0</div>
+        </a>
+        <a href="/ghana-map-completed-sites/" class="metric-card completed" id="card-completed">
+            <div class="metric-label">Completed Sites</div>
+            <div class="metric-value" id="metric-completed">0</div>
+        </a>
+        <a href="/ghana-map-active-sites/" class="metric-card active" id="card-active">
+            <div class="metric-label">Active Sites</div>
+            <div class="metric-value" id="metric-active">0</div>
+        </a>
+        <a href="/ghana-map-progress/" class="metric-card progress" id="card-progress">
+            <div class="metric-label">National Progress</div>
+            <div class="metric-value" id="metric-progress">0%</div>
+        </a>
+    </div>
+</div>
+
+<!-- Modal Overlay -->
+<div class="modal-overlay" id="metricModal" onclick="if(event.target.id === 'metricModal') document.getElementById('metricModal').classList.remove('active')">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 id="modalTitle">Total Sites</h2>
+            <button class="modal-close" onclick="document.getElementById('metricModal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- Content will be inserted here -->
+        </div>
+    </div>
+</div>
+
+<div class="ghana-map-main">
+    <div class="map-section">
+        <div class="filters-card">
+            <div class="filters-title">Filters & Search</div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="project-type">Project Type</label>
+                    <select id="project-type">
+                        <option value="">All Types</option>
+                        <option value="SHEP">SHEP</option>
+                        <option value="Turnkey">Turnkey</option>
+                        <option value="China Water">China Water</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="phase">Phase</label>
+                    <input type="text" id="phase" placeholder="e.g., SHEP-4">
+                </div>
+                <div class="filter-group">
+                    <label for="region">Region</label>
+                    <select id="region">
+                        <option value="">All Regions</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="district">District</label>
+                    <select id="district" disabled>
+                        <option value="">All Districts</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="status">Status</label>
+                    <select id="status">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Planned">Planned</option>
+                        <option value="On Hold">On Hold</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="site-status">Site Status</label>
+                    <select id="site-status">
+                        <option value="">All Sites</option>
+                        <option value="Active">Active</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Planned">Planned</option>
+                        <option value="On Hold">On Hold</option>
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetFilters()">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                </div>
+            </div>
+            <div class="error-message" id="error-message"></div>
+        </div>
+
+        <div class="map-card">
+            <div id="map"></div>
+            <div class="view-mode-toggle">
+                <button class="view-btn active" onclick="switchViewMode('sites')" data-mode="sites">Sites</button>
+                <button class="view-btn" onclick="switchViewMode('heatmap')" data-mode="heatmap">Heatmap</button>
+            </div>
+            <div class="loading-spinner" id="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="region-panel">
+        <div class="region-panel-title" id="region-name">Ghana Overview</div>
+
+        <div class="region-completion">
+            <div class="completion-percentage" id="region-completion">0.0%</div>
+            <div class="completion-label">Completion</div>
+        </div>
+
+        <div class="region-stats">
+            <div class="stat-item">
+                <span class="stat-item-label">Total Project Sites</span>
+                <span class="stat-item-value">
+                    <span class="stat-badge blue" id="stat-total">0</span>
+                </span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-item-label">Completed Sites</span>
+                <span class="stat-item-value">
+                    <span class="stat-badge green" id="stat-completed">0</span>
+                </span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-item-label">Active / In Progress</span>
+                <span class="stat-item-value">
+                    <span class="stat-badge yellow" id="stat-active">0</span>
+                </span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-item-label">Planned / Not Started</span>
+                <span class="stat-item-value">
+                    <span class="stat-badge gray" id="stat-planned">0</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="methodology-note">
+            <div class="methodology-title">Methodology Note</div>
+            <div class="methodology-text">
+                Region progress is calculated as the percentage of sites marked as <strong>Completed</strong> against the total number of sites assigned to that region.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+    let map;
+    let sitesLayer = L.layerGroup();
+    let heatmapLayer = null;
+    let currentViewMode = 'sites';
+    let allSites = [];
+    let allRegions = [];
+
+    function initMap() {
+        map = L.map('map').setView([6.5, -2.0], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        sitesLayer.addTo(map);
+        loadProjectData();
+        loadRegionDropdown();
+    }
+
+    function loadProjectData() {
+        showLoading(true);
+        const params = new URLSearchParams(buildFilterParams());
+
+        fetch(`/api/ghana-map-project-sites/?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                allSites = data.features || [];
+                sitesLayer.clearLayers();
+
+                if (currentViewMode === 'sites') {
+                    allSites.forEach(site => {
+                        const coords = site.geometry.coordinates;
+                        const marker = L.circleMarker([coords[1], coords[0]], {
+                            radius: 8,
+                            fillColor: site.properties.status_color || '#FFA500',
+                            color: site.properties.status_color || '#FFA500',
+                            weight: 2,
+                            opacity: 0.9,
+                            fillOpacity: 0.7
+                        });
+
+                        marker.bindPopup(createPopup(site.properties));
+                        sitesLayer.addLayer(marker);
+                    });
+                }
+
+                loadStatistics();
+                showLoading(false);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('Failed to load project sites');
+                showLoading(false);
+            });
+    }
+
+    function loadHeatmapData() {
+        showLoading(true);
+        const params = new URLSearchParams(buildFilterParams());
+
+        fetch(`/api/ghana-map-region-heatmap/?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                sitesLayer.clearLayers();
+
+                if (heatmapLayer) {
+                    map.removeLayer(heatmapLayer);
+                }
+
+                const geoJsonLayer = L.geoJSON(data, {
+                    style: feature => ({
+                        fillColor: feature.properties.heatmap_color,
+                        weight: 2,
+                        opacity: 0.9,
+                        color: '#333',
+                        fillOpacity: 0.7
+                    }),
+                    onEachFeature: (feature, layer) => {
+                        const props = feature.properties;
+                        const popup = `
+                            <div class="popup-title">${props.name}</div>
+                            <div style="font-size: 12px; margin-top: 8px;">
+                                <div><strong>Completion:</strong> ${props.completion_rate.toFixed(1)}%</div>
+                                <div><strong>Total Sites:</strong> ${props.total_sites}</div>
+                                <div><strong>Completed:</strong> ${props.completed_sites}</div>
+                            </div>
+                        `;
+                        layer.bindPopup(popup);
+                        layer.on('click', () => updateRegionPanel(props));
+                    }
+                });
+
+                sitesLayer.addLayer(geoJsonLayer);
+                showLoading(false);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError('Failed to load heatmap');
+                showLoading(false);
+            });
+    }
+
+    function loadStatistics() {
+        const params = new URLSearchParams(buildFilterParams());
+
+        fetch(`/api/ghana-map-stats/?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                const sites = data.sites || {};
+                const completion = data.completion || {};
+
+                document.getElementById('metric-total').textContent = sites.total || 0;
+                document.getElementById('metric-completed').textContent = sites.completed || 0;
+                document.getElementById('metric-active').textContent = sites.active || 0;
+                document.getElementById('metric-progress').textContent = (completion.percentage || 0).toFixed(1) + '%';
+
+                document.getElementById('stat-total').textContent = sites.total || 0;
+                document.getElementById('stat-completed').textContent = sites.completed || 0;
+                document.getElementById('stat-active').textContent = sites.active || 0;
+                document.getElementById('stat-planned').textContent = sites.planned || 0;
+                document.getElementById('region-completion').textContent = (completion.percentage || 0).toFixed(1) + '%';
+            });
+    }
+
+    function loadRegionDropdown() {
+        fetch('/api/ghana-map-region-heatmap/')
+            .then(response => response.json())
+            .then(data => {
+                const regionSelect = document.getElementById('region');
+                const regions = [...new Set(data.features.map(f => f.properties.name))];
+                regions.forEach(region => {
+                    const option = document.createElement('option');
+                    option.value = region;
+                    option.textContent = region;
+                    regionSelect.appendChild(option);
+                });
+            });
+    }
+
+    function updateRegionPanel(regionProps) {
+        document.getElementById('region-name').textContent = regionProps.name || 'Ghana Overview';
+        document.getElementById('region-completion').textContent = (regionProps.completion_rate || 0).toFixed(1) + '%';
+        document.getElementById('stat-total').textContent = regionProps.total_sites || 0;
+        document.getElementById('stat-completed').textContent = regionProps.completed_sites || 0;
+        document.getElementById('stat-active').textContent = regionProps.active_sites || 0;
+        document.getElementById('stat-planned').textContent = regionProps.planned_sites || 0;
+    }
+
+    function createPopup(props) {
+        return `
+            <div class="popup-title">${props.name}</div>
+            <div class="popup-content">
+                <span class="popup-label">Code:</span><span class="popup-value">${props.code}</span>
+                <span class="popup-label">Region:</span><span class="popup-value">${props.region}</span>
+                <span class="popup-label">District:</span><span class="popup-value">${props.district}</span>
+                <span class="popup-label">Status:</span><span class="status-badge status-${props.status.toLowerCase()}">${props.status}</span>
+                <span class="popup-label">Completion:</span><span class="popup-value">${props.completion_percentage}%</span>
+            </div>
+        `;
+    }
+
+    function buildFilterParams() {
+        const params = {};
+        const projectType = document.getElementById('project-type').value;
+        const phase = document.getElementById('phase').value;
+        const region = document.getElementById('region').value;
+        const district = document.getElementById('district').value;
+        const status = document.getElementById('status').value;
+        const siteStatus = document.getElementById('site-status').value;
+
+        if (projectType) params.project_type = projectType;
+        if (phase) params.phase = phase;
+        if (region) params.region = region;
+        if (district) params.district = district;
+        if (status) params.status = status;
+        if (siteStatus) params.site_status = siteStatus;
+
+        return new URLSearchParams(params).toString();
+    }
+
+    function applyFilters() {
+        if (currentViewMode === 'sites') {
+            loadProjectData();
+        } else {
+            loadHeatmapData();
+        }
+    }
+
+    function resetFilters() {
+        document.getElementById('project-type').value = '';
+        document.getElementById('phase').value = '';
+        document.getElementById('region').value = '';
+        document.getElementById('district').value = '';
+        document.getElementById('district').disabled = true;
+        document.getElementById('status').value = '';
+        document.getElementById('site-status').value = '';
+        applyFilters();
+    }
+
+    function switchViewMode(mode) {
+        currentViewMode = mode;
+        document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+
+        if (mode === 'sites') {
+            loadProjectData();
+        } else {
+            loadHeatmapData();
+        }
+    }
+
+    function showLoading(show) {
+        document.getElementById('loading-spinner').style.display = show ? 'block' : 'none';
+    }
+
+    function showError(message) {
+        const errorEl = document.getElementById('error-message');
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+        setTimeout(() => {
+            errorEl.style.display = 'none';
+        }, 5000);
+    }
+
+    // Region dropdown change
+    document.getElementById('region').addEventListener('change', function() {
+        const districtSelect = document.getElementById('district');
+        if (this.value) {
+            districtSelect.disabled = false;
+            fetch(`/api/ghana-map-districts/?region=${this.value}`)
+                .then(response => response.json())
+                .then(data => {
+                    districtSelect.innerHTML = '<option value="">All Districts</option>';
+                    data.districts.forEach(district => {
+                        const option = document.createElement('option');
+                        option.value = district.name;
+                        option.textContent = district.name;
+                        districtSelect.appendChild(option);
+                    });
+                });
+        } else {
+            districtSelect.disabled = true;
+            districtSelect.innerHTML = '<option value="">All Districts</option>';
+        }
+    });
+
+    // Metric Modal Functions
+    function openMetricModal(metricType) {
+        console.log('Opening modal for:', metricType);
+
+        const modal = document.getElementById('metricModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+
+        if (!modal) {
+            console.error('Modal element not found');
+            alert('Modal not found!');
+            return;
+        }
+
+        // Show modal immediately with loading state
+        modal.classList.add('active');
+        modalBody.innerHTML = '<div style="padding: 40px; text-align: center;"><div class="spinner"></div><p>Loading...</p></div>';
+
+        switch(metricType) {
+            case 'total':
+                modalTitle.textContent = 'Total Sites Nationwide';
+                setTimeout(() => loadTotalSitesModal(), 100);
+                break;
+            case 'completed':
+                modalTitle.textContent = 'Completed Sites';
+                setTimeout(() => loadCompletedSitesModal(), 100);
+                break;
+            case 'active':
+                modalTitle.textContent = 'Active Sites';
+                setTimeout(() => loadActiveSitesModal(), 100);
+                break;
+            case 'progress':
+                modalTitle.textContent = 'National Progress Overview';
+                setTimeout(() => loadProgressModal(), 100);
+                break;
+        }
+
+        console.log('Modal now visible');
+    }
+
+    function closeMetricModal(event) {
+        if (event) {
+            event.stopPropagation();
+            if (event.target.id !== 'metricModal') return;
+        }
+        const modal = document.getElementById('metricModal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+
+    function loadTotalSitesModal() {
+        console.log('Loading total sites modal data...');
+        const params = new URLSearchParams(buildFilterParams());
+        fetch(`/api/ghana-map-project-sites/?${params}`)
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                const sites = data.features || [];
+                const stats = {
+                    total: sites.length,
+                    completed: sites.filter(s => s.properties.status === 'Completed').length,
+                    active: sites.filter(s => s.properties.status === 'Active').length,
+                    planned: sites.filter(s => s.properties.status === 'Planned').length,
+                    onHold: sites.filter(s => s.properties.status === 'On Hold').length
+                };
+
+                let html = `
+                    <div class="modal-stats-grid">
+                        <div class="modal-stat-box">
+                            <div class="modal-stat-label">Total</div>
+                            <div class="modal-stat-value">${stats.total}</div>
+                        </div>
+                        <div class="modal-stat-box completed">
+                            <div class="modal-stat-label">Completed</div>
+                            <div class="modal-stat-value">${stats.completed}</div>
+                        </div>
+                        <div class="modal-stat-box active">
+                            <div class="modal-stat-label">Active</div>
+                            <div class="modal-stat-value">${stats.active}</div>
+                        </div>
+                        <div class="modal-stat-box planned">
+                            <div class="modal-stat-label">Planned</div>
+                            <div class="modal-stat-value">${stats.planned}</div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom: 15px; color: var(--primary-color);">All Project Sites (${stats.total})</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Site Name</th>
+                                <th>Code</th>
+                                <th>Region</th>
+                                <th>District</th>
+                                <th>Status</th>
+                                <th>Completion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                sites.forEach(site => {
+                    const props = site.properties;
+                    html += `
+                        <tr>
+                            <td><strong>${props.name}</strong></td>
+                            <td>${props.code}</td>
+                            <td>${props.region}</td>
+                            <td>${props.district}</td>
+                            <td><span class="status-pill ${props.status.toLowerCase().replace(' ', '-')}">${props.status}</span></td>
+                            <td>${props.completion_percentage}%</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                        </tbody>
+                    </table>
+                `;
+
+                document.getElementById('modalBody').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading total sites:', error);
+                document.getElementById('modalBody').innerHTML = `<div style="padding: 20px; color: red;"><p>Error loading data: ${error.message}</p><p>Check browser console for details.</p></div>`;
+            });
+    }
+
+    function loadCompletedSitesModal() {
+        const params = new URLSearchParams(buildFilterParams());
+        fetch(`/api/ghana-map-project-sites/?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                const completedSites = (data.features || []).filter(s => s.properties.status === 'Completed');
+
+                let html = `
+                    <div class="modal-stats-grid">
+                        <div class="modal-stat-box completed">
+                            <div class="modal-stat-label">Completed Sites</div>
+                            <div class="modal-stat-value">${completedSites.length}</div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom: 15px; color: var(--primary-color);">Completed Sites List (${completedSites.length})</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Site Name</th>
+                                <th>Code</th>
+                                <th>Region</th>
+                                <th>District</th>
+                                <th>Community</th>
+                                <th>Completion Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                completedSites.forEach(site => {
+                    const props = site.properties;
+                    html += `
+                        <tr>
+                            <td><strong>${props.name}</strong></td>
+                            <td>${props.code}</td>
+                            <td>${props.region}</td>
+                            <td>${props.district}</td>
+                            <td>${props.community}</td>
+                            <td>${props.actual_completion || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                        </tbody>
+                    </table>
+                `;
+
+                document.getElementById('modalBody').innerHTML = html;
+            });
+    }
+
+    function loadActiveSitesModal() {
+        const params = new URLSearchParams(buildFilterParams());
+        fetch(`/api/ghana-map-project-sites/?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                const activeSites = (data.features || []).filter(s => s.properties.status === 'Active');
+
+                let html = `
+                    <div class="modal-stats-grid">
+                        <div class="modal-stat-box active">
+                            <div class="modal-stat-label">Active Sites</div>
+                            <div class="modal-stat-value">${activeSites.length}</div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom: 15px; color: var(--primary-color);">Currently Active Sites (${activeSites.length})</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Site Name</th>
+                                <th>Code</th>
+                                <th>Region</th>
+                                <th>District</th>
+                                <th>Supervisor</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                activeSites.forEach(site => {
+                    const props = site.properties;
+                    html += `
+                        <tr>
+                            <td><strong>${props.name}</strong></td>
+                            <td>${props.code}</td>
+                            <td>${props.region}</td>
+                            <td>${props.district}</td>
+                            <td>${props.supervisor || 'N/A'}</td>
+                            <td>
+                                <div class="completion-bar">
+                                    <div class="completion-fill" style="width: ${props.completion_percentage}%"></div>
+                                </div>
+                                <span style="font-size: 11px; color: #666;">${props.completion_percentage}%</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                        </tbody>
+                    </table>
+                `;
+
+                document.getElementById('modalBody').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading active sites:', error);
+                document.getElementById('modalBody').innerHTML = `<div style="padding: 20px; color: red;"><p>Error loading data: ${error.message}</p></div>`;
+            });
+            });
+    }
+
+    function loadProgressModal() {
+        const params = new URLSearchParams(buildFilterParams());
+        Promise.all([
+            fetch(`/api/ghana-map-stats/?${params}`).then(r => r.json()),
+            fetch(`/api/ghana-map-region-heatmap/?${params}`).then(r => r.json())
+        ])
+            .then(([stats, regionData]) => {
+                const completion = stats.completion || {};
+                const sites = stats.sites || {};
+
+                let html = `
+                    <div class="modal-stats-grid">
+                        <div class="modal-stat-box">
+                            <div class="modal-stat-label">Overall Progress</div>
+                            <div class="modal-stat-value">${(completion.percentage || 0).toFixed(1)}%</div>
+                        </div>
+                        <div class="modal-stat-box completed">
+                            <div class="modal-stat-label">Completed</div>
+                            <div class="modal-stat-value">${sites.completed || 0}</div>
+                        </div>
+                        <div class="modal-stat-box active">
+                            <div class="modal-stat-label">In Progress</div>
+                            <div class="modal-stat-value">${sites.active || 0}</div>
+                        </div>
+                        <div class="modal-stat-box planned">
+                            <div class="modal-stat-label">Planned</div>
+                            <div class="modal-stat-value">${sites.planned || 0}</div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom: 20px; color: var(--primary-color);">Regional Breakdown</h3>
+                    <div class="region-breakdown">
+                `;
+
+                const regions = regionData.features || [];
+                regions.forEach(region => {
+                    const props = region.properties;
+                    const percentage = props.completion_rate || 0;
+                    html += `
+                        <div class="region-item">
+                            <div>
+                                <div class="region-item-name">${props.name}</div>
+                                <div class="completion-bar" style="width: 300px; margin-top: 8px;">
+                                    <div class="completion-fill" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+                            <div class="region-item-stats">
+                                <div>Completed: <strong>${props.completed_sites}</strong></div>
+                                <div>Active: <strong>${props.active_sites}</strong></div>
+                                <div>Total: <strong>${props.total_sites}</strong></div>
+                                <div style="font-weight: 700; color: var(--primary-color);">${percentage.toFixed(1)}%</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    </div>
+                `;
+
+                document.getElementById('modalBody').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading progress data:', error);
+                document.getElementById('modalBody').innerHTML = `<div style="padding: 20px; color: red;"><p>Error loading data: ${error.message}</p></div>`;
+            });
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded - Initializing');
+
+        // Initialize map
+        initMap();
+    });
+</script>
+{% endblock %}

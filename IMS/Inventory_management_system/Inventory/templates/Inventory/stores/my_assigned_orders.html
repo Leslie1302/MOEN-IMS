@@ -154,7 +154,7 @@
                                 <div class="row mb-2">
                                     <div class="col-md-6">
                                         <small class="text-muted">
-                                            <i class="fas fa-user"></i> Requested by: <strong>{{ assignment.material_order.user.username }}</strong>
+                                            <i class="fas fa-user"></i> Requested by: <strong>{% if assignment.material_order and assignment.material_order.user %}{{ assignment.material_order.user.username }}{% else %}Unassigned{% endif %}</strong>
                                         </small>
                                     </div>
                                     <div class="col-md-6">

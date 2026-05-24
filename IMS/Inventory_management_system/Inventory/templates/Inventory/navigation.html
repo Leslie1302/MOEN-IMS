@@ -67,8 +67,8 @@
                         <li>
                             <h6 class="dropdown-header">Project Management</h6>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">📈 Project
-                                Management</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_list' %}">📂 Projects</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">📈 Dashboard</a></li>
                         <li><a class="dropdown-item" href="{% url 'project_community_analysis' %}">🏙️ Community
                                 Analysis</a></li>
                         <li><a class="dropdown-item" href="{% url 'project_package_analysis' %}">📦 Package Analysis</a>
@@ -83,18 +83,13 @@
                         {% endif %}
                         {% if user|has_any_group:"Management" or user.is_superuser %}
                         <li>
-                            <h6 class="dropdown-header">SHEP Community Management</h6>
+                            <h6 class="dropdown-header">Community management</h6>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'shep_community_list' %}">🏘️ SHEP Communities</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'shep_community_create' %}">➕ Add SHEP Community</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{% url 'upload_shep_communities' %}">📤 Bulk Upload
-                                Communities</a></li>
-                        <li><a class="dropdown-item" href="{% url 'download_shep_community_template' %}">📥 Download
-                                Template</a></li>
-                        <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">📖 Abbreviation Legend</a>
-                        </li>
+                        <li><a class="dropdown-item" href="{% url 'community_list' %}">🏘️ Communities</a></li>
+                        <li><a class="dropdown-item" href="{% url 'community_create' %}">➕ Add community</a></li>
+                        <li><a class="dropdown-item" href="{% url 'community_list' %}#bulk">📤 Bulk upload (per project)</a></li>
+                        <li><a class="dropdown-item" href="{% url 'download_mp_template' %}">📥 MP roster template</a></li>
+                        <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">📖 Abbreviation legend</a></li>
                         {% endif %}
                     </ul>
                 </li>

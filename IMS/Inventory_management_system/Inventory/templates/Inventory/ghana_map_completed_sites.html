@@ -1,0 +1,188 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Completed Sites - Ghana Map{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+<style>
+    :root {
+        --primary-color: #2c3e50;
+        --success-color: #00aa00;
+        --light-gray: #f8f9fa;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--light-gray);
+    }
+
+    .header {
+        background: linear-gradient(135deg, var(--success-color) 0%, #66bb6a 100%);
+        padding: 30px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: white;
+    }
+
+    .header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .btn-back {
+        padding: 10px 20px;
+        background: white;
+        color: var(--success-color);
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .container {
+        padding: 30px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 40px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 25px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-left: 4px solid var(--success-color);
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--success-color);
+    }
+
+    .table-container {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .table-title {
+        padding: 20px 25px;
+        border-bottom: 2px solid var(--success-color);
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    thead {
+        background: var(--light-gray);
+    }
+
+    th {
+        padding: 15px 25px;
+        text-align: left;
+        font-weight: 700;
+        color: var(--primary-color);
+        border-bottom: 2px solid #ddd;
+    }
+
+    td {
+        padding: 12px 25px;
+        border-bottom: 1px solid #eee;
+    }
+
+    tbody tr:hover {
+        background: #f9f9f9;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        font-size: 18px;
+        color: #999;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>✓ Completed Project Sites</h1>
+    <button class="btn-back" onclick="window.history.back()">← Back to Map</button>
+</div>
+
+<div class="container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Completed</div>
+            <div class="stat-value" id="completedCount">0</div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div class="table-title">Completed Sites List</div>
+        <div id="tableContainer">
+            <div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading completed sites...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function loadData() {
+        fetch('/api/ghana-map-project-sites/')
+            .then(r => r.json())
+            .then(data => {
+                const sites = (data.features || []).filter(s => s.properties.status === 'Completed');
+
+                document.getElementById('completedCount').textContent = sites.length;
+
+                let html = '<table><thead><tr><th>Site Name</th><th>Code</th><th>Region</th><th>District</th><th>Community</th><th>Completion Date</th></tr></thead><tbody>';
+
+                sites.forEach(site => {
+                    const props = site.properties;
+                    html += `
+                        <tr>
+                            <td><strong>${props.name}</strong></td>
+                            <td>${props.code}</td>
+                            <td>${props.region}</td>
+                            <td>${props.district}</td>
+                            <td>${props.community}</td>
+                            <td>${props.actual_completion || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+                document.getElementById('tableContainer').innerHTML = html || '<div class="loading">No completed sites found</div>';
+            })
+            .catch(err => {
+                document.getElementById('tableContainer').innerHTML = `<div style="padding: 20px; color: red;">Error: ${err.message}</div>`;
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadData);
+</script>
+{% endblock %}

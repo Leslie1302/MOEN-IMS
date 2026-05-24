@@ -113,7 +113,8 @@ class Project(auto_prefetch.Model):
 
 class ProjectSite(auto_prefetch.Model):
     """
-    Represents individual sites within a project
+    Represents individual sites within a project.
+    Enhanced with geospatial fields for Ghana Map tracking (Phase 2).
     """
     SITE_STATUS_CHOICES = [
         ('Planned', 'Planned'),
@@ -121,43 +122,97 @@ class ProjectSite(auto_prefetch.Model):
         ('Completed', 'Completed'),
         ('On Hold', 'On Hold'),
     ]
-    
+
     project = auto_prefetch.ForeignKey(Project, on_delete=models.CASCADE, related_name='sites')
     name = models.CharField(max_length=200, help_text="Site name or identifier")
     code = models.CharField(max_length=50, help_text="Site code")
-    
+
     # Location details
-    region = models.CharField(max_length=100)
-    district = models.CharField(max_length=100)
-    community = models.CharField(max_length=100, null=True, blank=True)
+    region = models.CharField(max_length=100, db_index=True)
+    district = models.CharField(max_length=100, db_index=True)
+    community = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     gps_coordinates = models.CharField(max_length=100, null=True, blank=True, help_text="GPS coordinates if available")
-    
+
+    # Geospatial fields (Phase 2)
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        help_text="Site latitude coordinate"
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        help_text="Site longitude coordinate"
+    )
+
     # Site management
     site_supervisor = auto_prefetch.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='supervised_sites',
         help_text="User supervising this site"
     )
-    status = models.CharField(max_length=50, choices=SITE_STATUS_CHOICES, default='Planned')
-    
+    status = models.CharField(max_length=50, choices=SITE_STATUS_CHOICES, default='Planned', db_index=True)
+
     # Timeline
     start_date = models.DateField(null=True, blank=True)
     planned_completion_date = models.DateField(null=True, blank=True)
     actual_completion_date = models.DateField(null=True, blank=True)
-    
+
     # Administrative
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta(auto_prefetch.Model.Meta):
         ordering = ['project', 'name']
         unique_together = ['project', 'code']
-    
+        indexes = [
+            models.Index(fields=['region', 'district']),
+            models.Index(fields=['region', 'status']),
+            models.Index(fields=['status', 'created_at']),
+        ]
+
     def __str__(self):
         return f"{self.project.code} - {self.name}"
+
+    def get_coordinates_as_tuple(self):
+        """Return coordinates as (lat, lon) tuple if available"""
+        if self.latitude and self.longitude:
+            return (float(self.latitude), float(self.longitude))
+        elif self.gps_coordinates:
+            try:
+                parts = [p.strip() for p in self.gps_coordinates.split(',')]
+                if len(parts) == 2:
+                    return (float(parts[0]), float(parts[1]))
+            except (ValueError, IndexError):
+                pass
+        return None
+
+    def get_coordinates_as_geojson(self):
+        """Return coordinates as GeoJSON point"""
+        coords = self.get_coordinates_as_tuple()
+        if coords:
+            return {
+                'type': 'Point',
+                'coordinates': [coords[1], coords[0]]  # GeoJSON uses [lon, lat]
+            }
+        return None
+
+    @property
+    def is_completed(self):
+        """Check if site is completed"""
+        return self.status == 'Completed'
+
+    @property
+    def completion_percentage(self):
+        """Calculate estimated completion percentage based on status"""
+        status_percentages = {
+            'Planned': 0,
+            'Active': 50,
+            'Completed': 100,
+            'On Hold': 25,
+        }
+        return status_percentages.get(self.status, 0)
 
 
 class ProjectPhase(auto_prefetch.Model):

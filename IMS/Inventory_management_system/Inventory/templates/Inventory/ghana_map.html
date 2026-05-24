@@ -171,18 +171,14 @@
                     <div class="row align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1"
-                                style="opacity: 0.9;">National Access Rate</div>
+                                style="opacity: 0.9;">Project Access Rate (AR%)</div>
                             <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
-                                Ghana's national electricity access rate is around
-                                <strong class="text-dark" style="font-size: 1.1rem;">88.8%</strong>
-                                (World Bank, 2022), one of the highest in Sub-Saharan Africa.
+                                Current project-wide electricity access rate is
+                                <strong class="text-dark" style="font-size: 1.1rem;" id="project-ar-display">—</strong>
+                                based on site completion across all regions.
                             </div>
-                            <div class="mt-2">
-                                <a href="https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=GH"
-                                    target="_blank" class="text-xs font-weight-bold text-primary"
-                                    style="text-decoration: none;">
-                                    <i class="fas fa-external-link-alt mr-1"></i> View World Bank Data
-                                </a>
+                            <div class="mt-2 small text-muted">
+                                <span id="ar-details">Loading metrics...</span>
                             </div>
                         </div>
                         <div class="col-auto">
@@ -235,24 +231,35 @@
                 let completedNational = 0;
                 let activeNational = 0;
 
-                // Process data map for tooltip lookup and national counts
+                // Extract national summary from API response
+                const nationalSummary = apiResponse.national || {};
+
+                // Process data map for tooltip lookup
                 serverData.forEach(item => {
                     // standardize names roughly
                     let stdName = item.name.toLowerCase().replace(' region', '');
                     regionMap[stdName] = item;
-
-                    totalNational += item.total_sites;
-                    completedNational += item.completed_sites;
-                    activeNational += item.active_sites;
                 });
 
-                // Update National Dashboard View
+                // Update National Dashboard View with actual data
+                totalNational = nationalSummary.total_sites || 0;
+                completedNational = nationalSummary.completed_sites || 0;
+                activeNational = nationalSummary.active_sites || 0;
+
                 nTotal.innerText = totalNational.toLocaleString();
                 nCompleted.innerText = completedNational.toLocaleString();
                 nActive.innerText = activeNational.toLocaleString();
-                if (totalNational > 0) {
-                    nProgress.innerText = ((completedNational / totalNational) * 100).toFixed(1) + '%';
-                }
+
+                // Display National Access Rate (AR%)
+                const nationalAR = nationalSummary.access_rate || 0;
+                nProgress.innerText = nationalAR.toFixed(1) + '%';
+
+                // Update AR% card
+                const arDisplay = document.getElementById('project-ar-display');
+                const arDetails = document.getElementById('ar-details');
+                arDisplay.innerText = nationalAR.toFixed(1) + '%';
+                arDetails.innerHTML = `<strong>${completedNational}</strong> of <strong>${totalNational}</strong> sites electrified`;
+
 
                 // Initialize ECharts instance
                 try {
@@ -361,12 +368,14 @@
                             defaultView.classList.add('d-none');
                             populatedView.classList.remove('d-none');
 
+                            // Display region AR% (Access Rate)
+                            const regionAR = params.data.access_rate || params.data.value;
                             detailTitle.innerHTML = `<i class="fas fa-map-marker-alt me-2"></i> ${params.name} Region`;
 
-                            dProgress.innerText = params.data.value + '%';
-                            // Adjust text color based on threshold
-                            if (params.data.value > 70) dProgress.className = "display-4 text-success font-weight-bold mb-0";
-                            else if (params.data.value > 30) dProgress.className = "display-4 text-warning font-weight-bold mb-0";
+                            dProgress.innerText = regionAR.toFixed(1) + '%';
+                            // Adjust text color based on AR threshold
+                            if (regionAR > 70) dProgress.className = "display-4 text-success font-weight-bold mb-0";
+                            else if (regionAR > 30) dProgress.className = "display-4 text-warning font-weight-bold mb-0";
                             else dProgress.className = "display-4 text-danger font-weight-bold mb-0";
 
                             dTotal.innerText = params.data.total_sites;

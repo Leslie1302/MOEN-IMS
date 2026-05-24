@@ -8,12 +8,15 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.utils.html import format_html
 from .models import (
-    InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier, 
+    InventoryItem, Category, Unit, MaterialOrder, Profile, Warehouse, Supplier,
     BillOfQuantity, Notification, BoQOverissuanceJustification,
     SupplierPriceCatalog, SupplyContract, SupplyContractItem,
     SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
-    SHEPCommunity, ProjectSite, Project
+    SHEPCommunity, Community, ProjectSite, Project,
+    ProjectType, MemberOfParliament, ProjectConsultant,
+    Signatory,
 )
+from .transporter_models import Transporter, TransportVehicle
 from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
 from .user_import import ExcelUserImporter
 from .project_site_import import ExcelProjectSiteImporter
@@ -493,22 +496,167 @@ class ProfileAdmin(admin.ModelAdmin):
 admin.site.register(Warehouse)
 
 
-@admin.register(SHEPCommunity)
-class SHEPCommunityAdmin(admin.ModelAdmin):
-    """Admin for managing SHEP Communities and their packages."""
-    list_display = ('region', 'region_abbr', 'district', 'district_abbr', 'community', 'community_abbr', 'package_number', 'is_active', 'created_at')
-    list_filter = ('region', 'is_active', 'created_at')
-    search_fields = ('region', 'district', 'community', 'package_number', 'region_abbr', 'district_abbr', 'community_abbr')
+# ---------------------------------------------------------------------------
+# Phase A foundation models. Registered here so superusers can seed
+# MemberOfParliament records and inspect ProjectType / ProjectConsultant
+# data through the admin UI while the user-facing forms are still being
+# built out in subsequent Phase B/C turns.
+# ---------------------------------------------------------------------------
+@admin.register(ProjectType)
+class ProjectTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'consignee_role', 'active', 'sort_order')
+    list_filter = ('active', 'consignee_role')
+    search_fields = ('name', 'code')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('sort_order', 'name')
+    fieldsets = (
+        (None, {'fields': ('code', 'name', 'description')}),
+        ('Routing', {'fields': ('consignee_role',)}),
+        ('Visibility', {'fields': ('active', 'sort_order')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+
+@admin.register(MemberOfParliament)
+class MemberOfParliamentAdmin(admin.ModelAdmin):
+    list_display = ('display_name', 'constituency', 'region', 'district', 'active', 'term_end')
+    list_filter = ('active', 'region')
+    search_fields = ('name', 'constituency', 'region', 'district')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('region', 'constituency', 'name')
+    fieldsets = (
+        (None, {'fields': ('title', 'name')}),
+        ('Constituency', {'fields': ('constituency', 'region', 'district')}),
+        ('Contact', {'fields': ('email', 'phone')}),
+        ('Status', {'fields': ('active', 'term_start', 'term_end', 'notes')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+
+@admin.register(Signatory)
+class SignatoryAdmin(admin.ModelAdmin):
+    """Phase F.1 — manage who signs which generated document."""
+    list_display = (
+        'name', 'title', 'is_default_for_release_memo',
+        'is_default_for_release_letter', 'is_default_for_payment_memo',
+        'active', 'updated_at',
+    )
+    list_filter = ('active', 'is_default_for_release_memo', 'is_default_for_release_letter', 'is_default_for_payment_memo')
+    search_fields = ('name', 'title')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (None, {'fields': ('name', 'title', 'active')}),
+        ('Document defaults', {
+            'fields': (
+                'is_default_for_release_memo',
+                'is_default_for_release_letter',
+                'is_default_for_payment_memo',
+            ),
+            'description': 'Tick all the document types this signatory signs by default. Multiple signatories may share a role; the most recently-updated active one wins at render time.',
+        }),
+        ('Release letter "FOR:" line', {
+            'fields': ('signs_for',),
+            'description': "Optional. Appears under the signature title as 'FOR: <value>'. Used on the release letter where the Chief Director signs on behalf of the Hon. Minister.",
+        }),
+        ('Notes', {'fields': ('notes',)}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+
+@admin.register(ProjectConsultant)
+class ProjectConsultantAdmin(admin.ModelAdmin):
+    list_display = ('name', 'firm', 'region', 'district', 'user', 'contact_email', 'active')
+    list_filter = ('active', 'region')
+    search_fields = ('name', 'firm', 'region', 'district', 'contact_email', 'user__username', 'user__email')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('region', 'name')
+    autocomplete_fields = ('user',)
+    fieldsets = (
+        (None, {'fields': ('name', 'firm')}),
+        ('Coverage', {
+            'fields': ('region', 'district'),
+            'description': 'Region drives the SHEP consignee auto-resolution. District is optional and narrows binding to specific districts within the region.',
+        }),
+        ('Domain account', {
+            'fields': ('user',),
+            'description': 'Optional link to the Django account that operates this consultancy. Once set, that user gets in-system alerts when SHEP releases are bound to this consultant.',
+        }),
+        ('Contact', {'fields': ('contact_email', 'contact_phone', 'address')}),
+        ('Status', {'fields': ('active', 'notes')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+
+@admin.register(Transporter)
+class TransporterAdmin(admin.ModelAdmin):
+    """
+    Admin for managing transport companies. Mirrors the ProjectConsultantAdmin
+    pattern so transporters can be bound to a domain account (Transporter.user)
+    and the signals layer can route in-system alerts to that account.
+    """
+    list_display = ('name', 'contact_person', 'user', 'email', 'phone', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'contact_person', 'email', 'phone', 'user__username', 'user__email')
+    autocomplete_fields = ('user',)
+    fieldsets = (
+        (None, {'fields': ('name', 'contact_person')}),
+        ('Domain account', {
+            'fields': ('user',),
+            'description': 'Optional link to the Django account that operates this transport company. Once set, that user gets in-system alerts when transports are assigned to this company.',
+        }),
+        ('Contact', {'fields': ('email', 'phone', 'address')}),
+        ('Status', {'fields': ('is_active', 'notes')}),
+    )
+
+
+@admin.register(TransportVehicle)
+class TransportVehicleAdmin(admin.ModelAdmin):
+    list_display = ('registration_number', 'transporter', 'vehicle_type', 'capacity', 'is_active')
+    list_filter = ('vehicle_type', 'is_active', 'transporter')
+    search_fields = ('registration_number', 'transporter__name', 'capacity')
+    autocomplete_fields = ('transporter',)
+
+
+@admin.register(Community)
+class CommunityAdmin(admin.ModelAdmin):
+    """
+    Admin for managing communities. Renamed from SHEPCommunityAdmin in
+    Phase B; the model itself is now project-agnostic and carries a
+    project_type FK plus optional MP / constituency bindings.
+    """
+    list_display = (
+        'region', 'district', 'community', 'project_type', 'package_number',
+        'member_of_parliament', 'project_consultant', 'is_active', 'created_at',
+    )
+    list_filter = ('project_type', 'region', 'is_active', 'created_at')
+    search_fields = (
+        'region', 'district', 'community', 'package_number',
+        'region_abbr', 'district_abbr', 'community_abbr', 'constituency',
+    )
     readonly_fields = ('region_abbr', 'district_abbr', 'community_abbr', 'created_at', 'updated_at')
     ordering = ('region', 'district', 'community')
-    
+    autocomplete_fields = ('member_of_parliament', 'project_consultant')
+
     fieldsets = (
-        ('Location Information', {
-            'fields': ('region', 'region_abbr', 'district', 'district_abbr', 'community', 'community_abbr'),
-            'description': 'Abbreviations are auto-generated based on the full names.'
+        ('Project', {
+            'fields': ('project_type',),
+            'description': 'Which project this community is served under. SHEP, Cost Sharing, or Streetlights.',
         }),
-        ('Package Details', {
-            'fields': ('package_number', 'is_active')
+        ('Location Information', {
+            'fields': ('region', 'region_abbr', 'district', 'district_abbr', 'community', 'community_abbr', 'constituency'),
+            'description': 'Abbreviations are auto-generated based on the full names. Constituency is optional and used to look up the MP for Cost Sharing / Streetlights.',
+        }),
+        ('Package Details (SHEP only)', {
+            'fields': ('package_number',),
+            'description': 'SHEP package number. Leave blank for non-SHEP communities.',
+        }),
+        ('Consignee Override', {
+            'fields': ('member_of_parliament', 'project_consultant'),
+            'description': 'Optional explicit consignee bindings. MP binding overrides the constituency-based fallback for Cost Sharing / Streetlights. Consultant binding overrides the region-based fallback for SHEP.',
+            'classes': ('collapse',),
+        }),
+        ('Status', {
+            'fields': ('is_active',),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -1109,4 +1257,3 @@ class ObsoleteMaterialAdmin(admin.ModelAdmin):
         count = queryset.update(status='Repurposed')
         self.message_user(request, f'{count} material(s) marked as repurposed.')
     mark_as_repurposed.short_description = 'Mark selected as repurposed'
-

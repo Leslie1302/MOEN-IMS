@@ -7,8 +7,11 @@ Pillow==12.1.0
 psycopg2-binary==2.9.11
 django-crispy-forms==2.5
 crispy-bootstrap5==2025.6
+
+# REST API and Geospatial Support (Phase 2 - Ghana Map)
+djangorestframework==3.14.0
 matplotlib==3.10.8
-pandas==3.0.0
+pandas==2.2.3
 reportlab==4.4.9
 seaborn==0.13.2
 xlsxwriter
@@ -25,3 +28,18 @@ qrcode[pil]==8.2
 msal==1.31.0
 requests>=2.32.3
 cryptography>=44.0.0
+
+# Phase F.2 — signed-scan validation.
+# Primary decoders (REQUIRED): pure-pip, ship as binary wheels — no system
+# poppler / zbar needed. These work out of the box on Azure App Service.
+opencv-python-headless>=4.8.0
+pymupdf>=1.24.0
+# qrcode (for generating QR codes during PDF generation) is already listed under 2FA above.
+#
+# Legacy decoders (kept as optional fallbacks; the validator skips them
+# if they're not importable). pyzbar wants libzbar at the OS level and
+# pdf2image wants poppler-utils — production no longer depends on either.
+pyzbar>=0.1.9
+pdf2image>=1.17.0
+# Phase H — daily SQLite backup to Azure Blob Storage
+azure-storage-blob>=12.19.0

@@ -10,13 +10,19 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
 from django.contrib import messages
+from django.views.decorators.http import require_http_methods
 import uuid
 import random
 import string
 import io
 
-from .models import SHEPCommunity, MaterialOrder, generate_abbreviation, InventoryItem, Warehouse
+from .models import (
+    SHEPCommunity, Community, MaterialOrder, generate_abbreviation,
+    InventoryItem, Warehouse, ProjectType, MemberOfParliament, ProjectConsultant,
+)
 from .forms import SHEPCommunityForm
+from .constants import PROJECT_TYPE_SHEP, PROJECT_TYPE_COST_SHARING, PROJECT_TYPE_STREETLIGHTS
+from .services.bulk_import import BulkImportResult, normalize_cell, require_columns
 
 
 class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -161,6 +167,72 @@ def get_communities_by_district(request):
     ]
     
     return JsonResponse({'communities': community_list})
+
+
+def get_mps_by_constituency(request):
+    """AJAX endpoint to find MP(s) for a given constituency / district / region.
+
+    Used by the community form (and any other form that needs to lock the MP
+    selection to a constituency) to auto-populate the MP dropdown. Prevents
+    users from picking the wrong MP for a constituency.
+
+    Query params (any combination):
+      - constituency: exact-match preferred (case-insensitive)
+      - district: fallback when constituency unknown
+      - region: further narrowing
+
+    Returns:
+      {
+        'mps': [{ 'id': 12, 'label': 'Hon. ... — Constituency', 'name': '...',
+                  'constituency': '...', 'region': '...', 'district': '...' }, ...],
+        'auto_select': <id or null>,  # set when exactly one MP matches
+        'exact_match': True/False     # True when matched on constituency, not just region
+      }
+    """
+    constituency = (request.GET.get('constituency') or '').strip()
+    district = (request.GET.get('district') or '').strip()
+    region = (request.GET.get('region') or '').strip()
+
+    qs = MemberOfParliament.objects.filter(active=True)
+    exact_match = False
+
+    if constituency:
+        # Case-insensitive exact match on constituency name.
+        narrowed = qs.filter(constituency__iexact=constituency)
+        if narrowed.exists():
+            qs = narrowed
+            exact_match = True
+
+    if not exact_match:
+        # Fall back to district then region scoping so we at least filter
+        # the list down to plausible candidates.
+        if district:
+            narrowed = qs.filter(district__iexact=district)
+            if narrowed.exists():
+                qs = narrowed
+        if region:
+            narrowed = qs.filter(region__iexact=region)
+            if narrowed.exists():
+                qs = narrowed
+
+    qs = qs.order_by('region', 'constituency', 'name')[:50]
+    mps = [
+        {
+            'id': mp.pk,
+            'label': f"{mp.title} {mp.name} — {mp.constituency}",
+            'name': mp.name,
+            'title': mp.title,
+            'constituency': mp.constituency,
+            'region': mp.region,
+            'district': mp.district,
+        }
+        for mp in qs
+    ]
+    return JsonResponse({
+        'mps': mps,
+        'auto_select': mps[0]['id'] if (exact_match and len(mps) == 1) else None,
+        'exact_match': exact_match,
+    })
 
 
 def get_packages_by_community(request):
@@ -403,6 +475,152 @@ def download_material_template(request):
     return response
 
 
+def _community_template_columns(project_code):
+    """
+    Per-project column schema for community bulk-import templates.
+
+    SHEP template includes package_number + consultant_name (for explicit
+    consultant binding; usually left blank so the region-based resolver
+    handles it). MP-routed templates include constituency + mp_name.
+    """
+    if project_code == PROJECT_TYPE_SHEP:
+        return ['region', 'district', 'community', 'package_number', 'consultant_name']
+    return ['region', 'district', 'community', 'constituency', 'mp_name']
+
+
+def download_community_template(request):
+    """
+    Generate a per-project community bulk-import template.
+
+    Project type is selected via the `project` query parameter:
+      ?project=shep            -> SHEP template (with package_number)
+      ?project=cost_sharing    -> Cost Sharing template
+      ?project=streetlights    -> Streetlights template
+
+    Defaults to SHEP for backward compatibility with the legacy
+    `download_shep_community_template` URL.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return HttpResponse("Required package openpyxl not installed.", status=500)
+
+    project_code = (request.GET.get('project') or PROJECT_TYPE_SHEP).strip().lower()
+
+    try:
+        project_type = ProjectType.objects.get(code=project_code, active=True)
+    except ProjectType.DoesNotExist:
+        return HttpResponse(
+            f"Unknown or inactive project type: '{project_code}'. "
+            f"Active codes: {', '.join(ProjectType.objects.filter(active=True).values_list('code', flat=True))}.",
+            status=400,
+        )
+
+    columns = _community_template_columns(project_type.code)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{project_type.name} communities"
+
+    # Theme color per project: SHEP green, Cost Sharing teal, Streetlights amber.
+    theme_color = {
+        PROJECT_TYPE_SHEP: '2E7D32',
+        PROJECT_TYPE_COST_SHARING: '0F6E56',
+        PROJECT_TYPE_STREETLIGHTS: 'BA7517',
+    }.get(project_type.code, '4F81BD')
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color=theme_color, end_color=theme_color, fill_type='solid')
+
+    for col_idx, col_name in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    # Per-column widths (approximate, readable defaults).
+    width_map = {
+        'region': 20, 'district': 25, 'community': 25,
+        'package_number': 22, 'constituency': 25, 'mp_name': 30,
+        'consultant_name': 30,
+    }
+    for col_idx, col_name in enumerate(columns, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width_map.get(col_name, 20)
+
+    # Example row keyed to the project type so users can see the shape.
+    example_by_project = {
+        PROJECT_TYPE_SHEP: {
+            'region': 'Greater Accra', 'district': 'Accra Metropolitan', 'community': 'Osu',
+            'package_number': 'SHEP-PKG-001', 'consultant_name': '',
+        },
+        PROJECT_TYPE_COST_SHARING: {
+            'region': 'Upper West', 'district': 'Lawra Municipal', 'community': 'Eremon',
+            'constituency': 'Lawra', 'mp_name': '',
+        },
+        PROJECT_TYPE_STREETLIGHTS: {
+            'region': 'Northern', 'district': 'Tamale Metropolitan', 'community': 'Sagnarigu',
+            'constituency': 'Tamale Central', 'mp_name': '',
+        },
+    }
+    example = example_by_project.get(project_type.code, {})
+    for col_idx, col_name in enumerate(columns, 1):
+        ws.cell(row=2, column=col_idx, value=example.get(col_name, ''))
+
+    # Instructions sheet, project-specific.
+    ins = wb.create_sheet(title="Instructions")
+    instructions = [
+        f"{project_type.name} community bulk upload",
+        "",
+        "Required columns (all rows must have these):",
+        "  - region",
+        "  - district",
+        "  - community",
+    ]
+    if project_type.code == PROJECT_TYPE_SHEP:
+        instructions.append("  - package_number  (SHEP-only; required)")
+    instructions.extend([
+        "",
+        "Optional columns:",
+    ])
+    if project_type.code == PROJECT_TYPE_SHEP:
+        instructions.append("  - consultant_name (must match a Project Consultant name on record; blank to use region-based lookup)")
+    else:
+        instructions.append("  - constituency    (used to look up the MP automatically)")
+        instructions.append("  - mp_name         (must match a Member of Parliament name on record; blank to use constituency lookup)")
+    instructions.extend([
+        "",
+        "Notes:",
+        "  - Project type is set automatically based on which template you downloaded.",
+        "  - Region/district/community abbreviations are auto-generated from the names.",
+        "  - Duplicate (region+district+community+package_number+project_type) rows will be skipped.",
+        "  - If a name lookup fails, the row will be rejected with a clear error.",
+        "",
+        "After upload, any rows that fail validation are returned to you as a downloadable error CSV.",
+    ])
+
+    for idx, line in enumerate(instructions, 1):
+        cell = ins.cell(row=idx, column=1, value=line)
+        if idx == 1:
+            cell.font = Font(bold=True, size=14)
+        elif line.endswith(':'):
+            cell.font = Font(bold=True)
+    ins.column_dimensions['A'].width = 90
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="community_template_{project_type.code}.xlsx"'
+    )
+    return response
+
+
 def download_shep_community_template(request):
     """
     Generate and download an Excel template for bulk SHEP community import.
@@ -483,112 +701,831 @@ def download_shep_community_template(request):
     return response
 
 
-def upload_shep_communities(request):
+def upload_communities(request):
     """
-    Process bulk SHEP community upload from Excel file.
+    Project-aware community bulk upload.
+
+    Accepts a multipart POST with:
+      - file: the Excel file matching one of the per-project templates
+      - project: the project type code (shep / cost_sharing / streetlights)
+
+    Validates each row against the project's column schema, looks up the
+    ProjectType FK, optionally binds an MP by name, and creates Community
+    rows. Failed rows produce a downloadable error CSV; successful rows
+    are committed in a single transaction with the rest skipped on error.
+
+    Permission gate: superuser or Management group.
     """
-    from django.shortcuts import render, redirect
-    from django.contrib.auth.decorators import login_required, user_passes_test
-    
-    if not request.user.is_superuser:
-        messages.error(request, "You don't have permission to upload communities.")
-        return redirect('shep_community_list')
-    
+    from django.shortcuts import redirect
+    from django.db import transaction
+
+    if not (request.user.is_superuser or request.user.groups.filter(name='Management').exists()):
+        messages.error(request, "You don't have permission to bulk-upload communities.")
+        return redirect('community_list')
+
     if request.method != 'POST':
-        return redirect('shep_community_list')
-    
+        return redirect('community_list')
+
     uploaded_file = request.FILES.get('file')
+    project_code = (request.POST.get('project') or '').strip().lower()
+
     if not uploaded_file:
         messages.error(request, "No file uploaded.")
-        return redirect('shep_community_list')
-    
-    # Check file extension
-    if not uploaded_file.name.endswith(('.xlsx', '.xls')):
+        return redirect('community_list')
+
+    if not uploaded_file.name.lower().endswith(('.xlsx', '.xls')):
         messages.error(request, "Please upload an Excel file (.xlsx or .xls).")
-        return redirect('shep_community_list')
-    
+        return redirect('community_list')
+
+    if not project_code:
+        messages.error(request, "Pick a project type before uploading.")
+        return redirect('community_list')
+
+    try:
+        project_type = ProjectType.objects.get(code=project_code, active=True)
+    except ProjectType.DoesNotExist:
+        messages.error(request, f"Unknown or inactive project type: '{project_code}'.")
+        return redirect('community_list')
+
     try:
         import pandas as pd
     except ImportError:
         messages.error(request, "Required package pandas not installed.")
-        return redirect('shep_community_list')
-    
+        return redirect('community_list')
+
     try:
-        # Read Excel file
         df = pd.read_excel(uploaded_file)
-        
-        # Required columns
+    except Exception as exc:  # noqa: BLE001
+        messages.error(request, f"Could not read Excel file: {exc}")
+        return redirect('community_list')
+
+    expected_cols = _community_template_columns(project_type.code)
+    required_for_all = ['region', 'district', 'community']
+    if project_type.code == PROJECT_TYPE_SHEP:
+        required_for_all = required_for_all + ['package_number']
+
+    missing = require_columns(df, required_for_all)
+    if missing:
+        messages.error(request, f"Missing required columns: {', '.join(missing)}.")
+        return redirect('community_list')
+
+    # Normalize column names case-insensitively.
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
+    result = BulkImportResult(total_rows=len(df))
+
+    # Pre-fetch active MPs and consultants into name -> instance dicts for fast lookup.
+    mp_by_name = {
+        mp.name.strip().lower(): mp
+        for mp in MemberOfParliament.objects.filter(active=True)
+    }
+    consultant_by_name = {
+        c.name.strip().lower(): c
+        for c in ProjectConsultant.objects.filter(active=True)
+    }
+
+    rows_to_create = []
+    for idx, row in df.iterrows():
+        excel_row = idx + 2  # header is row 1; first data row is 2
+
+        region = normalize_cell(row.get('region'))
+        district = normalize_cell(row.get('district'))
+        community_name = normalize_cell(row.get('community'))
+        package_number = normalize_cell(row.get('package_number')) if 'package_number' in df.columns else ''
+        constituency = normalize_cell(row.get('constituency')) if 'constituency' in df.columns else ''
+        mp_name = normalize_cell(row.get('mp_name')) if 'mp_name' in df.columns else ''
+        consultant_name = normalize_cell(row.get('consultant_name')) if 'consultant_name' in df.columns else ''
+
+        # Skip entirely empty rows silently.
+        if not (region or district or community_name):
+            continue
+
+        # Required-field validation.
+        if not region:
+            result.add_error(excel_row, 'region', 'Required.', region)
+        if not district:
+            result.add_error(excel_row, 'district', 'Required.', district)
+        if not community_name:
+            result.add_error(excel_row, 'community', 'Required.', community_name)
+        if project_type.code == PROJECT_TYPE_SHEP and not package_number:
+            result.add_error(excel_row, 'package_number', 'Required for SHEP.', package_number)
+
+        # MP lookup (optional, MP-routed projects only).
+        mp_instance = None
+        if mp_name:
+            mp_instance = mp_by_name.get(mp_name.lower())
+            if mp_instance is None:
+                result.add_error(
+                    excel_row, 'mp_name',
+                    f"No active MP named '{mp_name}' on record. Add the MP first or leave blank.",
+                    mp_name,
+                )
+
+        # Consultant lookup (optional, SHEP only).
+        consultant_instance = None
+        if consultant_name:
+            consultant_instance = consultant_by_name.get(consultant_name.lower())
+            if consultant_instance is None:
+                result.add_error(
+                    excel_row, 'consultant_name',
+                    f"No active consultant named '{consultant_name}' on record. Add the consultant first or leave blank.",
+                    consultant_name,
+                )
+
+        # If this row has any errors, skip it.
+        if any(e.row_number == excel_row for e in result.errors):
+            continue
+
+        # Skip duplicates silently.
+        if Community.objects.filter(
+            region=region, district=district, community=community_name,
+            package_number=package_number, project_type=project_type,
+        ).exists():
+            result.skipped_count += 1
+            continue
+
+        rows_to_create.append(Community(
+            region=region,
+            district=district,
+            community=community_name,
+            package_number=package_number,
+            constituency=constituency,
+            member_of_parliament=mp_instance,
+            project_consultant=consultant_instance,
+            project_type=project_type,
+        ))
+
+    # Commit successful rows; if any rows failed, we still commit the good ones
+    # but return the error CSV. Schedule officers can fix the bad rows offline.
+    if rows_to_create:
+        try:
+            with transaction.atomic():
+                # Use save() one-by-one because the model's save() generates
+                # abbreviations; bulk_create skips that.
+                for inst in rows_to_create:
+                    inst.save()
+            result.created_count = len(rows_to_create)
+        except Exception as exc:  # noqa: BLE001
+            result.add_error(0, '*', f"Database error during commit: {exc}")
+            messages.error(request, f"Bulk upload failed: {exc}")
+            return redirect('community_list')
+
+    # If errors exist, return the error CSV directly so users can download
+    # and fix. Successful rows are persisted before this point.
+    if result.has_errors:
+        response = HttpResponse(
+            result.errors_as_csv(),
+            content_type='text/csv',
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="community_upload_errors_{project_type.code}.csv"'
+        )
+        # Surface the summary as a session message that'll show on next page load.
+        messages.warning(
+            request,
+            f"Bulk upload completed with errors: {result.summary()} "
+            "Error CSV downloaded — fix the rows and re-upload only those.",
+        )
+        return response
+
+    # All-clean upload: redirect back with a success message.
+    if result.created_count or result.skipped_count:
+        messages.success(request, f"Bulk upload: {result.summary()}")
+    else:
+        messages.warning(request, "Bulk upload: no rows processed (file may be empty).")
+    return redirect('community_list')
+
+
+def download_mp_template(request):
+    """Excel template for bulk Member of Parliament import."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return HttpResponse("Required package openpyxl not installed.", status=500)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Members of Parliament"
+
+    columns = ['title', 'name', 'constituency', 'region', 'district', 'email', 'phone']
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='534AB7', end_color='534AB7', fill_type='solid')
+
+    for idx, col_name in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    widths = {'title': 10, 'name': 30, 'constituency': 30, 'region': 18, 'district': 22, 'email': 28, 'phone': 18}
+    for idx, col_name in enumerate(columns, 1):
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = widths.get(col_name, 18)
+
+    example = ['Hon.', 'Mary Asante', 'Ga East', 'Greater Accra', 'Ga East', 'mary.asante@parliament.gh', '+233244000000']
+    for idx, value in enumerate(example, 1):
+        ws.cell(row=2, column=idx, value=value)
+
+    ins = wb.create_sheet(title="Instructions")
+    instructions = [
+        "Members of Parliament bulk upload",
+        "",
+        "Required columns:",
+        "  - name",
+        "  - constituency",
+        "  - region",
+        "",
+        "Optional columns:",
+        "  - title       (defaults to 'Hon.' if blank)",
+        "  - district    (used by the consignee resolver as a fallback)",
+        "  - email",
+        "  - phone",
+        "",
+        "Duplicate rows (matching name + constituency) will be skipped.",
+        "Once uploaded, MPs become available for the consignee resolver and",
+        "for explicit binding on community records.",
+    ]
+    for idx, line in enumerate(instructions, 1):
+        cell = ins.cell(row=idx, column=1, value=line)
+        if idx == 1:
+            cell.font = Font(bold=True, size=14)
+        elif line.endswith(':'):
+            cell.font = Font(bold=True)
+    ins.column_dimensions['A'].width = 80
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="member_of_parliament_template.xlsx"'
+    return response
+
+
+def upload_members_of_parliament(request):
+    """Bulk-import MPs from an uploaded Excel file."""
+    from django.shortcuts import redirect
+    from django.db import transaction
+
+    if not (request.user.is_superuser or request.user.groups.filter(name='Management').exists()):
+        messages.error(request, "You don't have permission to bulk-upload MPs.")
+        return redirect('community_list')
+
+    if request.method != 'POST':
+        return redirect('community_list')
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file or not uploaded_file.name.lower().endswith(('.xlsx', '.xls')):
+        messages.error(request, "Please upload an Excel file (.xlsx or .xls).")
+        return redirect('community_list')
+
+    try:
+        import pandas as pd
+        df = pd.read_excel(uploaded_file)
+    except Exception as exc:  # noqa: BLE001
+        messages.error(request, f"Could not read Excel file: {exc}")
+        return redirect('community_list')
+
+    missing = require_columns(df, ['name', 'constituency', 'region'])
+    if missing:
+        messages.error(request, f"Missing required columns: {', '.join(missing)}.")
+        return redirect('community_list')
+
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    result = BulkImportResult(total_rows=len(df))
+    rows_to_create = []
+
+    for idx, row in df.iterrows():
+        excel_row = idx + 2
+        name = normalize_cell(row.get('name'))
+        constituency = normalize_cell(row.get('constituency'))
+        region = normalize_cell(row.get('region'))
+        title = normalize_cell(row.get('title')) or 'Hon.'
+        district = normalize_cell(row.get('district')) if 'district' in df.columns else ''
+        email = normalize_cell(row.get('email')) if 'email' in df.columns else ''
+        phone = normalize_cell(row.get('phone')) if 'phone' in df.columns else ''
+
+        if not (name or constituency or region):
+            continue
+        if not name:
+            result.add_error(excel_row, 'name', 'Required.', name)
+        if not constituency:
+            result.add_error(excel_row, 'constituency', 'Required.', constituency)
+        if not region:
+            result.add_error(excel_row, 'region', 'Required.', region)
+
+        if any(e.row_number == excel_row for e in result.errors):
+            continue
+
+        if MemberOfParliament.objects.filter(name__iexact=name, constituency__iexact=constituency).exists():
+            result.skipped_count += 1
+            continue
+
+        rows_to_create.append(MemberOfParliament(
+            title=title, name=name, constituency=constituency,
+            region=region, district=district, email=email, phone=phone,
+            active=True,
+        ))
+
+    if rows_to_create:
+        try:
+            with transaction.atomic():
+                MemberOfParliament.objects.bulk_create(rows_to_create)
+            result.created_count = len(rows_to_create)
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, f"Bulk upload failed: {exc}")
+            return redirect('community_list')
+
+    if result.has_errors:
+        response = HttpResponse(result.errors_as_csv(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="mp_upload_errors.csv"'
+        messages.warning(
+            request,
+            f"MP bulk upload completed with errors: {result.summary()} "
+            "Error CSV downloaded — fix the rows and re-upload only those.",
+        )
+        return response
+
+    if result.created_count or result.skipped_count:
+        messages.success(request, f"MP bulk upload: {result.summary()}")
+    else:
+        messages.warning(request, "MP bulk upload: no rows processed.")
+    return redirect('community_list')
+
+
+def download_consultant_template(request):
+    """Excel template for bulk Project Consultant import."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return HttpResponse("Required package openpyxl not installed.", status=500)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Project Consultants"
+
+    columns = ['name', 'firm', 'region', 'district', 'contact_email', 'contact_phone']
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2E7D32', end_color='2E7D32', fill_type='solid')
+
+    for idx, col_name in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    widths = {'name': 30, 'firm': 30, 'region': 18, 'district': 22, 'contact_email': 28, 'contact_phone': 18}
+    for idx, col_name in enumerate(columns, 1):
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = widths.get(col_name, 18)
+
+    example = ['Apex Engineering Ltd.', 'Apex Engineering Ltd.', 'Greater Accra', '', 'consultant@apex.com', '+233244000000']
+    for idx, value in enumerate(example, 1):
+        ws.cell(row=2, column=idx, value=value)
+
+    ins = wb.create_sheet(title="Instructions")
+    instructions = [
+        "Project Consultants bulk upload",
+        "",
+        "Required columns:",
+        "  - name",
+        "  - region   (drives SHEP consignee auto-resolution)",
+        "",
+        "Optional columns:",
+        "  - firm           (engineering firm or consultancy name)",
+        "  - district       (narrows binding to specific districts within the region)",
+        "  - contact_email",
+        "  - contact_phone",
+        "",
+        "Duplicate (name + region) rows will be skipped.",
+        "Once uploaded, consultants become available for the SHEP consignee resolver",
+        "and for explicit binding on community records.",
+    ]
+    for idx, line in enumerate(instructions, 1):
+        cell = ins.cell(row=idx, column=1, value=line)
+        if idx == 1:
+            cell.font = Font(bold=True, size=14)
+        elif line.endswith(':'):
+            cell.font = Font(bold=True)
+    ins.column_dimensions['A'].width = 80
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="project_consultant_template.xlsx"'
+    return response
+
+
+def upload_project_consultants(request):
+    """Bulk-import Project Consultants from an uploaded Excel file."""
+    from django.shortcuts import redirect
+    from django.db import transaction
+
+    if not (request.user.is_superuser or request.user.groups.filter(name='Management').exists()):
+        messages.error(request, "You don't have permission to bulk-upload consultants.")
+        return redirect('community_list')
+
+    if request.method != 'POST':
+        return redirect('community_list')
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file or not uploaded_file.name.lower().endswith(('.xlsx', '.xls')):
+        messages.error(request, "Please upload an Excel file (.xlsx or .xls).")
+        return redirect('community_list')
+
+    try:
+        import pandas as pd
+        df = pd.read_excel(uploaded_file)
+    except Exception as exc:  # noqa: BLE001
+        messages.error(request, f"Could not read Excel file: {exc}")
+        return redirect('community_list')
+
+    missing = require_columns(df, ['name', 'region'])
+    if missing:
+        messages.error(request, f"Missing required columns: {', '.join(missing)}.")
+        return redirect('community_list')
+
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    result = BulkImportResult(total_rows=len(df))
+    rows_to_create = []
+
+    for idx, row in df.iterrows():
+        excel_row = idx + 2
+        name = normalize_cell(row.get('name'))
+        region = normalize_cell(row.get('region'))
+        firm = normalize_cell(row.get('firm')) if 'firm' in df.columns else ''
+        district = normalize_cell(row.get('district')) if 'district' in df.columns else ''
+        email = normalize_cell(row.get('contact_email')) if 'contact_email' in df.columns else ''
+        phone = normalize_cell(row.get('contact_phone')) if 'contact_phone' in df.columns else ''
+
+        if not (name or region):
+            continue
+        if not name:
+            result.add_error(excel_row, 'name', 'Required.', name)
+        if not region:
+            result.add_error(excel_row, 'region', 'Required.', region)
+
+        if any(e.row_number == excel_row for e in result.errors):
+            continue
+
+        if ProjectConsultant.objects.filter(name__iexact=name, region__iexact=region).exists():
+            result.skipped_count += 1
+            continue
+
+        rows_to_create.append(ProjectConsultant(
+            name=name, firm=firm, region=region, district=district,
+            contact_email=email, contact_phone=phone, active=True,
+        ))
+
+    if rows_to_create:
+        try:
+            with transaction.atomic():
+                ProjectConsultant.objects.bulk_create(rows_to_create)
+            result.created_count = len(rows_to_create)
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, f"Bulk upload failed: {exc}")
+            return redirect('community_list')
+
+    if result.has_errors:
+        response = HttpResponse(result.errors_as_csv(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="consultant_upload_errors.csv"'
+        messages.warning(
+            request,
+            f"Consultant bulk upload completed with errors: {result.summary()} "
+            "Error CSV downloaded — fix the rows and re-upload only those.",
+        )
+        return response
+
+    if result.created_count or result.skipped_count:
+        messages.success(request, f"Consultant bulk upload: {result.summary()}")
+    else:
+        messages.warning(request, "Consultant bulk upload: no rows processed.")
+    return redirect('community_list')
+
+
+def upload_shep_communities(request):
+    """
+    Process bulk SHEP community upload from an Excel file.
+
+    Legacy upload endpoint kept for backward compatibility with bookmarks
+    pointing at /upload-shep-communities/. Newer flows use upload_communities
+    with ?project=shep, which goes through the proper bulk-import service.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, "You don't have permission to upload communities.")
+        return redirect('shep_community_list')
+
+    if request.method != 'POST':
+        return redirect('shep_community_list')
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        messages.error(request, "No file uploaded.")
+        return redirect('shep_community_list')
+
+    if not uploaded_file.name.endswith(('.xlsx', '.xls')):
+        messages.error(request, "Please upload an Excel file (.xlsx or .xls).")
+        return redirect('shep_community_list')
+
+    try:
+        import pandas as pd
+    except ImportError:
+        messages.error(request, "Required package pandas is not installed on the server.")
+        return redirect('shep_community_list')
+
+    try:
+        df = pd.read_excel(uploaded_file)
+
         required_columns = ['region', 'district', 'community', 'package_number']
         missing_columns = [col for col in required_columns if col not in df.columns]
-        
         if missing_columns:
-            messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
+            messages.error(
+                request,
+                f"Missing required columns: {', '.join(missing_columns)}",
+            )
             return redirect('shep_community_list')
-        
-        # Process each row
+
         created_count = 0
         skipped_count = 0
         error_count = 0
         errors = []
-        
+
         for idx, row in df.iterrows():
             try:
                 region = str(row['region']).strip()
                 district = str(row['district']).strip()
                 community_name = str(row['community']).strip()
                 package_number = str(row['package_number']).strip()
-                
-                # Skip empty rows
+
+                # Skip blank or NaN rows.
                 if not region or not district or not community_name or region == 'nan':
                     continue
-                
-                # Check for existing entry
-                existing = SHEPCommunity.objects.filter(
+
+                if SHEPCommunity.objects.filter(
                     region=region,
                     district=district,
-                    community=community_name
-                ).exists()
-                
-                if existing:
+                    community=community_name,
+                    package_number=package_number,
+                ).exists():
                     skipped_count += 1
                     continue
-                
-                # Create new community (abbreviations auto-generated by model's save method)
+
                 SHEPCommunity.objects.create(
                     region=region,
                     district=district,
                     community=community_name,
-                    package_number=package_number
+                    package_number=package_number,
                 )
                 created_count += 1
-                
+
             except Exception as e:
                 error_count += 1
                 errors.append(f"Row {idx + 2}: {str(e)}")
-        
-        # Build success/error message
+
         msg_parts = []
-        if created_count > 0:
+        if created_count:
             msg_parts.append(f"{created_count} communities created")
-        if skipped_count > 0:
+        if skipped_count:
             msg_parts.append(f"{skipped_count} duplicates skipped")
-        if error_count > 0:
+        if error_count:
             msg_parts.append(f"{error_count} errors")
-        
-        if created_count > 0:
+
+        if created_count:
             messages.success(request, ", ".join(msg_parts) + ".")
-        elif skipped_count > 0:
+        elif skipped_count:
             messages.warning(request, ", ".join(msg_parts) + ".")
         else:
             messages.error(request, "No communities were created. " + ", ".join(msg_parts))
-        
+
         if errors:
-            for error in errors[:5]:  # Show first 5 errors
-                messages.warning(request, error)
+            for err in errors[:5]:
+                messages.warning(request, err)
             if len(errors) > 5:
                 messages.warning(request, f"... and {len(errors) - 5} more errors.")
-        
+
     except Exception as e:
         messages.error(request, f"Error processing file: {str(e)}")
-    
+
     return redirect('shep_community_list')
+
+
+
+# ── Stock lookup (Phase S) ────────────────────────────────────────────
+# Returns current inventory stock for a given InventoryItem. Used by
+# material-request and release forms to surface available stock the moment
+# the user picks a material.
+from django.http import JsonResponse as _JsonResponse
+
+
+def stock_for_item(request):
+    """AJAX: GET /api/stock/?item_id=N -> {available, unit, warehouse, status}"""
+    item_id = (request.GET.get('item_id') or '').strip()
+    if not item_id:
+        return _JsonResponse({'error': 'item_id required'}, status=400)
+    try:
+        from .models import InventoryItem
+        item = InventoryItem.objects.select_related('unit', 'warehouse').get(pk=item_id)
+    except Exception:
+        return _JsonResponse({'error': 'not found'}, status=404)
+
+    available = item.quantity or 0
+    # Bucket the status so the UI can colour-code: Available / Low / Out.
+    if available <= 0:
+        status = 'out'
+    elif available < 10:  # threshold matches LOW_QUANTITY in settings
+        status = 'low'
+    else:
+        status = 'available'
+
+    return _JsonResponse({
+        'available': available,
+        'unit': item.unit.name if item.unit_id else '',
+        'warehouse': item.warehouse.name if item.warehouse_id else '',
+        'status': status,
+        'item_name': item.name,
+        'item_code': item.code,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase S: Stock visibility on release forms
+# API endpoint for AJAX lookup of current inventory stock levels
+# ─────────────────────────────────────────────────────────────────────
+@require_http_methods(['GET'])
+def inventory_stock_api(request):
+    """
+    AJAX endpoint: GET /api/inventory-stock/?item_id=N
+
+    Returns JSON with current stock information:
+    {
+        "quantity": <decimal>,
+        "unit": "<unit_name>",
+        "warehouse": "<warehouse_name>",
+        "low_stock_threshold": <int>,
+        "status": "Available" | "Low" | "Out" | "Critical"
+    }
+    """
+    item_id = request.GET.get('item_id')
+    if not item_id:
+        return JsonResponse({'error': 'item_id parameter required'}, status=400)
+
+    try:
+        item = InventoryItem.objects.get(pk=item_id)
+    except InventoryItem.DoesNotExist:
+        return JsonResponse({'error': f'Item {item_id} not found'}, status=404)
+
+    # Determine stock status
+    LOW_STOCK_THRESHOLD = 10
+    CRITICAL_STOCK_THRESHOLD = 5
+
+    if item.quantity <= 0:
+        status = 'Out'
+    elif item.quantity <= CRITICAL_STOCK_THRESHOLD:
+        status = 'Critical'
+    elif item.quantity <= LOW_STOCK_THRESHOLD:
+        status = 'Low'
+    else:
+        status = 'Available'
+
+    return JsonResponse({
+        'quantity': float(item.quantity),
+        'unit': item.unit.name if item.unit else '',
+        'warehouse': item.warehouse.name if item.warehouse else '',
+        'low_stock_threshold': LOW_STOCK_THRESHOLD,
+        'status': status,
+        'item_name': item.name,
+        'item_code': item.code,
+    })
+
+
+@require_http_methods(['GET'])
+def community_detail_api(request):
+    """
+    AJAX endpoint: GET /api/community-detail/?community_id=N
+
+    Returns comprehensive community details for progressive disclosure:
+    {
+        "community": "<name>",
+        "completion_percent": <0-100>,
+        "households_connected": <int>,
+        "boq_summary": {
+            "total_items": <int>,
+            "delivered_count": <int>,
+            "pending_count": <int>
+        },
+        "recent_releases": [
+            {"code": "REL-...", "material": "...", "quantity": 100, "status": "..."}
+        ],
+        "recent_receipts": [
+            {"date": "2026-05-18", "material": "...", "quantity": 100, "condition": "Good"}
+        ],
+        "linked_mp": "<name or null>",
+        "linked_consultant": "<name or null>"
+    }
+    """
+    from django.db.models import Count, Q, F
+    from .models import BillOfQuantity, MaterialTransport, SiteReceipt, ReleaseLetter
+
+    community_id = request.GET.get('community_id')
+    if not community_id:
+        return JsonResponse({'error': 'community_id parameter required'}, status=400)
+
+    try:
+        community = Community.objects.get(pk=community_id)
+    except Community.DoesNotExist:
+        return JsonResponse({'error': f'Community {community_id} not found'}, status=404)
+
+    try:
+        # Get BoQ items for this community/package
+        boq_filter = {
+            'region': community.region,
+            'district': community.district,
+            'community': community.community,
+        }
+        if community.package_number:
+            boq_filter['package_number'] = community.package_number
+
+        boq_items = BillOfQuantity.objects.filter(**boq_filter)
+
+        # Calculate BoQ summary
+        total_boq = boq_items.count()
+        total_contract_qty = sum(item.contract_quantity for item in boq_items)
+        total_received_qty = sum(item.quantity_received for item in boq_items)
+        delivered_count = boq_items.filter(quantity_received__gt=0).count()
+        pending_count = boq_items.filter(quantity_received=0).count()
+
+        # Completion percentage
+        completion_percent = 0
+        if total_contract_qty > 0:
+            completion_percent = int((total_received_qty / total_contract_qty) * 100)
+
+        # Get recent releases (by package number if SHEP)
+        releases = ReleaseLetter.objects.filter(
+            Q(request_code__icontains=community.package_number) if community.package_number else Q()
+        ).order_by('-id')[:3]
+
+        recent_releases = [
+            {
+                'code': r.code or r.request_code or 'N/A',
+                'material_type': r.material_type,
+                'total_quantity': float(r.total_quantity),
+                'status': r.workflow_status
+            }
+            for r in releases
+        ]
+
+        # Get recent site receipts (by community location)
+        site_receipts = SiteReceipt.objects.filter(
+            material_transport__material_order__district=community.district,
+            material_transport__material_order__region=community.region
+        ).order_by('-received_date')[:3]
+
+        recent_receipts = [
+            {
+                'date': r.received_date.strftime('%Y-%m-%d'),
+                'quantity': float(r.received_quantity),
+                'condition': r.condition,
+                'received_by': r.received_by.get_full_name() if r.received_by else 'Unknown'
+            }
+            for r in site_receipts
+        ]
+
+        # Get linked MP/consultant
+        linked_mp = None
+        if community.member_of_parliament:
+            linked_mp = community.member_of_parliament.display_name
+
+        linked_consultant = None
+        if community.project_consultant:
+            linked_consultant = community.project_consultant.name
+
+        return JsonResponse({
+            'community': community.community,
+            'completion_percent': completion_percent,
+            'households_connected': 0,  # Placeholder; no model field yet
+            'boq_summary': {
+                'total_items': total_boq,
+                'delivered_count': delivered_count,
+                'pending_count': pending_count,
+                'total_contract_qty': float(total_contract_qty),
+                'total_received_qty': float(total_received_qty)
+            },
+            'recent_releases': recent_releases,
+            'recent_receipts': recent_receipts,
+            'linked_mp': linked_mp,
+            'linked_consultant': linked_consultant
+        })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching community detail for {community_id}: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)

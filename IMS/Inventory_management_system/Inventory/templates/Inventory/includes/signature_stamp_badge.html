@@ -1,0 +1,71 @@
+{% comment %}
+Signature Stamp Badge Component
+Displays visual indicator for externally signed documents
+{% endcomment %}
+
+{%if workflow_status == 'approved' %}
+    <div class="signature-stamp-badge" title="Document has been externally signed">
+        <span class="badge bg-success" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-check-circle-fill me-1"></i>
+            <span>Signed</span>
+        </span>
+        <small class="d-block text-success mt-1" style="font-size: 0.75rem;">
+            <i class="bi bi-shield-check"></i> Approved
+        </small>
+    </div>
+{% elif workflow_status == 'awaiting_signature' %}
+    <div class="signature-stamp-badge pending" title="Awaiting CD signature">
+        <span class="badge bg-warning text-dark" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-hourglass-split me-1"></i>
+            <span>Pending Signature</span>
+        </span>
+    </div>
+{% elif workflow_status == 'awaiting_scan_upload' %}
+    <div class="signature-stamp-badge pending" title="Awaiting signed scan upload">
+        <span class="badge bg-info" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-cloud-upload me-1"></i>
+            <span>Awaiting Upload</span>
+        </span>
+    </div>
+{% elif workflow_status == 'released' %}
+    <div class="signature-stamp-badge released" title="Release letter has been released">
+        <span class="badge bg-success" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-file-earmark-check-fill me-1"></i>
+            <span>Released</span>
+        </span>
+    </div>
+{% elif workflow_status == 'voided' %}
+    <div class="signature-stamp-badge voided" title="Release letter has been voided">
+        <span class="badge bg-danger" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-x-circle-fill me-1"></i>
+            <span>Voided</span>
+        </span>
+    </div>
+{% else %}
+    <div class="signature-stamp-badge draft" title="Document in draft status">
+        <span class="badge bg-secondary" style="font-size: 0.9rem; padding: 0.6em 0.8em;">
+            <i class="bi bi-file-earmark me-1"></i>
+            <span>{{ workflow_status|title }}</span>
+        </span>
+    </div>
+{% endif %}
+
+<style>
+    .signature-stamp-badge {
+        display: inline-block;
+    }
+
+    .signature-stamp-badge.released,
+    .signature-stamp-badge .bg-success {
+        animation: pulse-soft 2s infinite;
+    }
+
+    @keyframes pulse-soft {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.8;
+        }
+    }
+</style>

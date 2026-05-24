@@ -1,5 +1,6 @@
 {% extends 'Inventory/base.html' %}
 {% load humanize %}
+{% load inventory_tags %}
 
 {% block title %}Material Orders - Inventory Manager{% endblock %}
 
@@ -80,10 +81,28 @@
 {% endif %}
 
 <div class="container-fluid px-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h1 class="h2 mb-2">📦 Material Orders</h1>
-            <p class="text-muted">Manage and fulfill material requests</p>
+            <h1 class="h2 mb-2">
+                {% if is_archive %}🗄️ Archived Material Orders{% else %}📦 Material Orders{% endif %}
+            </h1>
+            <p class="text-muted">
+                {% if is_archive %}
+                    Closed orders — Completed, Delivered, Cancelled or Rejected. Read-only.
+                {% else %}
+                    Active material requests in motion. Closed orders move to the archive.
+                {% endif %}
+            </p>
+        </div>
+        <div class="btn-group" role="group" aria-label="Active or archived toggle">
+            <a href="{% url 'material_orders' %}"
+               class="btn btn-sm {% if not is_archive %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Active {% if active_orders is not None %}<span class="badge bg-light text-dark ms-1">{{ active_orders }}</span>{% endif %}
+            </a>
+            <a href="{% url 'material_orders_archive' %}"
+               class="btn btn-sm {% if is_archive %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                Archive {% if archived_orders is not None %}<span class="badge bg-light text-dark ms-1">{{ archived_orders }}</span>{% endif %}
+            </a>
         </div>
     </div>
 
@@ -420,21 +439,99 @@
                     {% if order.release_letter %}
                     <div class="row mt-3">
                         <div class="col-12">
-                            <h6 class="text-muted mb-3">Release Letter</h6>
+                            <h6 class="text-muted mb-2">Release event</h6>
+
+                            <!-- Cross-reference numbering chain: Request → Release → Waybill → Receipt -->
+                            <div class="d-flex flex-wrap gap-2 mb-3 small">
+                                <span class="badge bg-light text-dark border">
+                                    <i class="fas fa-paper-plane me-1"></i> Request
+                                    <code>{{ order.request_code }}</code>
+                                </span>
+                                {% if order.release_letter.code %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="fas fa-file-signature me-1"></i> Release
+                                    <code>{{ order.release_letter.code }}</code>
+                                </span>
+                                {% endif %}
+                                {% with first_transport=order.transports.first %}
+                                {% if first_transport and first_transport.waybill_number %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="fas fa-truck me-1"></i> Waybill
+                                    <code>{{ first_transport.waybill_number }}</code>
+                                </span>
+                                {% endif %}
+                                {% if first_transport.site_receipt %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="fas fa-receipt me-1"></i> Receipt
+                                    <code>{{ first_transport.site_receipt.receipt_number|default:first_transport.site_receipt.id }}</code>
+                                </span>
+                                {% endif %}
+                                {% endwith %}
+                            </div>
+
                             <div class="alert alert-info">
                                 <i class="fas fa-file-pdf text-danger me-2"></i>
                                 <strong>{{ order.release_letter.title }}</strong><br>
-                                <small>Uploaded by
+                                <small>Created by
                                     {% if order.release_letter.uploaded_by %}
                                     {{ order.release_letter.uploaded_by.get_full_name|default:order.release_letter.uploaded_by.username }}
                                     {% else %}
                                     Unknown
                                     {% endif %}
-                                    on {{ order.release_letter.upload_time|date:"F d, Y H:i" }}</small><br>
-                                <a href="{{ order.release_letter.pdf_file.url }}" target="_blank"
-                                    class="btn btn-sm btn-primary mt-2">
-                                    <i class="fas fa-download me-1"></i>Download PDF
-                                </a>
+                                    on {{ order.release_letter.upload_time|date:"F d, Y H:i" }}
+                                </small>
+
+                                <!-- Document grid: memo / letter / signed scan / waybill -->
+                                <div class="row g-2 mt-2">
+                                    {% if order.release_letter.memo_pdf %}
+                                    <div class="col-md-6">
+                                        <a href="{{ order.release_letter.memo_pdf.url }}" target="_blank"
+                                            class="btn btn-sm btn-outline-primary w-100 text-start">
+                                            <i class="fas fa-file-alt me-1"></i> Approval memo
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    {% if order.release_letter.letter_pdf %}
+                                    <div class="col-md-6">
+                                        <a href="{{ order.release_letter.letter_pdf.url }}" target="_blank"
+                                            class="btn btn-sm btn-outline-primary w-100 text-start">
+                                            <i class="fas fa-file-alt me-1"></i> Release letter (unsigned)
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    {% if order.release_letter.pdf_file %}
+                                    <div class="col-md-6">
+                                        <a href="{{ order.release_letter.pdf_file.url }}" target="_blank"
+                                            class="btn btn-sm btn-primary w-100 text-start">
+                                            <i class="fas fa-file-signature me-1"></i> Signed scan
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    {% with first_transport=order.transports.first %}
+                                    {% if first_transport %}
+                                    <div class="col-md-6">
+                                        <a href="{% url 'download_waybill_pdf' first_transport.id %}" target="_blank"
+                                            class="btn btn-sm btn-outline-success w-100 text-start">
+                                            <i class="fas fa-truck me-1"></i> Waybill
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    {% endwith %}
+                                </div>
+
+                                {% if not order.release_letter.memo_pdf and not order.release_letter.letter_pdf and not order.release_letter.pdf_file %}
+                                <div class="small text-muted mt-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    No PDFs yet — the release letter has been recorded but documents haven't been generated.
+                                </div>
+                                {% endif %}
+
+                                <div class="mt-2">
+                                    <a href="{% url 'release_letter_detail' order.release_letter.pk %}"
+                                        class="btn btn-sm btn-link p-0">
+                                        Open full release event →
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>

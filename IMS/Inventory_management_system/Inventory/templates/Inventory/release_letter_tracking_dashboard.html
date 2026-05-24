@@ -106,8 +106,7 @@
                             <select name="material_type" class="form-select form-select-sm">
                                 <option value="">All Materials</option>
                                 {% for type, label in material_types %}
-                                <option value="{{ type }}" {% if filter_material_type == type %}selected{% endif %}>{{
-                                    label }}</option>
+                                <option value="{{ type }}" {% if filter_material_type == type %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -203,8 +202,7 @@
                                     <td>
                                         <span title="{{ rl.title }}">{{ rl.title|truncatewords:5 }}</span>
                                         {% if rl.project_phase %}
-                                        <br><small class="text-muted"><i class="bi bi-diagram-3"></i> {{
-                                            rl.project_phase }}</small>
+                                        <br><small class="text-muted"><i class="bi bi-diagram-3"></i> {{ rl.project_phase }}</small>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -227,8 +225,7 @@
                                                 role="progressbar"
                                                 style="width: {{ rl.drawdown_display }}%;"
                                                 aria-valuenow="{{ rl.drawdown_display }}"
-                                                aria-valuemin="0" aria-valuemax="100">{{
-                                                rl.drawdown_display }}%</div>
+                                                aria-valuemin="0" aria-valuemax="100">{{ rl.drawdown_display }}%</div>
                                         </div>
                                     </td>
                                     <td class="text-end">
@@ -237,8 +234,7 @@
                                     <td class="text-end">
                                         {% if rl.fulfillment_gap > 0 %}
                                         <span class="badge bg-warning text-dark"
-                                            title="Materials requested but not yet delivered">{{
-                                            rl.gap_display }}</span>
+                                            title="Materials requested but not yet delivered">{{ rl.gap_display }}</span>
                                         {% else %}
                                         <span class="text-success"><i class="bi bi-check-circle"></i> 0</span>
                                         {% endif %}
@@ -268,28 +264,24 @@
                                     <td>
                                         {% if rl.boq_item %}
                                         <small title="{{ rl.boq_item.material_description }}"><i
-                                                class="bi bi-link-45deg"></i> {{
-                                            rl.boq_item.material_description|truncatewords:3 }}</small>
+                                                class="bi bi-link-45deg"></i> {{ rl.boq_item.material_description|truncatewords:3 }}</small>
                                         {% else %}
                                         <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if rl.uploaded_by %}
-                                        <small><i class="bi bi-person"></i> {{
-                                            rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span
+                                        <small><i class="bi bi-person"></i> {{ rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span
                                                 class="text-muted">{{ rl.upload_time|date:"M d, Y" }}</span></small>
                                         {% else %}
                                         <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        <span
-                                            class="badge {% if rl.status == 'Open' %}bg-success{% else %}bg-secondary{% endif %}">{{
-                                            rl.status }}</span>
+                                        {% include "Inventory/includes/signature_stamp_badge.html" with workflow_status=rl.workflow_status %}
                                         {% if rl.is_threshold_exceeded %}
-                                        <br><span class="badge bg-warning text-dark mt-1" title="Threshold exceeded"><i
-                                                class="bi bi-exclamation-triangle"></i></span>
+                                        <br><span class="badge bg-warning text-dark mt-2" title="Threshold exceeded"><i
+                                                class="bi bi-exclamation-triangle"></i> Threshold Alert</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
@@ -344,8 +336,7 @@
                                                                         </a>
                                                                     </td>
                                                                     <td>{{ order.name|truncatewords:4 }}</td>
-                                                                    <td class="text-end">{{
-                                                                        order.quantity|floatformat:0|intcomma }}</td>
+                                                                    <td class="text-end">{{ order.quantity|floatformat:0|intcomma }}</td>
                                                                     <td>
                                                                         {% if order.status == "Pending" %}
                                                                         <span class="badge bg-warning text-dark">⏳
@@ -357,8 +348,7 @@
                                                                         <span class="badge bg-success">✅
                                                                             Completed</span>
                                                                         {% else %}
-                                                                        <span class="badge bg-secondary">{{ order.status
-                                                                            }}</span>
+                                                                        <span class="badge bg-secondary">{{ order.status }}</span>
                                                                         {% endif %}
                                                                     </td>
                                                                     <td>{{ order.date_requested|date:"M d, Y" }}</td>
@@ -392,9 +382,7 @@
                                                                 {% for transport in rl.all_transports|slice:":10" %}
                                                                 <tr>
                                                                     <td>{{ transport.vehicle_number|default:"—" }}</td>
-                                                                    <td>{{
-                                                                        transport.driver_name|default:"—"|truncatewords:2
-                                                                        }}</td>
+                                                                    <td>{{ transport.driver_name|default:"—"|truncatewords:2 }}</td>
                                                                     <td>
                                                                         {% if transport.status == "Delivered" %}
                                                                         <span class="badge bg-success">🚚
@@ -403,8 +391,7 @@
                                                                         <span class="badge bg-warning text-dark">➡️ In
                                                                             Transit</span>
                                                                         {% else %}
-                                                                        <span class="badge bg-secondary">{{
-                                                                            transport.status }}</span>
+                                                                        <span class="badge bg-secondary">{{ transport.status }}</span>
                                                                         {% endif %}
                                                                     </td>
                                                                     <td>{{ transport.date_dispatched|date:"M d, Y" }}
@@ -415,8 +402,7 @@
                                                         </table>
                                                     </div>
                                                     {% if rl.all_transports|length > 10 %}
-                                                    <small class="text-muted">Showing 10 of {{ rl.all_transports|length
-                                                        }}
+                                                    <small class="text-muted">Showing 10 of {{ rl.all_transports|length }}
                                                         transports</small>
                                                     {% endif %}
                                                     {% else %}
@@ -434,38 +420,28 @@
                                                             <div class="row">
                                                                 <div class="col-md-3">
                                                                     <strong>Total Authorized:</strong><br>
-                                                                    <span class="text-primary">{{
-                                                                        rl.total_quantity|floatformat:0|intcomma
-                                                                        }}</span>
+                                                                    <span class="text-primary">{{ rl.total_quantity|floatformat:0|intcomma }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Total Requested:</strong><br>
-                                                                    <span class="text-warning">{{
-                                                                        rl.total_requested|floatformat:0|intcomma
-                                                                        }}</span>
+                                                                    <span class="text-warning">{{ rl.total_requested|floatformat:0|intcomma }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Total Released:</strong><br>
-                                                                    <span class="text-success">{{
-                                                                        rl.total_released|floatformat:0|intcomma
-                                                                        }}</span>
+                                                                    <span class="text-success">{{ rl.total_released|floatformat:0|intcomma }}</span>
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <strong>Fulfillment Gap:</strong><br>
                                                                     <span
-                                                                        class="{% if rl.fulfillment_gap > 0 %}text-danger{% else %}text-success{% endif %}">{{
-                                                                        rl.fulfillment_gap|floatformat:0|intcomma
-                                                                        }}</span>
+                                                                        class="{% if rl.fulfillment_gap > 0 %}text-danger{% else %}text-success{% endif %}">{{ rl.fulfillment_gap|floatformat:0|intcomma }}</span>
                                                                 </div>
                                                             </div>
                                                             {% if rl.boq_item %}
                                                             <hr>
                                                             <div>
                                                                 <strong>BOQ Item:</strong><br>
-                                                                <small>{{ rl.boq_item.material_description
-                                                                    }}</small><br>
-                                                                <small class="text-muted">Project: {{
-                                                                    rl.boq_item.project.name|default:"N/A" }}</small>
+                                                                <small>{{ rl.boq_item.material_description }}</small><br>
+                                                                <small class="text-muted">Project: {{ rl.boq_item.project.name|default:"N/A" }}</small>
                                                             </div>
                                                             {% endif %}
                                                         </div>

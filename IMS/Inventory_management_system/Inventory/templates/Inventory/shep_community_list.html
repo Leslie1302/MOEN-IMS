@@ -1,20 +1,20 @@
 {% extends 'Inventory/base.html' %}
 {% load static %}
 
-{% block title %}SHEP Communities & Packages{% endblock %}
+{% block title %}Communities{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-1">SHEP Communities & Packages</h1>
-            <p class="text-muted mb-0">Manage communities and their associated package numbers for SHEP projects</p>
+            <h1 class="h3 mb-1">Communities</h1>
+            <p class="text-muted mb-0">Manage communities served by the Ministry across SHEP, Cost Sharing, and Streetlights projects.</p>
         </div>
         <div>
             <a href="{% url 'abbreviation_legend' %}" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-book"></i> View Legend
             </a>
-            <a href="{% url 'shep_community_create' %}" class="btn btn-primary">
+            <a href="{% url 'community_create' %}" class="btn btn-primary">
                 <i class="bi bi-plus-lg"></i> Add Community
             </a>
         </div>
@@ -45,7 +45,7 @@
                     </button>
                 </div>
                 <div class="col-md-2">
-                    <a href="{% url 'shep_community_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
+                    <a href="{% url 'community_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
                 </div>
             </form>
         </div>
@@ -54,27 +54,115 @@
     <!-- Bulk Upload Section -->
     <div class="card mb-4">
         <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="bi bi-upload"></i> Bulk Upload Communities</h5>
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Bulk upload communities</h5>
         </div>
         <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <p class="mb-2">Upload multiple SHEP communities at once using an Excel file.</p>
-                    <a href="{% url 'download_shep_community_template' %}" class="btn btn-outline-success">
-                        <i class="bi bi-download"></i> Download Template
-                    </a>
+            <p class="mb-3 text-muted">
+                Pick a project type, download its template, fill it in, then upload back. Failed rows are returned as a downloadable error CSV so you can fix and re-upload only the bad ones.
+            </p>
+
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Step 1 — download template</label>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'download_community_template' %}?project=shep" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i> SHEP template
+                        </a>
+                        <a href="{% url 'download_community_template' %}?project=cost_sharing" class="btn btn-outline-info">
+                            <i class="bi bi-download"></i> Cost Sharing template
+                        </a>
+                        <a href="{% url 'download_community_template' %}?project=streetlights" class="btn btn-outline-warning">
+                            <i class="bi bi-download"></i> Streetlights template
+                        </a>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <form method="post" action="{% url 'upload_shep_communities' %}" enctype="multipart/form-data"
-                        class="d-flex gap-2 align-items-end">
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Step 2 — upload completed file</label>
+                    <form method="post" action="{% url 'upload_communities' %}" enctype="multipart/form-data" class="row g-2 align-items-end">
                         {% csrf_token %}
-                        <div class="flex-grow-1">
-                            <label class="form-label">Select Excel File</label>
+                        <div class="col-md-3">
+                            <select name="project" class="form-select" required>
+                                <option value="">— Project type —</option>
+                                <option value="shep">SHEP</option>
+                                <option value="cost_sharing">Cost Sharing</option>
+                                <option value="streetlights">Streetlights</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
                             <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
                         </div>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-upload"></i> Upload
-                        </button>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-upload"></i> Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Members of Parliament bulk upload (separate section because MPs aren't communities) -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-person-badge"></i> Bulk upload Members of Parliament</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-3 text-muted">
+                Populate the MP roster used by the consignee resolver for Cost Sharing and Streetlights releases. Once an MP is on file, they can be bound to a community explicitly or auto-resolved by constituency.
+            </p>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <a href="{% url 'download_mp_template' %}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-download"></i> Download MP template
+                    </a>
+                </div>
+                <div class="col-md-9">
+                    <form method="post" action="{% url 'upload_mps' %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-md-8">
+                            <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-upload"></i> Upload MPs
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Consultants bulk upload (drives SHEP consignee resolution by region) -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-briefcase"></i> Bulk upload Project Consultants</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-3 text-muted">
+                Populate the consultant roster used by the SHEP consignee resolver. Each consultant is assigned to a region; SHEP releases for communities in that region auto-consign to the assigned consultant.
+            </p>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <a href="{% url 'download_consultant_template' %}" class="btn btn-outline-success w-100">
+                        <i class="bi bi-download"></i> Download consultant template
+                    </a>
+                </div>
+                <div class="col-md-9">
+                    <form method="post" action="{% url 'upload_consultants' %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-md-8">
+                            <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-upload"></i> Upload consultants
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -89,27 +177,46 @@
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th style="width: 40px;"></th>
+                            <th>Project</th>
                             <th>Region</th>
-                            <th>Abbr.</th>
                             <th>District</th>
-                            <th>Abbr.</th>
                             <th>Community</th>
-                            <th>Abbr.</th>
-                            <th>Package Number</th>
+                            <th>Package number</th>
+                            <th>Constituency / MP</th>
                             <th>Status</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for community in communities %}
-                        <tr>
-                            <td>{{ community.region }}</td>
-                            <td><span class="badge bg-secondary">{{ community.region_abbr }}</span></td>
-                            <td>{{ community.district }}</td>
-                            <td><span class="badge bg-secondary">{{ community.district_abbr }}</span></td>
-                            <td>{{ community.community }}</td>
-                            <td><span class="badge bg-secondary">{{ community.community_abbr }}</span></td>
-                            <td><strong>{{ community.package_number }}</strong></td>
+                        <tr class="community-row" data-community-id="{{ community.pk }}">
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary expand-toggle" type="button"
+                                        title="View details" data-community-id="{{ community.pk }}">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </td>
+                            <td>
+                                {% if community.project_type %}
+                                <span class="badge bg-info text-dark">{{ community.project_type.name }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ community.region }} <span class="badge bg-light text-muted ms-1">{{ community.region_abbr }}</span></td>
+                            <td>{{ community.district }} <span class="badge bg-light text-muted ms-1">{{ community.district_abbr }}</span></td>
+                            <td>{{ community.community }} <span class="badge bg-light text-muted ms-1">{{ community.community_abbr }}</span></td>
+                            <td>{% if community.package_number %}<strong>{{ community.package_number }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                            <td>
+                                {% if community.member_of_parliament %}
+                                {{ community.member_of_parliament.display_name }}
+                                {% elif community.constituency %}
+                                <em class="text-muted">{{ community.constituency }}</em>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if community.is_active %}
                                 <span class="badge bg-success">Active</span>
@@ -118,14 +225,71 @@
                                 {% endif %}
                             </td>
                             <td class="text-end">
-                                <a href="{% url 'shep_community_update' community.pk %}"
+                                <a href="{% url 'community_update' community.pk %}"
                                     class="btn btn-sm btn-outline-primary" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <a href="{% url 'shep_community_delete' community.pk %}"
+                                <a href="{% url 'community_delete' community.pk %}"
                                     class="btn btn-sm btn-outline-danger" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </a>
+                            </td>
+                        </tr>
+                        <!-- Expanded detail row (hidden by default) -->
+                        <tr class="community-detail-row" data-community-id="{{ community.pk }}" style="display: none;">
+                            <td colspan="9" class="p-0">
+                                <div class="community-detail-container bg-light border-top p-4">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">Project Progress</h6>
+                                                <div class="progress mb-2" style="height: 25px;">
+                                                    <div class="progress-bar bg-success" id="completion-bar-{{ community.pk }}"
+                                                         role="progressbar" style="width: 0%" aria-valuenow="0"
+                                                         aria-valuemin="0" aria-valuemax="100">
+                                                        <small id="completion-text-{{ community.pk }}" class="text-dark">0%</small>
+                                                    </div>
+                                                </div>
+                                                <small class="text-muted d-block" id="households-{{ community.pk }}">Households: Loading...</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">BoQ Summary</h6>
+                                                <small id="boq-summary-{{ community.pk }}" class="text-muted d-block">Loading...</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">Recent Releases</h6>
+                                                <div id="recent-releases-{{ community.pk }}" class="small">Loading...</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="detail-section">
+                                                <h6 class="text-muted mb-2">Recent Receipts</h6>
+                                                <div id="recent-receipts-{{ community.pk }}" class="small">Loading...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="detail-section border-top pt-3">
+                                                <h6 class="text-muted mb-2">Linked Resources</h6>
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small><strong>MP/Consignee:</strong> <span id="linked-mp-{{ community.pk }}">—</span></small>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <small><strong>Consultant:</strong> <span id="linked-consultant-{{ community.pk }}">—</span></small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -168,17 +332,17 @@
             {% else %}
             <div class="text-center py-5">
                 <i class="bi bi-geo-alt text-muted" style="font-size: 3rem;"></i>
-                <h4 class="mt-3">No Communities Found</h4>
+                <h4 class="mt-3">No communities found</h4>
                 <p class="text-muted">
                     {% if search or selected_region %}
                     No communities match your current filters.
-                    <a href="{% url 'shep_community_list' %}">Clear filters</a>
+                    <a href="{% url 'community_list' %}">Clear filters</a>
                     {% else %}
-                    Get started by adding your first SHEP community.
+                    Get started by adding your first community.
                     {% endif %}
                 </p>
                 {% if not search and not selected_region %}
-                <a href="{% url 'shep_community_create' %}" class="btn btn-primary mt-2">
+                <a href="{% url 'community_create' %}" class="btn btn-primary mt-2">
                     <i class="bi bi-plus-lg"></i> Add First Community
                 </a>
                 {% endif %}
@@ -187,4 +351,153 @@
         </div>
     </div>
 </div>
+
+<style>
+    .community-detail-container {
+        border-radius: 0;
+    }
+
+    .detail-section {
+        padding: 0;
+    }
+
+    .expand-toggle {
+        transition: transform 0.2s ease-in-out;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .expand-toggle.expanded {
+        transform: rotate(90deg);
+    }
+
+    .community-detail-row td {
+        padding: 0 !important;
+    }
+
+    .progress {
+        background-color: #f0f0f0;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle expand/collapse toggle
+        document.querySelectorAll('.expand-toggle').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const communityId = this.getAttribute('data-community-id');
+                const detailRow = document.querySelector(
+                    `.community-detail-row[data-community-id="${communityId}"]`
+                );
+
+                if (detailRow.style.display === 'none') {
+                    // Expanding - fetch data if not already loaded
+                    if (!this.classList.contains('expanded')) {
+                        fetchCommunityDetails(communityId);
+                    }
+                    detailRow.style.display = 'table-row';
+                    this.classList.add('expanded');
+                    this.innerHTML = '<i class="bi bi-chevron-down"></i>';
+                } else {
+                    // Collapsing
+                    detailRow.style.display = 'none';
+                    this.classList.remove('expanded');
+                    this.innerHTML = '<i class="bi bi-chevron-right"></i>';
+                }
+            });
+        });
+    });
+
+    function fetchCommunityDetails(communityId) {
+        const url = `{% url 'community_detail_api' %}?community_id=${communityId}`;
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                displayCommunityDetails(communityId, data);
+            })
+            .catch(error => {
+                console.error('Error fetching community details:', error);
+                document.getElementById(`boq-summary-${communityId}`).textContent =
+                    'Error loading details';
+            });
+    }
+
+    function displayCommunityDetails(communityId, data) {
+        // Completion percentage
+        const completionPercent = data.completion_percent || 0;
+        const completionBar = document.getElementById(`completion-bar-${communityId}`);
+        const completionText = document.getElementById(`completion-text-${communityId}`);
+        if (completionBar) {
+            completionBar.style.width = completionPercent + '%';
+            completionText.textContent = completionPercent + '%';
+        }
+
+        // Households connected
+        const householdsEl = document.getElementById(`households-${communityId}`);
+        if (householdsEl) {
+            householdsEl.textContent = `Households: ${data.households_connected || 0}`;
+        }
+
+        // BoQ Summary
+        const boqSummary = data.boq_summary || {};
+        const boqEl = document.getElementById(`boq-summary-${communityId}`);
+        if (boqEl) {
+            const total = boqSummary.total_items || 0;
+            const delivered = boqSummary.delivered_count || 0;
+            const pending = boqSummary.pending_count || 0;
+            const totalQty = (boqSummary.total_contract_qty || 0).toFixed(2);
+            const receivedQty = (boqSummary.total_received_qty || 0).toFixed(2);
+
+            boqEl.innerHTML = `
+                <strong>${total} items:</strong> ${delivered} delivered, ${pending} pending<br/>
+                <span class="text-muted">Received: ${receivedQty} / Contracted: ${totalQty}</span>
+            `;
+        }
+
+        // Recent Releases
+        const releasesEl = document.getElementById(`recent-releases-${communityId}`);
+        if (releasesEl && data.recent_releases && data.recent_releases.length > 0) {
+            const releasesList = data.recent_releases.map(r =>
+                `<div class="mb-2">
+                    <strong>${r.code}</strong>
+                    <br/><small class="text-muted">${r.material_type}: ${r.total_quantity.toFixed(2)} units</small>
+                    <br/><span class="badge bg-info bg-opacity-75">${r.status}</span>
+                </div>`
+            ).join('');
+            releasesEl.innerHTML = releasesList;
+        } else if (releasesEl) {
+            releasesEl.textContent = '—';
+        }
+
+        // Recent Receipts
+        const receiptsEl = document.getElementById(`recent-receipts-${communityId}`);
+        if (receiptsEl && data.recent_receipts && data.recent_receipts.length > 0) {
+            const receiptsList = data.recent_receipts.map(r =>
+                `<div class="mb-2">
+                    <strong>${r.date}</strong>
+                    <br/><small class="text-muted">${r.quantity.toFixed(2)} units</small>
+                    <br/><span class="badge bg-success bg-opacity-75">${r.condition}</span> by ${r.received_by}
+                </div>`
+            ).join('');
+            receiptsEl.innerHTML = receiptsList;
+        } else if (receiptsEl) {
+            receiptsEl.textContent = '—';
+        }
+
+        // Linked MP/Consultant
+        const mpEl = document.getElementById(`linked-mp-${communityId}`);
+        if (mpEl) {
+            mpEl.textContent = data.linked_mp || '—';
+        }
+
+        const consultantEl = document.getElementById(`linked-consultant-${communityId}`);
+        if (consultantEl) {
+            consultantEl.textContent = data.linked_consultant || '—';
+        }
+    }
+</script>
 {% endblock %}

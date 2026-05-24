@@ -409,26 +409,42 @@ class RequestMaterialView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
+# Phase L -- split material orders into active vs archived.
+# Active = anything still in motion; Archived = terminal states.
+ACTIVE_ORDER_STATUSES = (
+    'Draft', 'Pending', 'Approved', 'In Progress',
+    'Partially Fulfilled', 'Ready for Pickup', 'In Transit',
+)
+ARCHIVED_ORDER_STATUSES = (
+    'Delivered', 'Completed', 'Rejected', 'Cancelled',
+)
+
+
 class MaterialOrdersView(LoginRequiredMixin, ListView):
     """
-    View for displaying material orders with proper fulfillment workflow.
-    - All authenticated users can see all orders for transparency and collaboration
+    Active material orders. Terminal-state orders (Completed / Cancelled /
+    Rejected / Delivered) live on /material-orders/archive/ instead so this
+    page stays focused on work in motion.
     """
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
     paginate_by = 50
-    paginate_orphans = 5  # Include last page items if fewer than 5
-    allow_empty = True  # Allow empty querysets
+    paginate_orphans = 5
+    allow_empty = True
+    is_archive = False
 
     def get_queryset(self):
         try:
-            # Base queryset with proper ordering and select_related for performance
-            # Show all orders to all authenticated users for transparency
-            queryset = MaterialOrder.objects.select_related('user', 'unit', 'category', 'warehouse').order_by('-date_requested')
-            return queryset
+            qs = MaterialOrder.objects.select_related(
+                'user', 'unit', 'category', 'warehouse'
+            ).order_by('-date_requested')
+            if self.is_archive:
+                qs = qs.filter(status__in=ARCHIVED_ORDER_STATUSES)
+            else:
+                qs = qs.filter(status__in=ACTIVE_ORDER_STATUSES)
+            return qs
         except Exception as e:
             logger.error(f"Error in MaterialOrdersView: {str(e)}", exc_info=True)
-            # Fallback to empty queryset to prevent crashes
             return MaterialOrder.objects.none()
 
     def paginate_queryset(self, queryset, page_size):
@@ -451,41 +467,54 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Use aggregation for statistics
+
         stats = MaterialOrder.objects.aggregate(
             total_orders=Count('id'),
             pending_orders=Count('id', filter=Q(status='Pending')),
             completed_orders=Count('id', filter=Q(status='Completed')),
-            partial_orders=Count('id', filter=Q(status='Partially Fulfilled'))
+            partial_orders=Count('id', filter=Q(status='Partially Fulfilled')),
+            active_orders=Count('id', filter=Q(status__in=ACTIVE_ORDER_STATUSES)),
+            archived_orders=Count('id', filter=Q(status__in=ARCHIVED_ORDER_STATUSES)),
         )
-        
         context.update(stats)
+        context['is_archive'] = self.is_archive
         return context
+
+
+class MaterialOrdersArchiveView(MaterialOrdersView):
+    """Archived material orders -- terminal states only."""
+    is_archive = True
 
 
 class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
     """
-    View for displaying material orders with proper fulfillment workflow.
-    - All authenticated users can see all orders for transparency and collaboration
+    Officers view of material orders. Renders the unified material_orders.html
+    template. Honours the same active/archive split as MaterialOrdersView so
+    completed/cancelled orders don't keep cluttering the day-to-day view.
     """
-    template_name = 'Inventory/material_orders_officers.html'
+    template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
     paginate_by = 50
+    is_archive = False
 
     def get_queryset(self):
         user = self.request.user
         logger = logging.getLogger(__name__)
-        
+
         try:
-            # Base queryset: Show orders that have been assigned OR are in processing/completed states
-            # This handles both new workflow (assigned) and legacy orders (no assignment)
-            # Exclude only Draft and Pending (awaiting assignment)
             queryset = MaterialOrder.objects.select_related(
                 'user', 'unit', 'category', 'assigned_to', 'assigned_by'
-            ).exclude(
-                status__in=['Draft', 'Pending']
             ).order_by('-date_requested')
+
+            if self.is_archive:
+                queryset = queryset.filter(status__in=ARCHIVED_ORDER_STATUSES)
+            else:
+                # Officers view -- hide terminal-state orders AND the un-assigned
+                # Draft/Pending queue (those belong to the schedule officer's
+                # request flow, not the officers' work-in-progress view).
+                queryset = queryset.filter(
+                    status__in=ACTIVE_ORDER_STATUSES,
+                ).exclude(status__in=['Draft', 'Pending'])
             
             logger.info(f"User {user.username} accessing {queryset.count()} total orders")
             

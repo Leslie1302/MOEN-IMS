@@ -149,10 +149,10 @@
                                 <td><strong>{{ assignment.material_order.request_code }}</strong></td>
                                 <td>{{ assignment.material_order.name }}</td>
                                 <td>{{ assignment.material_order.quantity|floatformat:0|intcomma }} {{ assignment.material_order.unit }}</td>
-                                <td>{{ assignment.material_order.user.username }}</td>
+                                <td>{% if assignment.material_order and assignment.material_order.user %}{{ assignment.material_order.user.username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</td>
                                 <td>
                                     <i class="fas fa-user-circle"></i> 
-                                    <strong>{{ assignment.assigned_to.username }}</strong>
+                                    <strong>{% if assignment.assigned_to %}{{ assignment.assigned_to.username }}{% else %}—{% endif %}</strong>
                                 </td>
                                 <td>{{ assignment.assigned_by.username|default:"System" }}</td>
                                 <td>{{ assignment.assigned_at|date:"M d, Y H:i" }}</td>
@@ -185,12 +185,12 @@
                                                     <p class="mb-2"><strong>Request Code:</strong> {{ assignment.material_order.request_code }}</p>
                                                     <p class="mb-2"><strong>Material:</strong> {{ assignment.material_order.name }}</p>
                                                     <p class="mb-2"><strong>Quantity:</strong> {{ assignment.material_order.quantity|floatformat:0|intcomma }} {{ assignment.material_order.unit }}</p>
-                                                    <p class="mb-2"><strong>Requested By:</strong> {{ assignment.material_order.user.username }}</p>
+                                                    <p class="mb-2"><strong>Requested By:</strong> {% if assignment.material_order and assignment.material_order.user %}{{ assignment.material_order.user.username }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</p>
                                                     <p class="mb-2"><strong>Date Requested:</strong> {{ assignment.material_order.date_requested|date:"M d, Y H:i" }}</p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <h6 class="text-muted">Assignment Info</h6>
-                                                    <p class="mb-2"><strong>Assigned To:</strong> {{ assignment.assigned_to.username }}</p>
+                                                    <p class="mb-2"><strong>Assigned To:</strong> {% if assignment.assigned_to %}{{ assignment.assigned_to.username }}{% else %}—{% endif %}</p>
                                                     <p class="mb-2"><strong>Assigned By:</strong> {{ assignment.assigned_by.username|default:"System" }}</p>
                                                     <p class="mb-2"><strong>Assigned Date:</strong> {{ assignment.assigned_at|date:"M d, Y H:i" }}</p>
                                                     <p class="mb-2"><strong>Status:</strong> 

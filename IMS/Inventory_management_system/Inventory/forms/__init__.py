@@ -66,6 +66,7 @@ from .supply import (  # noqa: F401
 from .admin import (  # noqa: F401
     BulkUserUploadForm,
     ExcelUserImportForm,
-    SHEPCommunityForm,
+    CommunityForm,
+    SHEPCommunityForm,  # back-compat alias for CommunityForm
     ExcelProjectSiteImportForm,
 )

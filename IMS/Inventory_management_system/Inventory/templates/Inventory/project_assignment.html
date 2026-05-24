@@ -1,0 +1,127 @@
+{% extends 'Inventory/base.html' %}
+
+{% block title %}{{ page_title }} - IMS{% endblock %}
+
+{% block content %}
+<div class="container py-4 max-w-lg" style="max-width: 800px;">
+    <!-- Header -->
+    <div class="mb-4">
+        <h2 class="mb-1">
+            <i class="bi bi-person-plus"></i> {{ page_title }}
+        </h2>
+        <p class="text-muted mb-0">Assign users to manage and oversee projects</p>
+    </div>
+
+    <!-- Form -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <!-- Project Selection -->
+                <div class="mb-4">
+                    <label for="{{ form.project.id_for_label }}" class="form-label">
+                        <strong>{{ form.project.label }}</strong>
+                    </label>
+                    {{ form.project }}
+                    {% if form.project.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.project.errors.0 }}
+                    </div>
+                    {% endif %}
+                    <small class="text-muted d-block mt-1">{{ form.project.help_text }}</small>
+                </div>
+
+                <hr>
+
+                <!-- Project Managers -->
+                <div class="mb-4">
+                    <label class="form-label">
+                        <strong><i class="bi bi-person-badge"></i> Project Managers</strong>
+                    </label>
+                    <div class="card bg-light border-0">
+                        <div class="card-body">
+                            {% if form.project_managers %}
+                                {% for checkbox in form.project_managers %}
+                                <div class="form-check mb-2">
+                                    {{ checkbox }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.choice_label }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted mb-0">No management users available</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if form.project_managers.errors %}
+                    <div class="invalid-feedback d-block mt-2">
+                        {{ form.project_managers.errors.0 }}
+                    </div>
+                    {% endif %}
+                    <small class="text-muted d-block mt-2">{{ form.project_managers.help_text }}</small>
+                </div>
+
+                <hr>
+
+                <!-- Site Supervisors -->
+                <div class="mb-4">
+                    <label class="form-label">
+                        <strong><i class="bi bi-person-check"></i> Site Supervisors</strong>
+                    </label>
+                    <div class="card bg-light border-0">
+                        <div class="card-body">
+                            {% if form.site_supervisors %}
+                                {% for checkbox in form.site_supervisors %}
+                                <div class="form-check mb-2">
+                                    {{ checkbox }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                        {{ checkbox.choice_label }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted mb-0">No store officers available</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if form.site_supervisors.errors %}
+                    <div class="invalid-feedback d-block mt-2">
+                        {{ form.site_supervisors.errors.0 }}
+                    </div>
+                    {% endif %}
+                    <small class="text-muted d-block mt-2">{{ form.site_supervisors.help_text }}</small>
+                </div>
+
+                <!-- Buttons -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Assign Users
+                    </button>
+                    <a href="{% url 'project_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="alert alert-info mt-4" role="alert">
+        <i class="bi bi-info-circle"></i>
+        <strong>How it works:</strong><br>
+        <small>
+            • <strong>Project Managers</strong> can view and manage all data for their assigned projects<br>
+            • <strong>Site Supervisors</strong> can oversee specific sites within the project<br>
+            • Users will only see projects they're assigned to manage
+        </small>
+    </div>
+</div>
+
+<style>
+    .max-w-lg {
+        max-width: 600px;
+    }
+</style>
+{% endblock %}

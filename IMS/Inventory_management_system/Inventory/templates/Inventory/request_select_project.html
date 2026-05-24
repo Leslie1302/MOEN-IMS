@@ -1,0 +1,152 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% block title %}Request material — select project{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="mb-4">
+                <h1 class="h3 mb-1">Request material</h1>
+                <p class="text-muted mb-0">Pick the project this request is for. Project type drives which form renders next, where the materials get consigned, and which database fields are captured.</p>
+            </div>
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <form method="post" id="select-project-form">
+                {% csrf_token %}
+
+                <input type="hidden" name="project_type" id="hidden-project-type" value="">
+
+                <div class="row g-3" id="project-cards">
+                    {% for pt in project_types %}
+                    <div class="col-md-4">
+                        <button type="button"
+                                class="card project-card h-100 w-100 text-start"
+                                data-project-id="{{ pt.id }}"
+                                data-project-code="{{ pt.code }}">
+                            <div class="card-body">
+                                <h5 class="card-title mb-2">{{ pt.name }}</h5>
+                                <p class="card-text small text-muted mb-2">
+                                    {% if pt.consignee_role == 'consultant' %}
+                                    Consigned to project consultant
+                                    {% elif pt.consignee_role == 'mp' %}
+                                    Consigned to Hon. Member of Parliament
+                                    {% else %}
+                                    Consignee not yet defined
+                                    {% endif %}
+                                </p>
+                                {% if pt.description %}
+                                <p class="card-text small">{{ pt.description }}</p>
+                                {% endif %}
+                            </div>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if form.project_type.errors %}
+                <div class="invalid-feedback d-block mt-2">{{ form.project_type.errors.0 }}</div>
+                {% endif %}
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'index' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Cancel
+                    </a>
+                    <button type="submit" id="continue-btn" class="btn btn-primary" disabled>
+                        Continue <i class="bi bi-arrow-right ms-1"></i>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Bulk upload alternative -->
+            <div class="card mt-5">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-upload"></i> Bulk request material</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3 text-muted">
+                        Have many requests? Pick a project, download its template, fill in one row per request, then upload back. Failed rows are returned as a downloadable error CSV so you can fix and re-upload only the bad ones.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Step 1 — download template</label>
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'download_request_template' %}?project=shep" class="btn btn-outline-success">
+                                <i class="bi bi-download"></i> SHEP template
+                            </a>
+                            <a href="{% url 'download_request_template' %}?project=cost_sharing" class="btn btn-outline-info">
+                                <i class="bi bi-download"></i> Cost Sharing template
+                            </a>
+                            <a href="{% url 'download_request_template' %}?project=streetlights" class="btn btn-outline-warning">
+                                <i class="bi bi-download"></i> Streetlights template
+                            </a>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label fw-semibold">Step 2 — upload completed file</label>
+                        <form method="post" action="{% url 'upload_requests' %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+                            {% csrf_token %}
+                            <div class="col-md-3">
+                                <select name="project" class="form-select" required>
+                                    <option value="">— Project type —</option>
+                                    <option value="shep">SHEP</option>
+                                    <option value="cost_sharing">Cost Sharing</option>
+                                    <option value="streetlights">Streetlights</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-upload"></i> Upload requests
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+.project-card {
+    border: 0.5px solid var(--bs-border-color, #dee2e6);
+    border-radius: 0.5rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.project-card:hover {
+    border-color: #6c757d;
+}
+.project-card.selected {
+    border: 2px solid #0d6efd;
+    padding: 0;
+}
+</style>
+
+<script>
+(function () {
+    var cards = document.querySelectorAll('.project-card');
+    var hidden = document.getElementById('hidden-project-type');
+    var continueBtn = document.getElementById('continue-btn');
+
+    cards.forEach(function (card) {
+        card.addEventListener('click', function () {
+            cards.forEach(function (c) { c.classList.remove('selected'); });
+            card.classList.add('selected');
+            hidden.value = card.getAttribute('data-project-id');
+            continueBtn.disabled = false;
+        });
+    });
+})();
+</script>
+{% endblock %}

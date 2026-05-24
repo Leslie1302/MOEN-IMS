@@ -178,8 +178,9 @@
         <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">Release Letters</h6>
             <div>
-                <a href="{% url 'upload_release_letter' %}" class="btn btn-sm btn-primary">
-                    <i class="fas fa-upload"></i> Upload New
+                <a href="{% url 'release-letter-upload' %}" class="btn btn-sm btn-primary"
+                   title="Upload a QR-coded release letter (system-generated). For new releases, use the request-code button on the orders page.">
+                    <i class="fas fa-upload"></i> Upload (QR-gated)
                 </a>
                 <button class="btn btn-sm btn-success" id="exportBtn">
                     <i class="fas fa-file-export"></i> Export
@@ -188,7 +189,7 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered table-hover enhanced-table" id="releaseLettersTable" width="100%" cellspacing="0">
+                <table class="table table-bordered table-hover" id="releaseLettersTable" width="100%" cellspacing="0" data-no-enhanced>
                     <thead>
                         <tr>
                             <th>Request Code</th>
@@ -208,16 +209,20 @@
                             <td>{{ letter.upload_time|date:"M d, Y H:i" }}</td>
                             <td>{{ letter.uploaded_by.get_full_name|default:letter.uploaded_by.username }}</td>
                             <td>
-                                {% with status=letter.get_status_display %}
-                                <span class="badge 
-                                    {% if status == 'Pending' %}badge-warning
-                                    {% elif status == 'Approved' %}badge-primary
-                                    {% elif status == 'Completed' %}badge-success
-                                    {% elif status == 'Rejected' %}badge-danger
-                                    {% else %}badge-secondary{% endif %}">
-                                    {{ status }}
-                                </span>
-                                {% endwith %}
+                                {% if letter.workflow_status %}
+                                    {% include "Inventory/includes/signature_stamp_badge.html" with workflow_status=letter.workflow_status %}
+                                {% else %}
+                                    {% with status=letter.get_status_display %}
+                                    <span class="badge
+                                        {% if status == 'Pending' %}badge-warning
+                                        {% elif status == 'Approved' %}badge-primary
+                                        {% elif status == 'Completed' %}badge-success
+                                        {% elif status == 'Rejected' %}badge-danger
+                                        {% else %}badge-secondary{% endif %}">
+                                        {{ status }}
+                                    </span>
+                                    {% endwith %}
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 <span class="badge badge-info">
@@ -225,27 +230,24 @@
                                 </span>
                             </td>
                             <td class="action-buttons">
-                                <a href="{% url 'release_letter_detail' letter.pk %}" 
+                                <a href="{% url 'release_letter_detail' letter.pk %}"
                                    class="btn btn-sm btn-info" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ letter.pdf_file.url }}" 
-                                   class="btn btn-sm btn-primary" title="Download" download>
+                                {% if letter.pdf_file %}
+                                <a href="{{ letter.pdf_file.url }}"
+                                   class="btn btn-sm btn-primary" title="Download signed scan" download>
                                     <i class="fas fa-download"></i>
                                 </a>
-                                {% if perms.Inventory.change_releaseletter %}
-                                <a href="{% url 'release_letter_edit' letter.pk %}" 
-                                   class="btn btn-sm btn-warning" title="Edit">
-                                    <i class="fas fa-edit"></i>
+                                {% elif letter.letter_pdf %}
+                                <a href="{{ letter.letter_pdf.url }}"
+                                   class="btn btn-sm btn-outline-success" title="Download unsigned letter" download>
+                                    <i class="fas fa-file-alt"></i>
                                 </a>
                                 {% endif %}
-                                {% if perms.Inventory.delete_releaseletter %}
-                                <button class="btn btn-sm btn-danger delete-btn" 
-                                        data-url="{% url 'release_letter_delete' letter.pk %}"
-                                        title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                {% endif %}
+                                {# Edit / Delete buttons removed — `release_letter_edit` and `release_letter_delete`
+                                   were referenced but never wired in urls.py. Use Django admin for now;
+                                   Phase F.2 will surface void / reissue actions inline. #}
                             </td>
                         </tr>
                         {% empty %}
