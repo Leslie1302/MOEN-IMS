@@ -320,56 +320,72 @@ class CreateReleaseLetterFromRequestView(LoginRequiredMixin, UserPassesTestMixin
                     )
                     return redirect('material_orders')
 
-                # Validate uniformity of project_type (same rule we enforce on the legacy upload view).
-                project_types = set(
-                    orders.exclude(project_type='').values_list('project_type', flat=True)
-                )
-                if len(project_types) > 1:
-                    messages.error(
-                        request,
-                        f"Cannot create one release letter for orders across multiple project types: "
-                        f"{', '.join(sorted(project_types))}. Split the request into per-project batches.",
+                # Mixed-project batches used to be rejected with "Split the
+                # request into per-project batches." We now auto-split:
+                # one ReleaseLetter per project_type, each with its own
+                # subset of orders. Blank project_type rows are bundled into
+                # their own group so they don't get silently dropped.
+                project_types = sorted({
+                    (o.project_type or '') for o in orders
+                })
+
+                created_letters = []
+                for ptype in project_types:
+                    if ptype:
+                        group = orders.filter(project_type=ptype)
+                    else:
+                        group = orders.filter(project_type='')
+                    if not group.exists():
+                        continue
+
+                    first = group.first()
+                    if first.name:
+                        title = f"Release of {first.name}"
+                    else:
+                        title = f"Release for {request_code}"
+                    if first.community:
+                        title += f" — {first.community}"
+                    if len(project_types) > 1 and ptype:
+                        title += f" [{ptype}]"
+
+                    total_quantity = sum((o.quantity or 0) for o in group)
+
+                    release_letter = ReleaseLetter.objects.create(
+                        request_code=request_code,
+                        title=title[:200],
+                        total_quantity=total_quantity,
+                        material_type='Other',
+                        project_type=(ptype or None),
+                        workflow_status='draft',
+                        uploaded_by=request.user,
                     )
-                    return redirect('material_orders')
+                    group.update(release_letter=release_letter)
+                    created_letters.append(release_letter)
 
-                # Compose a sensible title from the first order. MaterialOrder.name is
-                # a CharField storing the material name verbatim, not a FK to
-                # InventoryItem -- so we use it directly as a string.
-                first = orders.first()
-                if first.name:
-                    title = f"Release of {first.name}"
-                else:
-                    title = f"Release for {request_code}"
-                if first.community:
-                    title += f" — {first.community}"
+                    audit(
+                        request.user, release_letter, 'release.letter_created',
+                        f"Release letter created for {request_code} "
+                        f"project_type={ptype or '(none)'} (orders linked: {group.count()})"
+                        + (" — split from mixed-project batch" if len(project_types) > 1 else ""),
+                    )
 
-                # Total quantity = sum of order quantities (a reasonable initial value;
-                # schedule officer can adjust on the detail page later).
-                total_quantity = sum((o.quantity or 0) for o in orders)
-
-                release_letter = ReleaseLetter.objects.create(
-                    request_code=request_code,
-                    title=title[:200],
-                    total_quantity=total_quantity,
-                    material_type='Other',  # placeholder; can be edited later
-                    project_type=(project_types.pop() if project_types else None),
-                    workflow_status='draft',
-                    uploaded_by=request.user,
+            if len(created_letters) > 1:
+                codes = ', '.join((rl.code or f"#{rl.pk}") for rl in created_letters)
+                messages.success(
+                    request,
+                    f"This batch spanned {len(created_letters)} project types — "
+                    f"created {len(created_letters)} release letters ({codes}). "
+                    "Open any from the list to generate its memo + letter.",
                 )
-
-                # Link all the orders to the new release letter.
-                orders.update(release_letter=release_letter)
-
-            audit(request.user, release_letter, 'release.letter_created',
-                  f"Release letter created for {request_code} "
-                  f"(orders linked: {orders.count()})")
-
-            messages.success(
-                request,
-                f"Release letter created for {request_code}. "
-                "Click 'Generate memo & letter' to produce the PDFs.",
-            )
-            return redirect('release_letter_detail', pk=release_letter.pk)
+                return redirect('material_orders')
+            else:
+                release_letter = created_letters[0]
+                messages.success(
+                    request,
+                    f"Release letter created for {request_code}. "
+                    "Click 'Generate memo & letter' to produce the PDFs.",
+                )
+                return redirect('release_letter_detail', pk=release_letter.pk)
 
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to create ReleaseLetter for request_code=%s", request_code)

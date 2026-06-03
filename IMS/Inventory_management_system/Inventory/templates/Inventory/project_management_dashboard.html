@@ -8,7 +8,7 @@
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h2 class="fw-bold mb-0">⚡ SHEP & Electrification Dashboard</h2>
+                    <h2 class="fw-bold mb-0">SHEP & Electrification Dashboard</h2>
                     <p class="mb-0 opacity-75">Executive overview of SHEP, Turnkey, and China Water projects</p>
                 </div>
                 <div class="col-md-4 text-end">
@@ -111,6 +111,50 @@
             </div>
         </div>
     </div>
+
+    <!-- Project Type Segregation -->
+    {% if project_segments %}
+    <div class="container mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">By project type</h5>
+                    <small class="text-muted">Community status &amp; over-issuance per programme.</small>
+                </div>
+                <div class="row g-3 mb-3">
+                    {% for s in project_segments %}
+                    <div class="col-md-3 col-sm-6">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="small text-muted">{{ s.project_type }}</div>
+                                {% if s.over_issued_lines > 0 %}
+                                <span class="badge bg-danger" title="BoQ lines where received exceeds contract">
+                                    {{ s.over_issued_lines }} over-issued
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="fs-4 fw-semibold">{{ s.completion }}%</div>
+                            <div class="small text-muted">{{ s.received_quantity|floatformat:0 }} / {{ s.contract_quantity|floatformat:0 }}</div>
+                            <div class="small mt-1">
+                                <span class="badge bg-primary">{{ s.communities }} comm.</span>
+                                <span class="badge bg-info">{{ s.packages }} pkg.</span>
+                                <span class="badge bg-secondary">{{ s.items }} items</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mb-2 small text-muted">
+                    <strong>Communities by status, per project type</strong>
+                    — not redundant with the tiles above; shows where work is stuck.
+                </div>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="projectTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Status Overview Card -->
     <div class="container mb-4">
@@ -272,9 +316,9 @@
                                     </td>
                                     <td>
                                         {% if comm.status == "Complete" %}
-                                        <span class="badge bg-success">✓ Complete</span>
+                                        <span class="badge bg-success">Complete</span>
                                         {% elif comm.status == "In Progress" %}
-                                        <span class="badge bg-warning">⏳ In Progress</span>
+                                        <span class="badge bg-warning">In Progress</span>
                                         {% else %}
                                         <span class="badge bg-secondary">Not Started</span>
                                         {% endif %}
@@ -380,6 +424,48 @@
         Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
+
+        // Project-type segregation chart — community-status buckets
+        // stacked per project type, plus an over-issued line count as a
+        // second-axis line. Deliberately avoids the contract / received
+        // numbers the tiles already display.
+        var ptCanvas = document.getElementById('projectTypeChart');
+        if (ptCanvas) {
+            var ptData = {{ project_segments_json|safe }};
+            new Chart(ptCanvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ptData.labels || [],
+                    datasets: [
+                        { type: 'bar', label: 'Completed',   data: ptData.completed   || [],
+                          backgroundColor: '#198754', stack: 'comm', yAxisID: 'y' },
+                        { type: 'bar', label: 'In Progress', data: ptData.in_progress || [],
+                          backgroundColor: '#0d6efd', stack: 'comm', yAxisID: 'y' },
+                        { type: 'bar', label: 'Not Started', data: ptData.not_started || [],
+                          backgroundColor: '#dc3545', stack: 'comm', yAxisID: 'y' },
+                        { type: 'line', label: 'Over-issued BoQ lines',
+                          data: ptData.over_issued_lines || [],
+                          borderColor: '#fd7e14', backgroundColor: '#fd7e14',
+                          yAxisID: 'y1', tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        x:  { stacked: true },
+                        y:  { stacked: true, beginAtZero: true, position: 'left',
+                              title: { display: true, text: 'Communities' },
+                              ticks: { precision: 0 } },
+                        y1: { beginAtZero: true, position: 'right',
+                              title: { display: true, text: 'Over-issued lines' },
+                              grid: { drawOnChartArea: false },
+                              ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
 
         // Community Completion Chart
         const communityCtx = document.getElementById('communityChart').getContext('2d');

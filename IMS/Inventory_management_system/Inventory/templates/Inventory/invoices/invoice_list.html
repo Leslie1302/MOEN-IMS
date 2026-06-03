@@ -126,8 +126,8 @@
                     </thead>
                     <tbody>
                         {% for invoice in invoices %}
-                        <tr>
-                            <td><span class="fw-bold">{{ invoice.invoice_number }}</span></td>
+                        <tr onclick="window.location.href='{% url 'invoice_detail' pk=invoice.pk %}';" style="cursor: pointer;">
+                            <td><a href="{% url 'invoice_detail' pk=invoice.pk %}" class="fw-bold text-decoration-none">{{ invoice.invoice_number }}</a></td>
                             <td>{{ invoice.supplier.name }}</td>
                             <td>
                                 {% if invoice.contract %}

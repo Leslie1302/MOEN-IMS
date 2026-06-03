@@ -1,0 +1,124 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-0 text-gray-800">Contract Fulfillment Tracker</h2>
+            <p class="text-muted mb-0">Monitor supply contract progress and remaining quantities</p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Active Contracts</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ contracts|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Contracts Complete</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                        {% with completed=contracts|dictsort:"is_complete"|length %}
+                            {{ completed }}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contracts Table -->
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Contract #</th>
+                            <th>Supplier</th>
+                            <th>Total Qty</th>
+                            <th>Received</th>
+                            <th>Remaining</th>
+                            <th>Progress</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in contracts %}
+                        <tr onclick="window.location.href='{% url 'contract_detail' pk=contract.pk %}';" style="cursor: pointer;">
+                            <td>
+                                <a href="{% url 'contract_detail' pk=contract.pk %}" class="fw-bold text-decoration-none">
+                                    {{ contract.contract_number }}
+                                </a>
+                            </td>
+                            <td>{{ contract.supplier.name }}</td>
+                            <td>{{ contract.total_contracted|floatformat:0 }}</td>
+                            <td>
+                                <span class="badge bg-success">{{ contract.total_received|floatformat:0 }}</span>
+                            </td>
+                            <td>
+                                {% if contract.remaining > 0 %}
+                                    <span class="text-warning fw-bold">{{ contract.remaining|floatformat:0 }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if contract.fulfillment_percent == 100 %}bg-success{% elif contract.fulfillment_percent >= 75 %}bg-info{% elif contract.fulfillment_percent >= 50 %}bg-warning{% else %}bg-secondary{% endif %}"
+                                         role="progressbar"
+                                         style="width: {{ contract.fulfillment_percent }}%;"
+                                         aria-valuenow="{{ contract.fulfillment_percent }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                        {{ contract.fulfillment_percent }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if contract.is_complete %}
+                                    <span class="badge bg-success">Complete</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">In Progress</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                <i class="fas fa-file-contract fa-3x mb-3 d-block text-gray-300"></i>
+                                No active contracts found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page=1">First</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

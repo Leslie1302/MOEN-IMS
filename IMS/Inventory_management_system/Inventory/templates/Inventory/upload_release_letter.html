@@ -89,7 +89,7 @@
                     {% endfor %}
                     {% endif %}
 
-                    {# ─────────────── STEP 1: pick code + generate ─────────────── #}
+                    {# STEP 1: pick code + generate #}
                     {% if not release_letter %}
                     <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
                         <i class="fas fa-magic fa-lg mt-1"></i>
@@ -121,6 +121,85 @@
                             {% endif %}
                         </div>
 
+                        <!-- Letterhead overrides — optional per-event -->
+                        <details class="mb-4" {% if memo_signatory_prefill_pk or letter_signatory_prefill_pk or signatory_hint_warnings %}open{% endif %}>
+                            <summary class="fw-semibold">
+                                Letterhead overrides (optional)
+                                {% if memo_signatory_prefill_pk or letter_signatory_prefill_pk %}
+                                <span class="badge bg-info text-dark ms-1">bulk upload pre-fill</span>
+                                {% endif %}
+                            </summary>
+                            <div class="small text-muted mt-1 mb-3">
+                                Pick a designation. The officer's name is auto-filled from the
+                                Signatory roster. Leave blank to use the active default.
+                            </div>
+                            {% if signatory_hint_warnings %}
+                            <div class="alert alert-warning small mb-3">
+                                Bulk upload listed signatory title(s) that aren't in the active roster
+                                for this role:
+                                <ul class="mb-0">
+                                    {% for role, title in signatory_hint_warnings %}
+                                    <li><strong>{{ role }}</strong>: "{{ title }}"</li>
+                                    {% endfor %}
+                                </ul>
+                                Pick a designation below to override.
+                            </div>
+                            {% endif %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Memo TO</label>
+                                    <input type="text" name="memo_to_override" class="form-control"
+                                           placeholder="CHIEF DIRECTOR">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Memo FROM (title)</label>
+                                    <input type="text" name="memo_from_override" class="form-control"
+                                           placeholder="DIRECTOR, POWER">
+                                    <div class="form-text small">
+                                        Auto-filled from the memo signatory's title unless overridden here.
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Memo Designation</label>
+                                    <select name="memo_signatory_override" class="form-select signatory-picker"
+                                            data-preview="#rl-memo-sig-name">
+                                        <option value="">— use default —</option>
+                                        {% for s in memo_signatories %}
+                                        <option value="{{ s.pk }}" data-name="{{ s.name }}"
+                                                {% if memo_signatory_prefill_pk == s.pk|stringformat:"s" %}selected{% endif %}>
+                                            {{ s.title }} — {{ s.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text small">
+                                        Signed by: <span id="rl-memo-sig-name" class="fw-semibold">—</span>
+                                        {% if memo_signatory_prefill_pk %}
+                                        <span class="badge bg-info text-dark ms-1">pre-filled from bulk upload</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Letter Designation</label>
+                                    <select name="letter_signatory_override" class="form-select signatory-picker"
+                                            data-preview="#rl-letter-sig-name">
+                                        <option value="">— use default —</option>
+                                        {% for s in letter_signatories %}
+                                        <option value="{{ s.pk }}" data-name="{{ s.name }}"
+                                                {% if letter_signatory_prefill_pk == s.pk|stringformat:"s" %}selected{% endif %}>
+                                            {{ s.title }} — {{ s.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text small">
+                                        Signed by: <span id="rl-letter-sig-name" class="fw-semibold">—</span>
+                                        {% if letter_signatory_prefill_pk %}
+                                        <span class="badge bg-info text-dark ms-1">pre-filled from bulk upload</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
                         <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                             <button type="submit" class="btn btn-primary px-4">
                                 <i class="fas fa-cogs me-1"></i> Generate memo &amp; letter
@@ -128,8 +207,28 @@
                         </div>
                     </form>
 
-                    {# ─────────────── STEP 2: download docs + upload signed scan ─────────────── #}
+                    {# STEP 2: download docs + upload signed scan #}
                     {% else %}
+
+                    {# Sibling switcher — appears when a mixed-project batch was auto-split into
+                       multiple release letters under the same request_code. #}
+                    {% if sibling_release_letters %}
+                    <div class="alert alert-info d-flex flex-wrap align-items-center gap-2 mb-4">
+                        <i class="fas fa-layer-group me-1"></i>
+                        <span class="me-2 fw-semibold">Other release letters from this request:</span>
+                        {% for sib in sibling_release_letters %}
+                        <a href="?request_code={{ release_letter.request_code }}&amp;rl={{ sib.pk }}"
+                           class="btn btn-sm btn-outline-primary">
+                            {{ sib.code|default:"(no code)" }}
+                            {% if sib.project_type %}<span class="badge bg-light text-dark ms-1">{{ sib.project_type }}</span>{% endif %}
+                        </a>
+                        {% endfor %}
+                        <span class="ms-auto small text-muted">
+                            Currently viewing: <code>{{ release_letter.code }}</code>
+                            {% if release_letter.project_type %}<span class="badge bg-secondary ms-1">{{ release_letter.project_type }}</span>{% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
 
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
@@ -265,6 +364,20 @@
                 $select.val(preselect).trigger('change');
             }
         }
+
+        // Designation-led signatory pickers: live-preview the auto-attached
+        // officer name under each dropdown.
+        document.querySelectorAll('.signatory-picker').forEach(function (sel) {
+            var target = document.querySelector(sel.dataset.preview);
+            if (!target) return;
+            function refresh() {
+                var opt = sel.options[sel.selectedIndex];
+                var name = opt ? (opt.dataset.name || '') : '';
+                target.textContent = name || '(active default)';
+            }
+            sel.addEventListener('change', refresh);
+            refresh();
+        });
     });
 </script>
 {% endblock %}

@@ -14,16 +14,25 @@ from .views import (
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView,
     submit_report, approve_report, reject_report, MaterialTransportView, ReleaseLetterUploadView,
     AdjustReleaseLetterQuantityView,
-    StaffProfileView, MaterialOrdersOfficersView, MaterialOrdersArchiveView, DownloadSampleTemplateView,
+    StaffProfileView, MaterialOrdersOfficersView, MaterialOrdersOfficersArchiveView, MaterialOrdersArchiveView, DownloadSampleTemplateView, DownloadBoQTemplateView, download_bulk_request_template,
     generate_weekly_report, weeklyreport_changelist, bulk_user_upload,
     ObsoleteMaterialRegisterView, ObsoleteMaterialListView, ObsoleteMaterialDetailView,
     update_obsolete_material_status, release_letter_tracking_dashboard,
     AdjustReleaseLetterQuantityView, AboutView, requisition_status,
+    get_inventory_item_details,
     # Geospatial API views (Phase 2) - commented until djangorestframework is installed
     # ghana_map_project_sites_api, ghana_map_region_heatmap_api,
     # ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api,
 )
 from .views.map_views import ghana_map_view, ghana_map_data_api
+from .views.meter_views import (
+    meter_install_create, meter_install_list,
+    verify_meter_installation, meter_install_bulk_upload,
+    meter_install_bulk_errors_csv,
+)
+from .views.site_progress_views import (
+    site_progress_list, site_progress_edit, site_progress_api,
+)
 from .views.geospatial_views import (
     ghana_map_project_sites_api, ghana_map_region_heatmap_api,
     ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api
@@ -38,7 +47,9 @@ from .project_management_views import (
     ProjectManagementDashboardView,
     CommunityAnalysisView,
     PackageAnalysisView,
-    MaterialAnalysisView
+    MaterialAnalysisView,
+    CommunityProgressListView,
+    CommunityProgressBreakdownView
 )
 
 # Import project creation and assignment views
@@ -178,6 +189,7 @@ urlpatterns = [
     # Alias name used by the Step 2 template ({% url 'request_material_select' %}).
     path('request-material/', SelectProjectView.as_view(), name='request_material_select'),
     path('request-material/legacy/', RequestMaterialView.as_view(), name='request_material_legacy'),
+    path('request-material/bulk-template/', download_bulk_request_template, name='download_bulk_request_template'),
 
     # Phase C: routes for the two-step Material Request flow. These views
     # were imported above but never registered, which caused NoReverseMatch
@@ -189,6 +201,7 @@ urlpatterns = [
     path('material-orders/', MaterialOrdersView.as_view(), name='material_orders'),
     path('material-orders/archive/', MaterialOrdersArchiveView.as_view(), name='material_orders_archive'),
     path('material-orders-officers/', MaterialOrdersOfficersView.as_view(), name='material_orders_officers'),
+    path('material-orders-officers/archive/', MaterialOrdersOfficersArchiveView.as_view(), name='material_orders_officers_archive'),
     path('requisition-status/', requisition_status, name='requisition_status'),
     # Parameterized routes
     path('update_material_status/<int:order_id>/<str:new_status>/', UpdateMaterialStatusView.as_view(), name='update_material_status'),
@@ -196,11 +209,13 @@ urlpatterns = [
     path('edit-item/<int:pk>', EditItem.as_view(), name='edit-item'),
     path('upload-inventory/', UploadInventoryView.as_view(), name='upload_inventory'),
     path('download-sample-template/', DownloadSampleTemplateView.as_view(), name='download_sample_template'),
+    path('download-boq-template/', DownloadBoQTemplateView.as_view(), name='download_boq_template'),
     path('list-categories/', list_categories, name='list_categories'),
     path('list-units/', list_units, name='list_units'),
     path('get-boq-data/', get_boq_data, name='get_boq_data'),
     path('upload-categories-units/', UploadCategoriesAndUnitsView.as_view(), name='upload_categories_units'),
     path('receive-material/', MaterialReceiptView.as_view(), name='material_receipt'),
+    path('api/inventory-item/<int:item_id>/', get_inventory_item_details, name='get_inventory_item_details'),
     path('material-heatmap/', MaterialHeatmapView.as_view(), name='material_heatmap'),
     path('material-legend/', MaterialLegendView.as_view(), name='material_legend'),
     path('low-inventory-summary/', LowInventorySummaryView.as_view(), name='low_inventory_summary'),
@@ -224,11 +239,25 @@ urlpatterns = [
     path('ghana-map-active-sites/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_active_sites.html')(request), name='ghana_map_active_sites'),
     path('ghana-map-progress/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_progress.html')(request), name='ghana_map_progress'),
     path('api/ghana-map-data/', ghana_map_data_api, name='ghana_map_data_api'),
+
+    # Access-rate / meter installations (Track B Phase B5).
+    path('access-rate/meters/',           meter_install_list,            name='meter_install_list'),
+    path('access-rate/meters/new/',       meter_install_create,          name='meter_install_create'),
+    path('access-rate/meters/bulk/',      meter_install_bulk_upload,     name='meter_install_bulk_upload'),
+    path('access-rate/meters/bulk/errors/', meter_install_bulk_errors_csv, name='meter_install_bulk_errors_csv'),
+    path('access-rate/meters/<int:pk>/verify/', verify_meter_installation, name='meter_install_verify'),
+
+    # Site progress (consultant-driven; interim source for map headline).
+    path('site-progress/',               site_progress_list, name='site_progress_list'),
+    path('site-progress/<int:pk>/edit/', site_progress_edit, name='site_progress_edit'),
+    path('api/site-progress/',           site_progress_api,  name='site_progress_api'),
     path('api/inventory-stock/', inventory_stock_api, name='inventory_stock_api'),
     path('api/community-detail/', community_detail_api, name='community_detail_api'),
     path('api/staff-performance/', staff_performance_api, name='staff_performance_api'),
     path('api/management-dashboard-kpi/', management_dashboard_kpi_api, name='management_dashboard_kpi_api'),
     path('project-analysis/community/', CommunityAnalysisView.as_view(), name='project_community_analysis'),
+    path('project-analysis/community-progress/', CommunityProgressListView.as_view(), name='community_progress_list'),
+    path('project-analysis/community-progress/breakdown/', CommunityProgressBreakdownView.as_view(), name='community_progress_breakdown'),
     path('project-analysis/package/', PackageAnalysisView.as_view(), name='project_package_analysis'),
     path('project-analysis/material/', MaterialAnalysisView.as_view(), name='project_material_analysis'),
 

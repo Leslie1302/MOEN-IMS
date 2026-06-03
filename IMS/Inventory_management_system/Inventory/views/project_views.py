@@ -9,8 +9,9 @@ from django.views.generic import CreateView, ListView, DetailView, UpdateView
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count
 
-from Inventory.models import Project, ProjectSite
+from Inventory.models import Project, ProjectSite, ProjectType
 from Inventory.forms.project_forms import (
     ProjectCreateForm, ProjectAssignmentForm, ProjectSiteCreateForm
 )
@@ -39,9 +40,46 @@ class ProjectListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        qs = self.get_queryset()
         context['can_create'] = is_superuser(self.request.user) or is_management(self.request.user)
-        context['total_projects'] = self.get_queryset().count()
-        context['active_projects'] = self.get_queryset().filter(status='Active').count()
+        context['total_projects'] = qs.count()
+        context['active_projects'] = qs.filter(status='Active').count()
+        # Surface the same registry the request form uses, so the user can
+        # see (and extend) the canonical list. Each entry carries a count of
+        # projects already on the page that belong to it — including legacy
+        # values that aren't in the registry, exposed as a synthetic row.
+        try:
+            registry = list(
+                ProjectType.objects.filter(active=True).order_by('sort_order', 'name')
+            )
+            counts = {
+                row['project_type']: row['n']
+                for row in qs.values('project_type').annotate(n=Count('id'))
+            }
+            registry_rows = []
+            for t in registry:
+                registry_rows.append({
+                    'pk': t.pk,
+                    'name': t.name,
+                    'code': t.code,
+                    'consignee_role': t.get_consignee_role_display(),
+                    'count': counts.get(t.name, 0) + counts.get(t.code.upper(), 0),
+                    'is_legacy': False,
+                })
+            registry_names = {r['name'] for r in registry_rows}
+            for legacy_name, n in counts.items():
+                if legacy_name and legacy_name not in registry_names:
+                    registry_rows.append({
+                        'pk': None,
+                        'name': legacy_name,
+                        'code': legacy_name.lower(),
+                        'consignee_role': '—',
+                        'count': n,
+                        'is_legacy': True,
+                    })
+            context['project_type_registry'] = registry_rows
+        except Exception:
+            context['project_type_registry'] = []
         return context
 
 

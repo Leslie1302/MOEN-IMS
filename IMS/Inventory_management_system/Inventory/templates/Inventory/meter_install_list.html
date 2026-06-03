@@ -1,0 +1,139 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <div class="d-flex justify-content-between align-items-center my-3">
+        <div>
+            <h1 class="h3 mb-1">Meter installations</h1>
+            <p class="text-muted mb-0">
+                Track verified meter installs that drive the national access rate.
+            </p>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'meter_install_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i> Log a new install
+            </a>
+            <a href="{% url 'meter_install_bulk_upload' %}" class="btn btn-outline-primary">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Bulk upload
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ m }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if can_verify %}
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-shield-check me-1"></i> Verification queue</strong>
+            <span class="badge bg-warning text-dark">{{ verification_queue|length }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Community</th>
+                        <th>Phase</th>
+                        <th class="text-end">Qty</th>
+                        <th>Installed</th>
+                        <th>Reported by</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for install in verification_queue %}
+                    <tr>
+                        <td class="text-muted">{{ install.pk }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ install.community.community }}</div>
+                            <div class="small text-muted">{{ install.community.region }} · {{ install.community.district }}</div>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ install.get_phase_type_display }}</span></td>
+                        <td class="text-end fw-semibold">{{ install.quantity|intcomma }}</td>
+                        <td>{{ install.installation_date|date:'Y-m-d' }}</td>
+                        <td>{{ install.reported_by|default:'—' }}</td>
+                        <td class="text-end">
+                            <form method="post" action="{% url 'meter_install_verify' install.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{% url 'meter_install_list' %}">
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="bi bi-check-lg me-1"></i> Verify
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-3">
+                            Nothing waiting. New reports will appear here.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Your recent reports</strong>
+            <span class="badge bg-secondary">{{ own_reports|length }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Community</th>
+                        <th>Phase</th>
+                        <th class="text-end">Qty</th>
+                        <th>Installed</th>
+                        <th>Status</th>
+                        <th>Verified by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for install in own_reports %}
+                    <tr>
+                        <td class="text-muted">{{ install.pk }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ install.community.community }}</div>
+                            <div class="small text-muted">{{ install.community.region }} · {{ install.community.district }}</div>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ install.get_phase_type_display }}</span></td>
+                        <td class="text-end fw-semibold">{{ install.quantity|intcomma }}</td>
+                        <td>{{ install.installation_date|date:'Y-m-d' }}</td>
+                        <td>
+                            {% if install.is_verified %}
+                            <span class="badge bg-success">Verified</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ install.verified_by|default:'—' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-3">
+                            You haven't logged any meter installs yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

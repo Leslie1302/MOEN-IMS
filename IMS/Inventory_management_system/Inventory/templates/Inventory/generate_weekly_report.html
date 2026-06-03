@@ -134,10 +134,10 @@
 
 {% block content %}
 <div class="report-form">
-    <h1>📊 Generate Weekly Development Report</h1>
+    <h1>Generate Weekly Development Report</h1>
     
     <div class="info-box">
-        <h4>ℹ️ About This Report</h4>
+        <h4>ℹAbout This Report</h4>
         <p>This tool automatically generates a comprehensive weekly development report by analyzing:</p>
         <ul>
             <li>Git commit history and messages</li>
@@ -157,7 +157,7 @@
         
         <!-- Configuration Section -->
         <div class="form-section">
-            <h3>⚙️ Report Configuration</h3>
+            <h3>Report Configuration</h3>
             
             <div class="form-row">
                 <label for="days">Number of Days to Include:</label>
@@ -174,7 +174,7 @@
         
         <!-- Email Configuration Section -->
         <div class="form-section">
-            <h3>📧 Email Configuration</h3>
+            <h3>Email Configuration</h3>
             
             <div class="form-row">
                 <label for="recipients">Recipients:</label>
@@ -191,7 +191,7 @@
         
         <!-- Options Section -->
         <div class="form-section">
-            <h3>🔧 Options</h3>
+            <h3>Options</h3>
             
             <div class="checkbox-row">
                 <input type="checkbox" id="dry_run" name="dry_run" checked>
@@ -201,7 +201,7 @@
             </div>
             
             <div class="warning-box">
-                <h4>⚠️ Important</h4>
+                <h4>Important</h4>
                 <p>It's recommended to do a dry run first to preview the report before sending it to recipients. 
                    Uncheck the "Dry Run" option above when you're ready to send the actual email.</p>
             </div>
@@ -210,7 +210,7 @@
         <!-- Action Buttons -->
         <div class="button-row">
             <button type="submit" class="btn btn-primary">
-                🚀 Generate Report
+                Generate Report
             </button>
             <a href="{% url 'weekly_reports_list' %}" class="btn btn-secondary">
                 ← Back to Reports List
@@ -220,7 +220,7 @@
     
     <!-- Help Section -->
     <div class="form-section" style="margin-top: 40px;">
-        <h3>❓ Help & Tips</h3>
+        <h3>Help & Tips</h3>
         
         <h4>Email Configuration</h4>
         <p>Make sure your Django email settings are configured in <code>settings.py</code>:</p>

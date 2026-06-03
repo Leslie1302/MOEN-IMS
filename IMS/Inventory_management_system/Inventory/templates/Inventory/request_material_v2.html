@@ -42,11 +42,22 @@
                                 <label class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
                                 {{ form.quantity }}
                                 {% if form.quantity.errors %}<div class="invalid-feedback d-block">{{ form.quantity.errors.0 }}</div>{% endif %}
+                                <div id="stock-warning" class="invalid-feedback d-block" style="display:none !important;"></div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Warehouse</label>
                                 {{ form.warehouse }}
                                 <small class="text-muted">Optional. Leave blank to draw from any warehouse.</small>
+                            </div>
+                            <div class="col-12">
+                                <div id="stock-display" class="alert alert-light border d-none mb-0" role="status" aria-live="polite">
+                                    <i class="fas fa-warehouse me-2"></i>
+                                    <strong>Available stock: <span id="stock-qty">—</span></strong>
+                                    <span id="stock-unit" class="text-muted ms-1"></span>
+                                    <span id="stock-warehouse" class="text-muted ms-2 small"></span>
+                                    <span id="stock-pill" class="badge ms-2"></span>
+                                    <div id="stock-breakdown" class="small text-muted mt-1"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -85,27 +96,64 @@
                         <small class="text-muted">{{ form.beneficiary_contribution.help_text }}</small>
                     </div>
                 </div>
-                {% elif project_type.code == 'streetlights' %}
+                {% endif %}
+                {# Streetlights: spec fields removed — the InventoryItem (SKU) already
+                   encodes pole height, material type, and lumen rating, so the
+                   form does not ask the requestor to retype them. #}
+
                 <div class="card mb-3">
                     <div class="card-body">
-                        <h5 class="card-title mb-3">Streetlights specifications</h5>
+                        <h5 class="card-title mb-3">Release letterhead</h5>
+                        <p class="text-muted small mb-3">
+                            Pick the designation that should sign the memo and the release letter.
+                            The system attaches the current officer's name automatically from the
+                            Signatory roster. Leave blank to use the active default.
+                        </p>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Pole height (m)</label>
-                                {{ form.pole_height_m }}
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Memo TO</label>
+                                <input type="text" name="memo_to_override" class="form-control" placeholder="CHIEF DIRECTOR">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Lumen rating</label>
-                                {{ form.lumen_rating }}
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Memo FROM (title)</label>
+                                <input type="text" name="memo_from_override" class="form-control" placeholder="DIRECTOR, POWER">
+                                <div class="form-text small">
+                                    Auto-filled from the memo signatory's title unless overridden here.
+                                </div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Pole type</label>
-                                {{ form.pole_type }}
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Memo Designation</label>
+                                <select name="memo_signatory_override" class="form-select signatory-picker"
+                                        data-preview="#memo-sig-name">
+                                    <option value="">— use default —</option>
+                                    {% for s in memo_signatories %}
+                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
+                                        {{ s.title }} — {{ s.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text small">
+                                    Signed by: <span id="memo-sig-name" class="fw-semibold">—</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Letter Designation</label>
+                                <select name="letter_signatory_override" class="form-select signatory-picker"
+                                        data-preview="#letter-sig-name">
+                                    <option value="">— use default —</option>
+                                    {% for s in letter_signatories %}
+                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
+                                        {{ s.title }} — {{ s.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text small">
+                                    Signed by: <span id="letter-sig-name" class="fw-semibold">—</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                {% endif %}
 
                 <div class="card mb-3">
                     <div class="card-body">
@@ -183,43 +231,99 @@
         refresh();
     }
 })();
+
+// Designation-led signatory pickers: show the auto-attached officer name
+// under each dropdown so the user can sanity-check before submitting.
+(function () {
+    document.querySelectorAll('.signatory-picker').forEach(function (sel) {
+        var target = document.querySelector(sel.dataset.preview);
+        if (!target) return;
+        function refresh() {
+            var opt = sel.options[sel.selectedIndex];
+            var name = opt ? (opt.dataset.name || '') : '';
+            target.textContent = name || '(active default)';
+        }
+        sel.addEventListener('change', refresh);
+        refresh();
+    });
+})();
 </script>
 
 
-<!-- Phase S: live stock display when material is picked -->
-<div id="stock-display" class="alert alert-light border d-none mt-2" role="status" aria-live="polite">
-    <i class="fas fa-warehouse me-2"></i>
-    <strong>Stock: <span id="stock-qty">—</span></strong>
-    <span id="stock-unit" class="text-muted ms-1"></span>
-    <span id="stock-warehouse" class="text-muted ms-2 small"></span>
-    <span id="stock-pill" class="badge ms-2"></span>
-</div>
-
 <script>
+// Phase S+: live stock display tied to BOTH material AND warehouse.
+// Aggregates across warehouses when "any warehouse" is selected, breaks
+// down per warehouse below the badge, and blocks submission when the
+// requested quantity exceeds what's actually on hand.
 (function () {
-    // Hook into the material select. Field name is 'name' on the request flow form.
-    var sel = document.querySelector('select[name="name"], input[name="name"]');
-    if (!sel) return;
+    var matSel = document.querySelector('select[name="name"]');
+    var whSel = document.querySelector('select[name="warehouse"]');
+    var qtyInput = document.querySelector('input[name="quantity"]');
+    if (!matSel) return;
+
     var disp = document.getElementById('stock-display');
-    var qty = document.getElementById('stock-qty');
-    var unit = document.getElementById('stock-unit');
-    var wh = document.getElementById('stock-warehouse');
+    var qtyEl = document.getElementById('stock-qty');
+    var unitEl = document.getElementById('stock-unit');
+    var whEl = document.getElementById('stock-warehouse');
     var pill = document.getElementById('stock-pill');
+    var breakdown = document.getElementById('stock-breakdown');
+    var warn = document.getElementById('stock-warning');
+    var submitBtn = document.querySelector('button[type="submit"]');
+
+    var available = null;
+
+    function setSubmitBlocked(blocked, msg) {
+        if (warn) {
+            if (blocked && msg) {
+                warn.textContent = msg;
+                warn.style.display = 'block';
+            } else {
+                warn.textContent = '';
+                warn.style.display = 'none';
+            }
+        }
+        if (qtyInput) {
+            qtyInput.classList.toggle('is-invalid', !!blocked);
+        }
+        if (submitBtn) {
+            submitBtn.disabled = !!blocked;
+            submitBtn.classList.toggle('disabled', !!blocked);
+        }
+    }
+
+    function validateQuantity() {
+        if (available === null || !qtyInput) { setSubmitBlocked(false); return; }
+        var requested = parseFloat(qtyInput.value || '0');
+        if (isNaN(requested) || requested <= 0) { setSubmitBlocked(false); return; }
+        if (requested > available) {
+            setSubmitBlocked(true,
+                'Only ' + available + ' available — reduce the quantity, switch warehouse, or request a split.');
+        } else {
+            setSubmitBlocked(false);
+        }
+    }
 
     function refresh() {
-        var id = sel.value;
-        if (!id) { disp.classList.add('d-none'); return; }
-        fetch('/api/stock/?item_id=' + encodeURIComponent(id), {
+        var id = matSel.value;
+        if (!id) { disp.classList.add('d-none'); available = null; setSubmitBlocked(false); return; }
+        var url = '/api/stock/?item_id=' + encodeURIComponent(id);
+        if (whSel && whSel.value) url += '&warehouse_id=' + encodeURIComponent(whSel.value);
+        fetch(url, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data.error) { disp.classList.add('d-none'); return; }
+            if (data.error) { disp.classList.add('d-none'); available = null; setSubmitBlocked(false); return; }
             disp.classList.remove('d-none');
-            qty.textContent = data.available;
-            unit.textContent = data.unit || '';
-            wh.textContent = data.warehouse ? ('· ' + data.warehouse) : '';
+            available = parseFloat(data.available);
+            qtyEl.textContent = data.available;
+            unitEl.textContent = data.unit || '';
+            if (data.scope === 'aggregate') {
+                whEl.textContent = '· across all warehouses';
+            } else {
+                whEl.textContent = data.warehouse ? ('· ' + data.warehouse) : '';
+            }
             pill.className = 'badge ms-2';
             if (data.status === 'out') {
                 pill.classList.add('bg-danger'); pill.textContent = 'Out of stock';
@@ -228,13 +332,25 @@
             } else {
                 pill.classList.add('bg-success'); pill.textContent = 'Available';
             }
+            // Per-warehouse breakdown (only meaningful when aggregating).
+            if (breakdown) {
+                if (data.scope === 'aggregate' && Array.isArray(data.breakdown) && data.breakdown.length > 1) {
+                    breakdown.innerHTML = data.breakdown.map(function (b) {
+                        return '<span class="me-3">' + (b.warehouse || '—') + ': <strong>' + b.quantity + '</strong></span>';
+                    }).join('');
+                } else {
+                    breakdown.innerHTML = '';
+                }
+            }
+            validateQuantity();
         })
-        .catch(function () { disp.classList.add('d-none'); });
+        .catch(function () { disp.classList.add('d-none'); available = null; setSubmitBlocked(false); });
     }
 
-    sel.addEventListener('change', refresh);
-    // Run once on load in case a value is preselected.
-    if (sel.value) refresh();
+    matSel.addEventListener('change', refresh);
+    if (whSel) whSel.addEventListener('change', refresh);
+    if (qtyInput) qtyInput.addEventListener('input', validateQuantity);
+    if (matSel.value) refresh();
 })();
 </script>
 

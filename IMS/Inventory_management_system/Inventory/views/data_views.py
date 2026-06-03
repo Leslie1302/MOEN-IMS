@@ -175,6 +175,101 @@ def get_boq_data(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+class DownloadBoQTemplateView(LoginRequiredMixin, View):
+    """
+    Download the Bill of Quantity upload template.
+
+    Two-sheet workbook:
+      • "BoQ Template" — header row + sample rows the user overwrites.
+      • "Instructions" — column-by-column guide explaining the contract,
+         which columns are required, and how project_type is auto-inferred
+         from phase / package_number when the column is left blank.
+    """
+
+    def get(self, request):
+        columns = [
+            'region', 'district', 'community', 'project_type', 'phase',
+            'consultant', 'contractor', 'package_number',
+            'material_description', 'contract_quantity', 'quantity_received',
+        ]
+        sample_rows = [
+            {
+                'region': 'Greater Accra', 'district': 'Ga East',
+                'community': 'Abokobi', 'project_type': 'SHEP',
+                'phase': 'SHEP-4', 'consultant': 'Acme Engineers Ltd',
+                'contractor': 'Beta Power Works',
+                'package_number': 'SHEP-4-001',
+                'material_description': 'Portland Cement',
+                'contract_quantity': 1000, 'quantity_received': 0,
+            },
+            {
+                'region': 'Ashanti', 'district': 'Kumasi Metro',
+                'community': 'Asokore Mampong', 'project_type': 'Cost Sharing',
+                'phase': 'Phase 2', 'consultant': 'Gamma Consultants',
+                'contractor': 'Delta Lines',
+                'package_number': 'CS-AHA-01',
+                'material_description': 'Steel Reinforcement Bars',
+                'contract_quantity': 500, 'quantity_received': 120,
+            },
+            {
+                'region': 'Volta', 'district': 'Hohoe',
+                'community': 'Likpe Mate', 'project_type': 'Streetlights',
+                'phase': '', 'consultant': 'Epsilon Engineering',
+                'contractor': 'Zeta Electricals',
+                'package_number': 'SL-VR-007',
+                'material_description': 'LED Streetlight Pole 8m',
+                'contract_quantity': 60, 'quantity_received': 60,
+            },
+        ]
+        df = pd.DataFrame(sample_rows, columns=columns)
+
+        instructions = pd.DataFrame([
+            ('region',               'Required', 'Use one of the 16 Ghana regions, e.g. "Greater Accra", "Ashanti".'),
+            ('district',             'Required', 'District name as it appears on the contract.'),
+            ('community',            'Required', 'Community name. BoQ→site sync keys off this — keep spelling consistent.'),
+            ('project_type',         'Optional', 'One of "SHEP", "Cost Sharing", "Streetlights", "Turnkey", "China Water". If blank, inferred from phase, then package_number prefix; falls back to SHEP.'),
+            ('phase',                'Optional', 'Phase label, e.g. "SHEP-4", "Phase 2".'),
+            ('consultant',           'Required', 'Consultant name. Auto-resolves the SHEP consignee.'),
+            ('contractor',           'Required', 'Contractor name.'),
+            ('package_number',       'Required', 'Unique package identifier. Prefix can also drive project_type (SHEP-/CS-/SL-/TK-/CW-).'),
+            ('material_description', 'Required', 'Must match an existing InventoryItem name exactly. Unmatched rows are rejected on upload.'),
+            ('contract_quantity',    'Required', 'Whole or decimal number. Total contracted quantity for this line.'),
+            ('quantity_received',    'Optional', 'Defaults to 0. Site receipts update this automatically afterwards; set a non-zero value only when seeding from existing paper records.'),
+        ], columns=['Column', 'Status', 'Notes'])
+
+        notes_block = pd.DataFrame([
+            ('Uniqueness',  'Rows are upserted on (item_code, package_number, community).'),
+            ('Inference',   'project_type is auto-set from phase keywords (SHEP, Cost, Street, Turnkey, China) or package_number prefix when the column is empty.'),
+            ('Sites sync',  'Saving a BoQ row now flips the matching ProjectSite status (Planned → Active → Completed) — Ghana map updates automatically.'),
+            ('Backfill',    'After first import, run: python manage.py sync_sites_from_boq'),
+        ], columns=['Topic', 'Detail'])
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='BoQ Template')
+            instructions.to_excel(writer, index=False, sheet_name='Instructions', startrow=0)
+            notes_block.to_excel(writer, index=False, sheet_name='Instructions', startrow=len(instructions) + 3)
+
+            # Column widths so the template opens looking presentable.
+            from openpyxl.utils import get_column_letter
+            wb = writer.book
+            template_ws = wb['BoQ Template']
+            widths_main = [16, 16, 18, 14, 12, 24, 24, 18, 28, 12, 12]
+            for i, w in enumerate(widths_main, 1):
+                template_ws.column_dimensions[get_column_letter(i)].width = w
+            inst_ws = wb['Instructions']
+            for i, w in enumerate([22, 12, 80], 1):
+                inst_ws.column_dimensions[get_column_letter(i)].width = w
+
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename="boq_upload_template.xlsx"'
+        return response
+
+
 class DownloadSampleTemplateView(LoginRequiredMixin, View):
     """View to download sample inventory template"""
     
@@ -514,6 +609,55 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         """
         return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
 
+def _resolve_boq_project_type(row):
+    """Pick a project_type for a BoQ upload row.
+
+    Priority:
+      1. Explicit `project_type` cell in the spreadsheet, normalised
+         against the active ProjectType registry (case-insensitive match
+         on name OR code; falls back to the verbatim string).
+      2. Phase prefix — "SHEP-4", "Shep Phase 2" -> SHEP, etc.
+      3. Package-number prefix — "COST-…" -> Cost Sharing,
+         "POLES-…" / legacy "STREET-…" -> Poles, "SHEP-…" -> SHEP.
+      4. Default 'SHEP' (keeps legacy behaviour when no hint is present).
+    """
+    from Inventory.models import ProjectType
+
+    registry = {}  # lower-cased name/code -> canonical name
+    for t in ProjectType.objects.filter(active=True):
+        registry[t.name.lower()] = t.name
+        registry[t.code.lower()] = t.name
+
+    # 1. Explicit column.
+    raw = row.get('project_type') if hasattr(row, 'get') else None
+    if raw is not None and pd.notna(raw):
+        s = str(raw).strip()
+        if s:
+            return registry.get(s.lower(), s)
+
+    # 2. Phase prefix.
+    phase = row.get('phase') if hasattr(row, 'get') else None
+    if phase is not None and pd.notna(phase):
+        p = str(phase).strip().lower()
+        if 'shep' in p: return registry.get('shep', 'SHEP')
+        if 'cost' in p: return registry.get('cost_sharing', 'Cost Sharing')
+        if 'street' in p or 'pole' in p: return registry.get('streetlights', 'Streetlights')
+        if 'turnkey' in p: return 'Turnkey'
+        if 'china' in p: return 'China Water'
+
+    # 3. Package-number prefix.
+    pkg = row.get('package_number') if hasattr(row, 'get') else None
+    if pkg is not None and pd.notna(pkg):
+        pn = str(pkg).strip().upper()
+        if pn.startswith('SHEP'): return registry.get('shep', 'SHEP')
+        if pn.startswith('CS') or pn.startswith('COST'): return registry.get('cost_sharing', 'Cost Sharing')
+        if pn.startswith('SL') or pn.startswith('STR'): return registry.get('streetlights', 'Streetlights')
+        if pn.startswith('TK') or pn.startswith('TURN'): return 'Turnkey'
+        if pn.startswith('CW') or pn.startswith('CHINA'): return 'China Water'
+
+    return 'SHEP'
+
+
 class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
 
     def get(self, request):
@@ -571,6 +715,13 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         item_code = inventory_item.code
                         logger.info(f"Row {index + 2}: Matched inventory item '{inventory_item.name}' with code '{item_code}'")
 
+                        # Resolve project type for this row (explicit
+                        # column → phase → package prefix → SHEP default).
+                        resolved_project_type = _resolve_boq_project_type(row)
+                        phase_value = row.get('phase') if 'phase' in row else None
+                        if phase_value is not None and not pd.notna(phase_value):
+                            phase_value = None
+
                         boq, created = BillOfQuantity.objects.get_or_create(
                             item_code=item_code,
                             package_number=row['package_number'],
@@ -583,6 +734,8 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                                 'material_description': material_description,
                                 'contract_quantity': contract_qty,
                                 'quantity_received': qty_received,
+                                'project_type': resolved_project_type,
+                                'phase': phase_value,
                                 'user': request.user,
                             }
                         )
@@ -596,8 +749,11 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                             boq.material_description = material_description
                             boq.contract_quantity = contract_qty
                             boq.quantity_received = qty_received
+                            boq.project_type = resolved_project_type
+                            if phase_value is not None:
+                                boq.phase = phase_value
                             boq.save()
-                            logger.info(f"Row {index + 2}: Updated existing BOQ item with code '{item_code}'")
+                            logger.info(f"Row {index + 2}: Updated existing BOQ item with code '{item_code}' (project_type={resolved_project_type})")
                         else:
                             logger.info(f"Row {index + 2}: Created new BOQ item with code '{item_code}'")
                         

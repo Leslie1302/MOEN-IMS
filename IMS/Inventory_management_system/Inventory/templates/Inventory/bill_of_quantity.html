@@ -28,7 +28,7 @@
 {% block full_width_content %}
 <div class="container-fluid px-4">
     <div class="bg-light py-3 mb-3">
-        <h2 class="text-center fw-bold text-primary mb-0">📋 Bill of Quantity</h2>
+        <h2 class="text-center fw-bold text-primary mb-0">Bill of Quantity</h2>
         <p class="text-muted text-center mb-0">View and manage bill of quantity items</p>
     </div>
 
@@ -73,6 +73,7 @@
                     <th scope="col" data-sort>Region</th>
                     <th scope="col" data-sort>District</th>
                     <th scope="col" data-sort>Community</th>
+                    <th scope="col" data-sort>Project Type</th>
                     <th scope="col" data-sort>Consultant</th>
                     <th scope="col" data-sort>Contractor</th>
                     <th scope="col" data-sort>Pkg #</th>
@@ -97,6 +98,7 @@
                     <td>{{ item.region|default:"N/A" }}</td>
                     <td>{{ item.district|default:"N/A" }}</td>
                     <td>{{ item.community|default:"N/A" }}</td>
+                    <td><span class="badge bg-secondary">{{ item.project_type|default:"—" }}</span></td>
                     <td>{{ item.consultant|default:"N/A" }}</td>
                     <td>{{ item.contractor|default:"N/A" }}</td>
                     <td>{{ item.package_number|default:"N/A" }}</td>
@@ -123,7 +125,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="{% if user.is_superuser %}14{% else %}11{% endif %}" class="text-center">No Bill of
+                    <td colspan="{% if user.is_superuser %}15{% else %}12{% endif %}" class="text-center">No Bill of
                         Quantity data available.</td>
                 </tr>
                 {% endfor %}
@@ -186,7 +188,7 @@
     <div class="d-flex justify-content-between align-items-center px-3 py-3 bg-light mt-3 mb-5">
         <div>
             {% if user.is_superuser %}
-            <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">📂 Upload Excel</a>
+            <a href="{% url 'upload_bill_of_quantity' %}" class="btn btn-success">Upload Excel</a>
             {% endif %}
             {% if perms.Inventory.can_view_overissuance_summary or user.is_superuser %}
             <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-warning ms-2">
@@ -199,7 +201,7 @@
 </div>
 
 <button class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; display: none; z-index: 1000;"
-    id="scroll-top-btn" onclick="scrollToTop()">⬆ Top</button>
+    id="scroll-top-btn" onclick="scrollToTop()">Top</button>
 
 <script>
     function scrollToTop() {
@@ -400,12 +402,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'bill_of_quantity',
         title: 'Bill of Quantity',
         subtitle: 'View and manage project materials and quantities',
-        icon: '📋',
+        icon: '',
         features: [
-            { icon: '📊', title: 'Contract Quantities', desc: 'Track contracted vs received amounts' },
-            { icon: '⚖️', title: 'Balance Tracking', desc: 'Monitor remaining quantities' },
-            { icon: '✏️', title: 'Bulk Edit', desc: 'Edit multiple entries at once' },
-            { icon: '⚠️', title: 'Overissuance Alerts', desc: 'Flag items exceeding quantities' }
+            { icon: '', title: 'Contract Quantities', desc: 'Track contracted vs received amounts' },
+            { icon: '', title: 'Balance Tracking', desc: 'Monitor remaining quantities' },
+            { icon: '', title: 'Bulk Edit', desc: 'Edit multiple entries at once' },
+            { icon: '', title: 'Overissuance Alerts', desc: 'Flag items exceeding quantities' }
         ],
         tips: [
             'Use Community Bulk Edit for Excel-like editing',

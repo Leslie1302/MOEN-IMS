@@ -205,6 +205,36 @@ class ReleaseLetter(auto_prefetch.Model):
         help_text="Percentage threshold to trigger drawdown alerts (default 80%)"
     )
     
+    # ─────────── Per-event letterhead overrides (Phase F.6) ──────────
+    # These let the schedule officer pick TO / FROM / Signatory at release
+    # time without a code change. When blank, the PDF generator falls back
+    # to "CHIEF DIRECTOR" / the Director-Power title / the default
+    # Signatory rows. Useful when someone is acting in another's stead.
+    memo_to_override = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Memo TO line. Defaults to 'CHIEF DIRECTOR'. Set to 'AG. CHIEF DIRECTOR' etc. when needed.",
+    )
+    memo_from_override = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Memo FROM line. Defaults to the memo signatory's title.",
+    )
+    memo_signatory_override = auto_prefetch.ForeignKey(
+        'Inventory.Signatory',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='memo_overrides',
+        help_text="Pick a specific signatory for the approval memo. Leave blank to use the default.",
+    )
+    letter_signatory_override = auto_prefetch.ForeignKey(
+        'Inventory.Signatory',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='letter_overrides',
+        help_text="Pick a specific signatory for the release letter to MMU. Leave blank to use the default.",
+    )
+
     # BOQ linkage for guardrail validation
     boq_item = auto_prefetch.ForeignKey(
         BillOfQuantity,
@@ -388,6 +418,49 @@ class MaterialOrder(auto_prefetch.Model):
         blank=True,
         help_text="Supplier for material receipts"
     )
+
+    # ── Receipt-side categorisation (mirrors the release-side ReleaseLetter
+    # link). Lets the system distinguish a brand-new supplier delivery from
+    # a return that offsets an earlier overissuance on a BoQ line.
+    RECEIPT_CATEGORY_CHOICES = [
+        ('new_supply', 'New Supply'),
+        ('overissuance_return', 'Overissuance Return'),
+        ('transfer_in', 'Inter-Warehouse Transfer In'),
+        ('adjustment', 'Stock Adjustment'),
+    ]
+    receipt_category = models.CharField(
+        max_length=30,
+        choices=RECEIPT_CATEGORY_CHOICES,
+        default='new_supply',
+        help_text=(
+            'Category for Receipt orders. "Overissuance Return" links this '
+            'receipt into the BoQ overissuance ledger so the return offsets '
+            'the overdrawn quantity.'
+        ),
+    )
+    supply_contract = auto_prefetch.ForeignKey(
+        'Inventory.SupplyContract',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receipt_orders',
+        help_text=(
+            'Supply contract this receipt is drawn against. Mirrors how a '
+            'release links to a ReleaseLetter.'
+        ),
+    )
+    linked_boq_item = auto_prefetch.ForeignKey(
+        'Inventory.BillOfQuantity',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='return_receipts',
+        help_text=(
+            'For Overissuance Return receipts, the BoQ line being offset. '
+            'BoQ.quantity_received is reduced by the processed quantity of '
+            'this return when the receipt is completed.'
+        ),
+    )
     
     # Request tracking
     request_code = models.CharField(
@@ -473,6 +546,8 @@ class MaterialOrder(auto_prefetch.Model):
     # Phase C: STREET added so Streetlights orders can be created via the
     # two-step request flow. The lowercase ProjectType.code values are
     # mapped to these CharField values by Inventory.constants.
+    # (0055 briefly renamed this to POLES; 0060 reverted because the
+    # programme is Streetlights -- pole specs live on the InventoryItem.)
     PROJECT_TYPE_CHOICES = [
         ('SHEP', 'SHEP'),
         ('COST', 'Cost-sharing'),
@@ -816,72 +891,112 @@ class SiteReceipt(auto_prefetch.Model):
         default='Good'
     )
     
+    # --- BoQ posting outcome (set automatically in save()) ---
+    boq_matched = models.BooleanField(
+        default=True,
+        help_text="Whether this receipt was successfully posted to a Bill of "
+                  "Quantity line. False marks an off-BoQ delivery - materials "
+                  "released against no contract line."
+    )
+    boq_match_note = models.TextField(
+        blank=True,
+        help_text="Explains how this receipt was matched to the Bill of "
+                  "Quantity, or why it could not be matched."
+    )
+
     class Meta(auto_prefetch.Model.Meta):
         ordering = ['-received_date']
         verbose_name = 'Site Receipt'
         verbose_name_plural = 'Site Receipts'
     
     def save(self, *args, **kwargs):
-        """Update the related MaterialTransport status and BOQ when site receipt is created"""
-        import logging
-        logger = logging.getLogger(__name__)
-        
+        """Persist the receipt, post it to the Bill of Quantity, and mark the
+        related transport delivered.
+
+        The BoQ match outcome is recorded on boq_matched / boq_match_note so an
+        off-BoQ delivery (one that posts against no contract line) is never
+        silent: post_save signals raise an alert to Management whenever
+        boq_matched is False."""
         is_new = self.pk is None
+
+        # Resolve the BoQ match before the first save, so the outcome is stored
+        # on the row and is visible to the post_save signal that alerts
+        # Management about off-BoQ deliveries.
+        if is_new:
+            self.boq_matched, self.boq_match_note = self._post_to_boq()
+
         super().save(*args, **kwargs)
-        
+
         if is_new and self.material_transport:
-            # Update transport status to 'Delivered' when site receipt is logged
+            # Mark the related transport delivered.
             self.material_transport.status = 'Delivered'
             self.material_transport.date_delivered = self.received_date
             self.material_transport.save()
-            
-            # Update BOQ quantity_received based on site receipt
-            try:
-                material_order = self.material_transport.material_order
-                if material_order and material_order.package_number:
-                    # Try to find matching BOQ entry
-                    boq_entry = None
-                    
-                    # Strategy 1: Match by item_code and package_number
-                    if material_order.code and material_order.package_number:
-                        boq_entry = BillOfQuantity.objects.filter(
-                            item_code=material_order.code,
-                            package_number=material_order.package_number
-                        ).first()
-                        logger.info(f"BOQ lookup by code={material_order.code}, package={material_order.package_number}: {'Found' if boq_entry else 'Not found'}")
-                    
-                    # Strategy 2: Match by material_description and package_number
-                    if not boq_entry and material_order.name and material_order.package_number:
-                        boq_entry = BillOfQuantity.objects.filter(
-                            material_description__iexact=material_order.name,
-                            package_number=material_order.package_number
-                        ).first()
-                        logger.info(f"BOQ lookup by name={material_order.name}, package={material_order.package_number}: {'Found' if boq_entry else 'Not found'}")
-                    
-                    if boq_entry:
-                        # Update BOQ with received quantity from site receipt
-                        old_qty = boq_entry.quantity_received
-                        boq_entry.quantity_received += float(self.received_quantity)
-                        
-                        # Log if exceeding contract quantity
-                        if boq_entry.quantity_received > boq_entry.contract_quantity:
-                            logger.warning(
-                                f"BOQ quantity_received ({boq_entry.quantity_received}) exceeds contract_quantity "
-                                f"({boq_entry.contract_quantity}) for {boq_entry.material_description}"
-                            )
-                        
-                        boq_entry.save()
-                        logger.info(
-                            f"Site Receipt: Updated BOQ for '{boq_entry.material_description}' (Package: {boq_entry.package_number}): "
-                            f"quantity_received {old_qty} → {boq_entry.quantity_received}, balance: {boq_entry.balance}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Site Receipt: No BOQ entry found. "
-                            f"Order details - code: {material_order.code}, name: {material_order.name}, package: {material_order.package_number}"
-                        )
-            except Exception as e:
-                logger.error(f"Error updating BOQ from site receipt: {str(e)}", exc_info=True)
+
+    def _post_to_boq(self):
+        """Find the Bill of Quantity line this delivery belongs to and add the
+        received quantity to it.
+
+        Returns a (matched, note) tuple. matched is False when the delivery
+        could not be tied to any BoQ line (an off-BoQ release) - warehouse
+        stock is still deducted elsewhere, but no contract is drawn down.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            transport = self.material_transport
+            order = transport.material_order if transport else None
+            if order is None:
+                return False, "No material order is linked to this delivery."
+            if not order.package_number:
+                return False, (
+                    "The material request carries no package number, so this "
+                    "delivery cannot be matched to a Bill of Quantity line."
+                )
+
+            boq_entry = None
+            # Strategy 1: match on item code + package number.
+            if order.code:
+                boq_entry = BillOfQuantity.objects.filter(
+                    item_code=order.code,
+                    package_number=order.package_number,
+                ).first()
+            # Strategy 2: fall back to material description + package number.
+            if boq_entry is None and order.name:
+                boq_entry = BillOfQuantity.objects.filter(
+                    material_description__iexact=order.name,
+                    package_number=order.package_number,
+                ).first()
+
+            if boq_entry is None:
+                note = (
+                    f"No Bill of Quantity line found for package "
+                    f"'{order.package_number}' (item code '{order.code}', "
+                    f"material '{order.name}'). Off-BoQ delivery - no contract "
+                    f"was drawn down."
+                )
+                logger.warning(f"Site Receipt: {note}")
+                return False, note
+
+            old_qty = boq_entry.quantity_received
+            boq_entry.quantity_received += float(self.received_quantity)
+            boq_entry.save()
+            note = (
+                f"Posted to BoQ line '{boq_entry.material_description}' "
+                f"(package {boq_entry.package_number}): received quantity "
+                f"{old_qty} -> {boq_entry.quantity_received}, "
+                f"balance {boq_entry.balance}."
+            )
+            if boq_entry.quantity_received > boq_entry.contract_quantity:
+                note += (" This BoQ line is now over-issued "
+                         "(received exceeds contract).")
+            logger.info(f"Site Receipt: {note}")
+            return True, note
+        except Exception as exc:
+            # A BoQ posting error must never block logging the receipt.
+            logger.error(f"Error posting site receipt to BoQ: {exc}",
+                         exc_info=True)
+            return False, f"Could not post to a BoQ line - error: {exc}"
     
     def __str__(self):
         return f"Site Receipt: {self.material_transport.material_name} - {self.received_quantity} {self.material_transport.unit}"

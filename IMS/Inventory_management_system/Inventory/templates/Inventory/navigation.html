@@ -2,7 +2,7 @@
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">⚡ MOEGT IEPS</a>
+        <a class="navbar-brand fw-bold text-primary" href="{% url 'index' %}">MOEGT IEPS</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
             aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -34,31 +34,30 @@
 
                 <!-- Dashboard -->
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'dashboard' %}">📊 Stock Dashboard</a>
+                    <a class="nav-link" href="{% url 'dashboard' %}">Stock Dashboard</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'ghana_map' %}">🗺️ Ghana Map</a>
+                    <a class="nav-link" href="{% url 'ghana_map' %}">Ghana Map</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'about' %}">ℹ️ About</a>
+                    <a class="nav-link" href="{% url 'about' %}">ℹAbout</a>
                 </li>
 
                 <!-- Projects Menu -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="projectsDropdown"
                         role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🏗️ Projects
+                        Projects
                     </a>
                     <ul class="dropdown-menu" aria-labelledby="projectsDropdown">
                         {% if user|has_any_group:"Store Officer,Store Officers,Storekeeper,Storekeepers,Stores Officer,Stores Officers,Schedule Officer,Schedule Officers,Management" or user.is_superuser %}
                         <li>
                             <h6 class="dropdown-header">Bill of Quantity</h6>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">📋 Bill of Quantity</a></li>
-                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">⚠️ Overissuance
+                        <li><a class="dropdown-item" href="{% url 'bill_of_quantity' %}">Bill of Quantity</a></li>
+                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_summary' %}">Overissuance
                                 Summary</a></li>
-                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_justification_list' %}">📝
-                                Justifications</a></li>
+                        <li><a class="dropdown-item" href="{% url 'boq_overissuance_justification_list' %}">                                Justifications</a></li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
@@ -67,15 +66,17 @@
                         <li>
                             <h6 class="dropdown-header">Project Management</h6>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'project_list' %}">📂 Projects</a></li>
-                        <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">📈 Dashboard</a></li>
-                        <li><a class="dropdown-item" href="{% url 'project_community_analysis' %}">🏙️ Community
+                        <li><a class="dropdown-item" href="{% url 'project_list' %}">Projects</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_management_dashboard' %}">Dashboard</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_community_analysis' %}">Community
                                 Analysis</a></li>
-                        <li><a class="dropdown-item" href="{% url 'project_package_analysis' %}">📦 Package Analysis</a>
+                        <li><a class="dropdown-item" href="{% url 'community_progress_list' %}">Community
+                                Progress</a></li>
+                        <li><a class="dropdown-item" href="{% url 'project_package_analysis' %}">Package Analysis</a>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'project_material_analysis' %}">📊 Material
+                        <li><a class="dropdown-item" href="{% url 'project_material_analysis' %}">Material
                                 Analysis</a></li>
-                        <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">📊 Release
+                        <li><a class="dropdown-item" href="{% url 'release_letter_tracking_dashboard' %}">Release
                                 Letter Tracking</a></li>
                         <li>
                             <hr class="dropdown-divider">
@@ -85,12 +86,45 @@
                         <li>
                             <h6 class="dropdown-header">Community management</h6>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'community_list' %}">🏘️ Communities</a></li>
-                        <li><a class="dropdown-item" href="{% url 'community_create' %}">➕ Add community</a></li>
-                        <li><a class="dropdown-item" href="{% url 'community_list' %}#bulk">📤 Bulk upload (per project)</a></li>
-                        <li><a class="dropdown-item" href="{% url 'download_mp_template' %}">📥 MP roster template</a></li>
-                        <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">📖 Abbreviation legend</a></li>
+                        <li><a class="dropdown-item" href="{% url 'community_list' %}">Communities</a></li>
+                        <li><a class="dropdown-item" href="{% url 'community_create' %}">Add community</a></li>
+                        <li><a class="dropdown-item" href="{% url 'community_list' %}#bulk">Bulk upload (per project)</a></li>
+                        <li><a class="dropdown-item" href="{% url 'download_mp_template' %}">MP roster template</a></li>
+                        <li><a class="dropdown-item" href="{% url 'abbreviation_legend' %}">Abbreviation legend</a></li>
                         {% endif %}
+                    </ul>
+                </li>
+
+                <!-- Site Work Menu -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-dark fw-semibold" href="#" id="siteWorkDropdown"
+                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Site Work
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="siteWorkDropdown">
+                        {% if user.is_superuser %}
+                        <li>
+                            <h6 class="dropdown-header">Deliveries</h6>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'consultant_deliveries' %}">Pending Deliveries</a></li>
+                        <li><a class="dropdown-item" href="{% url 'site_receipts' %}">Site Receipts</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        {% endif %}
+                        <li>
+                            <h6 class="dropdown-header">Progress reporting</h6>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'site_progress_list' %}">Site progress</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li>
+                            <h6 class="dropdown-header">Meter installations</h6>
+                        </li>
+                        <li><a class="dropdown-item" href="{% url 'meter_install_list' %}">Installations</a></li>
+                        <li><a class="dropdown-item" href="{% url 'meter_install_create' %}">Log new install</a></li>
+                        <li><a class="dropdown-item" href="{% url 'meter_install_bulk_upload' %}">Bulk upload</a></li>
                     </ul>
                 </li>
 
@@ -104,8 +138,7 @@
                 <li class="nav-item">
                     <a class="nav-link text-dark fw-semibold position-relative" href="#" id="notificationsDropdown"
                         role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        🔔
-                        {% if unread_notifications_count > 0 %}
+                                                {% if unread_notifications_count > 0 %}
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
                             style="font-size: 0.6em;">
                             {{ unread_notifications_count }}
@@ -155,7 +188,7 @@
                 <!-- Show "Awaiting Authorization" ONLY for users with no groups and not superuser -->
                 {% if not user.groups.exists and not user.is_superuser %}
                 <li class="nav-item">
-                    <span class="nav-link text-muted fw-semibold">🔒 Awaiting Authorization</span>
+                    <span class="nav-link text-muted fw-semibold">Awaiting Authorization</span>
                 </li>
                 {% endif %}
 
@@ -176,19 +209,19 @@
                         {% endif %}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="{% url 'profile' %}">⚙️ Profile settings</a></li>
-                        <li><a class="dropdown-item" href="{% url 'setup_2fa' %}">🔒 Security / 2FA</a></li>
+                        <li><a class="dropdown-item" href="{% url 'profile' %}">Profile settings</a></li>
+                        <li><a class="dropdown-item" href="{% url 'setup_2fa' %}">Security / 2FA</a></li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'help' %}">❓ Help</a></li>
+                        <li><a class="dropdown-item" href="{% url 'help' %}">Help</a></li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
                         <li>
                             <form action="{% url 'logout' %}" method="post">
                                 {% csrf_token %}
-                                <button type="submit" class="dropdown-item text-danger">🚪 Sign Out</button>
+                                <button type="submit" class="dropdown-item text-danger">Sign Out</button>
                             </form>
                         </li>
                     </ul>

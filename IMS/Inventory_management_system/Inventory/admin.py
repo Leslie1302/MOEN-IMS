@@ -14,7 +14,7 @@ from .models import (
     SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
     SHEPCommunity, Community, ProjectSite, Project,
     ProjectType, MemberOfParliament, ProjectConsultant,
-    Signatory,
+    Signatory, ReleaseLetter,
 )
 from .transporter_models import Transporter, TransportVehicle
 from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
@@ -533,6 +533,52 @@ class MemberOfParliamentAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(ReleaseLetter)
+class ReleaseLetterAdmin(admin.ModelAdmin):
+    """Edit per-event signatory and TO/FROM overrides without a code deploy.
+
+    Use this when someone is acting in place of the default Director or
+    Chief Director — set memo_signatory_override or letter_signatory_override
+    (or both) and regenerate the PDFs. The Signatory admin holds the
+    candidate roster.
+    """
+    list_display = (
+        'reference_number', 'request_code', 'code', 'title',
+        'project_type', 'workflow_status', 'upload_time',
+        'memo_signatory_override', 'letter_signatory_override',
+    )
+    list_filter = ('project_type', 'workflow_status', 'status', 'material_type')
+    search_fields = ('reference_number', 'request_code', 'code', 'title')
+    readonly_fields = (
+        'reference_number', 'code', 'upload_time',
+        'documents_generated_at', 'scan_uploaded_at',
+    )
+    fieldsets = (
+        (None, {
+            'fields': ('reference_number', 'code', 'request_code', 'title',
+                       'project_type', 'material_type', 'project_phase'),
+        }),
+        ('Letterhead overrides (per event)', {
+            'fields': ('memo_to_override', 'memo_from_override',
+                       'memo_signatory_override', 'letter_signatory_override'),
+            'description': (
+                'Override the defaults from the Signatory admin for this one '
+                'release event. Use when someone is acting in another role.'
+            ),
+        }),
+        ('Workflow', {'fields': ('workflow_status', 'status', 'total_quantity')}),
+        ('Documents', {
+            'fields': ('memo_pdf', 'letter_pdf', 'pdf_file',
+                       'documents_generated_at', 'scan_uploaded_at'),
+            'classes': ('collapse',),
+        }),
+        ('Audit', {
+            'fields': ('uploaded_by', 'upload_time', 'notes'),
+            'classes': ('collapse',),
+        }),
+    )
+
+
 @admin.register(Signatory)
 class SignatoryAdmin(admin.ModelAdmin):
     """Phase F.1 — manage who signs which generated document."""
@@ -779,18 +825,18 @@ class ProjectSiteAdmin(admin.ModelAdmin):
 # Register LogEntry
 @admin.register(BillOfQuantity)
 class BillOfQuantityAdmin(admin.ModelAdmin):
-    list_display = ('material_description', 'item_code', 'package_number', 'region', 'district', 'contract_quantity', 'quantity_received', 'get_balance', 'warehouse', 'date_created')
-    list_filter = ('region', 'district', 'warehouse', 'date_created')
-    search_fields = ('material_description', 'item_code', 'package_number', 'consultant', 'contractor', 'region', 'district')
+    list_display = ('material_description', 'item_code', 'project_type', 'package_number', 'region', 'district', 'contract_quantity', 'quantity_received', 'get_balance', 'warehouse', 'date_created')
+    list_filter = ('project_type', 'region', 'district', 'warehouse', 'date_created')
+    search_fields = ('material_description', 'item_code', 'package_number', 'consultant', 'contractor', 'region', 'district', 'project_type')
     readonly_fields = ('date_created', 'get_balance')
     date_hierarchy = 'date_created'
-    
+
     fieldsets = (
         ('Location Information', {
             'fields': ('region', 'district', 'community')
         }),
         ('Project Details', {
-            'fields': ('consultant', 'contractor', 'package_number')
+            'fields': ('project_type', 'phase', 'consultant', 'contractor', 'package_number')
         }),
         ('Material Information', {
             'fields': ('material_description', 'item_code', 'contract_quantity', 'quantity_received', 'get_balance', 'warehouse')

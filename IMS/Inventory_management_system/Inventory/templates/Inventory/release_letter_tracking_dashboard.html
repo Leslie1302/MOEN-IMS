@@ -197,10 +197,15 @@
                                 {% for rl in release_letters %}
                                 <tr>
                                     <td>
-                                        <strong>{{ rl.reference_number }}</strong>
+                                        <a href="{% url 'release_letter_detail' rl.id %}"
+                                            class="fw-bold text-decoration-none"
+                                            title="Open release letter {{ rl.reference_number }}">
+                                            {{ rl.reference_number }} <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                                        </a>
                                     </td>
                                     <td>
-                                        <span title="{{ rl.title }}">{{ rl.title|truncatewords:5 }}</span>
+                                        <a href="{% url 'release_letter_detail' rl.id %}"
+                                            class="text-decoration-none" title="{{ rl.title }}">{{ rl.title|truncatewords:5 }}</a>
                                         {% if rl.project_phase %}
                                         <br><small class="text-muted"><i class="bi bi-diagram-3"></i> {{ rl.project_phase }}</small>
                                         {% endif %}
@@ -339,14 +344,11 @@
                                                                     <td class="text-end">{{ order.quantity|floatformat:0|intcomma }}</td>
                                                                     <td>
                                                                         {% if order.status == "Pending" %}
-                                                                        <span class="badge bg-warning text-dark">⏳
-                                                                            Pending</span>
+                                                                        <span class="badge bg-warning text-dark">                                                                            Pending</span>
                                                                         {% elif order.status == "Approved" %}
-                                                                        <span class="badge bg-primary">🔄
-                                                                            Approved</span>
+                                                                        <span class="badge bg-primary">                                                                            Approved</span>
                                                                         {% elif order.status == "Completed" %}
-                                                                        <span class="badge bg-success">✅
-                                                                            Completed</span>
+                                                                        <span class="badge bg-success">                                                                            Completed</span>
                                                                         {% else %}
                                                                         <span class="badge bg-secondary">{{ order.status }}</span>
                                                                         {% endif %}
@@ -385,10 +387,9 @@
                                                                     <td>{{ transport.driver_name|default:"—"|truncatewords:2 }}</td>
                                                                     <td>
                                                                         {% if transport.status == "Delivered" %}
-                                                                        <span class="badge bg-success">🚚
-                                                                            Delivered</span>
+                                                                        <span class="badge bg-success">                                                                            Delivered</span>
                                                                         {% elif transport.status == "In Transit" %}
-                                                                        <span class="badge bg-warning text-dark">➡️ In
+                                                                        <span class="badge bg-warning text-dark">In
                                                                             Transit</span>
                                                                         {% else %}
                                                                         <span class="badge bg-secondary">{{ transport.status }}</span>
@@ -465,7 +466,7 @@
     {% if release_letters %}
     <div class="row mt-4">
         <div class="col-12">
-            <h5 class="mb-3">📊 Tracking Insights</h5>
+            <h5 class="mb-3">Tracking Insights</h5>
         </div>
         <div class="col-md-6 mb-3">
             <div class="card border-warning border-2">
@@ -637,12 +638,12 @@
             pageId: 'release_letter_tracking',
             title: 'Release Letter Tracking',
             subtitle: 'Track authorized material releases against stock movements',
-            icon: '📋',
+            icon: '',
             features: [
-                { icon: '📄', title: 'Letter Overview', desc: 'View all release letters and their status' },
-                { icon: '📊', title: 'Utilization Metrics', desc: 'Track quantities released vs authorized' },
-                { icon: '🔍', title: 'Search & Filter', desc: 'Find letters by date, status, or ID' },
-                { icon: '✅', title: 'Status Tracking', desc: 'Monitor open, partial, and completed letters' }
+                { icon: '', title: 'Letter Overview', desc: 'View all release letters and their status' },
+                { icon: '', title: 'Utilization Metrics', desc: 'Track quantities released vs authorized' },
+                { icon: '', title: 'Search & Filter', desc: 'Find letters by date, status, or ID' },
+                { icon: '', title: 'Status Tracking', desc: 'Monitor open, partial, and completed letters' }
             ],
             tips: [
                 'Filter by status to see open vs completed letters',

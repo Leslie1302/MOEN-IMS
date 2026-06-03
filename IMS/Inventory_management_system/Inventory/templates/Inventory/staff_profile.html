@@ -11,7 +11,7 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="h2 mb-1">👤 Staff Profile</h1>
+                    <h1 class="h2 mb-1">Staff Profile</h1>
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a href="{% url 'management_dashboard' %}">Management
@@ -240,19 +240,19 @@
         <div class="col-md-6 mb-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">📊 Request Type Breakdown</h5>
+                    <h5 class="mb-0">Request Type Breakdown</h5>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-6">
                             <div class="border-end">
                                 <h3 class="text-danger mb-1">{{ release_orders }}</h3>
-                                <p class="text-muted mb-0">📤 Release Orders</p>
+                                <p class="text-muted mb-0">Release Orders</p>
                             </div>
                         </div>
                         <div class="col-6">
                             <h3 class="text-success mb-1">{{ receipt_orders }}</h3>
-                            <p class="text-muted mb-0">📥 Receipt Orders</p>
+                            <p class="text-muted mb-0">Receipt Orders</p>
                         </div>
                     </div>
                 </div>
@@ -261,7 +261,7 @@
         <div class="col-md-6 mb-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">📈 Performance Metrics</h5>
+                    <h5 class="mb-0">Performance Metrics</h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
@@ -287,7 +287,7 @@
         <div class="col-md-8 mb-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">⏱️ Activity Timeline</h5>
+                    <h5 class="mb-0">⏱Activity Timeline</h5>
                     <small class="text-muted">{{ date_range }}</small>
                 </div>
                 <div class="card-body">
@@ -329,7 +329,7 @@
             <!-- Recent Material Orders -->
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">📦 Recent Orders</h5>
+                    <h5 class="mb-0">Recent Orders</h5>
                 </div>
                 <div class="card-body">
                     {% if recent_material_orders %}
@@ -365,7 +365,7 @@
             <!-- Monthly Activity Chart -->
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">📊 Monthly Activity</h5>
+                    <h5 class="mb-0">Monthly Activity</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="monthlyChart" width="400" height="200"></canvas>

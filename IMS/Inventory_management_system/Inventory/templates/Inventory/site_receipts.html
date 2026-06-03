@@ -10,7 +10,7 @@
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h2 class="fw-bold text-primary mb-1">📋 Site Receipts</h2>
+                    <h2 class="fw-bold text-primary mb-1">Site Receipts</h2>
                     <p class="text-muted mb-0">History of logged material receipts at project sites</p>
                 </div>
                 <div class="d-flex align-items-center">
@@ -75,11 +75,11 @@
                                 </div>
                                 <div class="text-end">
                                     {% if receipt.condition == 'Good' %}
-                                    <span class="badge bg-success">✅ Good</span>
+                                    <span class="badge bg-success">Good</span>
                                     {% elif receipt.condition == 'Damaged' %}
-                                    <span class="badge bg-danger">❌ Damaged</span>
+                                    <span class="badge bg-danger">Damaged</span>
                                     {% elif receipt.condition == 'Partial' %}
-                                    <span class="badge bg-warning text-dark">⚠️ Partial</span>
+                                    <span class="badge bg-warning text-dark">Partial</span>
                                     {% else %}
                                     <span class="badge bg-secondary">{{ receipt.condition }}</span>
                                     {% endif %}
@@ -103,19 +103,19 @@
                             <!-- Location -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Location</small>
-                                <span class="fw-semibold">📍 {{ receipt.material_transport.material_order.region }}, {{ receipt.material_transport.material_order.district }}</span>
+                                <span class="fw-semibold">{{ receipt.material_transport.material_order.region }}, {{ receipt.material_transport.material_order.district }}</span>
                             </div>
 
                             <!-- Consultant -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Received By</small>
-                                <span class="fw-semibold">👤 {{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
+                                <span class="fw-semibold">{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
                             </div>
 
                             <!-- Date -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Receipt Date</small>
-                                <span class="small">📅 {{ receipt.received_date|date:"M d, Y g:i A" }}</span>
+                                <span class="small">{{ receipt.received_date|date:"M d, Y g:i A" }}</span>
                             </div>
 
                             <!-- Transport Info -->
@@ -315,12 +315,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'site_receipts',
         title: 'Site Receipts',
         subtitle: 'History of logged material receipts',
-        icon: '📋',
+        icon: '',
         features: [
-            { icon: '📝', title: 'Receipt Log', desc: 'View all materials received at site' },
-            { icon: '🔍', title: 'Condition Tracking', desc: 'Filter by Good, Damaged, or Partial' },
-            { icon: '📅', title: 'Date Filtering', desc: 'Find receipts by date range' },
-            { icon: '🚚', title: 'Pending Deliveries', desc: 'Quick access to expected items' }
+            { icon: '', title: 'Receipt Log', desc: 'View all materials received at site' },
+            { icon: '', title: 'Condition Tracking', desc: 'Filter by Good, Damaged, or Partial' },
+            { icon: '', title: 'Date Filtering', desc: 'Find receipts by date range' },
+            { icon: '', title: 'Pending Deliveries', desc: 'Quick access to expected items' }
         ],
         tips: [
             'Use the condition filter to find damaged items',

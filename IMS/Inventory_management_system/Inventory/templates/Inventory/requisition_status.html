@@ -10,7 +10,7 @@
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h2 class="fw-bold text-primary mb-1">📋 Requisition Status</h2>
+                    <h2 class="fw-bold text-primary mb-1">Requisition Status</h2>
                     <p class="text-muted mb-0">Track materials from requisition to site delivery</p>
                 </div>
                 <div class="d-flex align-items-center">
@@ -26,7 +26,7 @@
             <!-- Status Summary Cards - Row 1: Stores Phase -->
             <div class="row mb-2">
                 <div class="col-12">
-                    <small class="text-muted fw-semibold">📋 STORES PHASE</small>
+                    <small class="text-muted fw-semibold">STORES PHASE</small>
                 </div>
             </div>
             <div class="row mb-3">
@@ -83,7 +83,7 @@
             <!-- Status Summary Cards - Row 2: Transport & Delivery Phase -->
             <div class="row mb-2">
                 <div class="col-12">
-                    <small class="text-muted fw-semibold">🚚 TRANSPORT & DELIVERY PHASE</small>
+                    <small class="text-muted fw-semibold">TRANSPORT & DELIVERY PHASE</small>
                 </div>
             </div>
             <div class="row mb-4">
@@ -91,7 +91,7 @@
                     <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);">
                         <div class="card-body text-center py-3">
                             <h3 class="fw-bold mb-0" style="color: #e65100;">{{ transport_loading_count|default:0 }}</h3>
-                            <small class="text-muted">📦 Loading</small>
+                            <small class="text-muted">Loading</small>
                         </div>
                     </div>
                 </div>
@@ -99,7 +99,7 @@
                     <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">
                         <div class="card-body text-center py-3">
                             <h3 class="fw-bold mb-0" style="color: #1565c0;">{{ transport_in_transit_count|default:0 }}</h3>
-                            <small class="text-muted">🚚 In Transit</small>
+                            <small class="text-muted">In Transit</small>
                         </div>
                     </div>
                 </div>
@@ -107,7 +107,7 @@
                     <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);">
                         <div class="card-body text-center py-3">
                             <h3 class="fw-bold mb-0" style="color: #2e7d32;">{{ transport_delivered_count|default:0 }}</h3>
-                            <small class="text-muted">📦 Delivered to Site</small>
+                            <small class="text-muted">Delivered to Site</small>
                         </div>
                     </div>
                 </div>
@@ -115,7 +115,7 @@
                     <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);">
                         <div class="card-body text-center py-3">
                             <h3 class="fw-bold mb-0" style="color: #7b1fa2;">{{ site_confirmed_count|default:0 }}</h3>
-                            <small class="text-muted">✅ Site Confirmed</small>
+                            <small class="text-muted">Site Confirmed</small>
                         </div>
                     </div>
                 </div>
@@ -215,12 +215,12 @@
                                 </td>
                                 <td>
                                     <small>
-                                        📍 {{ order.region|default:"N/A" }}
+                                        {{ order.region|default:"N/A" }}
                                         {% if order.district %}
                                         <br>{{ order.district }}
                                         {% endif %}
                                         {% if order.community %}
-                                        <br>🏘️ {{ order.community }}
+                                        <br>{{ order.community }}
                                         {% endif %}
                                     </small>
                                 </td>
@@ -239,26 +239,26 @@
                                     {% elif order.lifecycle_stage == 'site_confirmed' %}
                                         <span class="badge" style="background-color: #7b1fa2;">{{ order.lifecycle_label }}</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">{{ order.lifecycle_label|default:"📋 Unknown" }}</span>
+                                        <span class="badge bg-secondary">{{ order.lifecycle_label|default:"Unknown" }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if order.status == 'Pending' %}
-                                    <span class="badge bg-warning text-dark">⏳ {{ order.status }}</span>
+                                    <span class="badge bg-warning text-dark">{{ order.status }}</span>
                                     {% elif order.status == 'Approved' %}
-                                    <span class="badge bg-success">✅ {{ order.status }}</span>
+                                    <span class="badge bg-success">{{ order.status }}</span>
                                     {% elif order.status == 'In Progress' %}
-                                    <span class="badge bg-info">🔄 {{ order.status }}</span>
+                                    <span class="badge bg-info">{{ order.status }}</span>
                                     {% elif order.status == 'In Transit' %}
-                                    <span class="badge bg-primary">🚚 {{ order.status }}</span>
+                                    <span class="badge bg-primary">{{ order.status }}</span>
                                     {% elif order.status == 'Delivered' or order.status == 'Completed' %}
-                                    <span class="badge bg-success">✅ {{ order.status }}</span>
+                                    <span class="badge bg-success">{{ order.status }}</span>
                                     {% elif order.status == 'Rejected' %}
-                                    <span class="badge bg-danger">❌ {{ order.status }}</span>
+                                    <span class="badge bg-danger">{{ order.status }}</span>
                                     {% elif order.status == 'Cancelled' %}
-                                    <span class="badge bg-secondary">🚫 {{ order.status }}</span>
+                                    <span class="badge bg-secondary">{{ order.status }}</span>
                                     {% elif order.status == 'Partially Fulfilled' %}
-                                    <span class="badge bg-primary">📊 {{ order.status }}</span>
+                                    <span class="badge bg-primary">{{ order.status }}</span>
                                     {% else %}
                                     <span class="badge bg-secondary">{{ order.status }}</span>
                                     {% endif %}
@@ -365,12 +365,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'requisition_status',
         title: 'Requisition Status',
         subtitle: 'Track materials from requisition to site delivery',
-        icon: '📋',
+        icon: '',
         features: [
-            { icon: '🔄', title: 'Full Lifecycle Tracking', desc: 'Follow orders through each stage' },
-            { icon: '📊', title: 'Status Overview', desc: 'View counts by current status' },
-            { icon: '🔍', title: 'Advanced Filters', desc: 'Filter by status, date, project' },
-            { icon: '📦', title: 'Delivery Confirmation', desc: 'Track site receipts and confirmations' }
+            { icon: '', title: 'Full Lifecycle Tracking', desc: 'Follow orders through each stage' },
+            { icon: '', title: 'Status Overview', desc: 'View counts by current status' },
+            { icon: '', title: 'Advanced Filters', desc: 'Filter by status, date, project' },
+            { icon: '', title: 'Delivery Confirmation', desc: 'Track site receipts and confirmations' }
         ],
         tips: [
             'Use the status filters to find specific requisitions',

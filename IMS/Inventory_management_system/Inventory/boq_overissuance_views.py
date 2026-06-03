@@ -13,7 +13,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from collections import defaultdict
 
-from .models import BillOfQuantity, BoQOverissuanceJustification
+from .models import BillOfQuantity, BoQOverissuanceJustification, SiteReceipt
 from .forms import BoQOverissuanceJustificationForm
 from .utils import is_store_officer, is_management, is_superuser
 
@@ -97,6 +97,17 @@ class BoQOverissuanceSummaryView(LoginRequiredMixin, BoQOverissuanceAccessMixin,
         context['projects_with_overissuance'] = list(projects_data.values())
         context['total_projects_affected'] = len(projects_data)
         context['total_overissuance_items'] = sum(p['total_overissuance_items'] for p in projects_data.values())
+
+        # Off-BoQ deliveries: site receipts that could not be matched to any
+        # Bill of Quantity line. The materials left the store but no contract
+        # was drawn down, so they never surface as an over-issuance.
+        off_boq_receipts = SiteReceipt.objects.filter(boq_matched=False).select_related(
+            'material_transport',
+            'material_transport__material_order',
+            'received_by',
+        ).order_by('-received_date')
+        context['off_boq_receipts'] = off_boq_receipts
+        context['off_boq_count'] = off_boq_receipts.count()
         
         return context
 

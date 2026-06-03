@@ -84,7 +84,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h1 class="h2 mb-2">
-                {% if is_archive %}🗄️ Archived Material Orders{% else %}📦 Material Orders{% endif %}
+                {% if is_archive %}Archived Material Orders{% else %}Material Orders{% endif %}
             </h1>
             <p class="text-muted">
                 {% if is_archive %}
@@ -95,11 +95,11 @@
             </p>
         </div>
         <div class="btn-group" role="group" aria-label="Active or archived toggle">
-            <a href="{% url 'material_orders' %}"
+            <a href="{% url active_url_name|default:'material_orders' %}"
                class="btn btn-sm {% if not is_archive %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 Active {% if active_orders is not None %}<span class="badge bg-light text-dark ms-1">{{ active_orders }}</span>{% endif %}
             </a>
-            <a href="{% url 'material_orders_archive' %}"
+            <a href="{% url archive_url_name|default:'material_orders_archive' %}"
                class="btn btn-sm {% if is_archive %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 Archive {% if archived_orders is not None %}<span class="badge bg-light text-dark ms-1">{{ archived_orders }}</span>{% endif %}
             </a>
@@ -150,20 +150,20 @@
                     <td>{{ order.name }}</td>
                     <td>
                         {% if order.request_type == "Release" %}
-                        <span class="badge bg-danger">📤 Release</span>
+                        <span class="badge bg-danger">Release</span>
                         {% else %}
-                        <span class="badge bg-success">📥 Receipt</span>
+                        <span class="badge bg-success">Receipt</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if order.priority == "Urgent" %}
-                        <span class="badge bg-danger">🔴 Urgent</span>
+                        <span class="badge bg-danger">Urgent</span>
                         {% elif order.priority == "High" %}
-                        <span class="badge bg-warning text-dark">🟠 High</span>
+                        <span class="badge bg-warning text-dark">High</span>
                         {% elif order.priority == "Medium" %}
-                        <span class="badge bg-info">🔵 Medium</span>
+                        <span class="badge bg-info">Medium</span>
                         {% elif order.priority == "Low" %}
-                        <span class="badge bg-secondary">⚪ Low</span>
+                        <span class="badge bg-secondary">Low</span>
                         {% else %}
                         <span class="badge bg-secondary">{{ order.priority }}</span>
                         {% endif %}
@@ -173,17 +173,17 @@
                     <td class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
                     <td class="status-cell">
                         {% if order.status == "Pending" %}
-                        <span class="badge bg-warning text-dark">⏳ Pending</span>
+                        <span class="badge bg-warning text-dark">Pending</span>
                         {% elif order.status == "Seen" %}
-                        <span class="badge bg-info">👀 In Progress</span>
+                        <span class="badge bg-info">In Progress</span>
                         {% elif order.status == "Approved" %}
-                        <span class="badge bg-success">✅ Approved</span>
+                        <span class="badge bg-success">Approved</span>
                         {% elif order.status == "Partial" %}
-                        <span class="badge bg-primary">📏 Partial</span>
+                        <span class="badge bg-primary">Partial</span>
                         {% elif order.status == "Completed" %}
-                        <span class="badge bg-success">✅ Completed</span>
+                        <span class="badge bg-success">Completed</span>
                         {% elif order.status == "Draft" %}
-                        <span class="badge bg-secondary">📝 Draft</span>
+                        <span class="badge bg-secondary">Draft</span>
                         {% else %}
                         <span class="badge bg-secondary">{{ order.status }}</span>
                         {% endif %}
@@ -348,9 +348,9 @@
                                     <th>Request Type:</th>
                                     <td>
                                         {% if order.request_type == "Release" %}
-                                        <span class="badge bg-danger">📤 Release</span>
+                                        <span class="badge bg-danger">Release</span>
                                         {% else %}
-                                        <span class="badge bg-success">📥 Receipt</span>
+                                        <span class="badge bg-success">Receipt</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -391,17 +391,17 @@
                                     <th style="width: 40%;">Status:</th>
                                     <td>
                                         {% if order.status == "Pending" %}
-                                        <span class="badge bg-warning text-dark">⏳ Pending</span>
+                                        <span class="badge bg-warning text-dark">Pending</span>
                                         {% elif order.status == "Seen" %}
-                                        <span class="badge bg-info">👀 In Progress</span>
+                                        <span class="badge bg-info">In Progress</span>
                                         {% elif order.status == "Approved" %}
-                                        <span class="badge bg-success">✅ Approved</span>
+                                        <span class="badge bg-success">Approved</span>
                                         {% elif order.status == "Partial" %}
-                                        <span class="badge bg-primary">📏 Partial</span>
+                                        <span class="badge bg-primary">Partial</span>
                                         {% elif order.status == "Completed" %}
-                                        <span class="badge bg-success">✅ Completed</span>
+                                        <span class="badge bg-success">Completed</span>
                                         {% elif order.status == "Draft" %}
-                                        <span class="badge bg-secondary">📝 Draft</span>
+                                        <span class="badge bg-secondary">Draft</span>
                                         {% else %}
                                         <span class="badge bg-secondary">{{ order.status }}</span>
                                         {% endif %}
@@ -440,6 +440,21 @@
                     <div class="row mt-3">
                         <div class="col-12">
                             <h6 class="text-muted mb-2">Release event</h6>
+                            {% if not order.release_letter.pdf_file %}
+                            <div class="alert alert-warning d-flex align-items-start" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <strong>Signed copy not attached.</strong>
+                                    Release cannot be processed until the signed scan of release letter
+                                    {% if order.release_letter.code %}<code>{{ order.release_letter.code }}</code>{% endif %}
+                                    is on file.
+                                </div>
+                                <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
+                                    class="btn btn-sm btn-warning ms-3">
+                                    <i class="fas fa-upload me-1"></i> Upload signed copy
+                                </a>
+                            </div>
+                            {% endif %}
 
                             <!-- Cross-reference numbering chain: Request → Release → Waybill → Receipt -->
                             <div class="d-flex flex-wrap gap-2 mb-3 small">
@@ -506,6 +521,13 @@
                                             <i class="fas fa-file-signature me-1"></i> Signed scan
                                         </a>
                                     </div>
+                                    {% else %}
+                                    <div class="col-md-6">
+                                        <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
+                                            class="btn btn-sm btn-warning w-100 text-start">
+                                            <i class="fas fa-upload me-1"></i> Upload signed copy
+                                        </a>
+                                    </div>
                                     {% endif %}
                                     {% with first_transport=order.transports.first %}
                                     {% if first_transport %}
@@ -535,6 +557,25 @@
                             </div>
                         </div>
                     </div>
+                    {% else %}
+                    {% if order.request_type == "Release" %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-warning d-flex align-items-start" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <strong>No release letter on file.</strong>
+                                    Generate the release letter, get it signed, then upload the signed copy.
+                                    Release will be barred until the signed scan is attached.
+                                </div>
+                                <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
+                                    class="btn btn-sm btn-warning ms-3">
+                                    <i class="fas fa-file-signature me-1"></i> Open release letter wizard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                     {% endif %}
                 </div>
                 <div class="modal-footer">
@@ -552,12 +593,12 @@
             <!-- First page -->
             {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="{% url 'material_orders' %}?page=1" aria-label="First">
+                <a class="page-link" href="?page=1" aria-label="First">
                     <span aria-hidden="true">&laquo;&laquo;</span>
                 </a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="{% url 'material_orders' %}?page={{ page_obj.previous_page_number }}"
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}"
                     aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                 </a>
@@ -579,7 +620,7 @@
             </li>
             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
             <li class="page-item">
-                <a class="page-link" href="{% url 'material_orders' %}?page={{ num }}">{{ num }}</a>
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
             </li>
             {% endif %}
             {% endfor %}
@@ -587,13 +628,13 @@
                 <!-- Last page -->
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="{% url 'material_orders' %}?page={{ page_obj.next_page_number }}"
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}"
                         aria-label="Next">
                         <span aria-hidden="true">&raquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="{% url 'material_orders' %}?page={{ page_obj.paginator.num_pages }}"
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}"
                         aria-label="Last">
                         <span aria-hidden="true">&raquo;&raquo;</span>
                     </a>
@@ -853,12 +894,12 @@
             const remainingQty = parseFloat(data.remaining_quantity || 0);
 
             if (remainingQty <= 0) {
-                statusCell.innerHTML = '<span class="badge bg-success">✅ Completed</span>';
+                statusCell.innerHTML = '<span class="badge bg-success">Completed</span>';
                 // Replace action buttons with fulfilled message
                 const actionCell = row.querySelector('td:last-child');
                 actionCell.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Fulfilled</span>';
             } else {
-                statusCell.innerHTML = '<span class="badge bg-primary">📏 Partial</span>';
+                statusCell.innerHTML = '<span class="badge bg-primary">Partial</span>';
                 // Update input max value
                 const qtyInput = row.querySelector('.fulfill-qty-input');
                 if (qtyInput) {
@@ -883,12 +924,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'material_orders',
         title: 'Material Orders',
         subtitle: 'Manage and track all material requisitions',
-        icon: '📦',
+        icon: '',
         features: [
-            { icon: '📋', title: 'Order Management', desc: 'View and manage all orders' },
-            { icon: '✅', title: 'Approval Workflow', desc: 'Approve or reject requests' },
-            { icon: '🔍', title: 'Advanced Search', desc: 'Filter by status, date, or user' },
-            { icon: '📊', title: 'Status Tracking', desc: 'Track from pending to completed' }
+            { icon: '', title: 'Order Management', desc: 'View and manage all orders' },
+            { icon: '', title: 'Approval Workflow', desc: 'Approve or reject requests' },
+            { icon: '', title: 'Advanced Search', desc: 'Filter by status, date, or user' },
+            { icon: '', title: 'Status Tracking', desc: 'Track from pending to completed' }
         ],
         tips: [
             'Expand rows to see order details',

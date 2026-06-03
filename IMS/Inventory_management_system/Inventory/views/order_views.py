@@ -18,8 +18,8 @@ from django.template.loader import render_to_string
 from django.core.exceptions import ValidationError
 
 from Inventory.models import (
-    InventoryItem, MaterialOrder, MaterialOrderAudit, 
-    ReleaseLetter, Warehouse, MaterialTransport, SiteReceipt
+    InventoryItem, MaterialOrder, MaterialOrderAudit,
+    ReleaseLetter, Warehouse, MaterialTransport, SiteReceipt, BillOfQuantity
 )
 from Inventory.forms import (
     MaterialOrderForm, BulkMaterialRequestForm, MaterialReceiptFormSet
@@ -30,6 +30,31 @@ MaterialOrderFormSet = formset_factory(MaterialOrderForm, extra=1)
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+
+# ===== API ENDPOINTS =====
+
+@login_required
+def get_inventory_item_details(request, item_id):
+    """API endpoint to get inventory item details for autofill"""
+    try:
+        item = InventoryItem.objects.get(id=item_id)
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'id': item.id,
+                'name': item.name,
+                'category': item.category.name if item.category else '',
+                'code': item.code,
+                'unit': item.unit.name if item.unit else '',
+                'quantity': item.quantity,
+                'warehouse': item.warehouse.name if item.warehouse else ''
+            }
+        })
+    except InventoryItem.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Item not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 def generate_request_code():
@@ -75,6 +100,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
         formset = MaterialOrderFormSet(request.POST, request.FILES, form_kwargs={'user': request.user})
         if formset.is_valid():
             request_code = generate_request_code()
+            created_orders = []
             with transaction.atomic():
                 for form in formset:
                     if form.cleaned_data:
@@ -120,6 +146,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                         
                         # Save the material order first to get the ID and proper request_code
                         material_order.save()
+                        created_orders.append(material_order)
                         
                         # Now handle release letter creation if file was uploaded
                         if form.cleaned_data.get('release_letter_pdf'):
@@ -144,6 +171,23 @@ class RequestMaterialView(LoginRequiredMixin, View):
                             material_order.release_letter = release_letter
                             material_order.save()
                             
+            # Warn if any request targets a package that is not in any BoQ.
+            off_boq_packages = sorted({
+                o.package_number for o in created_orders
+                if o.package_number
+                and not BillOfQuantity.objects.filter(
+                    package_number=o.package_number).exists()
+            })
+            if off_boq_packages:
+                messages.warning(
+                    request,
+                    "Heads-up: package number(s) "
+                    + ", ".join(off_boq_packages)
+                    + " are not in any Bill of Quantity. These releases will "
+                    "not draw down a contract when delivered. Check the "
+                    "BoQ overissuance report for off-BoQ deliveries."
+                )
+
             messages.success(request, "Material requests submitted successfully!")
             return redirect('material_orders')
         else:
@@ -206,7 +250,63 @@ class RequestMaterialView(LoginRequiredMixin, View):
                     total_batch_quantity = bulk_form.cleaned_data.get('release_letter_quantity') or df['quantity'].sum()
                     material_type = bulk_form.cleaned_data.get('release_letter_material_type') or 'Other'
                     phase = bulk_form.cleaned_data.get('release_letter_project_phase')
-                    
+
+                    # Carry through any per-event letterhead overrides.
+                    # Resolution order, strongest first:
+                    #   1) explicit form POST (the user picked from the
+                    #      designation dropdown on bulk_request.html)
+                    #   2) Excel columns memo_signatory_title /
+                    #      letter_signatory_title — first non-empty row,
+                    #      matched against active signatories flagged
+                    #      eligible for that document type
+                    #   3) the active default on the Signatory admin
+                    from Inventory.models import Signatory
+                    memo_to       = (request.POST.get('memo_to_override') or '').strip()
+                    memo_from     = (request.POST.get('memo_from_override') or '').strip()
+                    memo_sig_id   = (request.POST.get('memo_signatory_override') or '').strip()
+                    letter_sig_id = (request.POST.get('letter_signatory_override') or '').strip()
+                    memo_signatory   = Signatory.objects.filter(pk=memo_sig_id).first() if memo_sig_id else None
+                    letter_signatory = Signatory.objects.filter(pk=letter_sig_id).first() if letter_sig_id else None
+
+                    def _first_title(col):
+                        if col not in df.columns:
+                            return ''
+                        for v in df[col]:
+                            try:
+                                s = str(v).strip()
+                            except Exception:
+                                s = ''
+                            if s and s.lower() != 'nan':
+                                return s
+                        return ''
+
+                    if memo_signatory is None:
+                        t = _first_title('memo_signatory_title')
+                        if t:
+                            memo_signatory = Signatory.objects.filter(
+                                active=True, title__iexact=t,
+                                is_default_for_release_memo=True,
+                            ).order_by('-updated_at').first()
+                            if memo_signatory is None:
+                                messages.warning(
+                                    request,
+                                    f"Memo signatory title '{t}' from the Excel isn't in the active "
+                                    "roster as a memo signer — falling back to the default.",
+                                )
+                    if letter_signatory is None:
+                        t = _first_title('letter_signatory_title')
+                        if t:
+                            letter_signatory = Signatory.objects.filter(
+                                active=True, title__iexact=t,
+                                is_default_for_release_letter=True,
+                            ).order_by('-updated_at').first()
+                            if letter_signatory is None:
+                                messages.warning(
+                                    request,
+                                    f"Letter signatory title '{t}' from the Excel isn't in the active "
+                                    "roster as a letter signer — falling back to the default.",
+                                )
+
                     release_letter = ReleaseLetter.objects.create(
                         title=release_letter_title or f"Release Letter - {base_request_code}",
                         total_quantity=Decimal(str(total_batch_quantity)),
@@ -214,7 +314,11 @@ class RequestMaterialView(LoginRequiredMixin, View):
                         project_phase=phase,
                         pdf_file=release_letter_pdf,
                         uploaded_by=request.user,
-                        request_code=base_request_code
+                        request_code=base_request_code,
+                        memo_to_override=memo_to,
+                        memo_from_override=memo_from,
+                        memo_signatory_override=memo_signatory,
+                        letter_signatory_override=letter_signatory,
                     )
                     logger.info(f"Created release letter ID {release_letter.id} for request code {base_request_code}")
                 except Exception as e:
@@ -398,13 +502,26 @@ class RequestMaterialView(LoginRequiredMixin, View):
             items = InventoryItem.objects.all()
         else:
             items = InventoryItem.objects.filter(group__in=request.user.groups.all())
-            
+
+        from Inventory.models import Signatory
         context = {
             'formset': MaterialOrderFormSet(form_kwargs={'user': request.user}),
             'bulk_form': bulk_form or BulkMaterialRequestForm(),
             'items': items,
             'inventory_items': json.dumps(list(items.values('id', 'name', 'category__name', 'unit__name', 'code', 'warehouse__name'))),
-            'active_tab': 'bulk' if bulk_form else 'single'
+            'active_tab': 'bulk' if bulk_form else 'single',
+            # Designation-led pickers for the letterhead override section.
+            # Each list is filtered to officers flagged eligible for that
+            # document type and sorted by title so the user picks a role,
+            # not a name.
+            'memo_signatories': Signatory.objects.filter(
+                active=True, is_default_for_release_memo=True,
+            ).order_by('title'),
+            'letter_signatories': Signatory.objects.filter(
+                active=True, is_default_for_release_letter=True,
+            ).order_by('title'),
+            # Kept for any legacy template that still loops `signatories`.
+            'signatories': Signatory.objects.filter(active=True).order_by('title'),
         }
         return render(request, self.template_name, context)
 
@@ -478,6 +595,8 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         )
         context.update(stats)
         context['is_archive'] = self.is_archive
+        context['active_url_name'] = 'material_orders'
+        context['archive_url_name'] = 'material_orders_archive'
         return context
 
 
@@ -491,6 +610,11 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
     Officers view of material orders. Renders the unified material_orders.html
     template. Honours the same active/archive split as MaterialOrdersView so
     completed/cancelled orders don't keep cluttering the day-to-day view.
+
+    Previously this view also excluded Draft/Pending, which made the page
+    blank for schedule officers who had just filed new requests (their own
+    pending queue vanished until something was approved). Schedule officers
+    land on this page from their dropdown, so the Pending queue stays.
     """
     template_name = 'Inventory/material_orders.html'
     context_object_name = 'orders'
@@ -509,23 +633,21 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
             if self.is_archive:
                 queryset = queryset.filter(status__in=ARCHIVED_ORDER_STATUSES)
             else:
-                # Officers view -- hide terminal-state orders AND the un-assigned
-                # Draft/Pending queue (those belong to the schedule officer's
-                # request flow, not the officers' work-in-progress view).
-                queryset = queryset.filter(
-                    status__in=ACTIVE_ORDER_STATUSES,
-                ).exclude(status__in=['Draft', 'Pending'])
-            
+                # Show every in-motion order, including freshly filed
+                # Draft/Pending requests, so schedule officers see their own
+                # work as soon as they submit it.
+                queryset = queryset.filter(status__in=ACTIVE_ORDER_STATUSES)
+
             logger.info(f"User {user.username} accessing {queryset.count()} total orders")
-            
+
             # Ensure remaining_quantity is calculated correctly
             for order in queryset:
                 if order.remaining_quantity is None or order.remaining_quantity < 0:
                     order.remaining_quantity = max(0, order.quantity - (order.processed_quantity or 0))
                     order.save(update_fields=['remaining_quantity'])
-            
+
             return queryset
-            
+
         except Exception as e:
             logger.error(f"Error in MaterialOrdersOfficersView for user {user.username}: {str(e)}", exc_info=True)
             # Fallback to empty queryset to prevent crashes
@@ -533,27 +655,31 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Get the full queryset for statistics (not paginated)
-        full_queryset = self.get_queryset()
-        
-        # Add summary statistics using the full queryset
-        if full_queryset.exists():
-            context.update({
-                'total_orders': full_queryset.count(),
-                'pending_orders': full_queryset.filter(status='Pending').count(),
-                'completed_orders': full_queryset.filter(status='Completed').count(),
-                'partial_orders': full_queryset.filter(status='Partially Fulfilled').count(),
-            })
-        else:
-            context.update({
-                'total_orders': 0,
-                'pending_orders': 0,
-                'completed_orders': 0,
-                'partial_orders': 0,
-            })
-        
+
+        # Active/archive stats so the toggle badges populate (the template
+        # was previously rendering blank counts on the officers page).
+        stats = MaterialOrder.objects.aggregate(
+            total_orders=Count('id'),
+            pending_orders=Count('id', filter=Q(status='Pending')),
+            completed_orders=Count('id', filter=Q(status='Completed')),
+            partial_orders=Count('id', filter=Q(status='Partially Fulfilled')),
+            active_orders=Count('id', filter=Q(status__in=ACTIVE_ORDER_STATUSES)),
+            archived_orders=Count('id', filter=Q(status__in=ARCHIVED_ORDER_STATUSES)),
+        )
+        context.update(stats)
+        context['is_archive'] = self.is_archive
+        # Tell the template to point the Active/Archive toggle at the
+        # officers' URL pair, not the global stores URL pair. Without this
+        # the Active button would whisk a schedule officer away to the
+        # stores page and they'd think the officers page was broken.
+        context['active_url_name'] = 'material_orders_officers'
+        context['archive_url_name'] = 'material_orders_officers_archive'
         return context
+
+
+class MaterialOrdersOfficersArchiveView(MaterialOrdersOfficersView):
+    """Archived material orders for the officers view."""
+    is_archive = True
 
 
 class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -649,30 +775,76 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                     order.processed_by = request.user
                     order.processed_at = timezone.now()
                     
+                    # SIGNED LETTER GUARD: a Release cannot draw down stock
+                    # until the signed scan is on file. This bars accidental
+                    # processing of an order whose paperwork hasn't been
+                    # countersigned yet.
+                    if order.request_type == "Release":
+                        rl = order.release_letter
+                        if rl is None:
+                            return JsonResponse({
+                                'success': False,
+                                'error': 'Cannot release: no release letter has been created for this order. Generate the release letter first.'
+                            }, status=400)
+                        if not rl.pdf_file:
+                            return JsonResponse({
+                                'success': False,
+                                'error': f'Cannot release: signed copy of release letter {rl.code or rl.reference_number or ""} is not attached. Upload the signed scan before processing.'
+                            }, status=400)
+
                     # Update inventory
                     try:
-                        # Match by code and warehouse (unique_together constraint)
+                        # Match by code and warehouse (unique_together constraint).
+                        # When the request was filed with "any warehouse", pick
+                        # the warehouse with enough stock so the deduction
+                        # actually goes somewhere instead of blowing up on
+                        # MultipleObjectsReturned.
+                        inventory_item = None
                         if order.warehouse:
-                            inventory_item = InventoryItem.objects.get(
+                            inventory_item = InventoryItem.objects.filter(
                                 code=order.code,
-                                warehouse=order.warehouse
+                                warehouse=order.warehouse,
+                            ).first()
+                        else:
+                            candidates = list(
+                                InventoryItem.objects.filter(code=order.code)
+                                .order_by('-quantity')
+                            )
+                            if order.request_type == "Release":
+                                # Pick the warehouse that can satisfy the draw.
+                                for cand in candidates:
+                                    if (cand.quantity or 0) >= partial_quantity:
+                                        inventory_item = cand
+                                        break
+                                if inventory_item is None and candidates:
+                                    # Fall back to the largest holder so the
+                                    # error message below reports a real number.
+                                    inventory_item = candidates[0]
+                            else:
+                                # Receipts: deposit into the order's stored
+                                # warehouse if any; else the first sibling.
+                                inventory_item = candidates[0] if candidates else None
+                        if inventory_item is None:
+                            logger.warning(
+                                f"Inventory item with code '{order.code}' not found "
+                                f"(warehouse={order.warehouse}). Skipping inventory update."
                             )
                         else:
-                            # Fallback: match by code only if no warehouse specified
-                            inventory_item = InventoryItem.objects.get(code=order.code)
-                            
-                        if order.request_type == "Release":
-                            if inventory_item.quantity < partial_quantity:
-                                return JsonResponse({
-                                    'success': False,
-                                    'error': f'Insufficient inventory. Available: {inventory_item.quantity}, Requested: {partial_quantity}'
-                                }, status=400)
-                            inventory_item.quantity -= partial_quantity
-                        elif order.request_type == "Receipt":
-                            inventory_item.quantity += partial_quantity
-                        
-                        inventory_item.save()
-                        
+                            if order.request_type == "Release":
+                                if inventory_item.quantity < partial_quantity:
+                                    return JsonResponse({
+                                        'success': False,
+                                        'error': f'Insufficient inventory. Available: {inventory_item.quantity}, Requested: {partial_quantity}'
+                                    }, status=400)
+                                inventory_item.quantity -= partial_quantity
+                            elif order.request_type == "Receipt":
+                                inventory_item.quantity += partial_quantity
+                            inventory_item.save()
+                            # Stamp the warehouse used for the draw so audit
+                            # trails reflect where the stock actually moved.
+                            if not order.warehouse_id and inventory_item.warehouse_id:
+                                order.warehouse = inventory_item.warehouse
+
                     except InventoryItem.DoesNotExist:
                         logger.warning(f"Inventory item with code '{order.code}' not found in warehouse '{order.warehouse}'. Skipping inventory update.")
                     except InventoryItem.MultipleObjectsReturned:
@@ -774,9 +946,9 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             for form in formset:
                 if form.cleaned_data:
                     material_order = form.save(commit=False)
-                    selected_item = form.cleaned_data['name']  # This is an InventoryItem object
+                    selected_item = form.cleaned_data['name']  # InventoryItem
                     selected_warehouse = form.cleaned_data.get('warehouse')
-                    
+
                     # Look up the specific inventory item by name and warehouse
                     if selected_item and selected_warehouse:
                         try:
@@ -789,7 +961,6 @@ class MaterialReceiptView(LoginRequiredMixin, View):
                             material_order.code = inventory_item.code
                             material_order.unit = inventory_item.unit
                         except InventoryItem.DoesNotExist:
-                            # Fallback to selected item if specific warehouse combo doesn't exist
                             material_order.name = selected_item.name
                             material_order.category = selected_item.category
                             material_order.code = selected_item.code
@@ -799,14 +970,40 @@ class MaterialReceiptView(LoginRequiredMixin, View):
                         material_order.category = selected_item.category
                         material_order.code = selected_item.code
                         material_order.unit = selected_item.unit
-                    
+
                     material_order.user = request.user
                     material_order.group = request.user.groups.first() if request.user.groups.exists() else None
-                    material_order.request_type = 'Receipt'  # Set as Receipt Request
+                    material_order.request_type = 'Receipt'
                     material_order.status = 'Draft'
                     material_order.processed_quantity = 0
                     material_order.remaining_quantity = material_order.quantity
+
+                    # Receipt category + supplier-contract + BoQ link are now
+                    # carried on MaterialOrder. ModelForm.save(commit=False)
+                    # has already mapped them onto the instance — nothing
+                    # extra is needed here.
                     material_order.save()
+
+                    # If the receipt is an Overissuance Return and a BoQ line
+                    # was picked, decrement that line's quantity_received so
+                    # the overissuance ledger reflects the offset. The actual
+                    # stock movement still happens at completion time.
+                    if (
+                        material_order.receipt_category == 'overissuance_return'
+                        and material_order.linked_boq_item_id
+                    ):
+                        boq = material_order.linked_boq_item
+                        # Cap so we never go negative.
+                        offset = min(
+                            float(material_order.quantity or 0),
+                            float(boq.quantity_received or 0),
+                        )
+                        if offset > 0:
+                            boq.quantity_received = max(
+                                0.0,
+                                float(boq.quantity_received or 0) - offset,
+                            )
+                            boq.save(update_fields=['quantity_received'])
             messages.success(request, "Material receipts submitted successfully!")
             return redirect('material_receipt')
         else:
@@ -917,3 +1114,104 @@ class MaterialReceiptListView(LoginRequiredMixin, ListView):
             return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
         except Exception:
             return MaterialOrder.objects.filter(request_type='Receipt').order_by('-date_requested')
+
+
+@login_required
+def download_bulk_request_template(request):
+    """Dynamic Excel template for the old bulk material-request flow.
+
+    Replaces the static `bulk_request_template.xlsx` that lived under
+    `static/Inventory/templates/`. Adds two batch-level columns —
+    `memo_signatory_title` and `letter_signatory_title` — so the
+    signatories on the generated memo and release letter can be set from
+    the spreadsheet itself instead of (or in addition to) the picker on
+    the bulk upload form. Only the FIRST non-empty value in each column
+    is used; the rest are ignored.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return HttpResponse("Required package openpyxl not installed.", status=500)
+
+    import io as _io
+    from django.http import HttpResponse as _HttpResponse
+
+    columns = [
+        'name', 'quantity', 'region', 'district', 'community',
+        'consultant', 'contractor', 'package_number', 'warehouse',
+        'memo_signatory_title', 'letter_signatory_title',
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Bulk requests'
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+    for idx, col in enumerate(columns, 1):
+        c = ws.cell(row=1, column=idx, value=col)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal='center')
+
+    width_map = {
+        'name': 30, 'quantity': 12, 'region': 18, 'district': 22, 'community': 22,
+        'consultant': 24, 'contractor': 24, 'package_number': 22, 'warehouse': 20,
+        'memo_signatory_title': 32, 'letter_signatory_title': 32,
+    }
+    for idx, col in enumerate(columns, 1):
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width_map.get(col, 18)
+
+    example = {
+        'name': 'Pole - 11kV concrete', 'quantity': 24,
+        'region': 'Greater Accra', 'district': 'Ga East', 'community': 'Abokobi',
+        'consultant': '', 'contractor': '', 'package_number': 'SHEP-PKG-024', 'warehouse': '',
+        'memo_signatory_title': 'Ag. Director, Power',
+        'letter_signatory_title': 'Chief Director',
+    }
+    for idx, col in enumerate(columns, 1):
+        ws.cell(row=2, column=idx, value=example.get(col, ''))
+
+    ins = wb.create_sheet(title='Instructions')
+    instructions = [
+        "Bulk material requests (Release / Transfer)",
+        "",
+        "Required columns:",
+        "  - name      (must match an inventory item name on record)",
+        "  - quantity  (numeric, > 0)",
+        "",
+        "Recommended for Release:",
+        "  - region, district, community, consultant, contractor, package_number, warehouse",
+        "",
+        "Signatory columns (batch-level — fill on the FIRST row only):",
+        "  - memo_signatory_title    (Signatory title flagged for the approval memo)",
+        "  - letter_signatory_title  (Signatory title flagged for the release letter)",
+        "  Leave blank to use the active default set in the Signatory admin.",
+        "  The picker on the upload form ALWAYS wins over the Excel value.",
+        "  Unknown titles do NOT block the upload — they fall back to the default",
+        "  and a warning is shown.",
+        "",
+        "On upload:",
+        "  - Each row creates a MaterialOrder with a unique request code.",
+        "  - One ReleaseLetter is created per batch (if a PDF is also attached).",
+        "  - The signatory titles above populate the memo and letter signatory",
+        "    fields on that ReleaseLetter.",
+    ]
+    for idx, line in enumerate(instructions, 1):
+        cell = ins.cell(row=idx, column=1, value=line)
+        if idx == 1:
+            cell.font = Font(bold=True, size=14)
+        elif line.endswith(':'):
+            cell.font = Font(bold=True)
+    ins.column_dimensions['A'].width = 90
+
+    output = _io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    response = _HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="bulk_request_template.xlsx"'
+    return response

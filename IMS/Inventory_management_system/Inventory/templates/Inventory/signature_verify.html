@@ -168,7 +168,7 @@
 <div class="verify-container">
     <!-- Page Header -->
     <div class="page-header">
-        <h1>✓ Signature Verification</h1>
+        <h1>Signature Verification</h1>
         <p>Detailed signature information and validation</p>
     </div>
     
@@ -177,7 +177,7 @@
     <div class="verification-card">
         <div class="card-body">
             <div class="error-message">
-                <div class="error-icon">⚠️</div>
+                <div class="error-icon"></div>
                 <h2>{{ error }}</h2>
                 <p>User ID: {{ user_id }}</p>
                 <div class="action-buttons">
@@ -196,12 +196,12 @@
         <div class="card-header">
             {% if is_valid %}
             <div class="verification-status status-valid">
-                <span style="font-size: 1.5em;">✓</span>
+                <span style="font-size: 1.5em;"></span>
                 <span>Valid Signature</span>
             </div>
             {% else %}
             <div class="verification-status status-invalid">
-                <span style="font-size: 1.5em;">✗</span>
+                <span style="font-size: 1.5em;"></span>
                 <span>No Signature</span>
             </div>
             {% endif %}
@@ -257,9 +257,9 @@
                         <div class="detail-label">Account Status</div>
                         <div class="detail-value">
                             {% if profile.user.is_active %}
-                                <span style="color: #2ecc71;">● Active</span>
+                                <span style="color: #2ecc71;">Active</span>
                             {% else %}
-                                <span style="color: #e74c3c;">● Inactive</span>
+                                <span style="color: #e74c3c;">Inactive</span>
                             {% endif %}
                         </div>
                     </div>

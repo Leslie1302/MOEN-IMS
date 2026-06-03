@@ -9,11 +9,15 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User, Group
 from django.db.models import F
+from django.utils import timezone
+from decimal import Decimal
+import datetime
 from .models import (
     MaterialOrder, MaterialTransport, SiteReceipt,
     InventoryItem, BillOfQuantity, Notification, Profile,
     BoQOverissuanceJustification
 )
+from .models.suppliers import SupplierInvoice, SupplierInvoiceItem, SupplierPriceCatalog
 import logging
 from django.conf import settings
 from accounts.notifications import send_email_notification
@@ -436,6 +440,28 @@ def handle_site_receipt_notifications(sender, instance, created, **kwargs):
                 sender=instance.received_by,
                 related_transport=instance.material_transport
             )
+
+            # Off-BoQ delivery: the receipt could not be posted to any BoQ
+            # line. Alert Management so the release does not go unnoticed.
+            if not instance.boq_matched:
+                order = (instance.material_transport.material_order
+                         if instance.material_transport else None)
+                create_notification(
+                    notification_type='boq_updated',
+                    title='Off-BoQ delivery - not matched to a Bill of Quantity',
+                    message=(
+                        f'A site receipt was logged but could not be posted to '
+                        f'any Bill of Quantity line. {instance.boq_match_note} '
+                        f'Material: {order.name if order else "Unknown"}; '
+                        f'package: {order.package_number if order and order.package_number else "(none)"}; '
+                        f'quantity received: {instance.received_quantity}. '
+                        f'Warehouse stock was still reduced, but no contract was '
+                        f'drawn down - review whether this release belongs on a BoQ.'
+                    ),
+                    recipient_group='Management',
+                    sender=instance.received_by,
+                    related_transport=instance.material_transport,
+                )
     
     except Exception as e:
         logger.error(f"Error in site receipt notification handler: {str(e)}", exc_info=True)
@@ -871,3 +897,234 @@ def handle_boq_overissuance_justification_notifications(sender, instance, create
             f"Error creating notification for BoQOverissuanceJustification {instance.pk}: {e}",
             exc_info=True,
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# BoQ → Ghana map propagation
+# When BoQ lines for a community change, recompute the matching
+# ProjectSite's status so the map reflects real material flow rather
+# than a hand-maintained Planned/Active/Completed flag.
+#   - All lines fully received (received >= contract on every line):
+#       site.status = 'Completed'
+#   - Some progress on at least one line: site.status = 'Active'
+#   - Zero progress across the community: site.status = 'Planned'
+#   - 'On Hold' is never overwritten — that's a deliberate manual flag.
+# ─────────────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender=BillOfQuantity, dispatch_uid='boq_sync_project_site')
+def sync_project_site_from_boq(sender, instance, **kwargs):
+    """Update the ProjectSite matching this BoQ row's community."""
+    try:
+        from .models.projects import ProjectSite
+        community = (instance.community or '').strip()
+        if not community:
+            return
+
+        # All BoQ lines for this community + project_type pair.
+        sibling_qs = BillOfQuantity.objects.filter(community__iexact=community)
+        if instance.project_type:
+            sibling_qs = sibling_qs.filter(project_type=instance.project_type)
+        lines = list(sibling_qs.only('contract_quantity', 'quantity_received'))
+        if not lines:
+            return
+
+        all_received = all(
+            (l.quantity_received or 0) >= (l.contract_quantity or 0) > 0
+            for l in lines
+        )
+        any_progress = any((l.quantity_received or 0) > 0 for l in lines)
+        if all_received:
+            new_status = 'Completed'
+        elif any_progress:
+            new_status = 'Active'
+        else:
+            new_status = 'Planned'
+
+        # Match candidate sites by community (case-insensitive). Filter to
+        # the same project_type when we have a Project FK with it set, so
+        # SHEP BoQ doesn't accidentally flip a Streetlights site.
+        site_qs = ProjectSite.objects.filter(community__iexact=community)
+        if instance.project_type:
+            type_filtered = site_qs.filter(project__project_type=instance.project_type)
+            if type_filtered.exists():
+                site_qs = type_filtered
+
+        for site in site_qs:
+            if site.status == 'On Hold':
+                continue  # respect manual hold
+            if site.status == new_status:
+                continue
+            site.status = new_status
+            if new_status == 'Completed' and not site.actual_completion_date:
+                from django.utils import timezone
+                site.actual_completion_date = timezone.now().date()
+            site.save(update_fields=['status', 'actual_completion_date', 'updated_at'])
+            logger.info(
+                f"BoQ sync: ProjectSite {site.id} ({site.community}) "
+                f"flipped to {new_status} based on BoQ completion."
+            )
+    except Exception as exc:
+        logger.error(f"BoQ→site sync failed for BoQ {instance.pk}: {exc}", exc_info=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# MeterInstallation → ProjectSite.works_status propagation (Phase B6)
+# A verified MeterInstallation row means at least one meter is energised
+# at that community, so any ProjectSite in the community whose
+# works_status is still 'Planned' or 'In Progress' gets bumped to
+# 'Energised'. We never overwrite 'Commissioned' (that's the manual
+# final state), and we don't un-energise on save-without-verification
+# either; revoking is an explicit admin action.
+# ─────────────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender='Inventory.MeterInstallation',
+          dispatch_uid='meter_install_sync_works_status')
+def sync_works_status_from_meter_install(sender, instance, **kwargs):
+    """If the install is verified, flip matching ProjectSites to Energised."""
+    try:
+        # Unverified rows have no effect -- only the manager verify step
+        # moves works_status.
+        if not (instance.verified_by_id and instance.verified_at):
+            return
+
+        from .models.projects import ProjectSite
+        community_name = (instance.community.community or '').strip()
+        if not community_name:
+            return
+
+        # Prefer the explicit project_site link if the reporter set one;
+        # otherwise sweep every site in the community.
+        if instance.project_site_id:
+            sites = ProjectSite.objects.filter(pk=instance.project_site_id)
+        else:
+            sites = ProjectSite.objects.filter(community__iexact=community_name)
+
+        for site in sites:
+            # Don't downgrade Commissioned sites; don't churn already-Energised.
+            if site.works_status in ('Energised', 'Commissioned'):
+                continue
+            site.works_status = 'Energised'
+            site.save(update_fields=['works_status', 'updated_at'])
+            logger.info(
+                f"Meter sync: ProjectSite {site.id} ({site.community}) "
+                f"flipped to works_status=Energised via MeterInstallation "
+                f"#{instance.pk}."
+            )
+    except Exception as exc:
+        logger.error(
+            f"Meter→works_status sync failed for MeterInstallation "
+            f"{instance.pk}: {exc}",
+            exc_info=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Automatic Supplier Invoice Creation on Material Receipt
+# When a MaterialOrder with request_type='Receipt' is created/completed,
+# automatically create a SupplierInvoice entry if a supplier is linked.
+# ─────────────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender=MaterialOrder)
+def auto_create_supplier_invoice(sender, instance, created, **kwargs):
+    """
+    Automatically create a supplier invoice when a material receipt is logged.
+    Only triggers for Receipt-type orders with a supplier assigned.
+    """
+    logger.info(f'MaterialOrder post_save signal fired. Created={created}, Type={instance.request_type}')
+
+    if not created or instance.request_type != 'Receipt':
+        logger.info(f'Skipping invoice creation: created={created}, type={instance.request_type}')
+        return
+
+    try:
+        logger.info(f'Creating invoice for receipt {instance.pk}, supplier={instance.supplier}')
+        # Only create invoice if supplier is set
+        if not instance.supplier:
+            logger.warning(f"Material receipt {instance.pk} has no supplier; skipping auto-invoice")
+            return
+
+        # Skip if an invoice was already created for THIS specific receipt
+        if SupplierInvoice.objects.filter(
+            notes__contains=f"receipt {instance.pk}"
+        ).exists():
+            logger.info(f"Invoice already exists for receipt {instance.pk}")
+            return
+
+        # Generate invoice number
+        today_invoices = SupplierInvoice.objects.filter(
+            supplier=instance.supplier,
+            invoice_date=timezone.now().date()
+        ).count()
+        invoice_num = f"{instance.supplier.code}-{timezone.now().strftime('%Y%m%d')}-{today_invoices + 1:03d}"
+
+        # Get the material
+        material = None
+        if isinstance(instance.name, InventoryItem):
+            material = instance.name
+        else:
+            material = InventoryItem.objects.filter(name=str(instance.name)).first()
+
+        # Try to get unit rate from supplier price catalog
+        unit_rate = Decimal('0.00')
+        if material and instance.supplier:
+            price = SupplierPriceCatalog.objects.filter(
+                supplier=instance.supplier,
+                material=material,
+                is_active=True
+            ).first()
+            if price:
+                unit_rate = price.unit_rate
+
+        # Calculate total amount
+        total_amount = (instance.quantity or Decimal('0')) * unit_rate if unit_rate > 0 else Decimal('0.00')
+
+        # Create the invoice
+        invoice = SupplierInvoice.objects.create(
+            invoice_number=invoice_num,
+            supplier=instance.supplier,
+            contract=instance.supply_contract,
+            invoice_date=timezone.now().date(),
+            due_date=timezone.now().date() + datetime.timedelta(days=30),
+            total_amount=total_amount,
+            status='pending',
+            submitted_by=instance.user or User.objects.filter(is_superuser=True).first(),
+            notes=f"Auto-created from receipt: {instance.request_code}"
+        )
+
+        # Create invoice item linked to this receipt
+        if material:
+            SupplierInvoiceItem.objects.create(
+                invoice=invoice,
+                material=material,
+                material_order=instance,
+                quantity_invoiced=instance.quantity,
+                unit_rate_invoiced=unit_rate,
+                quantity_received=instance.quantity,
+                warehouse=instance.warehouse
+            )
+
+        logger.info(
+            f"Auto-created supplier invoice {invoice_num} for material receipt {instance.pk} "
+            f"from supplier {instance.supplier.name}"
+        )
+
+        # Create notification about the invoice
+        create_notification(
+            notification_type='invoice_created',
+            title=f'Supplier Invoice Auto-Created: {invoice_num}',
+            message=f'Invoice {invoice_num} has been automatically created for {instance.supplier.name} '
+                    f'based on material receipt {instance.request_code}. '
+                    f'Material: {instance.name}, Quantity: {instance.quantity} {instance.unit}. '
+                    f'Please review and update unit rate if needed.',
+            recipient_group='Management',
+            sender=instance.user,
+            related_order=instance
+        )
+
+    except Exception as e:
+        logger.error(
+            f"❌ Error auto-creating supplier invoice for material receipt {instance.pk}: {e}",
+            exc_info=True
+        )
+        import traceback
+        logger.error(traceback.format_exc())

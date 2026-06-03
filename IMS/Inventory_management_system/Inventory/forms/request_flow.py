@@ -7,7 +7,9 @@ each carrying the shared base fields plus per-project additions:
 
   - SHEP: package_number is required (read from the linked Community)
   - Cost Sharing: beneficiary_contribution captures the community's share
-  - Streetlights: pole_height_m + lumen_rating capture the spec
+  - Streetlights: no extra fields — the chosen InventoryItem (SKU) already
+    encodes pole height / material type / lumen rating, so the form does
+    not duplicate those as free-text overrides.
 
 All three save into the existing MaterialOrder model. project_type is
 stored as the legacy CharField value (mapped via constants.project_type_to_charfield).
@@ -71,12 +73,33 @@ class BaseProjectRequestForm(forms.ModelForm):
         help_text='Determines the consignee. Add the community first if it is not in the list.',
     )
 
+    # NOTE: InventoryItem has unique_together=['code', 'warehouse'], so the
+    # same material appears as multiple rows (one per warehouse) when stock
+    # exists in more than one place. The dropdown was previously listing
+    # every row, which made the user pick a per-warehouse stock record
+    # rather than a material — and once chosen, the "any warehouse" toggle
+    # below became misleading. We collapse to one row per (code, name) and
+    # let the separate Warehouse selector decide where to draw from.
     name = forms.ModelChoiceField(
         queryset=InventoryItem.objects.all().order_by('name'),
         empty_label='— select material —',
         label='Material',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
+
+    def __init_dedup_materials__(self):
+        """Collapse the material dropdown to one row per unique code."""
+        seen = set()
+        ids = []
+        for item in InventoryItem.objects.all().order_by('name').only('id', 'code', 'name'):
+            key = item.code or item.name
+            if key in seen:
+                continue
+            seen.add(key)
+            ids.append(item.id)
+        self.fields['name'].queryset = (
+            InventoryItem.objects.filter(id__in=ids).order_by('name')
+        )
 
     quantity = forms.DecimalField(
         max_digits=10, decimal_places=2, min_value=0.01,
@@ -115,6 +138,9 @@ class BaseProjectRequestForm(forms.ModelForm):
             )
         else:
             self.fields['community'].queryset = Community.objects.filter(is_active=True)
+        # Deduplicate the material dropdown so the same material is not
+        # listed once per warehouse.
+        self.__init_dedup_materials__()
 
     def clean(self):
         cleaned = super().clean()
@@ -223,34 +249,27 @@ class CostSharingRequestForm(BaseProjectRequestForm):
 
 
 class StreetlightsRequestForm(BaseProjectRequestForm):
-    pole_height_m = forms.DecimalField(
-        required=False, max_digits=5, decimal_places=2, min_value=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.5', 'placeholder': 'e.g. 8'}),
-        help_text='Streetlights only. Pole height in metres.',
-    )
-    lumen_rating = forms.IntegerField(
-        required=False, min_value=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '500', 'placeholder': 'e.g. 12000'}),
-        help_text='Streetlights only. Lumen rating of the lamp.',
-    )
-    pole_type = forms.CharField(
-        required=False, max_length=100,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. galvanised steel, octagonal'}),
-        help_text='Streetlights only. Pole material / type.',
-    )
+    """
+    Streetlights-specific request form.
+
+    Intentionally adds no extra fields beyond the base. Pole specs
+    (height, material type, lumen rating, etc.) live on the selected
+    InventoryItem -- one SKU per variant -- so the form would only
+    duplicate that information if it asked the requestor to retype it.
+    Reporting reads spec data off ``order.inventory_item`` instead of
+    from notes.
+    """
 
     def collect_project_specific_notes(self) -> str:
-        parts = []
-        if self.cleaned_data.get('pole_height_m') is not None:
-            parts.append(f"Pole height: {self.cleaned_data['pole_height_m']}m")
-        if self.cleaned_data.get('lumen_rating'):
-            parts.append(f"Lumen rating: {self.cleaned_data['lumen_rating']}")
-        if self.cleaned_data.get('pole_type'):
-            parts.append(f"Pole type: {self.cleaned_data['pole_type']}")
-        return f"[Streetlights] {', '.join(parts)}" if parts else ''
+        return ''
 
 
-# Registry — view picks the right form class from the project_type code.
+# Deprecated alias from the brief 0055 'poles' rename. Kept so any
+# straggler imports still resolve; remove in a follow-up.
+PolesRequestForm = StreetlightsRequestForm
+
+
+# Registry -- view picks the right form class from the project_type code.
 FORM_BY_PROJECT_CODE = {
     PROJECT_TYPE_SHEP:         SHEPRequestForm,
     PROJECT_TYPE_COST_SHARING: CostSharingRequestForm,

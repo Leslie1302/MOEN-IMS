@@ -14,6 +14,11 @@ PROJECT_TYPE_SHEP = 'shep'
 PROJECT_TYPE_COST_SHARING = 'cost_sharing'
 PROJECT_TYPE_STREETLIGHTS = 'streetlights'
 
+# Deprecated alias: kept so the brief 'poles' rename (0055) doesn't break
+# any straggler imports during rollback. New code should use
+# PROJECT_TYPE_STREETLIGHTS.
+PROJECT_TYPE_POLES = PROJECT_TYPE_STREETLIGHTS
+
 CANONICAL_PROJECT_TYPE_CODES = (
     PROJECT_TYPE_SHEP,
     PROJECT_TYPE_COST_SHARING,
@@ -32,6 +37,8 @@ LEGACY_PROJECT_TYPE_MAP = {
     # MaterialOrder used different short codes; map them too:
     'COST': PROJECT_TYPE_COST_SHARING,
     'SPEC': 'special_other',                          # archived
+    'STREET': PROJECT_TYPE_STREETLIGHTS,
+    'POLES': PROJECT_TYPE_STREETLIGHTS,                # legacy short code from the brief 0055 rename
     'Cost-sharing': PROJECT_TYPE_COST_SHARING,
 }
 

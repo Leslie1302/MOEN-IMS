@@ -1,0 +1,213 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <div class="d-flex justify-content-between align-items-end my-3">
+        <div>
+            <h1 class="h3 mb-1">Site progress</h1>
+            <p class="text-muted mb-0">
+                Consultants update each site's works status and % complete here.
+                This drives the Ghana map headline in the interim before the
+                Energy Commission engagement.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-3">
+            <div class="card stats-card border-0" style="background: var(--bs-light);">
+                <div class="card-body py-2 px-3">
+                    <div class="text-uppercase small text-muted">Sites in scope</div>
+                    <div class="h4 mb-0 fw-semibold">{{ aggregates.total|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-0 bg-success text-white">
+                <div class="card-body py-2 px-3">
+                    <div class="text-uppercase small opacity-75">Energised / Commissioned</div>
+                    <div class="h4 mb-0 fw-semibold">{{ aggregates.energised|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-0 text-white" style="background:#185FA5;">
+                <div class="card-body py-2 px-3">
+                    <div class="text-uppercase small opacity-75">% energised in scope</div>
+                    <div class="h4 mb-0 fw-semibold">{{ aggregates.energised_pct }}%</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-0" style="background:#FAEEDA;">
+                <div class="card-body py-2 px-3">
+                    <div class="text-uppercase small" style="color:#633806;">Avg consultant %</div>
+                    <div class="h4 mb-0 fw-semibold" style="color:#412402;">{{ aggregates.avg_progress }}%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="get" class="card mb-3">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1">Search</label>
+                <input type="text" name="q" value="{{ filters.q }}" class="form-control form-control-sm"
+                       placeholder="Community, site, or code">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Region</label>
+                <select name="region" class="form-select form-select-sm">
+                    <option value="">— any —</option>
+                    {% for r in regions %}
+                    <option value="{{ r }}" {% if r == filters.region %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">District</label>
+                <select name="district" class="form-select form-select-sm">
+                    <option value="">— any —</option>
+                    {% for d in districts %}
+                    <option value="{{ d }}" {% if d == filters.district %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Works status</label>
+                <select name="works_status" class="form-select form-select-sm">
+                    <option value="">— any —</option>
+                    {% for code, label in works_status_choices %}
+                    <option value="{{ code }}" {% if code == filters.works_status %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Project</label>
+                <select name="project" class="form-select form-select-sm">
+                    <option value="">— any —</option>
+                    {% for p in projects %}
+                    <option value="{{ p.pk }}" {% if filters.project == p.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ p.code }} — {{ p.name|truncatechars:30 }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                <a href="{% url 'site_progress_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+            </div>
+        </div>
+    </form>
+
+    {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ m }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Community</th>
+                        <th>Project</th>
+                        <th>Works status</th>
+                        <th>Materials installed</th>
+                        <th class="text-end" style="width:160px;">% complete</th>
+                        <th>Last update</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site in sites %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ site.community|default:site.name }}</div>
+                            <div class="small text-muted">{{ site.region }} · {{ site.district }}</div>
+                        </td>
+                        <td>
+                            <div class="small fw-semibold">{{ site.project.code }}</div>
+                            <div class="small text-muted">{{ site.project.name|truncatechars:40 }}</div>
+                        </td>
+                        <td>
+                            {% if site.works_status == 'Energised' %}
+                            <span class="badge bg-success">{{ site.get_works_status_display }}</span>
+                            {% elif site.works_status == 'Commissioned' %}
+                            <span class="badge bg-primary">{{ site.get_works_status_display }}</span>
+                            {% elif site.works_status == 'In Progress' %}
+                            <span class="badge bg-warning text-dark">{{ site.get_works_status_display }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ site.get_works_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% with m=site.meters_1ph_installed|add:site.meters_3ph_installed %}
+                            {% if m or site.poles_erected or site.conductor_laid_m or site.transformers_installed %}
+                            <div class="d-flex flex-wrap gap-1">
+                                {% if m %}<span class="badge bg-light text-dark border" title="Meters installed (1ph + 3ph)"><i class="bi bi-speedometer2"></i> {{ m|intcomma }} mtr</span>{% endif %}
+                                {% if site.poles_erected %}<span class="badge bg-light text-dark border" title="Poles erected">{{ site.poles_erected|intcomma }} poles</span>{% endif %}
+                                {% if site.conductor_laid_m %}<span class="badge bg-light text-dark border" title="Conductor / cable laid">{{ site.conductor_laid_m|floatformat:0|intcomma }} m cond.</span>{% endif %}
+                                {% if site.transformers_installed %}<span class="badge bg-light text-dark border" title="Transformers installed / commissioned">{{ site.transformers_commissioned|intcomma }}/{{ site.transformers_installed|intcomma }} txr</span>{% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="flex-grow-1 progress" style="height: 8px;">
+                                    <div class="progress-bar
+                                        {% if site.progress_percent >= 90 %}bg-success
+                                        {% elif site.progress_percent >= 50 %}bg-info
+                                        {% elif site.progress_percent >= 1 %}bg-warning
+                                        {% else %}bg-secondary{% endif %}"
+                                        role="progressbar"
+                                        style="width: {{ site.progress_percent }}%;"
+                                        aria-valuenow="{{ site.progress_percent }}"
+                                        aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <div class="small fw-semibold" style="width: 36px; text-align:right;">{{ site.progress_percent }}%</div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if site.progress_updated_at %}
+                            <div class="small">{{ site.progress_updated_at|date:'Y-m-d' }}</div>
+                            <div class="small text-muted">{{ site.progress_updated_by|default:'—' }}</div>
+                            {% else %}
+                            <span class="text-muted small">— never —</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'site_progress_edit' site.pk %}" class="btn btn-sm btn-outline-primary">
+                                Update
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            No sites match the current filter.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if sites|length >= 300 %}
+        <div class="card-footer small text-muted">
+            Showing the first 300 sites. Narrow with the filter above to see the rest.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

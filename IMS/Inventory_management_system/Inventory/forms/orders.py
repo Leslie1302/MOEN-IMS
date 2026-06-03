@@ -9,6 +9,7 @@ from ..models import (
     InventoryItem, MaterialOrder, ReportSubmission, ReleaseLetter,
     Supplier, Warehouse, BillOfQuantity, SHEPCommunity,
 )
+from ..models.suppliers import SupplyContract
 
 
 class InventoryItemForm(forms.ModelForm):
@@ -305,18 +306,61 @@ class BulkMaterialRequestForm(forms.Form):
 
 
 class MaterialReceiptForm(forms.ModelForm):
+    """Material Receipt form.
+
+    Mirrors the release-side contract linkage: a receipt now picks a
+    Supplier, a SupplyContract drawn from that supplier, and a category
+    that distinguishes a brand-new supply from an Overissuance Return.
+    When the category is "Overissuance Return", the form also asks for
+    the BoQ line being offset so the overissuance ledger can update on
+    receipt completion.
+    """
+
     name = forms.ModelChoiceField(
         queryset=InventoryItem.objects.all(),
         empty_label="-- Choose Material --",
         widget=forms.Select(attrs={'class': 'form-control material-select'})
     )
 
+    receipt_category = forms.ChoiceField(
+        choices=MaterialOrder.RECEIPT_CATEGORY_CHOICES,
+        initial='new_supply',
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-control receipt-category-select'}),
+        help_text=(
+            'Pick "Overissuance Return" for materials being returned to '
+            'offset an over-issued BoQ line.'
+        ),
+    )
+
+    supply_contract = forms.ModelChoiceField(
+        queryset=SupplyContract.objects.filter(status='active'),
+        required=False,
+        empty_label="— no contract / not applicable —",
+        widget=forms.Select(attrs={'class': 'form-control supply-contract-select'}),
+        help_text='Contract this receipt is drawn against.',
+    )
+
+    linked_boq_item = forms.ModelChoiceField(
+        queryset=BillOfQuantity.objects.none(),
+        required=False,
+        empty_label="— pick over-issued BoQ line —",
+        widget=forms.Select(attrs={'class': 'form-control boq-overissuance-select'}),
+        help_text=(
+            'Required for Overissuance Returns. quantity_received on this '
+            'BoQ line will be reduced by the return quantity on completion.'
+        ),
+    )
+
     class Meta:
         model = MaterialOrder
-        fields = ['name', 'quantity', 'supplier', 'warehouse']
+        fields = [
+            'name', 'quantity', 'supplier', 'supply_contract',
+            'receipt_category', 'linked_boq_item', 'warehouse',
+        ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'supplier': forms.Select(attrs={'class': 'form-control'}),
+            'supplier': forms.Select(attrs={'class': 'form-control supplier-select'}),
             'warehouse': forms.Select(attrs={'class': 'form-control'}),
         }
 
@@ -328,6 +372,43 @@ class MaterialReceiptForm(forms.ModelForm):
         self.fields['warehouse'].queryset = Warehouse.objects.filter(is_active=True)
         self.fields['supplier'].required = False
         self.fields['warehouse'].required = False
+        # Pre-load over-issued BoQ lines so the dropdown shows real options
+        # the moment the user picks "Overissuance Return".
+        over_issued_ids = [
+            b.id for b in BillOfQuantity.objects.all()
+            if (b.contract_quantity or 0) - (b.quantity_received or 0) < 0
+        ]
+        self.fields['linked_boq_item'].queryset = (
+            BillOfQuantity.objects.filter(id__in=over_issued_ids)
+            .order_by('package_number', 'material_description')
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get('receipt_category')
+        linked_boq = cleaned.get('linked_boq_item')
+        contract = cleaned.get('supply_contract')
+        supplier = cleaned.get('supplier')
+
+        # Overissuance returns must point at a BoQ line so the ledger can be
+        # updated on receipt; otherwise the return is silent.
+        if category == 'overissuance_return' and not linked_boq:
+            self.add_error(
+                'linked_boq_item',
+                'Pick the BoQ line being offset — overissuance returns must '
+                'be linked into the BoQ ledger.',
+            )
+
+        # If a contract is picked, its supplier must match the supplier
+        # field. This stops misposted receipts crossing supplier boundaries.
+        if contract and supplier and contract.supplier_id != supplier.id:
+            self.add_error(
+                'supply_contract',
+                f'Contract {contract.contract_number} belongs to '
+                f'{contract.supplier.name}, not {supplier.name}.',
+            )
+        return cleaned
+
 
 MaterialReceiptFormSet = formset_factory(MaterialReceiptForm, extra=1, can_delete=True)
 

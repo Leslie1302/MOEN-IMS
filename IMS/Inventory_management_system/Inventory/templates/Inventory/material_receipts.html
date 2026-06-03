@@ -4,13 +4,13 @@
 {% block content %}
 <div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
   <div class="bg-light py-2 sticky-top">
-    <h2 class="text-center fw-bold text-primary mb-0">📋 Receipt Table</h2>
+    <h2 class="text-center fw-bold text-primary mb-0">Receipt Table</h2>
     <p class="text-muted text-center mb-0">Manage receipt statuses and filter records</p>
   </div>
 
   <div class="container mt-3">
     <div class="d-flex justify-content-between mb-2">
-      <a href="{% url 'material_receipt' %}" class="btn btn-outline-secondary">➕ New Receipt</a>
+      <a href="{% url 'material_receipt' %}" class="btn btn-outline-secondary">New Receipt</a>
       <button class="btn btn-secondary" id="undo-filter-btn">Undo Filter</button>
     </div>
 
@@ -20,63 +20,63 @@
           <thead class="sticky-top bg-light">
             <tr>
               <th scope="col" class="text-wrap">
-                User <span class="filter-arrow" data-column="0">▼</span>
+                User <span class="filter-arrow" data-column="0"></span>
                 <div class="dropdown-menu" id="filter-0" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Material <span class="filter-arrow" data-column="1">▼</span>
+                Material <span class="filter-arrow" data-column="1"></span>
                 <div class="dropdown-menu" id="filter-1" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Quantity <span class="filter-arrow" data-column="2">▼</span>
+                Quantity <span class="filter-arrow" data-column="2"></span>
                 <div class="dropdown-menu" id="filter-2" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Processed <span class="filter-arrow" data-column="3">▼</span>
+                Processed <span class="filter-arrow" data-column="3"></span>
                 <div class="dropdown-menu" id="filter-3" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Remaining <span class="filter-arrow" data-column="4">▼</span>
+                Remaining <span class="filter-arrow" data-column="4"></span>
                 <div class="dropdown-menu" id="filter-4" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Region <span class="filter-arrow" data-column="5">▼</span>
+                Region <span class="filter-arrow" data-column="5"></span>
                 <div class="dropdown-menu" id="filter-5" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                District <span class="filter-arrow" data-column="6">▼</span>
+                District <span class="filter-arrow" data-column="6"></span>
                 <div class="dropdown-menu" id="filter-6" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Community <span class="filter-arrow" data-column="7">▼</span>
+                Community <span class="filter-arrow" data-column="7"></span>
                 <div class="dropdown-menu" id="filter-7" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Consultant <span class="filter-arrow" data-column="8">▼</span>
+                Consultant <span class="filter-arrow" data-column="8"></span>
                 <div class="dropdown-menu" id="filter-8" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Contractor <span class="filter-arrow" data-column="9">▼</span>
+                Contractor <span class="filter-arrow" data-column="9"></span>
                 <div class="dropdown-menu" id="filter-9" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Package <span class="filter-arrow" data-column="10">▼</span>
+                Package <span class="filter-arrow" data-column="10"></span>
                 <div class="dropdown-menu" id="filter-10" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Type <span class="filter-arrow" data-column="11">▼</span>
+                Type <span class="filter-arrow" data-column="11"></span>
                 <div class="dropdown-menu" id="filter-11" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Status <span class="filter-arrow" data-column="12">▼</span>
+                Status <span class="filter-arrow" data-column="12"></span>
                 <div class="dropdown-menu" id="filter-12" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Date <span class="filter-arrow" data-column="13">▼</span>
+                Date <span class="filter-arrow" data-column="13"></span>
                 <div class="dropdown-menu" id="filter-13" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">
-                Last Updated By <span class="filter-arrow" data-column="14">▼</span>
+                Last Updated By <span class="filter-arrow" data-column="14"></span>
                 <div class="dropdown-menu" id="filter-14" style="display: none;"></div>
               </th>
               <th scope="col" class="text-wrap">Action</th>
@@ -98,23 +98,23 @@
                 <td>{{ order.package_number|default:"N/A" }}</td>
                 <td>{{ order.request_type }}</td>
                 <td id="status-{{ order.id }}">
-                  {% if order.status == "Pending" %}⏳ Pending
-                  {% elif order.status == "Seen" %}👀 Seen
-                  {% elif order.status == "Approved" %}🔄 Approved
-                  {% elif order.status == "Completed" %}✅ Completed
-                  {% elif order.status == "Draft" %}📝 Draft
-                  {% else %}🔄 {{ order.status }}{% endif %}
+                  {% if order.status == "Pending" %}Pending
+                  {% elif order.status == "Seen" %}Seen
+                  {% elif order.status == "Approved" %}Approved
+                  {% elif order.status == "Completed" %}Completed
+                  {% elif order.status == "Draft" %}Draft
+                  {% else %}{{ order.status }}{% endif %}
                 </td>
                 <td>{{ order.date_requested|date:"Y-m-d H:i" }}</td>
                 <td id="last-updated-by-{{ order.id }}">{{ order.last_updated_by.username|default:"N/A" }}</td>
                 <td>
                   <div class="btn-group" role="group">
                     <button id="seen-btn-{{ order.id }}" class="btn btn-secondary btn-sm seen-btn action-btn" data-order-id="{{ order.id }}"
-                            {% if order.status != 'Pending' and order.status != 'Draft' %}disabled{% endif %}>👀 Seen</button>
+                            {% if order.status != 'Pending' and order.status != 'Draft' %}disabled{% endif %}>Seen</button>
                     <button id="partial-btn-{{ order.id }}" class="btn btn-info btn-sm partial-btn action-btn" data-order-id="{{ order.id }}"
-                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>➗ Partial</button>
+                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>Partial</button>
                     <button id="complete-btn-{{ order.id }}" class="btn btn-success btn-sm complete-btn action-btn" data-order-id="{{ order.id }}"
-                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>✅ Completed</button>
+                             {% if order.status != 'Seen' and order.status != 'Approved' or order.remaining_quantity|floatformat:0 == '0' %}disabled{% endif %}>Completed</button>
                   </div>
                 </td>
               </tr>
@@ -193,17 +193,17 @@ function updateReceiptStatus(orderId, newStatus, payload = {}) {
 
     // Update status cell with appropriate emoji
     const statusText = {
-      'Approved': '🔄 Approved',
-      'Seen': '👀 Seen',
-      'Partial': '↩️ Partially Processed',
-      'Completed': '✅ Completed',
-      'Draft': '📝 Draft',
-      'Pending': '⏳ Pending'
+      'Approved': 'Approved',
+      'Seen': 'Seen',
+      'Partial': '↩Partially Processed',
+      'Completed': 'Completed',
+      'Draft': 'Draft',
+      'Pending': 'Pending'
     };
     
     // Ensure we have a valid status, default to 'Draft' if undefined
     const displayStatus = data.status || 'Draft';
-    statusCell.innerText = statusText[displayStatus] || `🔄 ${displayStatus}`;
+    statusCell.innerText = statusText[displayStatus] || `${displayStatus}`;
 
     // Update quantities if provided
     if (typeof data.processed_quantity !== 'undefined') {
@@ -497,12 +497,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'material_receipts',
         title: 'Receipt Table',
         subtitle: 'Manage receipt statuses and filter records',
-        icon: '📋',
+        icon: '',
         features: [
-            { icon: '👀', title: 'Mark as Seen', desc: 'Acknowledge new receipt requests' },
-            { icon: '➗', title: 'Partial Processing', desc: 'Process quantities incrementally' },
-            { icon: '✅', title: 'Complete Orders', desc: 'Mark full receipt completion' },
-            { icon: '🔍', title: 'Advanced Filters', desc: 'Filter by any column value' }
+            { icon: '', title: 'Mark as Seen', desc: 'Acknowledge new receipt requests' },
+            { icon: '', title: 'Partial Processing', desc: 'Process quantities incrementally' },
+            { icon: '', title: 'Complete Orders', desc: 'Mark full receipt completion' },
+            { icon: '', title: 'Advanced Filters', desc: 'Filter by any column value' }
         ],
         tips: [
             'Click column headers to filter data',

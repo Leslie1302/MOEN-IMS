@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <style>
-    /* ─────── Design tokens ─────── */
+    /* Design tokens */
     :root {
         --rl-border: #e3e6ea;
         --rl-border-soft: #eef0f3;
@@ -31,7 +31,7 @@
 
     .rl-wrap { color: var(--rl-text); }
 
-    /* ─────── Header / hero ─────── */
+    /* Header / hero */
     .rl-hero {
         background: linear-gradient(180deg, var(--rl-bg-surface), var(--rl-bg-subtle));
         border: 1px solid var(--rl-border);
@@ -67,7 +67,7 @@
         padding: 0.22rem 0.55rem; border-radius: 999px;
     }
 
-    /* ─────── Workflow stepper ─────── */
+    /* Workflow stepper */
     .rl-stepper {
         display: flex; align-items: stretch; gap: 0;
         background: var(--rl-bg-surface);
@@ -109,7 +109,7 @@
         background: var(--rl-danger); color: #fff; border-color: var(--rl-danger);
     }
 
-    /* ─────── Cards ─────── */
+    /* Cards */
     .rl-card {
         background: var(--rl-bg-surface);
         border: 1px solid var(--rl-border);
@@ -146,7 +146,7 @@
         color: var(--rl-text-muted); font-size: 0.87rem; margin-bottom: 0.9rem;
     }
 
-    /* ─────── Document preview tabs ─────── */
+    /* Document preview tabs */
     .rl-doc-tabs {
         display: flex; gap: 0; border-bottom: 1px solid var(--rl-border-soft);
         padding: 0 0.5rem; background: var(--rl-bg-subtle);
@@ -175,7 +175,7 @@
         background: var(--rl-bg-subtle);
     }
 
-    /* ─────── Detail rows / downloads ─────── */
+    /* Detail rows / downloads */
     .rl-row {
         display: flex; justify-content: space-between; gap: 0.75rem;
         padding: 0.5rem 0; font-size: 0.86rem;
@@ -212,7 +212,7 @@
     .rl-file-link .rl-file-name { font-size: 0.86rem; font-weight: 500; line-height: 1.2; }
     .rl-file-link .rl-file-meta { font-size: 0.74rem; color: var(--rl-text-muted); }
 
-    /* ─────── Materials table ─────── */
+    /* Materials table */
     .rl-materials { font-size: 0.85rem; }
     .rl-materials thead th {
         font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
@@ -226,7 +226,7 @@
         font-size: 0.78rem; background: var(--rl-bg-tint); padding: 0.05rem 0.4rem; border-radius: 4px;
     }
 
-    /* ─────── Misc utility ─────── */
+    /* Misc utility */
     .rl-muted { color: var(--rl-text-muted); }
     .rl-soft { color: var(--rl-text-soft); }
     .rl-pill {
@@ -248,7 +248,7 @@
 {% block content %}
 <div class="rl-wrap container-fluid py-3" data-project-type="{{ release_letter.project_type|default:'' }}">
 
-    {# ─────────── Hero ─────────── #}
+    {# Hero #}
     <div class="rl-hero">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div class="flex-grow-1" style="min-width: 0;">
@@ -280,7 +280,7 @@
         </div>
     </div>
 
-    {# ─────────── Workflow stepper ─────────── #}
+    {# Workflow stepper #}
     {% with ws=release_letter.workflow_status|default:"draft" %}
     {% if ws != 'voided' %}
     <div class="rl-stepper" aria-label="Workflow progress">
@@ -325,7 +325,7 @@
     {% endwith %}
 
     
-    {# ─────────── Numbering chain (Phase Q.34) ─────────── #}
+    {# Numbering chain (Phase Q.34) #}
     {% with first_order=release_letter.material_orders.first %}
     {% with first_transport=first_order.transports.first %}
     <div class="d-flex flex-wrap gap-2 mb-3 small">
@@ -355,7 +355,7 @@
 
     <div class="row g-3">
 
-        {# ─────────── LEFT (8) — actions, preview, materials ─────────── #}
+        {# LEFT (8) — actions, preview, materials #}
         <div class="col-lg-8">
 
             {# Next action panel #}
@@ -600,7 +600,7 @@
             </div>
         </div>
 
-        {# ─────────── RIGHT (4) — sidebar ─────────── #}
+        {# RIGHT (4) — sidebar #}
         <div class="col-lg-4">
 
             {# Consignee #}

@@ -10,7 +10,7 @@
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h2 class="fw-bold text-primary mb-1">📦 Pending Deliveries</h2>
+                    <h2 class="fw-bold text-primary mb-1">Pending Deliveries</h2>
                     <p class="text-muted mb-0">Materials delivered to project sites requiring receipt confirmation</p>
                 </div>
                 <div class="d-flex align-items-center">
@@ -76,9 +76,9 @@
                                 </div>
                                 <div class="text-end">
                                     {% if transport.status == 'In Transit' %}
-                                    <span class="badge bg-info">🚛 In Transit</span>
+                                    <span class="badge bg-info">In Transit</span>
                                     {% elif transport.status == 'Delivered' %}
-                                    <span class="badge bg-warning text-dark">📦 Delivered</span>
+                                    <span class="badge bg-warning text-dark">Delivered</span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -94,11 +94,11 @@
                                 <div class="col-6">
                                     <small class="text-muted d-block">Priority</small>
                                     {% if transport.material_order.priority == 'High' %}
-                                    <span class="badge bg-danger">🔥 High</span>
+                                    <span class="badge bg-danger">High</span>
                                     {% elif transport.material_order.priority == 'Medium' %}
-                                    <span class="badge bg-warning text-dark">⚡ Medium</span>
+                                    <span class="badge bg-warning text-dark">Medium</span>
                                     {% else %}
-                                    <span class="badge bg-success">📋 Low</span>
+                                    <span class="badge bg-success">Low</span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -106,7 +106,7 @@
                             <!-- Destination -->
                             <div class="mb-3">
                                 <small class="text-muted d-block">Destination</small>
-                                <span class="fw-semibold">📍 {{ transport.delivery_location|default:"N/A" }}</span>
+                                <span class="fw-semibold">{{ transport.delivery_location|default:"N/A" }}</span>
                             </div>
 
                             <!-- Transport Details -->
@@ -262,12 +262,12 @@
             pageId: 'pending_deliveries',
             title: 'Pending Deliveries',
             subtitle: 'Materials awaiting receipt confirmation at sites',
-            icon: '📦',
+            icon: '',
             features: [
-                { icon: '🚚', title: 'Delivery Queue', desc: 'Materials delivered awaiting confirmation' },
-                { icon: '✅', title: 'Log Receipt', desc: 'Confirm delivery at project sites' },
-                { icon: '🔍', title: 'Smart Filters', desc: 'Filter by status, priority, or search' },
-                { icon: '📊', title: 'Priority View', desc: 'See urgent items first' }
+                { icon: '', title: 'Delivery Queue', desc: 'Materials delivered awaiting confirmation' },
+                { icon: '', title: 'Log Receipt', desc: 'Confirm delivery at project sites' },
+                { icon: '', title: 'Smart Filters', desc: 'Filter by status, priority, or search' },
+                { icon: '', title: 'Priority View', desc: 'See urgent items first' }
             ],
             tips: [
                 'Click Log Receipt to confirm delivery',

@@ -15,13 +15,13 @@
 
     {% if user.is_superuser %}
     <div class="d-flex justify-content-end mb-3">
-        <a href="{% url 'upload_inventory' %}" class="btn btn-success">📂 Upload Excel</a>
+        <a href="{% url 'upload_inventory' %}" class="btn btn-success">Upload Excel</a>
     </div>
     {% endif %}
 
     {% if low_inventory_items %}
     <div class="alert alert-warning text-center" role="alert">
-        <strong>⚠️ Low Stock Alert:</strong>
+        <strong>Low Stock Alert:</strong>
         {% if low_inventory_items|length <= 3 %} The following materials are low: {{ low_inventory_items|join:", " }}
         {% else %}
             {{ low_inventory_items|length }} materials are low in stock!
@@ -166,12 +166,12 @@
             pageId: 'dashboard',
             title: 'Inventory Dashboard',
             subtitle: 'Your central hub for warehouse management',
-            icon: '📦',
+            icon: '',
             features: [
-                { icon: '📊', title: 'Live Inventory', desc: 'View all stock levels in real-time' },
-                { icon: '🔍', title: 'Smart Filtering', desc: 'Sort and filter by category, warehouse' },
-                { icon: '⚠️', title: 'Low Stock Alerts', desc: 'Get notified when items run low' },
-                { icon: '📤', title: 'Excel Export', desc: 'Download inventory data anytime' }
+                { icon: '', title: 'Live Inventory', desc: 'View all stock levels in real-time' },
+                { icon: '', title: 'Smart Filtering', desc: 'Sort and filter by category, warehouse' },
+                { icon: '', title: 'Low Stock Alerts', desc: 'Get notified when items run low' },
+                { icon: '', title: 'Excel Export', desc: 'Download inventory data anytime' }
             ],
             tips: [
                 'Click column headers to sort data',

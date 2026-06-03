@@ -46,6 +46,50 @@
         </div>
     </div>
 
+    <!--
+        Headline access rate card.
+
+        Reads `national.access_rate.rate_pct` from the API. The number
+        is consultant-reported in the interim -- the calculation method
+        lives on the backend (Inventory.views.map_views._consultant_access_rate
+        today; services/access_rate.compute_access_rate() for the future
+        meter-formula path). The hero deliberately shows only the
+        result + scope, not any formula breakdown.
+    -->
+    <div class="card stats-card mb-4 border-0" id="access-rate-hero"
+         style="background: linear-gradient(120deg, #0d6efd 0%, #198754 100%); color: white;">
+        <div class="card-body py-4">
+            <div class="row align-items-center">
+                <div class="col-md-7">
+                    <div class="text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em; opacity: 0.8;">
+                        National electricity access rate
+                        <span class="badge bg-light text-primary ms-2" title="Consultant-reported (interim)">INTERIM</span>
+                    </div>
+                    <div class="display-4 font-weight-bold" id="national-access-rate">—</div>
+                    <div class="small mt-1" id="national-access-caveat" style="opacity: 0.85;">
+                        Loading consultant updates…
+                    </div>
+                </div>
+                <div class="col-md-5 text-md-end">
+                    <div class="d-inline-block text-start p-3 rounded"
+                         style="background: rgba(255,255,255,0.12); backdrop-filter: blur(4px);">
+                        <div class="small text-uppercase" style="letter-spacing: 0.1em; opacity: 0.8;">
+                            Sites in scope
+                        </div>
+                        <div class="h5 mb-0">
+                            <span id="national-energised">0</span> energised /
+                            <span id="national-total-sites">0</span> sites
+                        </div>
+                        <div class="small mt-2" style="opacity: 0.85;">
+                            Avg consultant progress:
+                            <strong id="national-avg-progress">0</strong>%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Stats Summary Row dynamically updated by JS -->
     <div class="row mb-4" id="national-stats">
         <div class="col-xl-3 col-md-6 mb-3">
@@ -79,8 +123,23 @@
             <div class="card stats-card bg-info text-white h-100">
                 <div class="card-body">
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        National Progress</div>
+                        Site Completion
+                        <span class="badge bg-light text-info ms-1" title="Sites with status=Completed">SITE</span>
+                    </div>
                     <div class="h3 mb-0 font-weight-bold" id="national-progress">0%</div>
+                    <small class="opacity-75">% sites marked Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stats-card bg-dark text-white h-100">
+                <div class="card-body">
+                    <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
+                        National Material Flow
+                        <span class="badge bg-light text-dark ms-1" title="BoQ driven">BoQ</span>
+                    </div>
+                    <div class="h3 mb-0 font-weight-bold" id="national-boq-progress">0%</div>
+                    <small class="opacity-75" id="national-boq-detail">— / —</small>
                 </div>
             </div>
         </div>
@@ -145,6 +204,13 @@
                             <span class="badge bg-secondary rounded-pill fs-6" id="detail-planned">0</span>
                         </li>
                     </ul>
+
+                    <hr class="my-3">
+                    <div class="text-center mb-2">
+                        <span class="text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">Material flow (BoQ)</span>
+                        <h4 class="mb-0 text-dark font-weight-bold" id="detail-boq-progress">0%</h4>
+                        <small class="text-muted" id="detail-boq-detail">— received of — contracted</small>
+                    </div>
                 </div>
             </div>
 
@@ -154,9 +220,15 @@
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Methodology Note</div>
                             <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
-                                Region progress is calculated as the percentage of sites marked as <strong
-                                    class="text-success">Completed</strong> against the total number of sites assigned
-                                to that region.
+                                <strong>Three measures</strong> are surfaced separately.
+                                <em>Access rate</em> (headline) is the
+                                <strong>share of sites consultants have flipped to
+                                Energised or Commissioned</strong> via the Site Progress page;
+                                interim until the Energy Commission engagement
+                                settles a fuller methodology.
+                                <em>Site completion</em> = % of sites marked
+                                <strong class="text-success">Completed</strong> in the region (BoQ-driven).
+                                <em>Material flow</em> = quantity received ÷ contracted across BoQ lines.
                             </div>
                         </div>
                         <div class="col-auto">
@@ -250,15 +322,70 @@
                 nCompleted.innerText = completedNational.toLocaleString();
                 nActive.innerText = activeNational.toLocaleString();
 
-                // Display National Access Rate (AR%)
-                const nationalAR = nationalSummary.access_rate || 0;
-                nProgress.innerText = nationalAR.toFixed(1) + '%';
+                // Headline access rate: consultant-reported (interim).
+                // Backend handles the calculation; the front end just
+                // renders the result + a short caveat.
+                const accessBlock = nationalSummary.access_rate || {};
+                const accessPct = (typeof accessBlock === 'object')
+                    ? (accessBlock.rate_pct ?? null)
+                    : accessBlock;  // tolerate legacy bare number
 
-                // Update AR% card
+                const heroPctEl = document.getElementById('national-access-rate');
+                const heroCaveatEl = document.getElementById('national-access-caveat');
+                const heroEnergisedEl = document.getElementById('national-energised');
+                const heroTotalSitesEl = document.getElementById('national-total-sites');
+                const heroAvgProgressEl = document.getElementById('national-avg-progress');
+
+                if (accessPct != null && typeof accessBlock === 'object') {
+                    heroPctEl.innerText = accessPct.toFixed(2) + '%';
+                    heroCaveatEl.innerText = accessBlock.caveat
+                        || 'Interim: consultant-reported completion.';
+                    heroEnergisedEl.innerText =
+                        (accessBlock.energised_sites || 0).toLocaleString();
+                    heroTotalSitesEl.innerText =
+                        (accessBlock.total_sites_in_scope || 0).toLocaleString();
+                    heroAvgProgressEl.innerText =
+                        (accessBlock.avg_consultant_progress || 0).toFixed(1);
+                } else {
+                    heroPctEl.innerText = (accessPct ?? 0).toFixed(1) + '%';
+                    heroCaveatEl.innerText = 'Legacy fallback display.';
+                }
+
+                // Site completion rate (BoQ-driven; not the headline).
+                const siteCompletion =
+                    nationalSummary.site_completion_rate
+                    ?? 0;
+                const siteCompletionPct = (typeof siteCompletion === 'object')
+                    ? (siteCompletion.rate_pct ?? 0)
+                    : siteCompletion;
+                nProgress.innerText = siteCompletionPct.toFixed(1) + '%';
+
+                // National BoQ-driven material-flow rate.
+                const nationalBoqAR =
+                    nationalSummary.material_delivery_rate
+                    ?? nationalSummary.boq_access_rate
+                    ?? 0;
+                const nationalBoqContract = nationalSummary.boq_contract_quantity || 0;
+                const nationalBoqReceived = nationalSummary.boq_received_quantity || 0;
+                const boqProgressEl = document.getElementById('national-boq-progress');
+                const boqDetailEl = document.getElementById('national-boq-detail');
+                if (boqProgressEl) boqProgressEl.innerText = nationalBoqAR.toFixed(1) + '%';
+                if (boqDetailEl) {
+                    boqDetailEl.innerText =
+                        Math.round(nationalBoqReceived).toLocaleString() + ' / ' +
+                        Math.round(nationalBoqContract).toLocaleString();
+                }
+
+                // Bottom 'Project Access Rate (AR%)' card: now reflects the
+                // formula-driven headline rather than site-completion, so
+                // both cards agree.
                 const arDisplay = document.getElementById('project-ar-display');
                 const arDetails = document.getElementById('ar-details');
-                arDisplay.innerText = nationalAR.toFixed(1) + '%';
-                arDetails.innerHTML = `<strong>${completedNational}</strong> of <strong>${totalNational}</strong> sites electrified`;
+                arDisplay.innerText = (accessPct != null ? accessPct.toFixed(2) : '—') + '%';
+                arDetails.innerHTML =
+                    `Site completion: <strong>${siteCompletionPct.toFixed(1)}%</strong> · ` +
+                    `Material flow: <strong>${nationalBoqAR.toFixed(1)}%</strong> ` +
+                    `(${Math.round(nationalBoqReceived).toLocaleString()} / ${Math.round(nationalBoqContract).toLocaleString()})`;
 
 
                 // Initialize ECharts instance
@@ -279,7 +406,10 @@
                             total_sites: 0,
                             completed_sites: 0,
                             active_sites: 0,
-                            planned_sites: 0
+                            planned_sites: 0,
+                            boq_access_rate: 0,
+                            boq_contract_quantity: 0,
+                            boq_received_quantity: 0,
                         };
 
                         return {
@@ -289,6 +419,9 @@
                             completed_sites: stats.completed_sites,
                             active_sites: stats.active_sites,
                             planned_sites: stats.planned_sites,
+                            boq_access_rate: stats.boq_access_rate || 0,
+                            boq_contract_quantity: stats.boq_contract_quantity || 0,
+                            boq_received_quantity: stats.boq_received_quantity || 0,
                         };
                     });
 
@@ -297,13 +430,15 @@
                             trigger: 'item',
                             formatter: function (params) {
                                 if (params.data) {
+                                    const boqAr = params.data.boq_access_rate || 0;
                                     return `
                             <div style="font-weight:bold;font-size:14px;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:5px;">
                                 ${params.name} Region
                             </div>
-                            <span>Progress: <strong style="color:${params.data.value > 70 ? '#28a745' : params.data.value > 30 ? '#ffc107' : '#dc3545'}">${params.data.value}%</strong></span><br/>
+                            <span>Site Progress: <strong style="color:${params.data.value > 70 ? '#28a745' : params.data.value > 30 ? '#ffc107' : '#dc3545'}">${params.data.value}%</strong></span><br/>
                             <span>Total Sites: ${params.data.total_sites}</span><br/>
-                            <span>Completed: ${params.data.completed_sites}</span>
+                            <span>Completed: ${params.data.completed_sites}</span><br/>
+                            <span>BoQ Material Flow: <strong>${boqAr.toFixed(1)}%</strong></span>
                         `;
                                 } else {
                                     return params.name + '<br/>No Data available';
@@ -382,6 +517,19 @@
                             dCompleted.innerText = params.data.completed_sites;
                             dActive.innerText = params.data.active_sites;
                             dPlanned.innerText = params.data.planned_sites;
+
+                            // BoQ material-flow figures for this region.
+                            const boqAr = params.data.boq_access_rate || 0;
+                            const boqRcv = params.data.boq_received_quantity || 0;
+                            const boqCon = params.data.boq_contract_quantity || 0;
+                            const boqProgressEl = document.getElementById('detail-boq-progress');
+                            const boqDetailEl = document.getElementById('detail-boq-detail');
+                            if (boqProgressEl) boqProgressEl.innerText = boqAr.toFixed(1) + '%';
+                            if (boqDetailEl) {
+                                boqDetailEl.innerText =
+                                    Math.round(boqRcv).toLocaleString() + ' received of ' +
+                                    Math.round(boqCon).toLocaleString() + ' contracted';
+                            }
                         }
                     });
 

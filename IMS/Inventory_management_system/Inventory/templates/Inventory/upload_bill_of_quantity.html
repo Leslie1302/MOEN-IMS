@@ -16,16 +16,25 @@
                     {% endfor %}
                 </div>
             {% endif %}
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{% url 'download_boq_template' %}" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-download me-1"></i> Download BoQ template
+                </a>
+            </div>
             <form method="post" enctype="multipart/form-data" class="card p-4 shadow-sm">
                 {% csrf_token %}
                 <div class="mb-3">
                     <label for="file" class="form-label">Upload Excel File</label>
                     {{ form.file }}
                     <small class="text-muted">
-                        <strong>Required columns:</strong> region, district, community, consultant, contractor, 
-                        package_number, material_description, contract_quantity, quantity_received<br>
-                        <strong>Note:</strong> The <em>item_code</em> will be automatically pulled from matching inventory items. 
-                        Material descriptions must match existing inventory items. The <em>community</em> field is required for proper tracking.
+                        <strong>Required columns:</strong> region, district, community, consultant, contractor,
+                        package_number, material_description, contract_quantity, quantity_received.<br>
+                        <strong>Optional:</strong> <em>project_type</em>, <em>phase</em>.
+                        If <em>project_type</em> is blank it's inferred from phase keywords (SHEP / Cost / Street / Turnkey / China)
+                        or the package_number prefix.<br>
+                        <strong>Note:</strong> <em>item_code</em> is auto-pulled from matching inventory items, so
+                        <em>material_description</em> must exactly match an existing inventory item.
+                        Use the template above to get the column order right.
                     </small>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Upload</button>

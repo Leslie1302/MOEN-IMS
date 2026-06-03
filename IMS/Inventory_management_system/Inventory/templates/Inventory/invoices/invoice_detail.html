@@ -1,0 +1,240 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-0 text-gray-800">Invoice Details</h2>
+            <p class="text-muted mb-0">Invoice #{{ invoice.invoice_number }}</p>
+        </div>
+        <div>
+            <a href="{% url 'invoice_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Invoices
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Invoice Card -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <!-- Invoice Header -->
+                    <div class="d-flex justify-content-between mb-4 pb-4 border-bottom">
+                        <div>
+                            <h4 class="mb-0">{{ invoice.invoice_number }}</h4>
+                            <p class="text-muted mb-0">{{ invoice.supplier.name }}</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'pending' %}warning{% elif invoice.status == 'verified' %}info{% elif invoice.status == 'approved' %}primary{% elif invoice.status == 'rejected' %}danger{% else %}secondary{% endif %} fs-6">
+                                {{ invoice.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Invoice Details Grid -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="text-uppercase text-muted fw-bold">Invoice Date</h6>
+                            <p class="mb-3">{{ invoice.invoice_date|date:"d M Y" }}</p>
+
+                            <h6 class="text-uppercase text-muted fw-bold">Due Date</h6>
+                            <p class="mb-3">{{ invoice.due_date|date:"d M Y" }}</p>
+
+                            <h6 class="text-uppercase text-muted fw-bold">Supplier</h6>
+                            <p class="mb-3">{{ invoice.supplier.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-uppercase text-muted fw-bold">Contract</h6>
+                            <p class="mb-3">
+                                {% if invoice.contract %}
+                                    <a href="#">{{ invoice.contract.contract_number }}</a>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </p>
+
+                            <h6 class="text-uppercase text-muted fw-bold">Currency</h6>
+                            <p class="mb-3">{{ invoice.currency }}</p>
+
+                            <h6 class="text-uppercase text-muted fw-bold">Total Amount</h6>
+                            <p class="mb-3 fs-5 fw-bold text-primary">
+                                {{ invoice.currency }}
+                                {% if invoice.calculated_total > 0 %}
+                                    {{ invoice.calculated_total|floatformat:2|intcomma }}
+                                {% else %}
+                                    {{ invoice.total_amount|floatformat:2|intcomma }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Line Items -->
+                    <div class="mt-4 pt-4 border-top">
+                        <h5 class="mb-3">Invoice Items</h5>
+
+                        {% if items %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Material</th>
+                                        <th>Code</th>
+                                        <th class="text-end">Quantity</th>
+                                        <th class="text-end">Unit Rate</th>
+                                        <th class="text-end">Amount</th>
+                                        {% if has_discrepancies %}<th>Discrepancy</th>{% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in items %}
+                                    <tr>
+                                        <td>{{ item.material.name }}</td>
+                                        <td><code>{{ item.material.code }}</code></td>
+                                        <td class="text-end">{{ item.quantity_invoiced|floatformat:2 }}</td>
+                                        <td class="text-end">{{ invoice.currency }} {{ item.unit_rate_invoiced|floatformat:2 }}</td>
+                                        <td class="text-end fw-bold">{{ invoice.currency }} {{ item.total_amount|intcomma }}</td>
+                                        {% if has_discrepancies %}
+                                        <td>
+                                            {% if item.has_discrepancy %}
+                                            <span class="badge bg-warning text-dark">Mismatch</span>
+                                            <small class="d-block text-muted">Received: {{ item.quantity_received|floatformat:2 }}</small>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center py-3">No items on this invoice</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Notes -->
+                    {% if invoice.notes %}
+                    <div class="mt-4 pt-4 border-top">
+                        <h6 class="text-uppercase text-muted fw-bold mb-2">Notes</h6>
+                        <p class="text-muted">{{ invoice.notes }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Discrepancy Notes -->
+                    {% if invoice.discrepancy_notes %}
+                    <div class="alert alert-warning mt-3" role="alert">
+                        <h6 class="alert-heading">Discrepancies Found</h6>
+                        {{ invoice.discrepancy_notes }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Status Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0 fw-bold">Invoice Status</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <p class="text-muted small mb-1">Current Status</p>
+                        <span class="badge bg-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'pending' %}warning{% elif invoice.status == 'verified' %}info{% elif invoice.status == 'approved' %}primary{% elif invoice.status == 'rejected' %}danger{% else %}secondary{% endif %} fs-6 w-100 text-center py-2">
+                            {{ invoice.get_status_display|title }}
+                        </span>
+                    </div>
+
+                    {% if invoice.is_overdue %}
+                    <div class="alert alert-danger small mb-3">
+                        <i class="fas fa-exclamation-circle"></i> This invoice is overdue
+                    </div>
+                    {% endif %}
+
+                    <!-- Status Timeline -->
+                    <div class="mt-4">
+                        <p class="text-muted small mb-2">Status History</p>
+
+                        {% if invoice.verified_date %}
+                        <div class="d-flex mb-2">
+                            <div class="me-2"><i class="fas fa-check-circle text-info"></i></div>
+                            <div class="small">
+                                <p class="mb-0 fw-bold">Verified</p>
+                                <p class="text-muted mb-0">{{ invoice.verified_date|date:"d M Y, H:i" }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if invoice.approved_date %}
+                        <div class="d-flex mb-2">
+                            <div class="me-2"><i class="fas fa-check-circle text-primary"></i></div>
+                            <div class="small">
+                                <p class="mb-0 fw-bold">Approved</p>
+                                <p class="text-muted mb-0">{{ invoice.approved_date|date:"d M Y, H:i" }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if invoice.payment_date %}
+                        <div class="d-flex mb-2">
+                            <div class="me-2"><i class="fas fa-check-circle text-success"></i></div>
+                            <div class="small">
+                                <p class="mb-0 fw-bold">Paid</p>
+                                <p class="text-muted mb-0">{{ invoice.payment_date|date:"d M Y" }}</p>
+                                {% if invoice.payment_reference %}
+                                <p class="text-muted mb-0"><code>{{ invoice.payment_reference }}</code></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submission Info -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0 fw-bold">Submission Info</h6>
+                </div>
+                <div class="card-body small">
+                    <p class="mb-2">
+                        <strong>Submitted by:</strong><br>
+                        {{ invoice.submitted_by.get_full_name|default:invoice.submitted_by.username }}
+                    </p>
+                    <p class="mb-2">
+                        <strong>Submitted on:</strong><br>
+                        {{ invoice.created_at|date:"d M Y, H:i" }}
+                    </p>
+
+                    {% if invoice.verified_by %}
+                    <p class="mb-0">
+                        <strong>Verified by:</strong><br>
+                        {{ invoice.verified_by.get_full_name|default:invoice.verified_by.username }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card shadow">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0 fw-bold">Status</h6>
+                </div>
+                <div class="card-body small text-muted">
+                    <p class="mb-0">Invoice workflow:</p>
+                    <p class="mb-0">Pending → Verified → Approved → Paid</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-sm td, .table-sm th {
+        padding: 0.5rem;
+    }
+</style>
+{% endblock %}

@@ -312,7 +312,9 @@ def download_material_template(request):
     ws = wb.active
     ws.title = "Material Request Template"
     
-    # Define columns
+    # Define columns. The two trailing signatory columns are batch-level
+    # hints — they're only read from the first non-empty row and map to
+    # the memo/letter signatory pickers on the release-letter step.
     columns = [
         'name',
         'quantity',
@@ -324,7 +326,9 @@ def download_material_template(request):
         'consultant',
         'contractor',
         'package_number',
-        'warehouse'
+        'warehouse',
+        'memo_signatory_title',
+        'letter_signatory_title',
     ]
     
     # Add header row
@@ -350,6 +354,8 @@ def download_material_template(request):
         'I': 25,  # contractor
         'J': 25,  # package_number
         'K': 20,  # warehouse
+        'L': 32,  # memo_signatory_title
+        'M': 32,  # letter_signatory_title
     }
     
     for col, width in column_widths.items():
@@ -425,6 +431,12 @@ def download_material_template(request):
         "• package_number: Required for SHEP, auto-generated for COST/SPEC",
         "• warehouse: Target warehouse",
         "",
+        "SIGNATORY COLUMNS (batch-level, first row only):",
+        "• memo_signatory_title: Title flagged for the approval memo (e.g. 'Ag. Director, Power')",
+        "• letter_signatory_title: Title flagged for the release letter (e.g. 'Chief Director')",
+        "• Leave blank to use the active default from the Signatory admin.",
+        "• The picker on the upload form overrides whatever's in the Excel.",
+        "",
         "PROJECT TYPES:",
         "• SHEP: Regular SHEP project - select package from dropdown",
         "• COST: Cost-sharing project - package auto-generated as COST-[DIST]-[COMM]-[REQ]-[RANDOM]",
@@ -456,7 +468,9 @@ def download_material_template(request):
         'ABC Consulting',
         'XYZ Construction',
         'SHEP-PKG-001',
-        'Main Warehouse'
+        'Main Warehouse',
+        'Ag. Director, Power',
+        'Chief Director',
     ]
     for col_idx, value in enumerate(example_data, 1):
         ws.cell(row=2, column=col_idx, value=value)
@@ -1326,32 +1340,62 @@ from django.http import JsonResponse as _JsonResponse
 
 
 def stock_for_item(request):
-    """AJAX: GET /api/stock/?item_id=N -> {available, unit, warehouse, status}"""
+    """AJAX: GET /api/stock/?item_id=N[&warehouse_id=W]
+
+    Without warehouse_id: aggregates available stock across every warehouse
+    that holds the same material code, so the requestor sees the system-wide
+    pool when they choose "any warehouse". Returns a breakdown so they can
+    see exactly where the stock lives.
+
+    With warehouse_id: returns the stock for that specific warehouse only.
+    """
     item_id = (request.GET.get('item_id') or '').strip()
+    warehouse_id = (request.GET.get('warehouse_id') or '').strip()
     if not item_id:
         return _JsonResponse({'error': 'item_id required'}, status=400)
     try:
         from .models import InventoryItem
-        item = InventoryItem.objects.select_related('unit', 'warehouse').get(pk=item_id)
+        anchor = InventoryItem.objects.select_related('unit', 'warehouse').get(pk=item_id)
     except Exception:
         return _JsonResponse({'error': 'not found'}, status=404)
 
-    available = item.quantity or 0
-    # Bucket the status so the UI can colour-code: Available / Low / Out.
+    # All sibling rows holding the same material code across warehouses.
+    siblings_qs = InventoryItem.objects.filter(code=anchor.code).select_related('warehouse')
+
+    if warehouse_id:
+        row = siblings_qs.filter(warehouse_id=warehouse_id).first()
+        available = (row.quantity if row else 0) or 0
+        warehouse_name = row.warehouse.name if (row and row.warehouse_id) else ''
+        scope = 'warehouse'
+        breakdown = []
+    else:
+        available = sum((r.quantity or 0) for r in siblings_qs)
+        warehouse_name = ''
+        scope = 'aggregate'
+        breakdown = [
+            {
+                'warehouse': (r.warehouse.name if r.warehouse_id else 'Unassigned'),
+                'quantity': r.quantity or 0,
+            }
+            for r in siblings_qs
+        ]
+
     if available <= 0:
         status = 'out'
-    elif available < 10:  # threshold matches LOW_QUANTITY in settings
+    elif available < 10:
         status = 'low'
     else:
         status = 'available'
 
     return _JsonResponse({
         'available': available,
-        'unit': item.unit.name if item.unit_id else '',
-        'warehouse': item.warehouse.name if item.warehouse_id else '',
+        'unit': anchor.unit.name if anchor.unit_id else '',
+        'warehouse': warehouse_name,
+        'scope': scope,
+        'breakdown': breakdown,
         'status': status,
-        'item_name': item.name,
-        'item_code': item.code,
+        'item_name': anchor.name,
+        'item_code': anchor.code,
     })
 
 

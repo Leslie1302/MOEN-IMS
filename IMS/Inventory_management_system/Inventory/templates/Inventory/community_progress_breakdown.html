@@ -1,0 +1,197 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 mb-5">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-bold text-primary mb-1">
+                <i class="bi bi-diagram-3"></i> {{ community }}
+            </h3>
+            <p class="text-muted mb-0">
+                {{ region }} &rsaquo; {{ district }} &rsaquo; {{ community }} — works breakdown
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'community_progress_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Community Progress
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">Could not load breakdown: {{ error }}</div>
+    {% endif %}
+
+    <!-- Site-reported progress summary (from Site Progress form) -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-clipboard-check"></i> Site-reported progress
+                <span class="text-muted fw-normal small">(from the Site Progress form, across {{ site.site_count }} site{{ site.site_count|pluralize }})</span>
+            </h6>
+            <span class="badge bg-primary">Status: {{ site.works_status }}</span>
+        </div>
+        <div class="card-body">
+            <div class="row text-center g-2">
+                <div class="col"><div class="small text-muted">Poles planted</div><div class="h5 mb-0">{{ site.poles_planted|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">Conductor strung (m)</div><div class="h5 mb-0">{{ site.conductor_strung_m|floatformat:0|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">Transformers dressed</div><div class="h5 mb-0">{{ site.transformers_dressed|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">Transformers commissioned</div><div class="h5 mb-0">{{ site.transformers_commissioned|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">C.S. 1-phase connected</div><div class="h5 mb-0">{{ site.cs_1ph|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">C.S. 3-phase connected</div><div class="h5 mb-0">{{ site.cs_3ph|intcomma }}</div></div>
+                <div class="col"><div class="small text-muted">Overall % complete</div><div class="h5 mb-0">{{ site.avg_progress }}%</div></div>
+            </div>
+            {% if site.remarks %}
+            <hr class="my-2">
+            <div class="small"><strong>Remarks:</strong> {{ site.remarks }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Full breakdown table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-table"></i> Works breakdown by package</h6>
+            <button class="btn btn-sm btn-outline-primary" onclick="exportTableToCSV('breakdown-table', 'community_breakdown.csv')">
+                <i class="bi bi-download"></i> Export CSV
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0" id="breakdown-table" style="white-space:nowrap; font-size:0.82rem;">
+                    <thead class="table-light">
+                        <tr class="text-center">
+                            <th rowspan="2" class="align-middle">Region</th>
+                            <th rowspan="2" class="align-middle">Contractor</th>
+                            <th rowspan="2" class="align-middle">Package No.</th>
+                            <th rowspan="2" class="align-middle">District</th>
+                            <th rowspan="2" class="align-middle">Community</th>
+                            <th colspan="5" class="table-primary">H.T. Poles</th>
+                            <th colspan="5" class="table-success">L.V. Poles</th>
+                            <th colspan="4" class="table-warning">Transformer</th>
+                            <th colspan="2" class="table-info">C.S. Connected</th>
+                            <th rowspan="2" class="align-middle">Remarks</th>
+                            <th colspan="4" class="table-secondary">Completion</th>
+                            <th rowspan="2" class="align-middle">Consultant</th>
+                            <th rowspan="2" class="align-middle">Completion Status</th>
+                        </tr>
+                        <tr class="text-center small">
+                            <th class="table-primary">Contract</th><th class="table-primary">Supplied</th><th class="table-primary">Planted</th><th class="table-primary">Dressed</th><th class="table-primary">Strung</th>
+                            <th class="table-success">Contract</th><th class="table-success">Supplied</th><th class="table-success">Planted</th><th class="table-success">Dressed</th><th class="table-success">Strung</th>
+                            <th class="table-warning">Contract</th><th class="table-warning">Supplied</th><th class="table-warning">Dressed</th><th class="table-warning">Comm.</th>
+                            <th class="table-info">1-Phase</th><th class="table-info">3-Phase</th>
+                            <th class="table-secondary">H.T.</th><th class="table-secondary">L.V.</th><th class="table-secondary">Substation</th><th class="table-secondary">Overall</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in package_rows %}
+                        <tr>
+                            <td>{{ region }}</td>
+                            <td>{{ p.contractor|default:"—" }}</td>
+                            <td><strong>{{ p.package_number }}</strong></td>
+                            <td>{{ district }}</td>
+                            <td>{{ community }}</td>
+                            <!-- HT poles -->
+                            <td class="text-end">{{ p.ht.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ p.ht.supplied|floatformat:0 }}</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <!-- LV poles -->
+                            <td class="text-end">{{ p.lv.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ p.lv.supplied|floatformat:0 }}</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <!-- Transformer -->
+                            <td class="text-end">{{ p.transformer.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ p.transformer.supplied|floatformat:0 }}</td>
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <!-- CS connected -->
+                            <td class="text-center text-muted">—</td>
+                            <td class="text-center text-muted">—</td>
+                            <!-- Remarks -->
+                            <td class="text-muted">—</td>
+                            <!-- Completion flags -->
+                            <td class="text-center">{% if p.ht_complete %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-dash-circle text-muted"></i>{% endif %}</td>
+                            <td class="text-center">{% if p.lv_complete %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-dash-circle text-muted"></i>{% endif %}</td>
+                            <td class="text-center">{% if p.substation_complete %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-dash-circle text-muted"></i>{% endif %}</td>
+                            <td class="text-center">{% if p.overall_complete %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-dash-circle text-muted"></i>{% endif %}</td>
+                            <td>{{ p.consultant|default:"—" }}</td>
+                            <td>{{ site.works_status }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="28" class="text-center text-muted py-4">No BoQ records found for this community.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if has_data %}
+                    <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="5" class="text-end">Community totals →</td>
+                            <!-- HT -->
+                            <td class="text-end">{{ totals.ht.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ totals.ht.supplied|floatformat:0 }}</td>
+                            <td colspan="3" class="text-center text-muted">{{ site.poles_planted|intcomma }} planted · {{ site.conductor_strung_m|floatformat:0|intcomma }}m strung*</td>
+                            <!-- LV -->
+                            <td class="text-end">{{ totals.lv.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ totals.lv.supplied|floatformat:0 }}</td>
+                            <td colspan="3" class="text-center text-muted">combined*</td>
+                            <!-- Transformer -->
+                            <td class="text-end">{{ totals.transformer.contract|floatformat:0 }}</td>
+                            <td class="text-end">{{ totals.transformer.supplied|floatformat:0 }}</td>
+                            <td class="text-end">{{ site.transformers_dressed|intcomma }}</td>
+                            <td class="text-end">{{ site.transformers_commissioned|intcomma }}</td>
+                            <!-- CS -->
+                            <td class="text-end">{{ site.cs_1ph|intcomma }}</td>
+                            <td class="text-end">{{ site.cs_3ph|intcomma }}</td>
+                            <td></td>
+                            <td colspan="4" class="text-center">Overall {{ site.avg_progress }}%</td>
+                            <td></td>
+                            <td>{{ site.works_status }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white small text-muted">
+            <i class="bi bi-info-circle"></i>
+            <strong>Contract</strong> and <strong>Supplied</strong> come from the Bill of Quantity (supplied = quantity received).
+            <strong>Planted, dressed, strung, transformer dressed/commissioned, connections</strong> and
+            <strong>completion status</strong> come from the Site Progress form and are reported per community
+            (shown in the totals row and summary above). Cells marked
+            <span class="text-muted">—</span> aren't yet captured at HT/LV per-package granularity.
+            Completion ticks are material-completeness (supplied ≥ contract) for that class.
+            <br><span>* Poles planted and conductor strung are recorded combined (not split by HT/LV) on the Site Progress form.</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function exportTableToCSV(tableId, filename) {
+    const rows = document.querySelectorAll('#' + tableId + ' tr');
+    const csv = [];
+    rows.forEach(row => {
+        const cols = row.querySelectorAll('th, td');
+        const line = [];
+        cols.forEach(col => {
+            let text = col.innerText.replace(/"/g, '""').replace(/\s+/g, ' ').trim();
+            line.push('"' + text + '"');
+        });
+        csv.push(line.join(','));
+    });
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+}
+</script>
+{% endblock %}

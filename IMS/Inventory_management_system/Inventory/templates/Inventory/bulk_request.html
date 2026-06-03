@@ -7,7 +7,7 @@
 <div class="container mt-4">
     <div class="card shadow">
         <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">📦 Bulk Material Request</h4>
+            <h4 class="mb-0">Bulk Material Request</h4>
         </div>
         <div class="card-body">
             <div class="alert alert-info">
@@ -27,10 +27,15 @@
                         <div class="card-body">
                             <h5 class="card-title">Download Template</h5>
                             <p class="card-text">Use this template to prepare your bulk material request.</p>
-                            <a href="{% static 'Inventory/templates/bulk_request_template.xlsx' %}"
+                            <a href="{% url 'download_bulk_request_template' %}"
                                 class="btn btn-success" download="Bulk_Request_Template.xlsx">
                                 <i class="fas fa-file-excel me-2"></i>Download Excel Template
                             </a>
+                            <div class="form-text small mt-2">
+                                Includes optional <code>memo_signatory_title</code> and
+                                <code>letter_signatory_title</code> columns — fill the FIRST row
+                                only to choose who signs.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -164,12 +169,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'bulk_request',
         title: 'Bulk Material Request',
         subtitle: 'Upload multiple material requests via Excel',
-        icon: '📤',
+        icon: '',
         features: [
-            { icon: '📥', title: 'Template Download', desc: 'Get the standardized Excel format' },
-            { icon: '📝', title: 'Bulk Processing', desc: 'Submit hundreds of items at once' },
-            { icon: '📎', title: 'Release Letters', desc: 'Attach PDF authorizations' },
-            { icon: '⚡', title: 'Auto-Validation', desc: 'Instant feedback on file errors' }
+            { icon: '', title: 'Template Download', desc: 'Get the standardized Excel format' },
+            { icon: '', title: 'Bulk Processing', desc: 'Submit hundreds of items at once' },
+            { icon: '', title: 'Release Letters', desc: 'Attach PDF authorizations' },
+            { icon: '', title: 'Auto-Validation', desc: 'Instant feedback on file errors' }
         ],
         tips: [
             'Always use the latest template',

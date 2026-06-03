@@ -1,7 +1,7 @@
 {% extends 'Inventory/base.html' %}
 {% block content %}
 <div class="container mt-5">
-    <h2 class="text-center">📂 Upload Inventory File</h2>
+    <h2 class="text-center">Upload Inventory File</h2>
     <p class="text-center text-muted">Upload an Excel file to update inventory.</p>
     
     {% if messages %}
@@ -16,14 +16,14 @@
         <div class="d-flex gap-2 justify-content-center">
             <button type="submit" class="btn btn-primary">Upload</button>
             <a href="{% url 'download_sample_template' %}" class="btn btn-outline-secondary">
-                📥 Download Sample Template
+                Download Sample Template
             </a>
         </div>
     </form>
 
     <div class="mt-4">
         <div class="alert alert-info">
-            <h5>📋 Required Excel Columns:</h5>
+            <h5>Required Excel Columns:</h5>
             <ul class="mb-0">
                 <li><strong>name</strong> - Material name</li>
                 <li><strong>quantity</strong> - Quantity available</li>

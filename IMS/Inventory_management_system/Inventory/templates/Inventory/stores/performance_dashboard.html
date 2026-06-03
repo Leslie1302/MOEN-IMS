@@ -8,7 +8,7 @@
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-md-12">
-                    <h2 class="fw-bold text-primary mb-0">📊 Store Officer Performance Dashboard</h2>
+                    <h2 class="fw-bold text-primary mb-0">Store Officer Performance Dashboard</h2>
                     <p class="text-muted mb-0">Individual performance metrics and team statistics</p>
                 </div>
             </div>
@@ -194,7 +194,7 @@
                                     {% endif %}
                                     {% if data.top_performer %}
                                     <br><span class="badge bg-warning text-dark mt-1" title="Top Performer">
-                                        🏆 Store Officer of the Month
+                                        Store Officer of the Month
                                     </span>
                                     {% endif %}
                                 </td>
@@ -290,13 +290,13 @@
                                 <td>{{ assignment.assigned_by.username }}</td>
                                 <td>
                                     {% if assignment.status == "Pending" %}
-                                    <span class="badge bg-warning">⏳ Pending</span>
+                                    <span class="badge bg-warning">Pending</span>
                                     {% elif assignment.status == "Assigned" %}
-                                    <span class="badge bg-info">📋 Assigned</span>
+                                    <span class="badge bg-info">Assigned</span>
                                     {% elif assignment.status == "In Progress" %}
-                                    <span class="badge bg-primary">🔄 In Progress</span>
+                                    <span class="badge bg-primary">In Progress</span>
                                     {% elif assignment.status == "Completed" %}
-                                    <span class="badge bg-success">✅ Completed</span>
+                                    <span class="badge bg-success">Completed</span>
                                     {% else %}
                                     <span class="badge bg-secondary">{{ assignment.status }}</span>
                                     {% endif %}

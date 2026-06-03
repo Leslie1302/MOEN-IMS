@@ -27,7 +27,7 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h2 class="mb-1">📊 Weekly Reports</h2>
+            <h2 class="mb-1">Weekly Reports</h2>
             <p class="text-muted mb-0">
                 Read-only archive of weekly development and progress reports.
                 {% if request.user.is_superuser %}
@@ -88,8 +88,7 @@
                 <div class="card-header bg-white border-bottom-0 pt-4 pb-2 text-center">
                     <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light text-primary fw-bold mb-3"
                         style="width: 56px; height: 56px; font-size: 1.4rem;">
-                        📊
-                    </div>
+                                            </div>
                     <h6 class="card-title mb-1 font-monospace">{{ report.report_id }}</h6>
                     <p class="text-muted small mb-2">
                         {{ report.start_date|date:"d M" }} – {{ report.end_date|date:"d M Y" }}

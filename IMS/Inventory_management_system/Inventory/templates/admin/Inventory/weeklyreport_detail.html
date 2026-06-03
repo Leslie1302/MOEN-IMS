@@ -145,7 +145,7 @@
 {% block content %}
 <div class="report-container">
     <div class="report-header">
-        <h1>📊 {{ report.subject }}</h1>
+        <h1>{{ report.subject }}</h1>
         <p><strong>Report ID:</strong> {{ report.report_id }}</p>
     </div>
 
@@ -197,7 +197,7 @@
 
     <!-- Recipients -->
     <div class="report-section">
-        <h3>📧 Recipients</h3>
+        <h3>Recipients</h3>
         <div class="report-content">
             <strong>To:</strong> {{ report.recipients }}<br>
             {% if report.cc_recipients %}
@@ -208,7 +208,7 @@
 
     <!-- Executive Summary -->
     <div class="report-section">
-        <h3>📝 Executive Summary</h3>
+        <h3>Executive Summary</h3>
         <div class="report-content">
             {{ report.executive_summary|default:"No executive summary provided."|linebreaks }}
         </div>
@@ -217,7 +217,7 @@
     <!-- New Features -->
     {% if report.new_features %}
     <div class="report-section">
-        <h3>✨ New Features</h3>
+        <h3>New Features</h3>
         <div class="report-content">
             {{ report.new_features|linebreaks }}
         </div>
@@ -227,7 +227,7 @@
     <!-- Bug Fixes -->
     {% if report.bug_fixes %}
     <div class="report-section">
-        <h3>🐛 Bug Fixes</h3>
+        <h3>Bug Fixes</h3>
         <div class="report-content">
             {{ report.bug_fixes|linebreaks }}
         </div>
@@ -237,7 +237,7 @@
     <!-- Database Changes -->
     {% if report.database_changes %}
     <div class="report-section">
-        <h3>🗄️ Database Changes</h3>
+        <h3>Database Changes</h3>
         <div class="report-content">
             {{ report.database_changes|linebreaks }}
         </div>
@@ -247,7 +247,7 @@
     <!-- Code Improvements -->
     {% if report.code_improvements %}
     <div class="report-section">
-        <h3>🔧 Code Improvements</h3>
+        <h3>Code Improvements</h3>
         <div class="report-content">
             {{ report.code_improvements|linebreaks }}
         </div>
@@ -257,7 +257,7 @@
     <!-- Pending Tasks -->
     {% if report.pending_tasks %}
     <div class="report-section">
-        <h3>⏳ Pending Tasks</h3>
+        <h3>Pending Tasks</h3>
         <div class="report-content">
             {{ report.pending_tasks|linebreaks }}
         </div>
@@ -267,7 +267,7 @@
     <!-- Next Priorities -->
     {% if report.next_priorities %}
     <div class="report-section">
-        <h3>🎯 Next Priorities</h3>
+        <h3>Next Priorities</h3>
         <div class="report-content">
             {{ report.next_priorities|linebreaks }}
         </div>
@@ -277,7 +277,7 @@
     <!-- Custom Notes -->
     {% if report.custom_notes %}
     <div class="report-section">
-        <h3>📌 Custom Notes</h3>
+        <h3>Custom Notes</h3>
         <div class="report-content">
             {{ report.custom_notes|linebreaks }}
         </div>
@@ -287,7 +287,7 @@
     <!-- Error Message (if failed) -->
     {% if report.status == 'failed' and report.error_message %}
     <div class="report-section">
-        <h3 style="color: #dc3545;">❌ Error Message</h3>
+        <h3 style="color: #dc3545;">Error Message</h3>
         <div class="report-content" style="border-left-color: #dc3545; background: #f8d7da;">
             {{ report.error_message }}
         </div>
@@ -301,11 +301,11 @@
         </a>
         {% if report.pdf_file %}
         <a href="{{ report.pdf_file.url }}" class="btn btn-success" download>
-            📄 Download PDF
+            Download PDF
         </a>
         {% endif %}
         <a href="{% url 'generate_weekly_report' %}" class="btn btn-primary">
-            🚀 Generate New Report
+            Generate New Report
         </a>
     </div>
 </div>

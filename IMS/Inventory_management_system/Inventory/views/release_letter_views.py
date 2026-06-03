@@ -97,13 +97,69 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         release_letter.save()
 
     def _build_context(self, request, *, form=None, request_code=None, release_letter=None, orders=None):
+        from Inventory.models import Signatory
+        active = Signatory.objects.filter(active=True)
+
+        # If a bulk upload stashed a designation hint on the first order
+        # of this batch (marker: "[SignatoryHint] memo=<pk>; letter=<pk>"),
+        # surface it so the dropdowns can pre-select the right option.
+        memo_prefill_pk = ''
+        letter_prefill_pk = ''
+        hint_warnings = []
+        if orders:
+            for o in orders:
+                note = (o.notes or '')
+                if '[SignatoryHint]' not in note:
+                    continue
+                # Single line: [SignatoryHint] memo=12; letter=7
+                for line in note.splitlines():
+                    if not line.startswith('[SignatoryHint]'):
+                        continue
+                    body = line[len('[SignatoryHint]'):].strip()
+                    for part in body.split(';'):
+                        k, _, v = part.strip().partition('=')
+                        if not v:
+                            continue
+                        if v.startswith('RAW:'):
+                            hint_warnings.append((k, v[4:]))
+                            continue
+                        if k == 'memo':
+                            memo_prefill_pk = v
+                        elif k == 'letter':
+                            letter_prefill_pk = v
+                break
+
+        # Sibling release letters share a request_code when a mixed-project
+        # batch was auto-split. Surface them so the page can render a
+        # switcher; exclude the currently-active one to keep the widget tidy.
+        sibling_release_letters = []
+        if request_code:
+            sibling_qs = ReleaseLetter.objects.filter(
+                request_code=request_code,
+            ).order_by('upload_time')
+            if release_letter is not None:
+                sibling_qs = sibling_qs.exclude(pk=release_letter.pk)
+            sibling_release_letters = list(sibling_qs)
+
         return {
             'form': form or ReleaseLetterUploadForm(user=request.user),
             'orders': orders or [],
             'selected_request_code': request_code or '',
             'release_letter': release_letter,
+            'sibling_release_letters': sibling_release_letters,
             'is_superuser': request.user.is_superuser,
             'is_schedule_officer': request.user.groups.filter(name='Schedule Officers').exists(),
+            # Designation-led pickers on Step 1. Filtered to officers flagged
+            # eligible for each document type; the user picks a title and the
+            # system attaches the matching name automatically.
+            'memo_signatories':   active.filter(is_default_for_release_memo=True).order_by('title'),
+            'letter_signatories': active.filter(is_default_for_release_letter=True).order_by('title'),
+            # Kept for backwards-compat with any other consumers of this ctx.
+            'signatories': active.order_by('title'),
+            # Hints carried over from a bulk upload (Excel signatory columns).
+            'memo_signatory_prefill_pk':   memo_prefill_pk,
+            'letter_signatory_prefill_pk': letter_prefill_pk,
+            'signatory_hint_warnings':     hint_warnings,
         }
 
     # ─────────────── GET ───────────────
@@ -111,17 +167,27 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
     def get(self, request):
         """Render the page. If a request_code is given AND a draft RL already
         exists for it, surface that RL so the user can continue from step 2.
+
+        When a single request_code spans multiple project types, the
+        generate step auto-splits into one ReleaseLetter per type. We pick
+        the one the user asked for via `?rl=<pk>` (so the sibling-letter
+        links on the page can deep-link), falling back to the most recent.
         """
         request_code = (request.GET.get('request_code') or '').strip()
+        rl_pk        = (request.GET.get('rl') or '').strip()
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == 'true'
 
         orders = []
         release_letter = None
         if request_code:
             orders = list(self._matching_orders(request_code))
-            release_letter = ReleaseLetter.objects.filter(
+            siblings_qs = ReleaseLetter.objects.filter(
                 request_code=request_code,
-            ).order_by('-upload_time').first()
+            ).order_by('upload_time')
+            if rl_pk:
+                release_letter = siblings_qs.filter(pk=rl_pk).first()
+            if release_letter is None:
+                release_letter = siblings_qs.order_by('-upload_time').first()
 
         ctx = self._build_context(
             request,
@@ -184,56 +250,98 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                         )
                         return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
 
-                    # Uniform project type check.
-                    project_types = set(
-                        matching_orders.exclude(project_type='').values_list('project_type', flat=True)
-                    )
-                    if len(project_types) > 1:
-                        messages.error(
-                            request,
-                            f"Cannot create one release letter for orders across multiple project "
-                            f"types: {', '.join(sorted(project_types))}. Split the request into "
-                            "per-project batches.",
+                    # Carry through any per-event overrides from Step 1. These
+                    # apply to EVERY split release letter — overrides are about
+                    # who signs, not which project the materials belong to.
+                    from Inventory.models import Signatory
+                    memo_to        = (request.POST.get('memo_to_override') or '').strip()
+                    memo_from      = (request.POST.get('memo_from_override') or '').strip()
+                    memo_sig_id    = (request.POST.get('memo_signatory_override') or '').strip()
+                    letter_sig_id  = (request.POST.get('letter_signatory_override') or '').strip()
+                    memo_signatory   = Signatory.objects.filter(pk=memo_sig_id).first() if memo_sig_id else None
+                    letter_signatory = Signatory.objects.filter(pk=letter_sig_id).first() if letter_sig_id else None
+
+                    # Group orders by project_type and create one ReleaseLetter
+                    # per group. Mixed batches used to be rejected with the
+                    # "Split the request into per-project batches" error — we
+                    # now do the split automatically so the user keeps moving.
+                    # Blank project_type rows are bundled into their own group
+                    # so they don't get silently dropped.
+                    project_types = sorted({
+                        (o.project_type or '') for o in matching_orders
+                    })
+
+                    created_letters = []
+                    for ptype in project_types:
+                        if ptype:
+                            group = matching_orders.filter(project_type=ptype)
+                        else:
+                            group = matching_orders.filter(project_type='')
+                        if not group.exists():
+                            continue
+
+                        first = group.first()
+                        title = (
+                            f"Release of {first.name}" if first.name
+                            else f"Release for {request_code}"
                         )
-                        return redirect('material_orders')
+                        if first.community:
+                            title += f" — {first.community}"
+                        if len(project_types) > 1 and ptype:
+                            # Disambiguate sibling letters in admin and lists.
+                            title += f" [{ptype}]"
+                        total_quantity = sum((o.quantity or 0) for o in group)
 
-                    first = matching_orders.first()
-                    title = (
-                        f"Release of {first.name}" if first.name
-                        else f"Release for {request_code}"
-                    )
-                    if first.community:
-                        title += f" — {first.community}"
-                    total_quantity = sum((o.quantity or 0) for o in matching_orders)
+                        release_letter = ReleaseLetter.objects.create(
+                            request_code=request_code,
+                            title=title[:200],
+                            total_quantity=total_quantity,
+                            material_type='Other',
+                            project_type=(ptype or None),
+                            workflow_status='draft',
+                            uploaded_by=request.user,
+                            memo_to_override=memo_to,
+                            memo_from_override=memo_from,
+                            memo_signatory_override=memo_signatory,
+                            letter_signatory_override=letter_signatory,
+                        )
+                        # Attach this group's orders (use the queryset, not
+                        # matching_orders, so siblings keep their own slice).
+                        group.update(release_letter=release_letter)
+                        self._generate_docs_for(release_letter)
 
-                    release_letter = ReleaseLetter.objects.create(
-                        request_code=request_code,
-                        title=title[:200],
-                        total_quantity=total_quantity,
-                        material_type='Other',
-                        project_type=(project_types.pop() if project_types else None),
-                        workflow_status='draft',
-                        uploaded_by=request.user,
-                    )
-                    matching_orders.update(release_letter=release_letter)
-                    self._generate_docs_for(release_letter)
+                        audit(
+                            request.user, release_letter, 'release.letter_created',
+                            f"Release letter auto-created for request_code={request_code} "
+                            f"project_type={ptype or '(none)'} ({group.count()} orders)"
+                            + (" — split from mixed-project batch" if len(project_types) > 1 else ""),
+                        )
+                        audit(
+                            request.user, release_letter, 'release.documents_generated',
+                            f"Memo + letter auto-generated for {release_letter.code}",
+                        )
+                        created_letters.append(release_letter)
 
-                    audit(
-                        request.user, release_letter, 'release.letter_created',
-                        f"Release letter auto-created from upload page for "
-                        f"request_code={request_code} ({matching_orders.count()} orders)",
-                    )
-                    audit(
-                        request.user, release_letter, 'release.documents_generated',
-                        f"Memo + letter auto-generated for {release_letter.code}",
-                    )
+                    # Pick the newest one as the "current" letter the page
+                    # surfaces; siblings show up in the sibling widget.
+                    release_letter = created_letters[-1] if created_letters else None
 
-                    messages.success(
-                        request,
-                        f"Release event {release_letter.code} created and documents "
-                        "generated. Download the memo and letter below, get them "
-                        "signed, then upload the scan.",
-                    )
+                    if len(created_letters) > 1:
+                        codes = ', '.join(rl.code for rl in created_letters)
+                        messages.success(
+                            request,
+                            f"This batch spanned {len(created_letters)} project types — "
+                            f"created {len(created_letters)} release events ({codes}). "
+                            "Each has its own memo and letter. Switch between them using "
+                            "the sibling links below.",
+                        )
+                    elif release_letter:
+                        messages.success(
+                            request,
+                            f"Release event {release_letter.code} created and documents "
+                            "generated. Download the memo and letter below, get them "
+                            "signed, then upload the scan.",
+                        )
 
             return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
 

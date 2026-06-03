@@ -1,7 +1,7 @@
 # Inventory/project_management_views.py
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Sum, Count, Q, F, FloatField, ExpressionWrapper
+from django.db.models import Sum, Count, Q, F, Avg, FloatField, ExpressionWrapper
 from django.db.models.functions import Coalesce
 from .models import BillOfQuantity, Project, ProjectSite
 from .utils import is_superuser, is_store_officer, is_management
@@ -174,7 +174,77 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
             completed_count = sum(1 for c in community_list if c['completion'] >= 100)
             in_progress_count = sum(1 for c in community_list if 0 < c['completion'] < 100)
             not_started_count = sum(1 for c in community_list if c['completion'] == 0)
-            
+
+            # Project-type segregation — the dashboard's whole point. Every
+            # tile is rolled up per project_type so SHEP, Cost Sharing,
+            # Streetlights, Turnkey, etc. are each visible as a standalone
+            # column instead of being averaged into one number.
+            #
+            # The chart deliberately does NOT repeat the Contract-vs-Received
+            # data the tiles already show. It instead surfaces two things
+            # the BoQ alone can answer that aren't visible anywhere else:
+            #   (a) community-completion buckets per project type — where
+            #       work is stuck (Not Started / In Progress / Completed)
+            #   (b) over-issued line counts per project type — the leading
+            #       indicator of contract / drawdown trouble.
+            type_rows = boq_items.values('project_type').annotate(
+                items=Count('id'),
+                communities=Count('community', distinct=True),
+                packages=Count('package_number', distinct=True),
+                contract=Coalesce(Sum('contract_quantity'), 0.0),
+                received=Coalesce(Sum('quantity_received'), 0.0),
+            ).order_by('project_type')
+
+            # Pre-bucket communities per project type once so we don't run
+            # one query per type per bucket.
+            per_type_comm = {}
+            comm_rows = boq_items.values('project_type', 'community').annotate(
+                contract=Coalesce(Sum('contract_quantity'), 0.0),
+                received=Coalesce(Sum('quantity_received'), 0.0),
+            )
+            for r in comm_rows:
+                if not r['community']: continue
+                pt = r['project_type'] or 'Unassigned'
+                c = float(r['contract'] or 0)
+                rcv = float(r['received'] or 0)
+                completion = (rcv / c * 100) if c > 0 else 0
+                bucket = 'completed' if completion >= 100 else ('in_progress' if completion > 0 else 'not_started')
+                d = per_type_comm.setdefault(pt, {'completed': 0, 'in_progress': 0, 'not_started': 0})
+                d[bucket] += 1
+
+            # Over-issued line counts per project type (received > contract).
+            over_issued = {}
+            for r in boq_items.values('project_type').annotate(
+                n=Count('id', filter=Q(quantity_received__gt=F('contract_quantity'))),
+            ):
+                over_issued[r['project_type'] or 'Unassigned'] = r['n']
+
+            project_segments = []
+            for row in type_rows:
+                pt = row['project_type'] or 'Unassigned'
+                contract = float(row['contract'] or 0)
+                received = float(row['received'] or 0)
+                project_segments.append({
+                    'project_type': pt,
+                    'items': row['items'],
+                    'communities': row['communities'],
+                    'packages': row['packages'],
+                    'contract_quantity': contract,
+                    'received_quantity': received,
+                    'completion': round((received / contract * 100) if contract > 0 else 0, 2),
+                    'over_issued_lines': over_issued.get(pt, 0),
+                    'communities_completed': per_type_comm.get(pt, {}).get('completed', 0),
+                    'communities_in_progress': per_type_comm.get(pt, {}).get('in_progress', 0),
+                    'communities_not_started': per_type_comm.get(pt, {}).get('not_started', 0),
+                })
+            project_segments_json = json.dumps({
+                'labels': [s['project_type'] for s in project_segments],
+                'completed': [s['communities_completed'] for s in project_segments],
+                'in_progress': [s['communities_in_progress'] for s in project_segments],
+                'not_started': [s['communities_not_started'] for s in project_segments],
+                'over_issued_lines': [s['over_issued_lines'] for s in project_segments],
+            })
+
             # Add all data to context
             context.update({
                 'total_items': total_items,
@@ -190,6 +260,8 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 'completed_count': completed_count,
                 'in_progress_count': in_progress_count,
                 'not_started_count': not_started_count,
+                'project_segments': project_segments,
+                'project_segments_json': project_segments_json,
                 # Chart data as JSON for JavaScript
                 'community_chart_labels': json.dumps(community_chart_labels),
                 'community_chart_data': json.dumps(community_chart_data),
@@ -426,5 +498,262 @@ class MaterialAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         except Exception as e:
             logger.error(f"Error loading material analysis: {str(e)}", exc_info=True)
             context['error'] = str(e)
-        
+
+        return context
+
+
+# ---------------------------------------------------------------------------
+# Community Progress (standalone breakdown page)
+# ---------------------------------------------------------------------------
+#
+# A dedicated "Community Progress" list page with an Actions column. Each row
+# has an "Expand" button that opens a per-community breakdown page showing the
+# full SHEP works sheet: HT/LV poles + transformers (contract, supplied,
+# planted, dressed, strung, commissioned), customer-service connections, and
+# the HT / LV / Substation / Overall completion flags.
+#
+# Data sources (per the spec):
+#   * Bill of Quantity  -> contract & supplied quantities, region, district,
+#                          community, package, contractor, consultant, phase.
+#   * Site Progress form -> the on-the-ground works figures captured on
+#                          ProjectSite (poles erected, conductor strung,
+#                          transformers installed/commissioned, meters
+#                          connected, % complete, works status, notes).
+#
+# The site-progress form currently records combined poles (not split by HT/LV)
+# and does not track the planted/dressed lifecycle per pole class, so those
+# specific cells render as "—" (not yet captured at that granularity). Every
+# column the sheet asks for is present so the page is ready to surface richer
+# works data the moment the model captures it.
+
+def _categorise_boq_material(description):
+    """Bucket a BoQ material description into 'ht', 'lv', 'transformer' or None.
+
+    Heuristic keyword match against the free-text material description, since
+    BoQ rows aren't otherwise typed. Order matters: transformer is checked
+    first, then the HT/LV qualifiers, then a generic pole fallback (treated
+    as LV, the common case for SHEP reticulation).
+    """
+    if not description:
+        return None
+    d = description.lower()
+    if 'transformer' in d or 'xfmr' in d:
+        return 'transformer'
+    is_pole = 'pole' in d
+    is_ht = any(k in d for k in ('h.t', 'ht ', 'high tension', 'high voltage',
+                                 'hv ', '11kv', '33kv', 'primary'))
+    is_lv = any(k in d for k in ('l.v', 'lv ', 'low tension', 'low voltage',
+                                 'secondary', '415v', '400v', '0.4kv'))
+    if is_pole or is_ht or is_lv:
+        if is_ht and not is_lv:
+            return 'ht'
+        if is_lv and not is_ht:
+            return 'lv'
+        # Ambiguous / generic pole -> default to LV reticulation.
+        return 'lv'
+    return None
+
+
+def _site_progress_for_community(region, district, community):
+    """Aggregate Site-Progress works figures for one community.
+
+    Sums the cumulative works counters across every ProjectSite that matches
+    the community (case-insensitive on region/district/community) and returns
+    a plain dict the template can read. Returns zeros when no site matches.
+    """
+    sites = ProjectSite.objects.filter(
+        region__iexact=region or '',
+        district__iexact=district or '',
+        community__iexact=community or '',
+    )
+    agg = sites.aggregate(
+        poles_planted=Coalesce(Sum('poles_erected'), 0),
+        conductor_strung_m=Coalesce(Sum('conductor_laid_m'), 0.0, output_field=FloatField()),
+        transformers_dressed=Coalesce(Sum('transformers_installed'), 0),
+        transformers_commissioned=Coalesce(Sum('transformers_commissioned'), 0),
+        cs_1ph=Coalesce(Sum('meters_1ph_installed'), 0),
+        cs_3ph=Coalesce(Sum('meters_3ph_installed'), 0),
+        avg_progress=Coalesce(Avg('progress_percent'), 0.0, output_field=FloatField()),
+        site_count=Count('id'),
+    )
+    # Pull the most recent works_status / notes for a human-readable headline.
+    latest = sites.order_by('-progress_updated_at', '-updated_at').first()
+    agg['works_status'] = latest.get_works_status_display() if latest else '—'
+    agg['remarks'] = (latest.progress_notes if latest and latest.progress_notes else '')
+    agg['avg_progress'] = round(agg['avg_progress'] or 0, 1)
+    return agg
+
+
+class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Standalone community-progress list with an Expand action per community.
+
+    One row per (region, district, community). The Expand button links to the
+    detailed breakdown page for that community.
+    """
+    template_name = 'Inventory/community_progress_list.html'
+
+    def test_func(self):
+        user = self.request.user
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            access_filter = get_user_accessible_projects(self.request.user)
+            boq_items = BillOfQuantity.objects.filter(access_filter)
+
+            q = (self.request.GET.get('q') or '').strip()
+            region_f = (self.request.GET.get('region') or '').strip()
+            if q:
+                boq_items = boq_items.filter(
+                    Q(community__icontains=q) | Q(district__icontains=q)
+                    | Q(region__icontains=q) | Q(contractor__icontains=q)
+                    | Q(package_number__icontains=q)
+                )
+            if region_f:
+                boq_items = boq_items.filter(region=region_f)
+
+            community_data = boq_items.values(
+                'community', 'region', 'district'
+            ).annotate(
+                total_contract=Coalesce(Sum('contract_quantity'), 0.0),
+                total_received=Coalesce(Sum('quantity_received'), 0.0),
+                package_count=Count('package_number', distinct=True),
+                contractor_count=Count('contractor', distinct=True),
+                item_count=Count('id'),
+            ).order_by('region', 'district', 'community')
+
+            community_list = []
+            for comm in community_data:
+                if not comm['community']:
+                    continue
+                contract = comm['total_contract'] or 0
+                received = comm['total_received'] or 0
+                completion = round((received / contract * 100), 1) if contract > 0 else 0
+                status = ('Complete' if completion >= 100
+                          else 'In Progress' if completion > 0 else 'Not Started')
+                community_list.append({
+                    'community': comm['community'],
+                    'region': comm['region'],
+                    'district': comm['district'],
+                    'package_count': comm['package_count'],
+                    'contractor_count': comm['contractor_count'],
+                    'item_count': comm['item_count'],
+                    'total_contract': contract,
+                    'total_received': received,
+                    'completion': completion,
+                    'status': status,
+                })
+
+            regions = list(
+                boq_items.exclude(region='').values_list('region', flat=True)
+                .distinct().order_by('region')
+            )
+
+            context.update({
+                'community_list': community_list,
+                'total_communities': len(community_list),
+                'complete_count': sum(1 for c in community_list if c['status'] == 'Complete'),
+                'in_progress_count': sum(1 for c in community_list if c['status'] == 'In Progress'),
+                'not_started_count': sum(1 for c in community_list if c['status'] == 'Not Started'),
+                'regions': regions,
+                'filters': {'q': q, 'region': region_f},
+                'title': 'Community Progress',
+            })
+        except Exception as e:
+            logger.error(f"Error loading community progress list: {str(e)}", exc_info=True)
+            context['error'] = str(e)
+        return context
+
+
+class CommunityProgressBreakdownView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Per-community works breakdown opened from the Expand button.
+
+    Renders the full SHEP sheet: one row per package within the community,
+    with HT/LV pole and transformer contract & supplied figures from the BoQ,
+    plus the community-level site-progress works figures (planted, strung,
+    dressed, commissioned, connections, completion) from the Site Progress form.
+    The community is identified by the region/district/community query params.
+    """
+    template_name = 'Inventory/community_progress_breakdown.html'
+
+    def test_func(self):
+        user = self.request.user
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            region = (self.request.GET.get('region') or '').strip()
+            district = (self.request.GET.get('district') or '').strip()
+            community = (self.request.GET.get('community') or '').strip()
+
+            access_filter = get_user_accessible_projects(self.request.user)
+            items = BillOfQuantity.objects.filter(access_filter).filter(
+                region__iexact=region,
+                district__iexact=district,
+                community__iexact=community,
+            )
+
+            # Group the BoQ rows by package (each package may have its own
+            # contractor / consultant), then categorise each item into HT / LV
+            # / transformer and accumulate contract vs supplied.
+            packages = {}
+            for it in items:
+                key = it.package_number or '—'
+                pkg = packages.setdefault(key, {
+                    'package_number': key,
+                    'contractor': it.contractor,
+                    'consultant': it.consultant,
+                    'phase': it.phase,
+                    'ht': {'contract': 0.0, 'supplied': 0.0},
+                    'lv': {'contract': 0.0, 'supplied': 0.0},
+                    'transformer': {'contract': 0.0, 'supplied': 0.0},
+                })
+                cat = _categorise_boq_material(it.material_description)
+                if cat in ('ht', 'lv', 'transformer'):
+                    pkg[cat]['contract'] += it.contract_quantity or 0
+                    pkg[cat]['supplied'] += it.quantity_received or 0
+
+            # Completion flags per package are material-completeness proxies:
+            # supplied >= contract for that class (only when a contract exists).
+            def _complete(group):
+                return group['contract'] > 0 and group['supplied'] >= group['contract']
+
+            package_rows = []
+            for key in sorted(packages.keys()):
+                pkg = packages[key]
+                pkg['ht_complete'] = _complete(pkg['ht'])
+                pkg['lv_complete'] = _complete(pkg['lv'])
+                pkg['substation_complete'] = _complete(pkg['transformer'])
+                pkg['overall_complete'] = (
+                    pkg['ht_complete'] and pkg['lv_complete'] and pkg['substation_complete']
+                )
+                package_rows.append(pkg)
+
+            site = _site_progress_for_community(region, district, community)
+
+            # Community-level contract/supplied totals across all classes.
+            totals = {
+                'ht': {'contract': sum(p['ht']['contract'] for p in package_rows),
+                       'supplied': sum(p['ht']['supplied'] for p in package_rows)},
+                'lv': {'contract': sum(p['lv']['contract'] for p in package_rows),
+                       'supplied': sum(p['lv']['supplied'] for p in package_rows)},
+                'transformer': {'contract': sum(p['transformer']['contract'] for p in package_rows),
+                                'supplied': sum(p['transformer']['supplied'] for p in package_rows)},
+            }
+
+            context.update({
+                'region': region,
+                'district': district,
+                'community': community,
+                'package_rows': package_rows,
+                'totals': totals,
+                'site': site,
+                'has_data': bool(package_rows),
+                'title': f'Community Progress — {community}',
+            })
+        except Exception as e:
+            logger.error(f"Error loading community breakdown: {str(e)}", exc_info=True)
+            context['error'] = str(e)
         return context

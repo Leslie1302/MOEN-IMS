@@ -1,0 +1,150 @@
+{% extends 'Inventory/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Create Supplier Invoice</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Main Invoice Details -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.invoice_number.label }}</label>
+                                {{ form.invoice_number }}
+                                {% if form.invoice_number.errors %}
+                                <div class="invalid-feedback d-block">{{ form.invoice_number.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.supplier.label }}</label>
+                                {{ form.supplier }}
+                                {% if form.supplier.errors %}
+                                <div class="invalid-feedback d-block">{{ form.supplier.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.invoice_date.label }}</label>
+                                {{ form.invoice_date }}
+                                {% if form.invoice_date.errors %}
+                                <div class="invalid-feedback d-block">{{ form.invoice_date.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.due_date.label }}</label>
+                                {{ form.due_date }}
+                                {% if form.due_date.errors %}
+                                <div class="invalid-feedback d-block">{{ form.due_date.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.contract.label }}</label>
+                                {{ form.contract }}
+                                {% if form.contract.errors %}
+                                <div class="invalid-feedback d-block">{{ form.contract.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">{{ form.total_amount.label }}</label>
+                                {{ form.total_amount }}
+                                {% if form.total_amount.errors %}
+                                <div class="invalid-feedback d-block">{{ form.total_amount.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">{{ form.uploaded_document.label }}</label>
+                            {{ form.uploaded_document }}
+                            <small class="form-text text-muted">{{ form.uploaded_document.help_text }}</small>
+                            {% if form.uploaded_document.errors %}
+                            <div class="invalid-feedback d-block">{{ form.uploaded_document.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">{{ form.notes.label }}</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Invoice Items Formset -->
+                        <hr class="my-4">
+                        <h5 class="mb-3">Invoice Items</h5>
+
+                        <div id="invoice-items">
+                            {{ formset.management_form }}
+
+                            {% for item_form in formset %}
+                            <div class="card mb-3 invoice-item">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small fw-semibold">{{ item_form.material.label }}</label>
+                                            {{ item_form.material }}
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label small fw-semibold">{{ item_form.quantity_invoiced.label }}</label>
+                                            {{ item_form.quantity_invoiced }}
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label small fw-semibold">{{ item_form.unit_rate_invoiced.label }}</label>
+                                            {{ item_form.unit_rate_invoiced }}
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label small fw-semibold">{{ item_form.warehouse.label }}</label>
+                                            {{ item_form.warehouse }}
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label small fw-semibold d-block">&nbsp;</label>
+                                            {{ item_form.DELETE }}
+                                            <label class="form-check-label small">Remove</label>
+                                        </div>
+                                    </div>
+                                    {% if item_form.errors %}
+                                    <div class="alert alert-danger mt-2">{{ item_form.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Create Invoice
+                            </button>
+                            <a href="{% url 'invoice_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-control, .form-select {
+        border-radius: 0.25rem;
+    }
+    .invoice-item {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}

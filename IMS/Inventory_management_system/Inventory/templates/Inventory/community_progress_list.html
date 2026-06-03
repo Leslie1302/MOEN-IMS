@@ -1,0 +1,143 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 mb-5">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-primary">
+                <i class="bi bi-diagram-3"></i> Community Progress
+            </h3>
+            <p class="text-muted mb-0">
+                Per-community works progress. Use <strong>Expand</strong> to open the full
+                HT/LV pole, transformer and connection breakdown for a community.
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">Could not load community progress: {{ error }}</div>
+    {% endif %}
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body text-center">
+                <h2 class="text-primary mb-1">{{ total_communities }}</h2>
+                <p class="text-muted mb-0">Communities</p>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body text-center">
+                <h2 class="text-success mb-1">{{ complete_count }}</h2>
+                <p class="text-muted mb-0">Complete</p>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body text-center">
+                <h2 class="text-warning mb-1">{{ in_progress_count }}</h2>
+                <p class="text-muted mb-0">In Progress</p>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm"><div class="card-body text-center">
+                <h2 class="text-secondary mb-1">{{ not_started_count }}</h2>
+                <p class="text-muted mb-0">Not Started</p>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="card border-0 shadow-sm mb-3">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold mb-1">Search</label>
+                <input type="text" name="q" value="{{ filters.q }}" class="form-control form-control-sm"
+                       placeholder="Community, district, contractor or package">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1">Region</label>
+                <select name="region" class="form-select form-select-sm">
+                    <option value="">— any —</option>
+                    {% for r in regions %}
+                    <option value="{{ r }}" {% if r == filters.region %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filter</button>
+                <a href="{% url 'community_progress_list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Region</th>
+                            <th>District</th>
+                            <th>Community</th>
+                            <th class="text-center">Packages</th>
+                            <th class="text-center">Contractors</th>
+                            <th class="text-center">Items</th>
+                            <th style="min-width:140px;">Completion</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in community_list %}
+                        <tr>
+                            <td>{{ c.region }}</td>
+                            <td>{{ c.district }}</td>
+                            <td><strong>{{ c.community }}</strong></td>
+                            <td class="text-center"><span class="badge bg-secondary">{{ c.package_count }}</span></td>
+                            <td class="text-center"><span class="badge bg-info">{{ c.contractor_count }}</span></td>
+                            <td class="text-center"><span class="badge bg-light text-dark">{{ c.item_count }}</span></td>
+                            <td>
+                                <div class="progress" style="min-width:90px;">
+                                    <div class="progress-bar {% if c.completion >= 100 %}bg-success{% elif c.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                         style="width: {{ c.completion }}%">{{ c.completion }}%</div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if c.status == "Complete" %}
+                                <span class="badge bg-success">Complete</span>
+                                {% elif c.status == "In Progress" %}
+                                <span class="badge bg-warning text-dark">In Progress</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Not Started</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-primary"
+                                   href="{% url 'community_progress_breakdown' %}?region={{ c.region|urlencode }}&district={{ c.district|urlencode }}&community={{ c.community|urlencode }}">
+                                    <i class="bi bi-arrows-angle-expand"></i> Expand
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="9" class="text-center text-muted py-4">No communities found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

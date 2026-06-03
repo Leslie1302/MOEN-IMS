@@ -29,7 +29,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import View
 
-from ..models import ProjectType, Community, MaterialOrder, InventoryItem, Warehouse
+from ..models import ProjectType, Community, MaterialOrder, InventoryItem, Warehouse, Signatory
 from ..forms.request_flow import ProjectSelectorForm, form_class_for_project
 from ..constants import (
     active_project_types, project_type_to_charfield,
@@ -76,6 +76,18 @@ class RequestMaterialForProjectView(LoginRequiredMixin, View):
         except ProjectType.DoesNotExist:
             raise Http404(f"Unknown or inactive project type: {project_code}")
 
+    def _signatory_context(self):
+        """Designation-led pickers for the letterhead-override section."""
+        active = Signatory.objects.filter(active=True)
+        return {
+            'memo_signatories': active.filter(
+                is_default_for_release_memo=True,
+            ).order_by('title'),
+            'letter_signatories': active.filter(
+                is_default_for_release_letter=True,
+            ).order_by('title'),
+        }
+
     def get(self, request, project_code):
         project_type = self._get_project_type(project_code)
         FormClass = form_class_for_project(project_type)
@@ -83,6 +95,7 @@ class RequestMaterialForProjectView(LoginRequiredMixin, View):
         return render(request, self.template_name, {
             'form': form,
             'project_type': project_type,
+            **self._signatory_context(),
         })
 
     def post(self, request, project_code):
@@ -94,6 +107,7 @@ class RequestMaterialForProjectView(LoginRequiredMixin, View):
             return render(request, self.template_name, {
                 'form': form,
                 'project_type': project_type,
+                **self._signatory_context(),
             })
 
         try:
@@ -113,6 +127,7 @@ class RequestMaterialForProjectView(LoginRequiredMixin, View):
             return render(request, self.template_name, {
                 'form': form,
                 'project_type': project_type,
+                **self._signatory_context(),
             })
 
         messages.success(
@@ -124,15 +139,23 @@ class RequestMaterialForProjectView(LoginRequiredMixin, View):
 
 
 def _request_template_columns(project_code):
-    """Per-project column schema for material request bulk templates."""
+    """Per-project column schema for material request bulk templates.
+
+    The two trailing signatory columns are batch-level hints — they only
+    need to be filled on the first row. They map to the designation
+    pickers on the Release Letter generation page so the right officer's
+    name appears on the memo and the release letter.
+    """
     base = ['material', 'quantity', 'region', 'district', 'community', 'warehouse', 'notes']
     if project_code == PROJECT_TYPE_SHEP:
-        return base + ['package_number']
-    if project_code == PROJECT_TYPE_COST_SHARING:
-        return base + ['beneficiary_contribution']
-    if project_code == PROJECT_TYPE_STREETLIGHTS:
-        return base + ['pole_height_m', 'lumen_rating', 'pole_type']
-    return base
+        body = base + ['package_number']
+    elif project_code == PROJECT_TYPE_COST_SHARING:
+        body = base + ['beneficiary_contribution']
+    elif project_code == PROJECT_TYPE_STREETLIGHTS:
+        body = base + ['pole_height_m', 'lumen_rating', 'pole_type']
+    else:
+        body = base
+    return body + ['memo_signatory_title', 'letter_signatory_title']
 
 
 def download_request_template(request):
@@ -177,31 +200,40 @@ def download_request_template(request):
         'material': 30, 'quantity': 12, 'region': 18, 'district': 22, 'community': 22,
         'warehouse': 20, 'notes': 30, 'package_number': 22,
         'beneficiary_contribution': 35, 'pole_height_m': 14, 'lumen_rating': 14, 'pole_type': 22,
+        'memo_signatory_title': 32, 'letter_signatory_title': 32,
     }
     for idx, col_name in enumerate(columns, 1):
         ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width_map.get(col_name, 18)
 
-    # Example row keyed to the project type.
+    # Example row keyed to the project type. Signatory columns share the
+    # same example titles across projects so users learn the convention.
+    signatory_example = {
+        'memo_signatory_title': 'Ag. Director, Power',
+        'letter_signatory_title': 'Chief Director',
+    }
     example_by_project = {
         PROJECT_TYPE_SHEP: {
             'material': 'Pole - 11kV concrete', 'quantity': 24,
             'region': 'Greater Accra', 'district': 'Ga East', 'community': 'Abokobi',
             'warehouse': '', 'notes': '', 'package_number': 'SHEP-PKG-024',
+            **signatory_example,
         },
         PROJECT_TYPE_COST_SHARING: {
             'material': 'Conductor - ACSR Dog', 'quantity': 5000,
             'region': 'Upper West', 'district': 'Lawra Municipal', 'community': 'Eremon',
             'warehouse': '', 'notes': '',
             'beneficiary_contribution': '30% community contribution agreed at 10 March 2026 meeting',
+            **signatory_example,
         },
         PROJECT_TYPE_STREETLIGHTS: {
             'material': 'Streetlight assembly', 'quantity': 50,
             'region': 'Northern', 'district': 'Tamale Metropolitan', 'community': 'Sagnarigu',
             'warehouse': '', 'notes': '',
             'pole_height_m': 8, 'lumen_rating': 12000, 'pole_type': 'galvanised steel, octagonal',
+            **signatory_example,
         },
     }
-    example = example_by_project.get(project_type.code, {})
+    example = example_by_project.get(project_type.code, dict(signatory_example))
     for idx, col_name in enumerate(columns, 1):
         ws.cell(row=2, column=idx, value=example.get(col_name, ''))
 
@@ -243,10 +275,19 @@ def download_request_template(request):
         "  - warehouse  (must match a warehouse name on record; blank = any)",
         "  - notes      (free text appended to the request notes)",
         "",
+        "Signatory columns (batch-level — fill on the FIRST row only):",
+        "  - memo_signatory_title    (must match a Signatory title flagged for the approval memo)",
+        "  - letter_signatory_title  (must match a Signatory title flagged for the release letter)",
+        "  Leave blank to use the active default set in the Signatory admin.",
+        "  Unknown titles do NOT block the upload — they're surfaced as a warning",
+        "  and you'll be asked to confirm a designation on the Release Letter page.",
+        "",
         "On upload:",
         "  - Project type is set automatically from which template you downloaded.",
         "  - Consignee is auto-resolved from the community + project type.",
         "  - Project-specific fields are appended to the notes field for now.",
+        "  - Signatory titles are stashed on the batch and pre-select the designation",
+        "    pickers on the Release Letter generation page.",
         "  - Failed rows are returned as a downloadable error CSV with row number + column + reason.",
     ])
 
@@ -318,6 +359,35 @@ def upload_requests(request):
     # Pre-fetch lookup tables.
     items_by_name = {it.name.strip().lower(): it for it in InventoryItem.objects.all()}
     warehouses_by_name = {w.name.strip().lower(): w for w in Warehouse.objects.all()}
+
+    # Batch-level signatory hint — read the first non-empty value in each
+    # signatory column. Resolved against the active Signatory roster,
+    # filtered to officers eligible for the relevant document type. The
+    # resolved pk is stashed on the first saved order's notes as a
+    # structured marker that the Release Letter generation step reads to
+    # pre-select the designation pickers.
+    def _first_nonempty(col):
+        if col not in df.columns:
+            return ''
+        for v in df[col]:
+            s = normalize_cell(v)
+            if s:
+                return s
+        return ''
+
+    memo_sig_title   = _first_nonempty('memo_signatory_title')
+    letter_sig_title = _first_nonempty('letter_signatory_title')
+
+    def _resolve_sig(title, role_flag):
+        if not title:
+            return None, None
+        sig = Signatory.objects.filter(
+            active=True, title__iexact=title, **{role_flag: True},
+        ).order_by('-updated_at').first()
+        return sig, title
+
+    memo_sig,   memo_sig_raw   = _resolve_sig(memo_sig_title,   'is_default_for_release_memo')
+    letter_sig, letter_sig_raw = _resolve_sig(letter_sig_title, 'is_default_for_release_letter')
 
     rows_to_save = []
     request_code = generate_request_code()  # one batch code shared across rows
@@ -439,6 +509,17 @@ def upload_requests(request):
 
         rows_to_save.append(mo)
 
+    # Attach the batch-level signatory hint to the FIRST order so the
+    # downstream release-letter generator can pre-select the pickers.
+    # Format is grep-friendly so the parser stays simple:
+    #   [SignatoryHint] memo=<pk-or-RAW:title>; letter=<pk-or-RAW:title>
+    if rows_to_save and (memo_sig_raw or letter_sig_raw):
+        memo_token   = (str(memo_sig.pk)   if memo_sig   else (f"RAW:{memo_sig_raw}"   if memo_sig_raw   else ''))
+        letter_token = (str(letter_sig.pk) if letter_sig else (f"RAW:{letter_sig_raw}" if letter_sig_raw else ''))
+        marker = f"[SignatoryHint] memo={memo_token}; letter={letter_token}"
+        first = rows_to_save[0]
+        first.notes = (f"{marker}\n\n{first.notes}".strip() if first.notes else marker)
+
     if rows_to_save:
         try:
             with transaction.atomic():
@@ -448,6 +529,23 @@ def upload_requests(request):
         except Exception as exc:  # noqa: BLE001
             messages.error(request, f"Bulk request upload failed: {exc}")
             return redirect('request_material')
+
+    # Advisory messages when a signatory title was supplied but didn't
+    # match an eligible officer in the roster.
+    if memo_sig_raw and not memo_sig:
+        messages.warning(
+            request,
+            f"Memo signatory title '{memo_sig_raw}' is not in the active roster as a memo signer. "
+            "The Release Letter page will fall back to the active default — you can pick a different "
+            "designation there.",
+        )
+    if letter_sig_raw and not letter_sig:
+        messages.warning(
+            request,
+            f"Letter signatory title '{letter_sig_raw}' is not in the active roster as a letter signer. "
+            "The Release Letter page will fall back to the active default — you can pick a different "
+            "designation there.",
+        )
 
     if result.has_errors:
         response = HttpResponse(result.errors_as_csv(), content_type='text/csv')

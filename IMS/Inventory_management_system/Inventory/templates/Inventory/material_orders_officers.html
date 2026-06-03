@@ -18,7 +18,7 @@
 <div class="container-fluid px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h2 mb-2">📦 Material Orders</h1>
+            <h1 class="h2 mb-2">Material Orders</h1>
             <p class="text-muted">Manage and fulfill material requests</p>
         </div>
     </div>
@@ -54,20 +54,20 @@
                     <td>{{ order.name }}</td>
                     <td>
                         {% if order.request_type == "Release" %}
-                            <span class="badge bg-danger">📤 Release</span>
+                            <span class="badge bg-danger">Release</span>
                         {% else %}
-                            <span class="badge bg-success">📥 Receipt</span>
+                            <span class="badge bg-success">Receipt</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if order.priority == "Urgent" %}
-                            <span class="badge bg-danger">🔴 Urgent</span>
+                            <span class="badge bg-danger">Urgent</span>
                         {% elif order.priority == "High" %}
-                            <span class="badge bg-warning text-dark">🟠 High</span>
+                            <span class="badge bg-warning text-dark">High</span>
                         {% elif order.priority == "Medium" %}
-                            <span class="badge bg-info">🔵 Medium</span>
+                            <span class="badge bg-info">Medium</span>
                         {% elif order.priority == "Low" %}
-                            <span class="badge bg-secondary">⚪ Low</span>
+                            <span class="badge bg-secondary">Low</span>
                         {% else %}
                             <span class="badge bg-secondary">{{ order.priority }}</span>
                         {% endif %}
@@ -77,17 +77,17 @@
                     <td class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
                     <td class="status-cell">
                         {% if order.status == "Pending" %}
-                            <span class="badge bg-warning text-dark">⏳ Pending</span>
+                            <span class="badge bg-warning text-dark">Pending</span>
                         {% elif order.status == "Seen" %}
-                            <span class="badge bg-info">👀 In Progress</span>
+                            <span class="badge bg-info">In Progress</span>
                         {% elif order.status == "Approved" %}
-                            <span class="badge bg-success">✅ Approved</span>
+                            <span class="badge bg-success">Approved</span>
                         {% elif order.status == "Partial" %}
-                            <span class="badge bg-primary">📏 Partial</span>
+                            <span class="badge bg-primary">Partial</span>
                         {% elif order.status == "Completed" %}
-                            <span class="badge bg-success">✅ Completed</span>
+                            <span class="badge bg-success">Completed</span>
                         {% elif order.status == "Draft" %}
-                            <span class="badge bg-secondary">📝 Draft</span>
+                            <span class="badge bg-secondary">Draft</span>
                         {% else %}
                             <span class="badge bg-secondary">{{ order.status }}</span>
                         {% endif %}
@@ -432,12 +432,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const remainingQty = parseFloat(data.remaining_quantity || 0);
         
         if (remainingQty <= 0) {
-            statusCell.innerHTML = '<span class="badge bg-success">✅ Completed</span>';
+            statusCell.innerHTML = '<span class="badge bg-success">Completed</span>';
             // Replace action buttons with fulfilled message
             const actionCell = row.querySelector('td:last-child');
             actionCell.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Fulfilled</span>';
         } else {
-            statusCell.innerHTML = '<span class="badge bg-primary">📏 Partial</span>';
+            statusCell.innerHTML = '<span class="badge bg-primary">Partial</span>';
             // Update input max value
             const qtyInput = row.querySelector('.fulfill-qty-input');
             if (qtyInput) {
@@ -462,12 +462,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'material_orders_officers',
         title: 'Material Orders (Officer)',
         subtitle: 'Manage and fulfill material requests',
-        icon: '👮',
+        icon: '',
         features: [
-            { icon: '⚡', title: 'Quick Actions', desc: 'Process or complete orders instantly' },
-            { icon: '📏', title: 'Partial Fulfillment', desc: 'Handle split deliveries easily' },
-            { icon: '👀', title: 'Status Tracking', desc: 'Monitor seen, approved, and completed items' },
-            { icon: '📝', title: 'Release Letters', desc: 'Verify authorization documents' }
+            { icon: '', title: 'Quick Actions', desc: 'Process or complete orders instantly' },
+            { icon: '', title: 'Partial Fulfillment', desc: 'Handle split deliveries easily' },
+            { icon: '', title: 'Status Tracking', desc: 'Monitor seen, approved, and completed items' },
+            { icon: '', title: 'Release Letters', desc: 'Verify authorization documents' }
         ],
         tips: [
             'Enter quantity before clicking Process',

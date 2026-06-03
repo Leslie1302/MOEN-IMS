@@ -5,7 +5,7 @@
 <div class="container mt-5">
     <div class="card shadow-lg border-0 p-4">
         <div class="card-body">
-            <h2 class="text-center fw-bold text-primary mb-3">📥 Request Materials</h2>
+            <h2 class="text-center fw-bold text-primary mb-3">Request Materials</h2>
             <hr class="w-25 mx-auto border-primary mb-4">
 
             <!-- Tabs Navigation -->
@@ -174,7 +174,7 @@
                                         <input type="text" class="form-control unit-field" readonly>
                                     </div>
                                     <div class="text-end">
-                                        <button type="button" class="btn btn-outline-danger remove-form">❌ Remove
+                                        <button type="button" class="btn btn-outline-danger remove-form">Remove
                                             Item</button>
                                     </div>
                                 </div>
@@ -182,9 +182,9 @@
                             {% endfor %}
                         </div>
                         <div class="d-flex justify-content-center gap-3 mt-4">
-                            <button type="button" id="add-form" class="btn btn-outline-success px-4">➕ Add Another
+                            <button type="button" id="add-form" class="btn btn-outline-success px-4">Add Another
                                 Item</button>
-                            <button type="submit" class="btn btn-primary px-4">📤 Submit Request</button>
+                            <button type="submit" class="btn btn-primary px-4">Submit Request</button>
                         </div>
                     </form>
                     {% else %}
@@ -204,7 +204,7 @@
                     {% if user.groups.exists or user.is_superuser %}
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-center mb-4">📊 Bulk Material Request</h5>
+                            <h5 class="card-title text-center mb-4">Bulk Material Request</h5>
                             <p class="text-muted text-center mb-4">
                                 Upload an Excel file with your material requests. Required columns: name, quantity,
                                 project_type, requestor, region, district, community, consultant, contractor,
@@ -263,6 +263,73 @@
                                         <div class="form-text">Upload the signed release letter (PDF only, max 10MB)
                                         </div>
                                     </div>
+
+                                    <!-- Letterhead overrides — designation-led: pick a title, the
+                                         system attaches the current officer from the Signatory roster.
+                                         Picker wins over any value in the Excel template. -->
+                                    <details class="mb-2">
+                                        <summary class="fw-semibold">Letterhead overrides (optional)</summary>
+                                        <div class="form-text mb-2">
+                                            Pick a designation. The officer's name is auto-filled from the
+                                            Signatory roster. Leave blank to use the active default
+                                            (or the value supplied in the Excel template).
+                                        </div>
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Memo TO</label>
+                                                <input type="text" name="memo_to_override" class="form-control" placeholder="CHIEF DIRECTOR">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Memo FROM (title)</label>
+                                                <input type="text" name="memo_from_override" class="form-control" placeholder="DIRECTOR, POWER">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Memo Designation</label>
+                                                <select name="memo_signatory_override" class="form-select signatory-picker"
+                                                        data-preview="#legacy-memo-sig-name">
+                                                    <option value="">— use default —</option>
+                                                    {% for s in memo_signatories %}
+                                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
+                                                        {{ s.title }} — {{ s.name }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                                <div class="form-text small">
+                                                    Signed by: <span id="legacy-memo-sig-name" class="fw-semibold">—</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Letter Designation</label>
+                                                <select name="letter_signatory_override" class="form-select signatory-picker"
+                                                        data-preview="#legacy-letter-sig-name">
+                                                    <option value="">— use default —</option>
+                                                    {% for s in letter_signatories %}
+                                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
+                                                        {{ s.title }} — {{ s.name }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                                <div class="form-text small">
+                                                    Signed by: <span id="legacy-letter-sig-name" class="fw-semibold">—</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <script>
+                                    (function () {
+                                        document.querySelectorAll('.signatory-picker').forEach(function (sel) {
+                                            var target = document.querySelector(sel.dataset.preview);
+                                            if (!target) return;
+                                            function refresh() {
+                                                var opt = sel.options[sel.selectedIndex];
+                                                var name = opt ? (opt.dataset.name || '') : '';
+                                                target.textContent = name || '(active default)';
+                                            }
+                                            sel.addEventListener('change', refresh);
+                                            refresh();
+                                        });
+                                    })();
+                                    </script>
                                 </div>
 
                                 <div class="d-grid gap-2 mt-4">
@@ -637,12 +704,12 @@ document.addEventListener('DOMContentLoaded', function() {
         pageId: 'request_material',
         title: 'Request Materials',
         subtitle: 'Submit material requisitions for your projects',
-        icon: '📥',
+        icon: '',
         features: [
-            { icon: '📋', title: 'Single Requests', desc: 'Request individual materials' },
-            { icon: '📊', title: 'Bulk Upload', desc: 'Upload Excel files for bulk requests' },
-            { icon: '📍', title: 'Location Cascades', desc: 'Select region, district, community' },
-            { icon: '📄', title: 'Release Letters', desc: 'Attach release letter PDFs' }
+            { icon: '', title: 'Single Requests', desc: 'Request individual materials' },
+            { icon: '', title: 'Bulk Upload', desc: 'Upload Excel files for bulk requests' },
+            { icon: '', title: 'Location Cascades', desc: 'Select region, district, community' },
+            { icon: '', title: 'Release Letters', desc: 'Attach release letter PDFs' }
         ],
         tips: [
             'Use bulk upload for multiple materials at once',

@@ -59,12 +59,12 @@
 {% block content %}
 <div id="content-main">
     <div class="security-warning">
-        <strong>⚠️ Security Notice:</strong> This function will create user accounts with automatically generated passwords. 
+        <strong>Security Notice:</strong> This function will create user accounts with automatically generated passwords. 
         Make sure to save the generated passwords securely and share them with users through a secure channel.
     </div>
 
     <div class="import-instructions">
-        <h4>📋 Excel File Requirements</h4>
+        <h4>Excel File Requirements</h4>
         <ul>
             <li><strong>File Format:</strong> Excel (.xlsx or .xls)</li>
             <li><strong>Required Columns:</strong>
@@ -153,7 +153,7 @@
 
     {% if available_groups %}
     <div class="import-instructions">
-        <h4>📊 Available Groups</h4>
+        <h4>Available Groups</h4>
         <p>You can assign imported users to one of these existing groups:</p>
         <ul>
             {% for group in available_groups %}
@@ -164,7 +164,7 @@
     {% endif %}
 
     <div class="import-instructions">
-        <h4>📝 Sample Excel Format</h4>
+        <h4>Sample Excel Format</h4>
         <p>Your Excel file should look like this:</p>
         <table class="preview-table">
             <thead>
@@ -195,7 +195,7 @@
     </div>
 
     <div class="import-instructions">
-        <h4>🔐 Password Generation</h4>
+        <h4>Password Generation</h4>
         <p>The system will automatically generate secure passwords for each user with the following characteristics:</p>
         <ul>
             <li>12 characters long</li>
@@ -230,12 +230,12 @@
         <ul class="actionlist">
             <li>
                 <a href="{% url 'download_user_import_template' %}" target="_blank">
-                    📥 Download Excel Template
+                    Download Excel Template
                 </a>
             </li>
             <li>
                 <a href="#" onclick="alert('Excel file should have columns: username, name, email\\n\\nExample:\\nusername: john.doe\\nname: John Doe\\nemail: john.doe@example.com')">
-                    📖 Quick Help
+                    Quick Help
                 </a>
             </li>
         </ul>

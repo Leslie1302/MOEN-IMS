@@ -455,6 +455,62 @@ def management_dashboard(request):
             context['boq_total_entries'] = 0
             context['boq_active_projects'] = 0
             context['boq_packages'] = 0
+
+        # Project-type segmentation for the dashboard graphs. Splits
+        # everything by project_type so SHEP / Cost Sharing / Streetlights
+        # / Special each get a distinct slice. Mirrors the request form's
+        # ProjectType registry so any new project type the org adds shows
+        # up here automatically.
+        try:
+            from Inventory.models import ProjectType
+            registry = list(
+                ProjectType.objects.filter(active=True).order_by('sort_order', 'name')
+            )
+            # MaterialOrder.project_type is the legacy CharField (SHEP, COST,
+            # STREET, SPEC). Map ProjectType.code → legacy charfield via
+            # constants. Anything unmapped falls back to the type's own name.
+            try:
+                from Inventory.constants import project_type_to_charfield
+            except Exception:
+                project_type_to_charfield = None
+
+            segments = []
+            for t in registry:
+                legacy_key = (
+                    project_type_to_charfield(t)
+                    if project_type_to_charfield else t.name
+                )
+                orders = MaterialOrder.objects.filter(project_type=legacy_key)
+                seg = {
+                    'name': t.name,
+                    'code': t.code,
+                    'orders_total': orders.count(),
+                    'orders_active': orders.filter(
+                        status__in=['Draft', 'Pending', 'Approved', 'In Progress',
+                                    'Partially Fulfilled', 'Ready for Pickup',
+                                    'In Transit']
+                    ).count(),
+                    'orders_completed': orders.filter(status='Completed').count(),
+                    'releases': MaterialTransport.objects.filter(
+                        material_order__project_type=legacy_key,
+                    ).count(),
+                }
+                segments.append(seg)
+            context['project_segmentation'] = segments
+            # Pre-serialise as a Chart.js-ready payload so the template can
+            # drop it straight into a graph without writing template logic.
+            import json as _json
+            context['project_segmentation_json'] = _json.dumps({
+                'labels': [s['name'] for s in segments],
+                'total': [s['orders_total'] for s in segments],
+                'active': [s['orders_active'] for s in segments],
+                'completed': [s['orders_completed'] for s in segments],
+                'releases': [s['releases'] for s in segments],
+            })
+        except Exception as e:
+            logger.error(f"Error building project segmentation: {str(e)}", exc_info=True)
+            context['project_segmentation'] = []
+            context['project_segmentation_json'] = '{}'
         
         # Add System Health metrics
         try:

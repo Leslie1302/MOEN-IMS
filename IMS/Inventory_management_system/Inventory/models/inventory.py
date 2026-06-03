@@ -85,12 +85,54 @@ class InventoryItem(auto_prefetch.Model):
         help_text="SupplyContract this stock batch was delivered under. Used to reconcile: 'How much of Contract #123 have we released to sites?'"
     )
 
+    # Phase 0055/0057 — structured spec columns so the SKU is the source of
+    # truth for pole height / material type. The request form no longer
+    # asks the requestor to retype these; reporting reads them off the
+    # InventoryItem instead of parsing notes. All nullable so the columns
+    # backfill cleanly for non-pole SKUs (cables, transformers, etc.).
+    height_m = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Pole height in metres (poles only). Leave blank for non-pole materials.",
+    )
+    material_type = models.CharField(
+        max_length=50, blank=True,
+        help_text="Material composition, e.g. 'steel', 'concrete', 'wood'. Poles primarily; "
+                  "blank for materials where this doesn't apply.",
+    )
+    spec_notes = models.CharField(
+        max_length=200, blank=True,
+        help_text="Free-form spec fallback for attributes that don't fit the structured columns "
+                  "(e.g. 'octagonal', 'pre-stressed').",
+    )
+
     class Meta(auto_prefetch.Model.Meta):
         unique_together = ['code', 'warehouse']
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['material_type', 'height_m']),
+        ]
 
     def __str__(self):
         return self.name
+
+    @property
+    def spec_summary(self) -> str:
+        """Human-readable spec string built from the structured columns.
+
+        Returns e.g. ``"8m steel (octagonal)"`` for a pole, or ``""`` for
+        items with no spec data. Reporting and request UIs render this
+        next to ``name`` so the requestor can disambiguate between SKUs
+        that share a name but differ in spec.
+        """
+        parts = []
+        if self.height_m is not None:
+            parts.append(f"{self.height_m}m")
+        if self.material_type:
+            parts.append(self.material_type)
+        summary = ' '.join(parts)
+        if self.spec_notes:
+            summary = f"{summary} ({self.spec_notes})" if summary else self.spec_notes
+        return summary
 
 
 class ObsoleteMaterial(auto_prefetch.Model):

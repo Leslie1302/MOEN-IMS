@@ -132,7 +132,8 @@ class BillOfQuantityForm(forms.ModelForm):
     class Meta:
         model = BillOfQuantity
         fields = [
-            'region', 'district', 'community', 'consultant', 'contractor',
+            'region', 'district', 'community', 'project_type', 'phase',
+            'consultant', 'contractor',
             'package_number', 'material_description', 'item_code',
             'contract_quantity', 'quantity_received', 'warehouse'
         ]
@@ -140,6 +141,8 @@ class BillOfQuantityForm(forms.ModelForm):
             'region': forms.TextInput(attrs={'class': 'form-control'}),
             'district': forms.TextInput(attrs={'class': 'form-control'}),
             'community': forms.TextInput(attrs={'class': 'form-control'}),
+            'project_type': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'SHEP / Cost Sharing / Streetlights'}),
+            'phase': forms.TextInput(attrs={'class': 'form-control'}),
             'consultant': forms.TextInput(attrs={'class': 'form-control'}),
             'contractor': forms.TextInput(attrs={'class': 'form-control'}),
             'package_number': forms.TextInput(attrs={'class': 'form-control'}),

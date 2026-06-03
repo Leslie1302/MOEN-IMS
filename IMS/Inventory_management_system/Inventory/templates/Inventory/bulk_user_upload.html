@@ -208,7 +208,7 @@
 {% block content %}
 <div class="upload-container">
     <div class="page-header">
-        <h1>👥 Bulk User Upload</h1>
+        <h1>Bulk User Upload</h1>
         <p class="text-muted">Create multiple user accounts from an Excel file</p>
     </div>
     
@@ -216,7 +216,7 @@
     <!-- Upload Form -->
     <div class="upload-form">
         <div class="info-box">
-            <h4>ℹ️ Instructions</h4>
+            <h4>ℹInstructions</h4>
             <p>Upload an Excel file (.xlsx or .xls) with the following columns:</p>
             <ul>
                 <li><strong>username</strong> - Unique username for login (required)</li>
@@ -227,7 +227,7 @@
         </div>
         
         <div class="template-example">
-            <h5>📋 Excel File Format Example:</h5>
+            <h5>Excel File Format Example:</h5>
             <table>
                 <thead>
                     <tr>
@@ -257,7 +257,7 @@
         </div>
         
         <div class="warning-box">
-            <h4>⚠️ Important Notes</h4>
+            <h4>Important Notes</h4>
             <ul>
                 <li>Users with duplicate usernames or emails will be skipped automatically</li>
                 <li>Passwords are 12 characters long (letters and numbers)</li>
@@ -301,7 +301,7 @@
             </div>
             
             <button type="submit" class="btn-upload">
-                📤 Upload and Create Users
+                Upload and Create Users
             </button>
         </form>
     </div>
@@ -312,7 +312,7 @@
     <div class="results-section">
         {% if created_users %}
         <div class="results-table success">
-            <h3>✅ Successfully Created Users ({{ created_users|length }})</h3>
+            <h3>Successfully Created Users ({{ created_users|length }})</h3>
             <table>
                 <thead>
                     <tr>
@@ -338,7 +338,7 @@
         
         {% if skipped_users %}
         <div class="results-table warning">
-            <h3>⚠️ Skipped Users ({{ skipped_users|length }})</h3>
+            <h3>Skipped Users ({{ skipped_users|length }})</h3>
             <table>
                 <thead>
                     <tr>
@@ -360,7 +360,7 @@
         
         {% if failed_users %}
         <div class="results-table danger">
-            <h3>❌ Failed to Create ({{ failed_users|length }})</h3>
+            <h3>Failed to Create ({{ failed_users|length }})</h3>
             <table>
                 <thead>
                     <tr>

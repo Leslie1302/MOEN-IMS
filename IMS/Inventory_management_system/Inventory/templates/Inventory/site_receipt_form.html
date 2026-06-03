@@ -13,7 +13,7 @@
                     <i class="fas fa-arrow-left"></i>
                 </a>
                 <div>
-                    <h2 class="fw-bold text-primary mb-1">📋 Log Site Receipt</h2>
+                    <h2 class="fw-bold text-primary mb-1">Log Site Receipt</h2>
                     <p class="text-muted mb-0">Confirm material delivery and upload required documentation</p>
                 </div>
             </div>
@@ -48,11 +48,11 @@
                                     <td class="text-muted">Priority:</td>
                                     <td>
                                         {% if transport.material_order.priority == 'High' %}
-                                        <span class="badge bg-danger">🔥 High</span>
+                                        <span class="badge bg-danger">High</span>
                                         {% elif transport.material_order.priority == 'Medium' %}
-                                        <span class="badge bg-warning text-dark">⚡ Medium</span>
+                                        <span class="badge bg-warning text-dark">Medium</span>
                                         {% else %}
-                                        <span class="badge bg-success">📋 Low</span>
+                                        <span class="badge bg-success">Low</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -81,7 +81,7 @@
                                 <tr>
                                     <td class="text-muted">Status:</td>
                                     <td>
-                                        <span class="badge bg-warning text-dark">📦 {{ transport.status }}</span>
+                                        <span class="badge bg-warning text-dark">{{ transport.status }}</span>
                                     </td>
                                 </tr>
                             </table>

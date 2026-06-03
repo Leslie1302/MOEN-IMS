@@ -4,7 +4,7 @@ Project management forms for creating and assigning projects
 
 from django import forms
 from django.contrib.auth.models import User, Group
-from Inventory.models import Project, ProjectSite
+from Inventory.models import Project, ProjectSite, ProjectType
 from Inventory.models.people import ProjectConsultant
 
 
@@ -112,6 +112,27 @@ class ProjectCreateForm(forms.ModelForm):
                 # If no match, keep the text value
                 pass
 
+        # Drive the project_type dropdown from the same ProjectType registry
+        # the material-request form uses, so the two views stop disagreeing.
+        # Legacy values that are no longer in the registry (e.g. "Turnkey")
+        # are surfaced as a single fallback choice so existing records stay
+        # editable.
+        try:
+            active_types = list(
+                ProjectType.objects.filter(active=True).order_by('sort_order', 'name')
+            )
+            choices = [(t.name, t.name) for t in active_types]
+            legacy_value = (self.instance.project_type if self.instance else None)
+            if legacy_value and legacy_value not in [c[0] for c in choices]:
+                choices.append((legacy_value, f"{legacy_value} (legacy)"))
+            self.fields['project_type'].widget.choices = (
+                [('', '— select project type —')] + choices
+            )
+        except Exception:
+            # If the ProjectType table isn't ready yet (e.g. during initial
+            # migration) leave the model's static choices in place.
+            pass
+
 
 class ProjectAssignmentForm(forms.Form):
     """Form for assigning users to projects"""
@@ -124,18 +145,28 @@ class ProjectAssignmentForm(forms.Form):
     )
 
     project_managers = forms.ModelMultipleChoiceField(
-        queryset=get_management_users(),
+        queryset=User.objects.none(),
         required=False,
         help_text="Select project managers",
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'})
     )
 
     site_supervisors = forms.ModelMultipleChoiceField(
-        queryset=get_supervisor_users(),
+        queryset=User.objects.none(),
         required=False,
         help_text="Select site supervisors",
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'})
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Populate the user choices when the form is instantiated rather than
+        # when this module is imported. get_management_users() and
+        # get_supervisor_users() execute database queries; evaluating them at
+        # class-definition time made the module impossible to import before the
+        # database had been migrated.
+        self.fields['project_managers'].queryset = get_management_users()
+        self.fields['site_supervisors'].queryset = get_supervisor_users()
 
 
 class ProjectSiteCreateForm(forms.ModelForm):

@@ -5,7 +5,7 @@
 <!-- Adjust for fixed navbar with padding-top -->
 <div class="container-fluid p-0" style="padding-top: 60px; min-height: calc(100vh - 60px);">
     <div class="bg-light py-2 sticky-top">
-        <h2 class="text-center fw-bold text-primary mb-0">📦 Material Receipts</h2>
+        <h2 class="text-center fw-bold text-primary mb-0">Material Receipts</h2>
         <p class="text-muted text-center mb-0">Create material receipt entries</p>
     </div>
 
@@ -63,6 +63,30 @@
                                                 {{ form.warehouse }}
                                                 {{ form.warehouse.errors }}
                                             </div>
+                                            <div>
+                                                <label class="fw-semibold">Supplier</label>
+                                                {{ form.supplier }}
+                                                {{ form.supplier.errors }}
+                                                <small class="text-muted">Mirrors how releases tie to a consultant.</small>
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">Supply Contract</label>
+                                                {{ form.supply_contract }}
+                                                {{ form.supply_contract.errors }}
+                                                <small class="text-muted">{{ form.supply_contract.help_text }}</small>
+                                            </div>
+                                            <div>
+                                                <label class="fw-semibold">Receipt Category <span class="text-danger">*</span></label>
+                                                {{ form.receipt_category }}
+                                                {{ form.receipt_category.errors }}
+                                                <small class="text-muted">{{ form.receipt_category.help_text }}</small>
+                                            </div>
+                                            <div class="boq-link-wrapper" style="display:none;">
+                                                <label class="fw-semibold">Over-issued BoQ Line <span class="text-danger">*</span></label>
+                                                {{ form.linked_boq_item }}
+                                                {{ form.linked_boq_item.errors }}
+                                                <small class="text-muted">{{ form.linked_boq_item.help_text }}</small>
+                                            </div>
                                             <!-- Readonly autofill fields -->
                                             <div>
                                                 <label class="fw-semibold">Category</label>
@@ -77,15 +101,15 @@
                                                 <input type="text" class="form-control unit-field" readonly>
                                             </div>
                                             <div class="d-flex justify-content-end">
-                                                <button type="button" class="btn btn-outline-danger remove-form" style="display: none;">❌ Remove Item</button>
+                                                <button type="button" class="btn btn-outline-danger remove-form" style="display: none;">Remove Item</button>
                                             </div>
                                         </div>
                                     </div>
                                 {% endfor %}
                             </div>
                             <div class="d-flex justify-content-center gap-3 mt-3">
-                                <button type="button" id="add-receipt-form" class="btn btn-outline-success px-4">➕ Add Another Item</button>
-                                <button type="submit" class="btn btn-primary px-4">✅ Submit Receipt</button>
+                                <button type="button" id="add-receipt-form" class="btn btn-outline-success px-4">Add Another Item</button>
+                                <button type="submit" class="btn btn-primary px-4">Submit Receipt</button>
                             </div>
                         </form>
                     </div>
@@ -94,7 +118,7 @@
                     <div class="tab-pane fade {% if active_tab == 'bulk' %}show active{% endif %}" id="bulk-receipt" role="tabpanel" aria-labelledby="bulk-receipt-tab">
                         <div class="card border-0 shadow-sm mb-4">
                             <div class="card-body">
-                                <h5 class="card-title text-center mb-4">📊 Bulk Material Receipt</h5>
+                                <h5 class="card-title text-center mb-4">Bulk Material Receipt</h5>
                                 <p class="text-muted text-center mb-4">Upload an Excel file with your material receipts.</p>
                                 <form method="POST" enctype="multipart/form-data">
                                     {% csrf_token %}
@@ -136,35 +160,111 @@
     </div>
 </div>
 
-{{ inventory_items|json_script:"inventory-data" }}
 <script>
-// Receipt form JS (autofill + dynamic add/remove)
-const inventoryItems = JSON.parse(document.getElementById('inventory-data').textContent);
-
+// Receipt form JS - Using AJAX to fetch item details
 document.addEventListener("DOMContentLoaded", function () {
+    console.log('✓ DOMContentLoaded fired');
+
+    // Show/hide the BoQ link wrapper based on Receipt Category selection
+    function toggleBoqWrapper(catSelect) {
+        const row = catSelect.closest('.material-form');
+        if (!row) return;
+        const wrapper = row.querySelector('.boq-link-wrapper');
+        if (!wrapper) return;
+        wrapper.style.display = (catSelect.value === 'overissuance_return') ? '' : 'none';
+    }
+
+    document.querySelectorAll('.receipt-category-select').forEach(function (sel) {
+        toggleBoqWrapper(sel);
+        sel.addEventListener('change', function () { toggleBoqWrapper(sel); });
+    });
+
+    // Autofill function - fetches data via AJAX
     function autofillFields(selectElement) {
-        const selectedId = selectElement.value;
+        const itemId = selectElement.value;
         const formRow = selectElement.closest(".material-form");
+
+        if (!formRow) {
+            console.error('✗ Could not find material-form parent');
+            return;
+        }
+
         const categoryInput = formRow.querySelector(".category-field");
         const codeInput = formRow.querySelector(".material-code");
         const unitInput = formRow.querySelector(".unit-field");
 
-        const item = inventoryItems.find(i => i.id == selectedId);
-        if (item) {
-            categoryInput.value = item.category__name || "";
-            codeInput.value = item.code || "";
-            unitInput.value = item.unit__name || "";
-        } else {
+        if (!categoryInput || !codeInput || !unitInput) {
+            console.error('✗ Could not find autofill input fields');
+            return;
+        }
+
+        // Clear if no selection
+        if (!itemId) {
             categoryInput.value = "";
             codeInput.value = "";
             unitInput.value = "";
+            return;
         }
+
+        // Fetch item details via AJAX
+        console.log('✓ Fetching item details for ID:', itemId);
+        fetch(`/inventory/api/inventory-item/${itemId}/`)
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch item');
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    categoryInput.value = data.data.category || '';
+                    codeInput.value = data.data.code || '';
+                    unitInput.value = data.data.unit || '';
+                    console.log('✓ Autofilled:', data.data);
+                } else {
+                    console.error('✗ API error:', data.error);
+                    categoryInput.value = "";
+                    codeInput.value = "";
+                    unitInput.value = "";
+                }
+            })
+            .catch(error => {
+                console.error('✗ Fetch error:', error);
+                categoryInput.value = "";
+                codeInput.value = "";
+                unitInput.value = "";
+            });
     }
 
-    document.querySelectorAll(".material-select").forEach(select => {
-        select.addEventListener("change", function () { autofillFields(this); });
-        if (select.value) autofillFields(select);
+    // Initialize all select fields
+    function initializeSelects() {
+        const selects = document.querySelectorAll(".material-select");
+        console.log('✓ Found .material-select elements:', selects.length);
+
+        selects.forEach((select) => {
+            select.addEventListener("change", function () {
+                console.log('✓ Material select changed to:', this.value);
+                autofillFields(this);
+            });
+
+            // Trigger autofill if pre-selected
+            if (select.value) {
+                autofillFields(select);
+            }
+        });
+    }
+
+    // Initialize on page load
+    initializeSelects();
+
+    // Watch for dynamically added forms
+    const observer = new MutationObserver(function(mutations) {
+        console.log('✓ Form container changed - re-initializing selects');
+        setTimeout(initializeSelects, 100);
     });
+
+    const container = document.getElementById('receipt-form-container');
+    if (container) {
+        observer.observe(container, { childList: true });
+    }
 
     const addBtn = document.getElementById("add-receipt-form");
     if (addBtn) {
@@ -174,24 +274,41 @@ document.addEventListener("DOMContentLoaded", function () {
             const newFormIdx = parseInt(totalForms.value);
             const newForm = formContainer.firstElementChild.cloneNode(true);
 
+            // Update form indices in all field names and IDs
             newForm.innerHTML = newForm.innerHTML.replace(/form-(\d+)-/g, `form-${newFormIdx}-`);
+
+            // Reset all fields
             const select = newForm.querySelector(".material-select");
-            if (select) select.selectedIndex = 0;
-            ['quantity', 'warehouse'].forEach(field => {
-                const el = newForm.querySelector(`[name$='${field}']`);
-                if (el) el.value = "";
-            });
-            const cat = newForm.querySelector(".category-field"); if (cat) cat.value = "";
-            const code = newForm.querySelector(".material-code"); if (code) code.value = "";
-            const unit = newForm.querySelector(".unit-field"); if (unit) unit.value = "";
+            if (select) {
+                select.selectedIndex = 0;
+                // Event listener will be attached by initializeSelects() via MutationObserver
+            }
 
-            if (select) select.addEventListener("change", function () { autofillFields(this); });
+            // Clear other fields
+            const quantityField = newForm.querySelector("[name$='quantity']");
+            if (quantityField) quantityField.value = "";
 
+            const warehouseField = newForm.querySelector("[name$='warehouse']");
+            if (warehouseField) warehouseField.value = "";
+
+            const categoryField = newForm.querySelector(".category-field");
+            if (categoryField) categoryField.value = "";
+
+            const codeField = newForm.querySelector(".material-code");
+            if (codeField) codeField.value = "";
+
+            const unitField = newForm.querySelector(".unit-field");
+            if (unitField) unitField.value = "";
+
+            // Show remove button
             const removeBtn = newForm.querySelector(".remove-form");
             if (removeBtn) removeBtn.style.display = "block";
 
+            // Add the new form to the container
             formContainer.appendChild(newForm);
             totalForms.value = newFormIdx + 1;
+
+            console.log('✓ Added new form with index:', newFormIdx);
         });
     }
 

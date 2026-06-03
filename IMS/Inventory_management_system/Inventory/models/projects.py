@@ -12,6 +12,19 @@ class BillOfQuantity(auto_prefetch.Model):
     contractor = models.CharField(max_length=200)
     package_number = models.CharField(max_length=50, db_index=True)
     phase = models.CharField(max_length=50, blank=True, null=True, help_text="SHEP Phase (e.g., SHEP-4)")
+    # Project segregation — the BoQ is the spine the whole system rolls up
+    # against, so it needs to carry the project type it belongs to. Mirrors
+    # the ProjectType registry the request form uses.
+    project_type = models.CharField(
+        max_length=50,
+        db_index=True,
+        default='SHEP',
+        help_text=(
+            'Project type this BoQ line belongs to. Mirrors the ProjectType '
+            'registry the request form uses so the BoQ rolls up correctly '
+            'under the right programme.'
+        ),
+    )
     material_description = models.CharField(max_length=200)
     item_code = models.CharField(max_length=200, db_index=True)
     contract_quantity = models.FloatField()
@@ -152,7 +165,94 @@ class ProjectSite(auto_prefetch.Model):
         related_name='supervised_sites',
         help_text="User supervising this site"
     )
+    # ``status`` is now a *material*-completion proxy -- driven by the BoQ
+    # signal in Inventory.signals.sync_project_site_from_boq. Before Phase
+    # B6 it was the only completion field, conflating "all materials
+    # delivered" with "site energised". The new ``works_status`` field
+    # (below) captures the works-on-the-ground view; templates and reports
+    # that need the access-rate-relevant signal should prefer it.
     status = models.CharField(max_length=50, choices=SITE_STATUS_CHOICES, default='Planned', db_index=True)
+
+    WORKS_STATUS_CHOICES = [
+        ('Planned',      'Planned'),
+        ('In Progress',  'In Progress'),
+        ('Energised',    'Energised'),     # meters installed + verified
+        ('Commissioned', 'Commissioned'),  # signed off as fully handed over
+    ]
+    works_status = models.CharField(
+        max_length=20, choices=WORKS_STATUS_CHOICES,
+        default='Planned', db_index=True,
+        help_text=(
+            'Physical-works progress. Two write paths feed this: '
+            '(1) consultants update it from the Site Progress page; '
+            '(2) verified MeterInstallation rows flip it to "Energised" '
+            'when the access-rate-from-meters flow is enabled. '
+            'Use this for access-rate roll-ups; use ``status`` only for '
+            'material-flow views.'
+        ),
+    )
+
+    # ── Consultant progress reporting (interim until Energy Commission engagement) ──
+    # Free-text % complete that the field consultant updates as works
+    # progress at the site. The Ghana map's headline access rate reads
+    # this (averaged across sites) rather than the meter-driven formula
+    # until the EC engagement decides on the canonical methodology.
+    progress_percent = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=(
+            'Consultant-reported % complete (0-100). Updated from the Site '
+            'Progress page. Drives the Ghana map headline in the interim.'
+        ),
+    )
+    progress_notes = models.TextField(
+        blank=True,
+        help_text='Brief context from the consultant. Shown on the map drill-down.',
+    )
+    progress_updated_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Stamped automatically when progress_percent or works_status changes.',
+    )
+    progress_updated_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='site_progress_updates',
+        help_text='Last user who updated the progress record.',
+    )
+
+    # ── Materials used to progress the works (cumulative, as-of latest update) ──
+    # Quantified alongside works_status so a site's progress is backed by
+    # physical counts, not just a percentage. Updated from the Site Progress
+    # page. Meters additionally drive the national access rate: when the
+    # meter totals below increase, the Site Progress save creates a verified
+    # MeterInstallation row for the delta, which the access-rate formula reads.
+    meters_1ph_installed = models.PositiveIntegerField(
+        default=0,
+        help_text='Single-phase meters installed at this site to date. '
+                  'Increasing this logs the difference as a MeterInstallation '
+                  'so the national access rate rises.',
+    )
+    meters_3ph_installed = models.PositiveIntegerField(
+        default=0,
+        help_text='Three-phase meters installed at this site to date. '
+                  'Increasing this logs the difference as a MeterInstallation '
+                  'so the national access rate rises.',
+    )
+    poles_erected = models.PositiveIntegerField(
+        default=0,
+        help_text='Poles erected at this site to date.',
+    )
+    conductor_laid_m = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Conductor / cable strung at this site to date, in metres.',
+    )
+    transformers_installed = models.PositiveIntegerField(
+        default=0,
+        help_text='Distribution transformers installed at this site to date.',
+    )
+    transformers_commissioned = models.PositiveIntegerField(
+        default=0,
+        help_text='Distribution transformers commissioned (energised and '
+                  'handed over) at this site to date.',
+    )
 
     # Timeline
     start_date = models.DateField(null=True, blank=True)
@@ -170,6 +270,7 @@ class ProjectSite(auto_prefetch.Model):
             models.Index(fields=['region', 'district']),
             models.Index(fields=['region', 'status']),
             models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['region', 'works_status']),
         ]
 
     def __str__(self):

@@ -15,6 +15,7 @@ from .project_type import ProjectType
 from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
+from .access_rate import MeterInstallation, AccessRateConfig  # Track B (access rate map)
 
 from .utils import generate_abbreviation
 
@@ -39,5 +40,6 @@ __all__ = [
     'MemberOfParliament', 'ProjectConsultant',
     'Signatory',
     'Region', 'District', 'Package',  # Geospatial models
+    'MeterInstallation', 'AccessRateConfig',  # Access rate models
     'generate_abbreviation',
 ]
