@@ -6,8 +6,8 @@
 {% block extra_head %}
 <style>
     :root {
-        --glass-bg: rgba(255, 255, 255, 0.7);
-        --glass-border: rgba(255, 255, 255, 0.3);
+        --glass-bg: rgba(255, 255, 255, 0.72);
+        --glass-border: rgba(255, 255, 255, 0.35);
         --gradient-primary: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
         --gradient-secondary: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
         --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -34,13 +34,8 @@
     }
 
     @keyframes rotate {
-        from {
-            transform: rotate(0deg);
-        }
-
-        to {
-            transform: rotate(360deg);
-        }
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
     }
 
     .glass-card {
@@ -114,22 +109,61 @@
         transform: translateY(0);
     }
 
+    /* Stakeholder grid — now holds all six role groups. */
     .stakeholder-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 20px;
     }
 
     .stakeholder-item {
         text-align: center;
         padding: 20px;
+        border-radius: 14px;
+        transition: background .2s ease;
     }
+
+    .stakeholder-item:hover { background: rgba(37, 99, 235, 0.05); }
 
     .stakeholder-item i {
         font-size: 32px;
         color: #2563eb;
         margin-bottom: 10px;
     }
+
+    /* Programme cards (SHEP / Cost Sharing / Streetlights). */
+    .programme-card {
+        border-radius: 16px;
+        padding: 28px;
+        height: 100%;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+    .programme-card h4 { font-weight: 700; }
+    .programme-card .consignee {
+        display: inline-block; margin-top: 10px; padding: 4px 12px;
+        background: rgba(255,255,255,.2); border-radius: 100px; font-size: .8rem;
+    }
+    .pc-shep   { background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%); }
+    .pc-cost   { background: linear-gradient(135deg, #0f6e56 0%, #0a4d3c 100%); }
+    .pc-street { background: linear-gradient(135deg, #ba7517 0%, #8a560f 100%); }
+
+    /* Lifecycle stepper. */
+    .flow {
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch;
+    }
+    .flow-step {
+        flex: 1 1 140px; background: #fff; border: 1px solid #e3e6ea;
+        border-radius: 12px; padding: 16px; text-align: center; position: relative;
+    }
+    .flow-step .step-no {
+        width: 28px; height: 28px; border-radius: 50%; background: var(--gradient-primary);
+        color: #fff; display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: .8rem; margin-bottom: 8px;
+    }
+    .flow-step i { color: #27ae60; font-size: 1.2rem; }
+    .flow-step .label { font-size: .85rem; font-weight: 600; color: #2c3e50; }
 </style>
 {% endblock %}
 
@@ -137,87 +171,152 @@
 <div class="about-header text-center">
     <div class="container relative">
         <h1 class="display-3 fw-bold mb-3" style="text-shadow: var(--text-shadow);">MOEGT IEPS</h1>
-        <p class="lead opacity-90 mx-auto" style="max-width: 700px;">
-            The Integrated Energy Project System (IEPS) is the foundational digital platform driving the Ministry of
-            Energy and Green Transition's logistical excellence and infrastructure deployment.
+        <p class="lead opacity-90 mx-auto" style="max-width: 760px;">
+            The Integrated Energy Project System is the Ministry of Energy and Green Transition's
+            platform for running electrification materials end-to-end — from a field request to a
+            powered community — across the SHEP, Cost Sharing, and Streetlights programmes.
         </p>
     </div>
 </div>
 
 <div class="container" style="position: relative; z-index: 10;">
     <div class="row">
-        <!-- Mission & Purpose -->
+        <!-- Mission & Capabilities -->
         <div class="col-lg-8">
             <div class="glass-card fade-up">
                 <h2 class="section-title">Our Mission</h2>
                 <p class="lead">
-                    To accelerate the deployment of energy infrastructure across Ghana through precise inventory
-                    tracking, transparent resource management, and optimized logistics workflows.
+                    To accelerate electrification across Ghana through precise inventory control,
+                    authorized material releases, transparent reconciliation, and works progress that
+                    rolls all the way up to the national electricity-access rate.
                 </p>
                 <hr class="my-4 opacity-10">
                 <p>
-                    The MOEGT IEPS emerged from a critical need to bridge the gap between ministerial authorizations and
-                    field-level implementation. By integrating Bill of Quantities (BoQ) tracking with real-time
-                    warehouse movements, we ensure that every pole, transformer, and meter is accounted for from
-                    delivery to installation.
+                    IEPS bridges the gap between ministerial authorizations and field-level delivery.
+                    Every request is tied to a community and package, released only under a signed
+                    release letter, tracked to site, reconciled against the Bill of Quantities, and
+                    converted into measurable works progress — so every pole, conductor, transformer,
+                    and meter is accounted for from warehouse to commissioning.
                 </p>
             </div>
 
             <div class="glass-card fade-up">
-                <h2 class="section-title">System Architecture</h2>
+                <h2 class="section-title">What the System Does</h2>
                 <div class="row g-4">
                     <div class="col-md-6">
                         <div class="feature-icon"><i class="bi bi-shield-check"></i></div>
                         <h4>Drawdown Guardrails</h4>
-                        <p class="text-muted">Prevents material releases that exceed ministerial authorizations through
-                            the Release Letter system.</p>
+                        <p class="text-muted">QR-verified release letters and approval memos — one per request,
+                            or one per bulk batch — keep releases within ministerial authorization.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-diagram-3"></i></div>
+                        <h4>Multi-Programme Routing</h4>
+                        <p class="text-muted">SHEP, Cost Sharing, and Streetlights, with the consignee auto-resolved
+                            — the project consultant for SHEP, the Member of Parliament for the others.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-icon"><i class="bi bi-arrow-left-right"></i></div>
+                        <h4>Live Stock Lifecycle</h4>
+                        <p class="text-muted">Soft-hold on request, deduction on release, addition on receipt —
+                            warehouse balances update on the dashboards as materials move.</p>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-icon"><i class="bi bi-graph-up-arrow"></i></div>
-                        <h4>BoQ Analysis</h4>
-                        <p class="text-muted">Dynamic monitoring of Bill of Quantities to identify and justify project
-                            overissuances in real-time.</p>
+                        <h4>BoQ Reconciliation</h4>
+                        <p class="text-muted">Received-vs-contract tracking per package and community, with
+                            over-issuance detection and a justification workflow.</p>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-icon"><i class="bi bi-truck"></i></div>
                         <h4>Logistics Loop</h4>
-                        <p class="text-muted">End-to-end transport tracking from warehouse release to
-                            consultant-verified site receipt.</p>
+                        <p class="text-muted">Transporter assignment with shared waybills, status from loaded to in
+                            transit to delivered, and consultant-verified site receipts.</p>
                     </div>
                     <div class="col-md-6">
-                        <div class="feature-icon"><i class="bi bi-bell"></i></div>
-                        <h4>Automated Alerts</h4>
-                        <p class="text-muted">Intelligent notifications for low stock, new requests, and transport
-                            milestones.</p>
+                        <div class="feature-icon"><i class="bi bi-lightning-charge"></i></div>
+                        <h4>Progress &amp; Access Rate</h4>
+                        <p class="text-muted">Five-stage works (HT → LV → transformer → meters → commissioning)
+                            scored against BoQ-seeded targets, feeding the Ghana map and the national access rate.</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Programmes -->
+            <div class="glass-card fade-up">
+                <h2 class="section-title">Programmes</h2>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="programme-card pc-shep">
+                            <h4>SHEP</h4>
+                            <p class="small mb-0 opacity-90">Self-Help Electrification — the core programme.
+                                Communities carry predetermined package numbers.</p>
+                            <span class="consignee"><i class="bi bi-person-badge me-1"></i>Consignee: Consultant</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="programme-card pc-cost">
+                            <h4>Cost Sharing</h4>
+                            <p class="small mb-0 opacity-90">Beneficiary-supported electrification with
+                                auto-generated package numbers per request.</p>
+                            <span class="consignee"><i class="bi bi-bank me-1"></i>Consignee: Member of Parliament</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="programme-card pc-street">
+                            <h4>Streetlights</h4>
+                            <p class="small mb-0 opacity-90">Public lighting deployments with auto-generated
+                                packages and pole/lumen specifications.</p>
+                            <span class="consignee"><i class="bi bi-bank me-1"></i>Consignee: Member of Parliament</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lifecycle -->
+            <div class="glass-card fade-up">
+                <h2 class="section-title">The End-to-End Flow</h2>
+                <div class="flow">
+                    <div class="flow-step"><div class="step-no">1</div><div><i class="bi bi-pencil-square"></i></div><div class="label">Request</div></div>
+                    <div class="flow-step"><div class="step-no">2</div><div><i class="bi bi-file-earmark-check"></i></div><div class="label">Release letter &amp; memo</div></div>
+                    <div class="flow-step"><div class="step-no">3</div><div><i class="bi bi-box-arrow-up"></i></div><div class="label">Stock drawdown</div></div>
+                    <div class="flow-step"><div class="step-no">4</div><div><i class="bi bi-truck"></i></div><div class="label">Transport &amp; waybill</div></div>
+                    <div class="flow-step"><div class="step-no">5</div><div><i class="bi bi-clipboard-check"></i></div><div class="label">Site receipt</div></div>
+                    <div class="flow-step"><div class="step-no">6</div><div><i class="bi bi-graph-up"></i></div><div class="label">BoQ reconciliation</div></div>
+                    <div class="flow-step"><div class="step-no">7</div><div><i class="bi bi-cone-striped"></i></div><div class="label">Community progress</div></div>
+                    <div class="flow-step"><div class="step-no">8</div><div><i class="bi bi-lightning-charge"></i></div><div class="label">National access</div></div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar / Statistics -->
+        <!-- Sidebar -->
         <div class="col-lg-4">
             <div class="glass-card fade-up" style="background: var(--gradient-secondary); color: white;">
                 <h3 class="mb-4">System Core</h3>
                 <div class="d-flex flex-wrap">
-                    <span class="tech-badge">Django 5.0</span>
-                    <span class="tech-badge">PostgreSQL</span>
+                    <span class="tech-badge">Django 5.1</span>
+                    <span class="tech-badge">SQLite · Postgres-ready</span>
                     <span class="tech-badge">Real-time AJAX</span>
-                    <span class="tech-badge">AI Integration</span>
-                    <span class="tech-badge">AES-256 Security</span>
+                    <span class="tech-badge">QR Verification</span>
+                    <span class="tech-badge">Encrypted Secrets</span>
                 </div>
                 <hr class="opacity-20 my-4">
                 <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>2FA Protected</span>
+                    <i class="bi bi-check-circle-fill me-2"></i><span>2FA Protected</span>
                 </div>
                 <div class="d-flex align-items-center mb-3">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <span>Weekly Auto-Reports</span>
+                    <i class="bi bi-check-circle-fill me-2"></i><span>Role-based Access Control</span>
+                </div>
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-check-circle-fill me-2"></i><span>Weekly Auto-Reports</span>
+                </div>
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-check-circle-fill me-2"></i><span>Microsoft 365 Notifications</span>
                 </div>
             </div>
 
             <div class="glass-card fade-up">
-                <h3 class="h5 mb-4">Support & Coordination</h3>
+                <h3 class="h5 mb-4">Support &amp; Coordination</h3>
                 <p class="small text-muted mb-4">Developed for the Ministry of Energy and Green Transition of Ghana.</p>
                 <div class="d-grid gap-2">
                     <a href="mailto:support.ieps@energymin.gov.gh" class="btn btn-primary">
@@ -231,31 +330,45 @@
         </div>
     </div>
 
-    <!-- Stakeholders Section -->
+    <!-- Stakeholders -->
     <div class="glass-card fade-up mb-5">
         <h2 class="section-title d-block text-center mx-auto mb-5">The Integrated Ecosystem</h2>
         <div class="stakeholder-grid">
             <div class="stakeholder-item">
                 <i class="bi bi-person-badge"></i>
                 <h5>Schedule Officers</h5>
-                <p class="small text-muted">Initialize requests & manage authorizations</p>
+                <p class="small text-muted">File requests; generate release letters &amp; approval memos</p>
             </div>
             <div class="stakeholder-item">
                 <i class="bi bi-box-seam"></i>
                 <h5>Store Officers</h5>
-                <p class="small text-muted">Execute inventory movements & physical checks</p>
+                <p class="small text-muted">Process issues &amp; receipts; move warehouse stock</p>
+            </div>
+            <div class="stakeholder-item">
+                <i class="bi bi-clipboard-data"></i>
+                <h5>Stores Management</h5>
+                <p class="small text-muted">Oversee stores operations, balances &amp; assignments</p>
+            </div>
+            <div class="stakeholder-item">
+                <i class="bi bi-truck"></i>
+                <h5>Transport Officers</h5>
+                <p class="small text-muted">Assign transporters; manage waybills &amp; delivery status</p>
             </div>
             <div class="stakeholder-item">
                 <i class="bi bi-briefcase"></i>
                 <h5>Consultants</h5>
-                <p class="small text-muted">Verify site receipts & project compliance</p>
+                <p class="small text-muted">Verify site receipts; report community works progress</p>
             </div>
             <div class="stakeholder-item">
                 <i class="bi bi-speedometer2"></i>
                 <h5>Management</h5>
-                <p class="small text-muted">Oversee balances & strategic reporting</p>
+                <p class="small text-muted">Approvals, dashboards, balances &amp; access-rate oversight</p>
             </div>
         </div>
+        <p class="text-center text-muted small mb-0 mt-3">
+            Consignees — project consultants (SHEP) and Members of Parliament (Cost Sharing &amp; Streetlights) —
+            are recorded automatically on every release.
+        </p>
     </div>
 </div>
 
@@ -280,18 +393,18 @@ document.addEventListener('DOMContentLoaded', function() {
     PageSplash.init({
         pageId: 'about',
         title: 'About MOEGT IEPS',
-        subtitle: 'Learn about the Integrated Energy Project System',
+        subtitle: 'The Integrated Energy Project System',
         icon: '',
         features: [
-            { icon: '', title: 'Drawdown Guardrails', desc: 'Prevent unauthorized material releases' },
-            { icon: '', title: 'BoQ Analysis', desc: 'Track Bill of Quantities in real-time' },
-            { icon: '', title: 'Logistics Loop', desc: 'End-to-end transport tracking' },
-            { icon: '', title: 'Automated Alerts', desc: 'Smart notifications for all stakeholders' }
+            { icon: '', title: 'Drawdown Guardrails', desc: 'QR-verified release letters keep releases authorized' },
+            { icon: '', title: 'Multi-Programme', desc: 'SHEP, Cost Sharing & Streetlights with auto consignees' },
+            { icon: '', title: 'Logistics Loop', desc: 'Waybills, deliveries & consultant site receipts' },
+            { icon: '', title: 'Progress & Access', desc: '5-stage works feeding the national access rate' }
         ],
         tips: [
-            'IEPS integrates with Release Letters for compliance',
-            'Built with Django 5.0 and PostgreSQL',
-            'Contact support for technical assistance'
+            'Every release ties back to a community and BoQ package',
+            'Stock deducts on release and adds on receipt automatically',
+            'Site progress rolls up to community analysis and national access'
         ]
     });
 });
