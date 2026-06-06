@@ -37,15 +37,49 @@
             <span class="badge bg-primary">Status: {{ site.works_status }}</span>
         </div>
         <div class="card-body">
-            <div class="row text-center g-2">
-                <div class="col"><div class="small text-muted">Poles planted</div><div class="h5 mb-0">{{ site.poles_planted|intcomma }}</div></div>
-                <div class="col"><div class="small text-muted">Conductor strung (m)</div><div class="h5 mb-0">{{ site.conductor_strung_m|floatformat:0|intcomma }}</div></div>
-                <div class="col"><div class="small text-muted">Transformers dressed</div><div class="h5 mb-0">{{ site.transformers_dressed|intcomma }}</div></div>
+            <!-- Pole lifecycle, split HT / LV -->
+            <div class="table-responsive mb-3">
+                <table class="table table-sm text-center align-middle mb-0" style="font-size:0.85rem;">
+                    <thead class="table-light">
+                        <tr><th></th><th>Erected</th><th>Dressed</th><th>Strung</th><th>Conductor (m)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><th class="text-start">HT poles</th>
+                            <td>{{ site.ht_erected|intcomma }}</td><td>{{ site.ht_dressed|intcomma }}</td>
+                            <td>{{ site.ht_strung|intcomma }}</td><td>{{ site.ht_conductor_m|floatformat:0|intcomma }}</td></tr>
+                        <tr><th class="text-start">LV poles</th>
+                            <td>{{ site.lv_erected|intcomma }}</td><td>{{ site.lv_dressed|intcomma }}</td>
+                            <td>{{ site.lv_strung|intcomma }}</td><td>{{ site.lv_conductor_m|floatformat:0|intcomma }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="row text-center g-2 mb-3">
+                <div class="col"><div class="small text-muted">Transformers installed</div><div class="h5 mb-0">{{ site.transformers_installed|intcomma }}</div></div>
                 <div class="col"><div class="small text-muted">Transformers commissioned</div><div class="h5 mb-0">{{ site.transformers_commissioned|intcomma }}</div></div>
                 <div class="col"><div class="small text-muted">C.S. 1-phase connected</div><div class="h5 mb-0">{{ site.cs_1ph|intcomma }}</div></div>
                 <div class="col"><div class="small text-muted">C.S. 3-phase connected</div><div class="h5 mb-0">{{ site.cs_3ph|intcomma }}</div></div>
-                <div class="col"><div class="small text-muted">Overall % complete</div><div class="h5 mb-0">{{ site.avg_progress }}%</div></div>
+                <div class="col"><div class="small text-muted">Overall % complete</div><div class="h4 mb-0 text-primary">{{ site.avg_progress }}%</div></div>
             </div>
+
+            <!-- 5-stage breakdown (HT -> LV -> transformer -> meters -> commissioning) -->
+            <div class="small text-muted mb-1">Completion stages (20% each):</div>
+            <div class="d-flex flex-wrap gap-2">
+                {% for s in site.stages %}
+                <div class="border rounded px-2 py-1 small {% if not s.has_target %}bg-light text-muted{% endif %}">
+                    <span class="fw-semibold">{{ s.label }}</span>
+                    {% if s.has_target %}
+                    <span class="badge {% if s.pct_points >= 20 %}bg-success{% elif s.pct_points > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ s.pct_points }} / 20</span>
+                    <span class="text-muted">({{ s.numerator|floatformat:0 }} / {{ s.denominator|floatformat:0 }})</span>
+                    {% else %}
+                    <span class="badge bg-light text-muted border">no target</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% if not site.has_targets %}
+            <div class="small text-warning mt-2"><i class="bi bi-exclamation-triangle"></i>
+                No targets set for this community — pull them from the BoQ to enable completion scoring.</div>
+            {% endif %}
             {% if site.remarks %}
             <hr class="my-2">
             <div class="small"><strong>Remarks:</strong> {{ site.remarks }}</div>
@@ -83,7 +117,7 @@
                         <tr class="text-center small">
                             <th class="table-primary">Contract</th><th class="table-primary">Supplied</th><th class="table-primary">Planted</th><th class="table-primary">Dressed</th><th class="table-primary">Strung</th>
                             <th class="table-success">Contract</th><th class="table-success">Supplied</th><th class="table-success">Planted</th><th class="table-success">Dressed</th><th class="table-success">Strung</th>
-                            <th class="table-warning">Contract</th><th class="table-warning">Supplied</th><th class="table-warning">Dressed</th><th class="table-warning">Comm.</th>
+                            <th class="table-warning">Contract</th><th class="table-warning">Supplied</th><th class="table-warning">Installed</th><th class="table-warning">Comm.</th>
                             <th class="table-info">1-Phase</th><th class="table-info">3-Phase</th>
                             <th class="table-secondary">H.T.</th><th class="table-secondary">L.V.</th><th class="table-secondary">Substation</th><th class="table-secondary">Overall</th>
                         </tr>
@@ -137,15 +171,19 @@
                             <!-- HT -->
                             <td class="text-end">{{ totals.ht.contract|floatformat:0 }}</td>
                             <td class="text-end">{{ totals.ht.supplied|floatformat:0 }}</td>
-                            <td colspan="3" class="text-center text-muted">{{ site.poles_planted|intcomma }} planted · {{ site.conductor_strung_m|floatformat:0|intcomma }}m strung*</td>
+                            <td class="text-end">{{ site.ht_erected|intcomma }}</td>
+                            <td class="text-end">{{ site.ht_dressed|intcomma }}</td>
+                            <td class="text-end">{{ site.ht_strung|intcomma }}</td>
                             <!-- LV -->
                             <td class="text-end">{{ totals.lv.contract|floatformat:0 }}</td>
                             <td class="text-end">{{ totals.lv.supplied|floatformat:0 }}</td>
-                            <td colspan="3" class="text-center text-muted">combined*</td>
+                            <td class="text-end">{{ site.lv_erected|intcomma }}</td>
+                            <td class="text-end">{{ site.lv_dressed|intcomma }}</td>
+                            <td class="text-end">{{ site.lv_strung|intcomma }}</td>
                             <!-- Transformer -->
                             <td class="text-end">{{ totals.transformer.contract|floatformat:0 }}</td>
                             <td class="text-end">{{ totals.transformer.supplied|floatformat:0 }}</td>
-                            <td class="text-end">{{ site.transformers_dressed|intcomma }}</td>
+                            <td class="text-end">{{ site.transformers_installed|intcomma }}</td>
                             <td class="text-end">{{ site.transformers_commissioned|intcomma }}</td>
                             <!-- CS -->
                             <td class="text-end">{{ site.cs_1ph|intcomma }}</td>
@@ -162,13 +200,15 @@
         </div>
         <div class="card-footer bg-white small text-muted">
             <i class="bi bi-info-circle"></i>
-            <strong>Contract</strong> and <strong>Supplied</strong> come from the Bill of Quantity (supplied = quantity received).
-            <strong>Planted, dressed, strung, transformer dressed/commissioned, connections</strong> and
-            <strong>completion status</strong> come from the Site Progress form and are reported per community
-            (shown in the totals row and summary above). Cells marked
-            <span class="text-muted">—</span> aren't yet captured at HT/LV per-package granularity.
-            Completion ticks are material-completeness (supplied ≥ contract) for that class.
-            <br><span>* Poles planted and conductor strung are recorded combined (not split by HT/LV) on the Site Progress form.</span>
+            <strong>Contract</strong> and <strong>Supplied</strong> come from the Bill of Quantity (supplied = quantity received) and are
+            classified HT/LV/Transformer by each line's <em>voltage class</em>.
+            <strong>Erected, dressed, strung, transformers installed/commissioned, connections</strong> and the
+            <strong>overall %</strong> come from the Site Progress form, split by HT/LV and reported per community
+            (totals row and summary above). Per-package cells marked
+            <span class="text-muted">—</span> aren't captured at per-package granularity (works are recorded per community).
+            The completion ticks (H.T./L.V./Substation) are material-completeness (supplied ≥ contract) for that class;
+            the <strong>overall %</strong> is the 5-stage works completion (HT → LV → transformer → meters → commissioning, 20% each)
+            measured against the community's BoQ-seeded targets.
         </div>
     </div>
 

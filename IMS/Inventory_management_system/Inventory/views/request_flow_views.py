@@ -146,10 +146,12 @@ def _request_template_columns(project_code):
     pickers on the Release Letter generation page so the right officer's
     name appears on the memo and the release letter.
     """
-    base = ['material', 'quantity', 'region', 'district', 'community', 'warehouse', 'notes']
-    if project_code == PROJECT_TYPE_SHEP:
-        body = base + ['package_number']
-    elif project_code == PROJECT_TYPE_COST_SHARING:
+    # package_number is offered for EVERY project type — packages are used
+    # across programmes for tracking/BoQ reconciliation. Left blank, it is
+    # looked up from the community.
+    base = ['material', 'quantity', 'region', 'district', 'community',
+            'warehouse', 'notes', 'package_number']
+    if project_code == PROJECT_TYPE_COST_SHARING:
         body = base + ['beneficiary_contribution']
     elif project_code == PROJECT_TYPE_STREETLIGHTS:
         body = base + ['pole_height_m', 'lumen_rating', 'pole_type']
@@ -485,10 +487,33 @@ def upload_requests(request):
             extras = '\n'.join(extra_notes_parts)
             full_notes = f"{notes}\n\n{extras}".strip() if notes else extras
 
-        # Build the MaterialOrder.
+        # Resolve unit — the FK is NOT NULL on MaterialOrder. Fall back to the
+        # first Unit if this inventory item has none (possible on older SQLite
+        # rows) so one unitless item doesn't abort the whole batch.
+        resolved_unit = item.unit
+        if resolved_unit is None:
+            from Inventory.models import Unit as _Unit
+            resolved_unit = _Unit.objects.order_by('pk').first()
+            if resolved_unit is None:
+                result.add_error(
+                    excel_row, 'material',
+                    'Inventory item has no unit and no Unit records exist. '
+                    'Add a Unit in admin, then re-upload.',
+                    material_name,
+                )
+                continue
+
+        # Build the MaterialOrder. Carry the item's name/code/category/unit so
+        # the NOT NULL columns are populated — previously only `name` (set to
+        # the item object) was passed, which crashed on unit_id.
         mo = MaterialOrder(
-            name=item,
+            name=item.name,
+            code=item.code,
+            category=item.category,
+            unit=resolved_unit,
             quantity=qty,
+            processed_quantity=0,
+            remaining_quantity=qty,
             project_type=project_type_to_charfield(project_type),
             region=region,
             district=district,
@@ -500,8 +525,13 @@ def upload_requests(request):
             created_by=request.user,
             date_requested=timezone.now(),
         )
-        if community and project_type.code == PROJECT_TYPE_SHEP and community.package_number:
-            mo.package_number = community.package_number
+        # Carry the package number for EVERY project type (not just SHEP) so
+        # non-SHEP releases are package-trackable and reconcile to BoQ. Prefer
+        # an explicit package_number column, then the community's package.
+        row_pkg = normalize_cell(row.get('package_number')) if 'package_number' in df.columns else ''
+        resolved_pkg = row_pkg or (community.package_number if community else '') or ''
+        if resolved_pkg:
+            mo.package_number = resolved_pkg
         if resolved.kind == 'consultant':
             mo.consultant = resolved.name
         elif resolved.kind == 'mp':
@@ -523,7 +553,11 @@ def upload_requests(request):
     if rows_to_save:
         try:
             with transaction.atomic():
-                for mo in rows_to_save:
+                # request_code is unique per order, so the shared batch code
+                # gets a per-row suffix (REQ-…-1, REQ-…-2, …). The common base
+                # still lets the Release Letter wizard group the batch by prefix.
+                for n, mo in enumerate(rows_to_save, 1):
+                    mo.request_code = f"{request_code}-{n}"
                     mo.save()
             result.created_count = len(rows_to_save)
         except Exception as exc:  # noqa: BLE001

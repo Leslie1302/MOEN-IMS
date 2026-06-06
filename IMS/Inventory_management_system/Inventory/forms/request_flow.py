@@ -181,7 +181,14 @@ class BaseProjectRequestForm(forms.ModelForm):
             instance.region = community.region
             instance.district = community.district
             instance.community = community.community
-            if self.project_type_instance.code == PROJECT_TYPE_SHEP and community.package_number:
+            # Carry the community's package number onto the order for EVERY
+            # project type, not just SHEP. Packages are used across programmes
+            # (Cost Sharing / Streetlights too) so releases can be tracked and
+            # reconciled to a specific BoQ package line. The community row is
+            # already project-type-specific (unique per region/district/
+            # community/package/project_type), so this resolves to the right
+            # package for the chosen programme.
+            if community.package_number:
                 instance.package_number = community.package_number
 
         # Auto-resolve the consignee. Write the display name to

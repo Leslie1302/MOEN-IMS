@@ -476,6 +476,7 @@ class MaterialOrder(auto_prefetch.Model):
     STATUS_CHOICES = [
         ('Draft', 'Draft'),
         ('Pending', 'Pending Approval'),
+        ('Seen', 'Seen'),
         ('Approved', 'Approved'),
         ('In Progress', 'In Progress'),
         ('Partially Fulfilled', 'Partially Fulfilled'),
@@ -948,32 +949,51 @@ class SiteReceipt(auto_prefetch.Model):
             order = transport.material_order if transport else None
             if order is None:
                 return False, "No material order is linked to this delivery."
-            if not order.package_number:
-                return False, (
-                    "The material request carries no package number, so this "
-                    "delivery cannot be matched to a Bill of Quantity line."
-                )
-
+            from django.db.models import F
             boq_entry = None
-            # Strategy 1: match on item code + package number.
-            if order.code:
-                boq_entry = BillOfQuantity.objects.filter(
-                    item_code=order.code,
-                    package_number=order.package_number,
-                ).first()
-            # Strategy 2: fall back to material description + package number.
-            if boq_entry is None and order.name:
-                boq_entry = BillOfQuantity.objects.filter(
-                    material_description__iexact=order.name,
-                    package_number=order.package_number,
-                ).first()
+            pkg = (order.package_number or '').strip()
+
+            # Strategy 1 & 2: exact package match (the SHEP path, most precise).
+            if pkg:
+                if order.code:
+                    boq_entry = BillOfQuantity.objects.filter(
+                        item_code=order.code, package_number=pkg,
+                    ).first()
+                if boq_entry is None and order.name:
+                    boq_entry = BillOfQuantity.objects.filter(
+                        material_description__iexact=order.name, package_number=pkg,
+                    ).first()
+
+            # Strategy 3: community + item fallback. Covers Cost Sharing /
+            # Streetlights (which carry no package number) and any SHEP request
+            # whose package didn't match. Prefer a line that still has balance
+            # to draw down, then the most recent, so a receipt doesn't land on
+            # an already-fulfilled line when an open one exists.
+            if boq_entry is None:
+                base_qs = BillOfQuantity.objects.filter(
+                    region__iexact=(order.region or ''),
+                    district__iexact=(order.district or ''),
+                    community__iexact=(order.community or ''),
+                )
+                if order.code:
+                    cand = base_qs.filter(item_code=order.code)
+                elif order.name:
+                    cand = base_qs.filter(material_description__iexact=order.name)
+                else:
+                    cand = base_qs.none()
+                boq_entry = (
+                    cand.filter(quantity_received__lt=F('contract_quantity'))
+                        .order_by('-date_created').first()
+                    or cand.order_by('-date_created').first()
+                )
 
             if boq_entry is None:
                 note = (
-                    f"No Bill of Quantity line found for package "
-                    f"'{order.package_number}' (item code '{order.code}', "
-                    f"material '{order.name}'). Off-BoQ delivery - no contract "
-                    f"was drawn down."
+                    f"No Bill of Quantity line found for item code "
+                    f"'{order.code}' / material '{order.name}' at "
+                    f"{order.community or '?'}, {order.district or '?'} "
+                    f"(package '{pkg or '(none)'}'). Off-BoQ delivery - no "
+                    f"contract was drawn down."
                 )
                 logger.warning(f"Site Receipt: {note}")
                 return False, note

@@ -94,7 +94,7 @@
                             <th class="text-center">Packages</th>
                             <th class="text-center">Contractors</th>
                             <th class="text-center">Items</th>
-                            <th style="min-width:140px;">Completion</th>
+                            <th style="min-width:140px;">Works completion</th>
                             <th>Status</th>
                             <th class="text-end">Actions</th>
                         </tr>
@@ -113,6 +113,7 @@
                                     <div class="progress-bar {% if c.completion >= 100 %}bg-success{% elif c.completion >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
                                          style="width: {{ c.completion }}%">{{ c.completion }}%</div>
                                 </div>
+                                <div class="small text-muted mt-1">Materials delivered: {{ c.material_completion }}%</div>
                             </td>
                             <td>
                                 {% if c.status == "Complete" %}

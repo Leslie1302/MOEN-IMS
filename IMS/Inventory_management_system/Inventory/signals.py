@@ -650,12 +650,14 @@ def auto_create_transport_on_complete(sender, instance, created, **kwargs):
         # Idempotent — skip if a transport row already exists for this order.
         if MaterialTransport.objects.filter(material_order=instance).exists():
             return
+        # NOTE: district/region are read-only @property on MaterialTransport
+        # (derived from the linked order), so they must NOT be passed to
+        # create() — doing so raised "can't set attribute 'district'" and the
+        # placeholder transport was never created on completion.
         MaterialTransport.objects.create(
             material_order=instance,
             status='Awaiting Transporter',
             quantity=instance.quantity or 0,
-            district=getattr(instance, 'district', '') or '',
-            region=getattr(instance, 'region', '') or '',
             notes='Auto-created on order completion. Awaiting Transport '
                   'Officer to assign transporter + vehicle.',
         )
@@ -799,20 +801,42 @@ def handle_stock_deduction_on_completion(sender, instance, created, **kwargs):
             logger.warning(f"MaterialOrder {instance.pk} has no code; cannot deduct stock")
             return
 
-        try:
-            inv_item = InventoryItem.objects.get(code=instance.code)
-        except InventoryItem.DoesNotExist:
-            logger.warning(f"InventoryItem with code {instance.code} not found for MaterialOrder {instance.pk}")
+        # Resolve the InventoryItem to draw from, WAREHOUSE-AWARE. The old code
+        # did InventoryItem.objects.get(code=...), which raised
+        # MultipleObjectsReturned for any material stocked in more than one
+        # warehouse (the common case) — the exception was swallowed by the outer
+        # try/except and NO stock was deducted. We now prefer the order's own
+        # warehouse, then fall back to the largest holder, mirroring the
+        # fulfillment view's logic.
+        inv_item = None
+        if instance.warehouse_id:
+            inv_item = InventoryItem.objects.filter(
+                code=instance.code, warehouse_id=instance.warehouse_id,
+            ).first()
+        if inv_item is None:
+            inv_item = (InventoryItem.objects.filter(code=instance.code)
+                        .order_by('-quantity').first())
+        if inv_item is None:
+            logger.warning(
+                f"InventoryItem with code {instance.code} not found for "
+                f"MaterialOrder {instance.pk}; cannot deduct stock."
+            )
             return
 
         # Deduction: Completed status
         if new_status == 'Completed' and old_status != 'Completed':
-            # Deduct the full requested quantity (or processed quantity if available)
-            deduct_qty = instance.processed_quantity if instance.processed_quantity > 0 else instance.quantity
+            # Only deduct what hasn't already been deducted (incremental).
+            # The view may have already deducted partial quantities during
+            # Partially Fulfilled steps, so we respect stock_deducted_quantity.
+            already_deducted = instance.stock_deducted_quantity or 0
+            total_to_deduct = instance.processed_quantity if instance.processed_quantity > 0 else instance.quantity
+            deduct_qty = max(0, total_to_deduct - already_deducted)
 
-            # Only deduct if not already deducted
-            if instance.stock_deducted_quantity > 0:
-                logger.info(f"MaterialOrder {instance.pk}: Stock already deducted ({instance.stock_deducted_quantity}); skipping.")
+            if deduct_qty <= 0:
+                logger.info(
+                    f"MaterialOrder {instance.pk}: Stock already fully deducted "
+                    f"({already_deducted}/{total_to_deduct}); skipping."
+                )
                 return
 
             # Check if enough stock available
@@ -828,14 +852,16 @@ def handle_stock_deduction_on_completion(sender, instance, created, **kwargs):
             inv_item.quantity -= deduct_qty
             inv_item.save()
 
-            # Update MaterialOrder tracking
+            # Update MaterialOrder tracking (incremental)
+            new_deducted_total = already_deducted + deduct_qty
             MaterialOrder.objects.filter(pk=instance.pk).update(
-                stock_deducted_quantity=deduct_qty
+                stock_deducted_quantity=new_deducted_total
             )
 
             logger.info(
                 f"MaterialOrder {instance.pk} ({instance.name}): Deducted {deduct_qty} {inv_item.unit.name} "
                 f"from warehouse stock (InventoryItem: {inv_item.code}). "
+                f"Total deducted: {new_deducted_total}. "
                 f"Remaining in stock: {inv_item.quantity}"
             )
 

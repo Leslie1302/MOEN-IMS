@@ -27,6 +27,34 @@ class BillOfQuantity(auto_prefetch.Model):
     )
     material_description = models.CharField(max_length=200)
     item_code = models.CharField(max_length=200, db_index=True)
+
+    # Explicit electrical classification of this BoQ line. Replaces the
+    # keyword-only guess (_categorise_boq_material) used by the community
+    # breakdown: that heuristic now only fills the blank as a *suggestion*,
+    # and this field is authoritative when set. Backfilled from the heuristic
+    # in migration. Read by the one-time "pull targets from BoQ" action that
+    # seeds community planned-quantity targets; otherwise the BoQ and the
+    # progress tracker stay decoupled.
+    VOLTAGE_CLASS_CHOICES = [
+        ('HT',    'HT (high tension)'),
+        ('LV',    'LV (low tension)'),
+        ('XFMR',  'Transformer'),
+        ('METER', 'Meter / service connection'),
+        ('OTHER', 'Other / non-line'),
+    ]
+    voltage_class = models.CharField(
+        max_length=10,
+        choices=VOLTAGE_CLASS_CHOICES,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text=(
+            'Explicit HT/LV/Transformer/Meter classification. Authoritative '
+            'when set; the keyword heuristic only pre-fills a suggestion. '
+            'Used to seed community progress targets at setup.'
+        ),
+    )
+
     contract_quantity = models.FloatField()
     quantity_received = models.FloatField(default=0.0)
     warehouse = auto_prefetch.ForeignKey(
@@ -253,6 +281,32 @@ class ProjectSite(auto_prefetch.Model):
         help_text='Distribution transformers commissioned (energised and '
                   'handed over) at this site to date.',
     )
+
+    # ── Granular pole lifecycle, split by voltage class (cumulative) ──
+    # The works are credited in stages: a pole is erected/planted, then
+    # dressed (cross-arms/insulators fitted), then strung (conductor run).
+    # Captured per HT/LV class so the 5-stage community completion can be
+    # computed against the frozen BoQ-seeded targets. The legacy
+    # ``poles_erected`` / ``conductor_laid_m`` totals above are retained and
+    # kept in sync as the sum of the HT+LV figures here.
+    ht_poles_erected = models.PositiveIntegerField(
+        default=0, help_text='HT poles erected/planted at this site to date.')
+    lv_poles_erected = models.PositiveIntegerField(
+        default=0, help_text='LV poles erected/planted at this site to date.')
+    ht_poles_dressed = models.PositiveIntegerField(
+        default=0, help_text='HT poles dressed (hardware fitted) to date.')
+    lv_poles_dressed = models.PositiveIntegerField(
+        default=0, help_text='LV poles dressed (hardware fitted) to date.')
+    ht_poles_strung = models.PositiveIntegerField(
+        default=0, help_text='HT poles strung (conductor run) to date.')
+    lv_poles_strung = models.PositiveIntegerField(
+        default=0, help_text='LV poles strung (conductor run) to date.')
+    ht_conductor_strung_m = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='HT conductor used for stringing to date, in metres.')
+    lv_conductor_strung_m = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='LV conductor used for stringing to date, in metres.')
 
     # Timeline
     start_date = models.DateField(null=True, blank=True)

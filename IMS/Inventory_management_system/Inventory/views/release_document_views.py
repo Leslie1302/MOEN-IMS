@@ -283,22 +283,41 @@ class CreateReleaseLetterFromRequestView(LoginRequiredMixin, UserPassesTestMixin
             messages.error(request, "No request code supplied.")
             return redirect('material_orders')
 
+        # Reject date-only codes (REQ-YYYYMMDD) — they have only 2 segments and
+        # would match every order from that day via a startswith query. A valid
+        # request code always has at least 3 segments: REQ-YYYYMMDD-XXXXXX.
+        if len(request_code.split('-')) < 3:
+            messages.error(
+                request,
+                f"'{request_code}' looks like a date-only prefix, not a specific request code. "
+                "Use the full request code (e.g. REQ-20260604-XXXXXX) or the bulk base code "
+                "for a batch (e.g. REQ-20260604-XXXXXX, whose sub-orders end in -1, -2, …)."
+            )
+            return redirect('material_orders')
+
         try:
             with transaction.atomic():
-                # Find orders matching the request code that don't yet have a release letter.
+                # Find Release-type orders matching the request code that don't yet have a release letter.
+                # Receipt orders are explicitly excluded — they never need a release letter or memo.
                 orders = MaterialOrder.objects.filter(
                     request_code=request_code,
+                    request_type='Release',
                     release_letter__isnull=True,
                 )
 
-                # Fall back to base-code match if exact lookup is empty (mirrors legacy behaviour).
-                if not orders.exists() and '-' in request_code:
-                    base_code = '-'.join(request_code.split('-')[:-1])
-                    if base_code:
-                        orders = MaterialOrder.objects.filter(
-                            request_code__startswith=base_code,
-                            release_letter__isnull=True,
-                        )
+                # Fall back to sub-code match for bulk batches.
+                # e.g. if request_code='REQ-20260604-XXXXXX', look for orders
+                # with codes 'REQ-20260604-XXXXXX-1', 'REQ-20260604-XXXXXX-2', …
+                #
+                # IMPORTANT: do NOT strip a path segment and use the result as
+                # the prefix. 'REQ-20260604-XXXXXX'.split('-')[:-1] yields
+                # 'REQ-20260604' which matches every order from that day.
+                if not orders.exists():
+                    orders = MaterialOrder.objects.filter(
+                        request_code__startswith=f"{request_code}-",
+                        request_type='Release',
+                        release_letter__isnull=True,
+                    )
 
                 if not orders.exists():
                     # Idempotent retry: maybe a draft release letter already exists for this code.

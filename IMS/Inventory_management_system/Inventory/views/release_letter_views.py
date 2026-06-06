@@ -67,20 +67,31 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     # ─────────────── helpers ───────────────
 
+    @staticmethod
+    def _base_code(request_code):
+        """Collapse a bulk per-row code to its batch base.
+
+        Single requests use REQ-YYYYMMDD-NNNNNN (3 segments). A bulk upload
+        suffixes each row: REQ-YYYYMMDD-NNNNNN-1, -2, … (4 segments). Stripping
+        the trailing numeric segment ONLY when there are more than 3 segments
+        yields the batch base for bulk rows while leaving single requests (and
+        the numeric date/random parts) untouched. So a whole bulk batch is
+        released under ONE letter, and a single request stays on its own.
+        """
+        code = (request_code or '').strip()
+        parts = code.split('-')
+        if len(parts) > 3 and parts[-1].isdigit():
+            return '-'.join(parts[:-1])
+        return code
+
     def _matching_orders(self, request_code):
-        """All un-released orders matching a request code (exact or base prefix)."""
-        qs = MaterialOrder.objects.filter(
-            request_code=request_code,
+        """All un-released orders for a request code's batch (base + suffixed rows)."""
+        from django.db.models import Q
+        base = self._base_code(request_code)
+        return MaterialOrder.objects.filter(
+            Q(request_code=base) | Q(request_code__startswith=f"{base}-"),
             release_letter__isnull=True,
-        )
-        if not qs.exists() and '-' in request_code:
-            base = '-'.join(request_code.split('-')[:-1])
-            if base:
-                qs = MaterialOrder.objects.filter(
-                    request_code__startswith=base,
-                    release_letter__isnull=True,
-                ).select_related('unit', 'user')
-        return qs
+        ).select_related('unit', 'user')
 
     def _generate_docs_for(self, release_letter):
         """Allocate code (idempotent) + generate memo + letter PDFs."""
@@ -173,7 +184,7 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         the one the user asked for via `?rl=<pk>` (so the sibling-letter
         links on the page can deep-link), falling back to the most recent.
         """
-        request_code = (request.GET.get('request_code') or '').strip()
+        request_code = self._base_code((request.GET.get('request_code') or '').strip())
         rl_pk        = (request.GET.get('rl') or '').strip()
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == 'true'
 
@@ -217,6 +228,10 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         if not request_code:
             messages.error(request, "Pick a request code first.")
             return redirect('release-letter-upload')
+
+        # Collapse a bulk per-row code to its batch base so the entire batch is
+        # released under ONE letter + memo. Single requests are unchanged.
+        request_code = self._base_code(request_code)
 
         existing = ReleaseLetter.objects.filter(
             request_code=request_code,
@@ -384,23 +399,35 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         else:
             qr_outcome = 'mismatch'
 
-        if qr_outcome != 'match':
-            allow_force = request.user.is_superuser and force_accept
-            if not allow_force:
-                preview = ', '.join(found_payloads[:3])
-                reason = rejection_reason(qr_outcome, release_letter.code, preview)
-                hint = (
-                    " Tick 'Force accept' below to override (audit-logged)."
-                    if request.user.is_superuser
-                    else " Ask a superuser to force-accept if this is correct."
-                )
-                messages.error(request, f"Upload rejected. {reason}{hint}")
-                audit(
-                    request.user, release_letter, 'release.scan_rejected',
-                    f"Scan upload rejected (outcome={qr_outcome}, filename={uploaded.name})",
-                )
-                return redirect(f"{reverse('release-letter-upload')}?request_code={release_letter.request_code}")
+        # Verification policy (revised so the page never loops forever):
+        #   match      -> accept, verified.
+        #   mismatch   -> a DIFFERENT code was decoded, so this is almost
+        #                 certainly the wrong document. Reject (a superuser can
+        #                 still force-accept).
+        #   not_found  -> nothing could be decoded. This happens whenever the
+        #   / error       host has no QR-decoder library installed (the decode
+        #                 step is optional) or the scan's QR is unreadable.
+        #                 Previously this REJECTED and redirected back, so on a
+        #                 host without decoders EVERY upload bounced — an
+        #                 infinite loop. We now accept it with a warning; the
+        #                 mandatory second-person confirmation (step 3) is the
+        #                 real gate before the release is approved.
+        if qr_outcome == 'mismatch' and not (request.user.is_superuser and force_accept):
+            preview = ', '.join(found_payloads[:3])
+            reason = rejection_reason('mismatch', release_letter.code, preview)
+            hint = (
+                " Tick 'Force accept' below to override (audit-logged)."
+                if request.user.is_superuser
+                else " Ask a superuser to force-accept if this is correct."
+            )
+            messages.error(request, f"Upload rejected. {reason}{hint}")
+            audit(
+                request.user, release_letter, 'release.scan_rejected',
+                f"Scan upload rejected (outcome=mismatch, filename={uploaded.name})",
+            )
+            return redirect(f"{reverse('release-letter-upload')}?request_code={release_letter.request_code}")
 
+        if qr_outcome != 'match' and request.user.is_superuser and force_accept:
             audit(
                 request.user, release_letter, 'release.scan_force_accepted',
                 f"Superuser force-accepted scan despite QR outcome={qr_outcome} (filename={uploaded.name})",
@@ -425,10 +452,18 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                 f"Scan uploaded and verified against {release_letter.code}. "
                 "Awaiting second-person confirmation before the release is marked Approved.",
             )
+        elif qr_outcome == 'mismatch':
+            messages.warning(
+                request,
+                "Scan uploaded with force-accept override despite a code mismatch. "
+                "The confirming user must verify the document carefully.",
+            )
         else:
             messages.warning(
                 request,
-                "Scan uploaded with force-accept override. The confirming user should verify the document carefully.",
+                f"Scan uploaded for {release_letter.code}, but the verification code "
+                "could not be read automatically. The confirming user must verify the "
+                "document before the release is approved.",
             )
         return redirect('release_letter_detail', pk=release_letter.pk)
 

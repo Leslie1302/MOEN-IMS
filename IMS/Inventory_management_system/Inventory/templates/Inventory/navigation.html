@@ -12,7 +12,6 @@
                 {% if user.is_authenticated %}
                 {% if user.groups.exists or user.is_superuser %}
 
-                {# Role-specific menus via include partials #}
                 {% if user.is_superuser %}
                 {% include "Inventory/includes/nav_menus.html" %}
                 {% else %}
@@ -128,8 +127,8 @@
                     </ul>
                 </li>
 
-                {% endif %}{# end groups.exists or is_superuser #}
-                {% endif %}{# end is_authenticated for left nav #}
+                {% endif %}
+                {% endif %}
             </ul>
 
             <ul class="navbar-nav align-items-center">
@@ -235,7 +234,7 @@
                         Sign In
                     </a>
                 </li>
-                {% endif %}{# end is_authenticated #}
+                {% endif %}
             </ul>
         </div>
     </div>

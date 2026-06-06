@@ -34,7 +34,8 @@ from Inventory.models import (
     Supplier, MaterialOrder, ReleaseLetter, MaterialTransport,
     SiteReceipt, BillOfQuantity, Project, ProjectSite, SHEPCommunity,
 )
-from Inventory.models.suppliers import SupplyContract, SupplyContractItem
+from Inventory.models.access_rate import MeterInstallation
+from Inventory.models.suppliers import SupplyContract, SupplyContractItem, SupplierInvoice, SupplierInvoiceItem
 
 
 REGIONS = [
@@ -79,23 +80,25 @@ class Command(BaseCommand):
 
         random.seed(42)
 
-        with transaction.atomic():
-            self._wipe()
-            ptypes      = self._seed_project_types()
-            units       = self._seed_units()
-            categories  = self._seed_categories()
-            warehouses  = self._seed_warehouses()
-            suppliers   = self._seed_suppliers()
-            inventory   = self._seed_inventory(units, categories, warehouses, actor)
-            contracts   = self._seed_contracts(suppliers, inventory, warehouses, actor)
-            communities = self._seed_communities(ptypes)
-            projects    = self._seed_projects(actor)
-            self._seed_project_sites(projects)
-            boq_rows    = self._seed_boq(communities, inventory, actor)
-            orders      = self._seed_material_orders(inventory, warehouses,
-                                                     communities, ptypes, actor)
-            self._seed_release_pipeline(orders, actor)
-            self._seed_receipt_orders(inventory, suppliers, contracts, boq_rows, actor)
+        # Run without a single transaction wrapper so each stage auto-commits.
+        # This avoids SQLite I/O errors that occur when committing a large
+        # transaction on a network-mounted filesystem.
+        self._wipe()
+        ptypes      = self._seed_project_types()
+        units       = self._seed_units()
+        categories  = self._seed_categories()
+        warehouses  = self._seed_warehouses()
+        suppliers   = self._seed_suppliers()
+        inventory   = self._seed_inventory(units, categories, warehouses, actor)
+        contracts   = self._seed_contracts(suppliers, inventory, warehouses, actor)
+        communities = self._seed_communities(ptypes)
+        projects    = self._seed_projects(actor)
+        self._seed_project_sites(projects)
+        boq_rows    = self._seed_boq(communities, inventory, actor)
+        orders      = self._seed_material_orders(inventory, warehouses,
+                                                 communities, ptypes, actor)
+        self._seed_release_pipeline(orders, actor)
+        self._seed_receipt_orders(inventory, suppliers, contracts, boq_rows, actor)
 
         self.stdout.write(self.style.SUCCESS(
             "\n=== Seed complete. Quick links: ===\n"
@@ -114,8 +117,9 @@ class Command(BaseCommand):
         # FK-safe order: dependents → parents.
         for model in [
             SiteReceipt, MaterialTransport, ReleaseLetter, MaterialOrder,
-            BillOfQuantity, SupplyContractItem, SupplyContract,
-            ProjectSite, Project, SHEPCommunity, InventoryItem,
+            BillOfQuantity, SupplierInvoiceItem, SupplierInvoice,
+            SupplyContractItem, SupplyContract,
+            ProjectSite, Project, MeterInstallation, SHEPCommunity, InventoryItem,
             Supplier, Warehouse, Category, Unit, ProjectType,
         ]:
             n = model.objects.count()

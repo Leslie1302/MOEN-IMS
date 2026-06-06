@@ -64,6 +64,47 @@ def generate_request_code():
     return f"REQ-{date_str}-{unique_id}"
 
 
+def _batch_base(code):
+    """Batch base of a request code. Bulk uploads suffix each row
+    (REQ-…-1, -2, …); single requests have no suffix. Strip a trailing numeric
+    segment ONLY when there are more than 3 segments so single codes (and the
+    numeric date/random parts) are left intact."""
+    parts = (code or '').split('-')
+    if len(parts) > 3 and parts[-1].isdigit():
+        return '-'.join(parts[:-1])
+    return code or ''
+
+
+def annotate_bulk_batches(orders):
+    """Tag Release orders that belong to a bulk upload batch so the orders page
+    can offer ONE batch action and grey out the siblings.
+
+    Sets on each order: ``is_bulk``, ``bulk_size``, ``bulk_base`` and
+    ``batch_release_letter`` (the single letter the batch is released under,
+    once generated — every row links to it).
+    """
+    from collections import defaultdict
+    orders = list(orders)
+    by_base = defaultdict(list)
+    for o in orders:
+        if getattr(o, 'request_type', None) == 'Release':
+            by_base[_batch_base(o.request_code)].append(o)
+    bulk_bases = [b for b, lst in by_base.items() if len(lst) > 1]
+    rl_by_base = {}
+    if bulk_bases:
+        for rl in ReleaseLetter.objects.filter(request_code__in=bulk_bases):
+            rl_by_base.setdefault(rl.request_code, rl)
+    for b, lst in by_base.items():
+        size = len(lst)
+        rl = rl_by_base.get(b)
+        for o in lst:
+            o.is_bulk = size > 1
+            o.bulk_size = size
+            o.bulk_base = b
+            o.batch_release_letter = rl
+    return orders
+
+
 class RequestMaterialView(LoginRequiredMixin, View):
     template_name = 'Inventory/request_material.html'
 
@@ -360,6 +401,28 @@ class RequestMaterialView(LoginRequiredMixin, View):
                         except Exception as wh_error:
                             logger.error(f"Error looking up warehouse: {str(wh_error)}")
                     
+                    # Resolve unit — the FK is NOT NULL on MaterialOrder.
+                    # InventoryItem.unit_id can be NULL on SQLite databases where
+                    # an early migration added the column without enforcing NOT NULL.
+                    # Fall back to the first Unit in the system, or skip the row
+                    # with a clear error so one bad item doesn't abort the whole upload.
+                    resolved_unit = item.unit
+                    if resolved_unit is None:
+                        from Inventory.models import Unit as _Unit
+                        resolved_unit = _Unit.objects.order_by('pk').first()
+                        if resolved_unit is None:
+                            error_messages.append(
+                                f"❌ SKIPPED '{item_name}': inventory item has no unit assigned "
+                                f"and no Unit records exist in the system. "
+                                f"Add a Unit in admin, then re-upload."
+                            )
+                            continue
+                        logger.warning(
+                            f"InventoryItem pk={item.pk} ('{item.name}') has unit_id=NULL — "
+                            f"falling back to Unit pk={resolved_unit.pk} ('{resolved_unit}') "
+                            f"for this bulk order. Fix the InventoryItem in admin."
+                        )
+
                     # Create the order in a new transaction for each item
                     try:
                         with transaction.atomic():
@@ -368,7 +431,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
                                 'quantity': row['quantity'],
                                 'category': item.category,
                                 'code': item.code,
-                                'unit': item.unit,
+                                'unit': resolved_unit,
                                 'user': request.user,
                                 'group': group,
                                 'warehouse': warehouse,
@@ -597,6 +660,7 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         context['is_archive'] = self.is_archive
         context['active_url_name'] = 'material_orders'
         context['archive_url_name'] = 'material_orders_archive'
+        annotate_bulk_batches(context.get('orders') or context.get('object_list') or [])
         return context
 
 
@@ -674,6 +738,7 @@ class MaterialOrdersOfficersView(LoginRequiredMixin, ListView):
         # stores page and they'd think the officers page was broken.
         context['active_url_name'] = 'material_orders_officers'
         context['archive_url_name'] = 'material_orders_officers_archive'
+        annotate_bulk_batches(context.get('orders') or context.get('object_list') or [])
         return context
 
 
@@ -840,6 +905,10 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                             elif order.request_type == "Receipt":
                                 inventory_item.quantity += partial_quantity
                             inventory_item.save()
+                            # Track how much stock has already been moved so the
+                            # post_save signal only deducts the delta (prevents
+                            # double deduction when the view and signal both run).
+                            order.stock_deducted_quantity = (order.stock_deducted_quantity or 0) + partial_quantity
                             # Stamp the warehouse used for the draw so audit
                             # trails reflect where the stock actually moved.
                             if not order.warehouse_id and inventory_item.warehouse_id:

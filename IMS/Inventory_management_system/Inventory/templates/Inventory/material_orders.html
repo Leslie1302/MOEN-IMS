@@ -200,31 +200,46 @@
                     </td>
                     <td>{{ order.date_requested|date:"M d, Y" }}</td>
                     <td>
-                        {% if order.release_letter %}
-                        <div class="d-flex flex-column">
-                            <span class="fw-bold small">{{ order.release_letter.reference_number|default:"RL-..." }}</span>
-                            {% if order.release_letter.pdf_file %}
-                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none small">
-                                <i class="fas fa-file-pdf text-danger me-1"></i>View PDF
-                            </a>
-                            {% endif %}
-                        </div>
-                        {% else %}
-                            {% if order.request_type == "Release" and order.status != "Rejected" and order.status != "Cancelled" %}
-                            <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}" class="btn btn-sm btn-outline-primary" title="Create Release Letter">
-                                <i class="fas fa-plus me-1"></i>Create RL
-                            </a>
+                        {% if order.request_type == "Release" %}
+                            {% if order.release_letter %}
+                            <div class="d-flex flex-column">
+                                <span class="fw-bold small">{{ order.release_letter.reference_number|default:"RL-..." }}</span>
+                                {% if order.is_bulk %}
+                                <span class="badge bg-secondary mt-1 align-self-start" title="One release letter + memo covers all {{ order.bulk_size }} items in this bulk batch.">
+                                    <i class="fas fa-layer-group me-1"></i>Bulk batch · {{ order.bulk_size }}
+                                </span>
+                                {% endif %}
+                                {% if order.release_letter.pdf_file %}
+                                <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none small">
+                                    <i class="fas fa-file-pdf text-danger me-1"></i>View PDF
+                                </a>
+                                {% endif %}
+                            </div>
+                            {% elif order.is_bulk and order.batch_release_letter %}
+                            <button class="btn btn-sm btn-outline-secondary" disabled
+                                title="Covered by the bulk batch release letter {{ order.batch_release_letter.code|default:order.batch_release_letter.reference_number }}.">
+                                <i class="fas fa-link me-1"></i>In batch RL {{ order.batch_release_letter.code|default:"" }}
+                            </button>
                             {% else %}
-                            <span class="text-muted small">—</span>
+                                {% if order.status != "Rejected" and order.status != "Cancelled" %}
+                                <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="{% if order.is_bulk %}Create ONE release letter + memo for this bulk batch of {{ order.bulk_size }} items.{% else %}Create Release Letter{% endif %}">
+                                    <i class="fas fa-plus me-1"></i>{% if order.is_bulk %}Create RL (batch · {{ order.bulk_size }}){% else %}Create RL{% endif %}
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
                             {% endif %}
+                        {% else %}
+                        <span class="text-muted small">—</span>
                         {% endif %}
                     </td>
                     {% if user.is_superuser or user|has_any_group:"Store Officer,Store Officers,Storekeeper,Storekeepers,Stores Officer,Stores Officers" %}
                     <td class="text-center action-cell">
                         {% if order.remaining_quantity > 0 and order.status != "Completed" %}
                         {% if order.assigned_to == user or user.is_superuser or not order.assigned_to %}
-                        {# Only show process buttons if order is assigned to current user, user is superuser, or order
-                        is unassigned #}
+                        
                         <div class="d-flex gap-2 align-items-center justify-content-center">
                             <input type="number" class="form-control form-control-sm fulfill-qty-input"
                                 style="width: 80px;" min="1" max="{{ order.remaining_quantity }}" placeholder="Qty"
@@ -239,7 +254,7 @@
                             </button>
                         </div>
                         {% else %}
-                        {# Order is assigned to someone else - show message #}
+                        
                         {% if order.assigned_to %}
                         <span class="text-muted small"
                             title="This order is assigned to {{ order.assigned_to.get_full_name|default:order.assigned_to.username }}">
@@ -436,7 +451,7 @@
                             </table>
                         </div>
                     </div>
-                    {% if order.release_letter %}
+                    {% if order.request_type == "Release" and order.release_letter %}
                     <div class="row mt-3">
                         <div class="col-12">
                             <h6 class="text-muted mb-2">Release event</h6>

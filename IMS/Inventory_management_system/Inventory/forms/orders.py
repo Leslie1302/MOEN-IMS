@@ -461,25 +461,38 @@ class ReleaseLetterUploadForm(forms.ModelForm):
         ).values_list('request_code', flat=True).distinct()
         
         logger.info(f"Found {len(request_codes)} request codes: {list(request_codes)}")
-        
-        base_codes = set()
+
+        # Group request codes by batch base so a BULK upload is offered as a
+        # single option (one release letter for the whole batch) while SINGLE
+        # requests are offered individually.
+        #
+        # Codes are REQ-YYYYMMDD-NNNNNN for single requests (3 segments) and
+        # REQ-YYYYMMDD-NNNNNN-1, -2, … for bulk rows (4 segments). We collapse
+        # to the base ONLY when there are more than 3 segments and the last is
+        # numeric — this captures the bulk row suffix without re-introducing the
+        # old "REQ-YYYYMMDD" date-bucket over-grouping (the date/random parts of
+        # a single request are left intact).
+        def _base(code):
+            parts = code.split('-')
+            if len(parts) > 3 and parts[-1].isdigit():
+                return '-'.join(parts[:-1])
+            return code
+
+        counts = {}
         for code in request_codes:
-            if code:
-                parts = code.split('-')
-                if len(parts) > 1:  
-                    base_code = '-'.join(parts[:-1])
-                    base_codes.add(base_code)
-                    logger.debug(f"Extracted base code '{base_code}' from '{code}'")
-                else:
-                    base_codes.add(code)
-                    logger.debug(f"Using full code '{code}' as base code")
-        
-        base_codes = sorted(list(base_codes))
-        logger.info(f"Final base codes: {base_codes}")
-        
-        self.fields['request_code'].choices = [('', '-- Select a base request code --')] + [
-            (code, code) for code in base_codes
-        ]
+            if not code:
+                continue
+            b = _base(code)
+            counts[b] = counts.get(b, 0) + 1
+
+        choices = []
+        for b in sorted(counts):
+            n = counts[b]
+            label = b if n <= 1 else f"{b}  (bulk batch — {n} items)"
+            choices.append((b, label))
+        logger.info(f"Final request-code options (grouped): {[c[0] for c in choices]}")
+
+        self.fields['request_code'].choices = [('', '-- Select a request code --')] + choices
         self.fields['request_code'].choices.append(('__new__', '-- Enter a new request code --'))
         
         self.fields['full_request_code'] = forms.CharField(

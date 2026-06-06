@@ -28,8 +28,13 @@ def link_orders_to_release_letter(release_letter):
     # We filter by prefix + separator to ensure we don't match partial numbers (e.g. REQ-1 vs REQ-10)
     prefix_query = Q(request_code=release_letter.request_code) | \
                    Q(request_code__startswith=f"{release_letter.request_code}-")
-                   
-    orders = MaterialOrder.objects.filter(prefix_query)
+
+    # Only link orders that are not yet assigned to ANY release letter.
+    # Without this guard the function would steal orders already correctly
+    # linked to a sibling RL (e.g. a different project_type split from the
+    # same bulk batch), which causes the RL balance validation to fail and
+    # makes every template appear to contain the full set of active orders.
+    orders = MaterialOrder.objects.filter(prefix_query, release_letter__isnull=True)
     count = orders.update(release_letter=release_letter)
     return count
 

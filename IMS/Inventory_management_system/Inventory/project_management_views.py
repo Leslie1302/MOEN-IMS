@@ -526,13 +526,27 @@ class MaterialAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 # column the sheet asks for is present so the page is ready to surface richer
 # works data the moment the model captures it.
 
+def _boq_class(boq):
+    """Bucket a BoQ row into 'ht'/'lv'/'transformer' (or None), preferring the
+    explicit ``voltage_class`` and only falling back to the description
+    heuristic when it's blank."""
+    vc = (getattr(boq, 'voltage_class', '') or '').upper()
+    mapped = {'HT': 'ht', 'LV': 'lv', 'XFMR': 'transformer'}.get(vc)
+    if mapped:
+        return mapped
+    if vc == 'METER':
+        return None  # meters are tracked via site connections, not HT/LV/xfmr
+    return _categorise_boq_material(boq.material_description)
+
+
 def _categorise_boq_material(description):
     """Bucket a BoQ material description into 'ht', 'lv', 'transformer' or None.
 
     Heuristic keyword match against the free-text material description, since
     BoQ rows aren't otherwise typed. Order matters: transformer is checked
     first, then the HT/LV qualifiers, then a generic pole fallback (treated
-    as LV, the common case for SHEP reticulation).
+    as LV, the common case for SHEP reticulation). Now only used as the
+    fallback when a BoQ row has no explicit ``voltage_class`` (see _boq_class).
     """
     if not description:
         return None
@@ -561,26 +575,57 @@ def _site_progress_for_community(region, district, community):
     the community (case-insensitive on region/district/community) and returns
     a plain dict the template can read. Returns zeros when no site matches.
     """
+    from types import SimpleNamespace
+    from .services.community_progress import compute_site_completion
+    from .models import Community as CommunityModel
+
     sites = ProjectSite.objects.filter(
         region__iexact=region or '',
         district__iexact=district or '',
         community__iexact=community or '',
     )
     agg = sites.aggregate(
-        poles_planted=Coalesce(Sum('poles_erected'), 0),
-        conductor_strung_m=Coalesce(Sum('conductor_laid_m'), 0.0, output_field=FloatField()),
-        transformers_dressed=Coalesce(Sum('transformers_installed'), 0),
+        ht_erected=Coalesce(Sum('ht_poles_erected'), 0),
+        ht_dressed=Coalesce(Sum('ht_poles_dressed'), 0),
+        ht_strung=Coalesce(Sum('ht_poles_strung'), 0),
+        lv_erected=Coalesce(Sum('lv_poles_erected'), 0),
+        lv_dressed=Coalesce(Sum('lv_poles_dressed'), 0),
+        lv_strung=Coalesce(Sum('lv_poles_strung'), 0),
+        ht_conductor_m=Coalesce(Sum('ht_conductor_strung_m'), 0.0, output_field=FloatField()),
+        lv_conductor_m=Coalesce(Sum('lv_conductor_strung_m'), 0.0, output_field=FloatField()),
+        transformers_installed=Coalesce(Sum('transformers_installed'), 0),
         transformers_commissioned=Coalesce(Sum('transformers_commissioned'), 0),
         cs_1ph=Coalesce(Sum('meters_1ph_installed'), 0),
         cs_3ph=Coalesce(Sum('meters_3ph_installed'), 0),
-        avg_progress=Coalesce(Avg('progress_percent'), 0.0, output_field=FloatField()),
         site_count=Count('id'),
     )
-    # Pull the most recent works_status / notes for a human-readable headline.
+    # Legacy combined values, kept for any remaining readers.
+    agg['poles_planted'] = (agg['ht_erected'] or 0) + (agg['lv_erected'] or 0)
+    agg['conductor_strung_m'] = (agg['ht_conductor_m'] or 0) + (agg['lv_conductor_m'] or 0)
+
+    # 5-stage completion vs the community's frozen (BoQ-seeded) targets.
+    targets = CommunityModel.objects.filter(
+        region__iexact=region or '', district__iexact=district or '',
+        community__iexact=community or '', is_active=True,
+    ).first()
+    synthetic = SimpleNamespace(
+        region=region, district=district, community=community,
+        ht_poles_erected=agg['ht_erected'], ht_poles_dressed=agg['ht_dressed'], ht_poles_strung=agg['ht_strung'],
+        lv_poles_erected=agg['lv_erected'], lv_poles_dressed=agg['lv_dressed'], lv_poles_strung=agg['lv_strung'],
+        transformers_installed=agg['transformers_installed'],
+        transformers_commissioned=agg['transformers_commissioned'],
+        meters_1ph_installed=agg['cs_1ph'], meters_3ph_installed=agg['cs_3ph'],
+    )
+    completion = compute_site_completion(synthetic, community=targets)
+    agg['completion'] = completion
+    agg['stages'] = completion['stages']
+    agg['avg_progress'] = completion['percent']
+    agg['targets'] = targets
+    agg['has_targets'] = completion['has_targets']
+
     latest = sites.order_by('-progress_updated_at', '-updated_at').first()
     agg['works_status'] = latest.get_works_status_display() if latest else '—'
     agg['remarks'] = (latest.progress_notes if latest and latest.progress_notes else '')
-    agg['avg_progress'] = round(agg['avg_progress'] or 0, 1)
     return agg
 
 
@@ -623,13 +668,33 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
                 item_count=Count('id'),
             ).order_by('region', 'district', 'community')
 
+            # Works progress per community, keyed case-insensitively. The
+            # completion bar now reflects the derived 5-stage works percentage
+            # (ProjectSite.progress_percent), NOT BoQ delivery — so a site
+            # progress update moves the bar. BoQ delivery is kept separately
+            # as material context.
+            works_map = {}
+            for s in ProjectSite.objects.values(
+                'region', 'district', 'community', 'progress_percent', 'works_status'
+            ):
+                key = ((s['region'] or '').lower(), (s['district'] or '').lower(),
+                       (s['community'] or '').lower())
+                # Keep the highest progress when multiple sites share a community.
+                if key not in works_map or s['progress_percent'] > works_map[key]['progress_percent']:
+                    works_map[key] = s
+
             community_list = []
             for comm in community_data:
                 if not comm['community']:
                     continue
                 contract = comm['total_contract'] or 0
                 received = comm['total_received'] or 0
-                completion = round((received / contract * 100), 1) if contract > 0 else 0
+                material_completion = round((received / contract * 100), 1) if contract > 0 else 0
+
+                key = ((comm['region'] or '').lower(), (comm['district'] or '').lower(),
+                       (comm['community'] or '').lower())
+                works = works_map.get(key)
+                completion = works['progress_percent'] if works else 0
                 status = ('Complete' if completion >= 100
                           else 'In Progress' if completion > 0 else 'Not Started')
                 community_list.append({
@@ -641,7 +706,8 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
                     'item_count': comm['item_count'],
                     'total_contract': contract,
                     'total_received': received,
-                    'completion': completion,
+                    'completion': completion,            # works-based (5-stage)
+                    'material_completion': material_completion,  # BoQ delivery
                     'status': status,
                 })
 
@@ -710,10 +776,22 @@ class CommunityProgressBreakdownView(LoginRequiredMixin, UserPassesTestMixin, Te
                     'lv': {'contract': 0.0, 'supplied': 0.0},
                     'transformer': {'contract': 0.0, 'supplied': 0.0},
                 })
-                cat = _categorise_boq_material(it.material_description)
-                if cat in ('ht', 'lv', 'transformer'):
-                    pkg[cat]['contract'] += it.contract_quantity or 0
-                    pkg[cat]['supplied'] += it.quantity_received or 0
+                # The HT/LV columns are specifically *pole* counts, so only
+                # pole lines feed them — conductor (also HT/LV) must not be
+                # added to a pole contract figure. Transformers feed their own
+                # column. Conductor and meters are reported elsewhere.
+                from .services.community_progress import _kind
+                cat = _boq_class(it)
+                kind = _kind(it.material_description, it.item_code)
+                if cat == 'transformer' or kind == 'transformer':
+                    bucket = 'transformer'
+                elif cat in ('ht', 'lv') and kind == 'pole':
+                    bucket = cat
+                else:
+                    bucket = None
+                if bucket:
+                    pkg[bucket]['contract'] += it.contract_quantity or 0
+                    pkg[bucket]['supplied'] += it.quantity_received or 0
 
             # Completion flags per package are material-completeness proxies:
             # supplied >= contract for that class (only when a contract exists).

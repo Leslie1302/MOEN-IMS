@@ -18,15 +18,44 @@ logger = logging.getLogger(__name__)
 @receiver(pre_save, sender='Inventory.MaterialOrder')
 def validate_release_letter_balance(sender, instance, **kwargs):
     """
-    Prevent saving a MaterialOrder if the requested quantity exceeds 
+    Prevent saving a MaterialOrder if the requested quantity exceeds
     the remaining balance of the linked ReleaseLetter.
-    
+
     This is the BOQ Guardrail that enforces allocation limits.
+    Only applies to Release-type orders — receipts never have release letters.
+
+    Validation is intentionally skipped on updates where neither `quantity`
+    nor `release_letter_id` changed. Fulfillment processing (processed_quantity,
+    remaining_quantity, status, processed_by, etc.) does not alter the
+    authorised allocation, so re-running the check on every fulfillment save
+    is both unnecessary and harmful — it blocks legitimate fulfillment when
+    the RL's linked order set has ever been corrupted by a stale signal run.
     """
-    # Only validate if a release letter is linked
+    # Only validate Release orders with a release letter linked
+    if getattr(instance, 'request_type', None) != 'Release':
+        return
     if not instance.release_letter_id:
         return
-    
+
+    # For existing orders, skip validation when neither quantity nor the RL
+    # assignment changed — only quantity and RL changes affect the balance.
+    if not instance._state.adding and instance.pk:
+        try:
+            from .models import MaterialOrder as _MO
+            old = _MO.objects.filter(pk=instance.pk).values(
+                'quantity', 'release_letter_id'
+            ).first()
+            if old and (
+                old['quantity'] == instance.quantity
+                and old['release_letter_id'] == instance.release_letter_id
+            ):
+                return  # Nothing that affects the RL balance changed
+        except Exception as _e:
+            logger.warning(
+                f"Could not fetch prior order state for RL balance check "
+                f"(order pk={instance.pk}): {_e}. Proceeding with validation."
+            )
+
     try:
         from .release_letter_services import validate_material_request_against_release_letter
         validate_material_request_against_release_letter(instance)
@@ -41,9 +70,12 @@ def validate_release_letter_balance(sender, instance, **kwargs):
 @receiver(post_save, sender='Inventory.MaterialOrder')
 def check_release_letter_threshold_on_order(sender, instance, created, **kwargs):
     """
-    Check if the linked release letter has exceeded its threshold after 
+    Check if the linked release letter has exceeded its threshold after
     a MaterialOrder is saved, and create alerts if needed.
+    Only applies to Release-type orders.
     """
+    if getattr(instance, 'request_type', None) != 'Release':
+        return
     if not instance.release_letter_id:
         return
     
@@ -182,9 +214,19 @@ def update_release_letter_on_delivery(sender, instance, created, **kwargs):
 @receiver(post_save, sender='Inventory.ReleaseLetter')
 def auto_link_orders_to_release_letter(sender, instance, created, **kwargs):
     """
-    When a Release Letter is saved, automatically link any matching 
+    When a Release Letter is first created, automatically link any matching
     Material Orders (by request_code) that aren't already linked.
+
+    This only runs on creation (created=True). Subsequent saves — e.g. when
+    GenerateReleaseDocumentsView writes the PDFs back — must NOT re-run the
+    link step, because doing so would call link_orders_to_release_letter on
+    every save and risk pulling in orders that were correctly assigned to a
+    sibling RL (different project_type split from the same bulk batch).
+    The per-order signal (auto_link_order_to_release_letter) handles the
+    reverse direction for orders created after the RL.
     """
+    if not created:
+        return
     if not instance.request_code:
         return
 
@@ -202,8 +244,11 @@ def auto_link_order_to_release_letter(sender, instance, created, **kwargs):
     """
     When a Material Order is saved, automatically link it to a matching
     Release Letter (by request_code) if not already linked.
+    Only applies to Release-type orders — receipts must never get a release letter.
     """
-    # Only try to link if no letter is assigned and we have a request code
+    # Only try to link Release orders that don't already have a letter
+    if getattr(instance, 'request_type', None) != 'Release':
+        return
     if instance.release_letter_id or not instance.request_code:
         return
 

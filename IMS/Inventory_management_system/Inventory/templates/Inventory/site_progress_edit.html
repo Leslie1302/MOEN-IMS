@@ -48,6 +48,64 @@
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
             {% endif %}
 
+            {% if recent_deliveries %}
+            <!-- Recent deliveries: inline banner + auto-opening popup -->
+            <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <i class="bi bi-box-seam me-1"></i>
+                    <strong>{{ recent_deliveries|length }} recent deliver{{ recent_deliveries|length|pluralize:"y,ies" }}</strong>
+                    to {{ site.community|default:site.name }} — enter works against what's actually on site.
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        data-bs-toggle="modal" data-bs-target="#recentReceiptsModal">
+                    View deliveries
+                </button>
+            </div>
+
+            <div class="modal fade" id="recentReceiptsModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-box-seam me-1"></i>
+                                Recent deliveries — {{ site.community|default:site.name }}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small">
+                                Materials received, delivered, or arriving for this community (latest first).
+                                Use these to guide your poles / conductor / transformer / meter entries below.
+                            </p>
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr class="small text-muted">
+                                        <th>Material</th><th class="text-end">Qty</th>
+                                        <th>Status</th><th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for d in recent_deliveries %}
+                                    <tr>
+                                        <td>{{ d.material }}</td>
+                                        <td class="text-end">{{ d.qty }}</td>
+                                        <td><span class="badge bg-{{ d.badge }}">{{ d.status }}</span>
+                                            {% if d.condition %}<span class="text-muted small ms-1">({{ d.condition }})</span>{% endif %}
+                                        </td>
+                                        <td class="small text-muted">{{ d.when|date:"M d, Y"|default:"—" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Got it — enter progress</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <form method="post" novalidate>
                 {% csrf_token %}
 
@@ -63,14 +121,16 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">% complete</label>
+                                <label class="form-label fw-semibold">% complete (auto)</label>
                                 <div class="input-group">
-                                    {{ form.progress_percent }}
+                                    <input type="text" class="form-control bg-light" readonly
+                                           value="{{ site.progress_percent }}">
                                     <span class="input-group-text">%</span>
                                 </div>
-                                {% if form.progress_percent.errors %}<div class="invalid-feedback d-block">{{ form.progress_percent.errors.0 }}</div>{% endif %}
                                 <div class="form-text small">
-                                    Free-text estimate. Drives the map headline.
+                                    Derived from the 5 works stages (HT → LV → transformer →
+                                    meters → commissioning) against the community targets.
+                                    Updates when you save.
                                 </div>
                             </div>
                             <div class="col-12">
@@ -85,34 +145,51 @@
 
                 <div class="card mb-3">
                     <div class="card-header bg-light">
-                        <span class="fw-semibold"><i class="bi bi-box-seam me-1"></i> Materials used to progress works</span>
+                        <span class="fw-semibold"><i class="bi bi-cone-striped me-1"></i> Pole works (HT &amp; LV)</span>
                         <div class="form-text small mb-0">
-                            Cumulative quantities installed at this site to date. Raising the
-                            meter counts feeds the national access rate automatically.
+                            Cumulative counts to date. Works are credited in sequence:
+                            erected → dressed → strung (each must not exceed the prior stage).
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr class="small text-muted">
+                                        <th></th><th>Erected / planted</th><th>Dressed</th>
+                                        <th>Strung</th><th>Conductor used (m)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <th class="text-nowrap">HT</th>
+                                        <td>{{ form.ht_poles_erected }}{% if form.ht_poles_erected.errors %}<div class="invalid-feedback d-block">{{ form.ht_poles_erected.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.ht_poles_dressed }}{% if form.ht_poles_dressed.errors %}<div class="invalid-feedback d-block">{{ form.ht_poles_dressed.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.ht_poles_strung }}{% if form.ht_poles_strung.errors %}<div class="invalid-feedback d-block">{{ form.ht_poles_strung.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.ht_conductor_strung_m }}{% if form.ht_conductor_strung_m.errors %}<div class="invalid-feedback d-block">{{ form.ht_conductor_strung_m.errors.0 }}</div>{% endif %}</td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-nowrap">LV</th>
+                                        <td>{{ form.lv_poles_erected }}{% if form.lv_poles_erected.errors %}<div class="invalid-feedback d-block">{{ form.lv_poles_erected.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.lv_poles_dressed }}{% if form.lv_poles_dressed.errors %}<div class="invalid-feedback d-block">{{ form.lv_poles_dressed.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.lv_poles_strung }}{% if form.lv_poles_strung.errors %}<div class="invalid-feedback d-block">{{ form.lv_poles_strung.errors.0 }}</div>{% endif %}</td>
+                                        <td>{{ form.lv_conductor_strung_m }}{% if form.lv_conductor_strung_m.errors %}<div class="invalid-feedback d-block">{{ form.lv_conductor_strung_m.errors.0 }}</div>{% endif %}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <span class="fw-semibold"><i class="bi bi-box-seam me-1"></i> Transformers &amp; meters</span>
+                        <div class="form-text small mb-0">
+                            Raising the meter counts feeds the national access rate automatically.
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">{{ form.meters_1ph_installed.label }}</label>
-                                {{ form.meters_1ph_installed }}
-                                {% if form.meters_1ph_installed.errors %}<div class="invalid-feedback d-block">{{ form.meters_1ph_installed.errors.0 }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">{{ form.meters_3ph_installed.label }}</label>
-                                {{ form.meters_3ph_installed }}
-                                {% if form.meters_3ph_installed.errors %}<div class="invalid-feedback d-block">{{ form.meters_3ph_installed.errors.0 }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">{{ form.poles_erected.label }}</label>
-                                {{ form.poles_erected }}
-                                {% if form.poles_erected.errors %}<div class="invalid-feedback d-block">{{ form.poles_erected.errors.0 }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">{{ form.conductor_laid_m.label }}</label>
-                                {{ form.conductor_laid_m }}
-                                {% if form.conductor_laid_m.errors %}<div class="invalid-feedback d-block">{{ form.conductor_laid_m.errors.0 }}</div>{% endif %}
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">{{ form.transformers_installed.label }}</label>
                                 {{ form.transformers_installed }}
@@ -123,9 +200,19 @@
                                 {{ form.transformers_commissioned }}
                                 {% if form.transformers_commissioned.errors %}<div class="invalid-feedback d-block">{{ form.transformers_commissioned.errors.0 }}</div>{% endif %}
                             </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">{{ form.meters_1ph_installed.label }}</label>
+                                {{ form.meters_1ph_installed }}
+                                {% if form.meters_1ph_installed.errors %}<div class="invalid-feedback d-block">{{ form.meters_1ph_installed.errors.0 }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">{{ form.meters_3ph_installed.label }}</label>
+                                {{ form.meters_3ph_installed }}
+                                {% if form.meters_3ph_installed.errors %}<div class="invalid-feedback d-block">{{ form.meters_3ph_installed.errors.0 }}</div>{% endif %}
+                            </div>
                         </div>
                         <div class="form-text small mt-2">
-                            <i class="bi bi-info-circle me-1"></i> Enter the running total installed so far, not just today's
+                            <i class="bi bi-info-circle me-1"></i> Enter the running total to date, not just today's
                             additions. The system records the increase since your last update.
                         </div>
                     </div>
@@ -144,4 +231,17 @@
         </div>
     </div>
 </div>
+
+{% if recent_deliveries %}
+<script>
+    // Auto-open the deliveries popup once when the page loads so the
+    // consultant sees what's been delivered before entering progress.
+    document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('recentReceiptsModal');
+        if (el && window.bootstrap && bootstrap.Modal) {
+            try { new bootstrap.Modal(el).show(); } catch (e) { /* no-op */ }
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}

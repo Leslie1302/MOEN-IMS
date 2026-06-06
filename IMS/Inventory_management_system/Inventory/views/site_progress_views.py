@@ -184,6 +184,21 @@ def site_progress_edit(request, pk: int):
             updated = form.save(commit=False)
             updated.progress_updated_at = timezone.now()
             updated.progress_updated_by = request.user
+
+            # Keep the legacy combined totals in sync as the sum of the HT+LV
+            # lifecycle, so older readers (the breakdown aggregator) stay
+            # correct until they're migrated to the granular fields.
+            updated.poles_erected = (updated.ht_poles_erected or 0) + (updated.lv_poles_erected or 0)
+            updated.conductor_laid_m = (
+                (updated.ht_conductor_strung_m or 0) + (updated.lv_conductor_strung_m or 0)
+            )
+
+            # Derive the completion percentage from the 5-stage works model
+            # against the community's frozen targets (replaces the old manual
+            # entry). The Ghana map keeps reading progress_percent unchanged.
+            from ..services.community_progress import recalc_site_progress_percent
+            recalc_site_progress_percent(updated)
+
             # actual_completion_date keeps tracking the works state so the
             # existing map drill-downs that read it stay accurate.
             if (updated.works_status in ('Energised', 'Commissioned')
@@ -209,9 +224,52 @@ def site_progress_edit(request, pk: int):
     else:
         form = SiteProgressForm(instance=site)
 
+    # Recent deliveries to this community — surfaced as a popup so the
+    # consultant enters works against what has actually arrived. Sourced from
+    # BOTH confirmed site receipts (Received) and live transports (Delivered /
+    # In transit), so it shows as soon as materials head to the site rather
+    # than only after a receipt is logged.
+    from ..models import SiteReceipt, MaterialTransport
+    _loc = {
+        'region__iexact': (site.region or ''),
+        'district__iexact': (site.district or ''),
+        'community__iexact': (site.community or ''),
+    }
+    deliveries = []
+    receipts = (
+        SiteReceipt.objects
+        .filter(**{f'material_transport__material_order__{k}': v for k, v in _loc.items()})
+        .select_related('material_transport__material_order')
+        .order_by('-received_date')[:15]
+    )
+    for sr in receipts:
+        deliveries.append({
+            'material': sr.material_transport.material_name if sr.material_transport else '—',
+            'qty': sr.received_quantity, 'when': sr.received_date,
+            'status': 'Received on site', 'badge': 'success', 'condition': sr.condition or '',
+        })
+    transports = (
+        MaterialTransport.objects
+        .filter(status__in=['Delivered', 'In Transit'], site_receipt__isnull=True,
+                **{f'material_order__{k}': v for k, v in _loc.items()})
+        .select_related('material_order')
+        .order_by('-date_dispatched')[:15]
+    )
+    for tr in transports:
+        delivered = tr.status == 'Delivered'
+        deliveries.append({
+            'material': tr.material_name, 'qty': tr.quantity,
+            'when': tr.date_delivered or tr.date_dispatched,
+            'status': 'Delivered — awaiting receipt' if delivered else 'In transit — arriving',
+            'badge': 'primary' if delivered else 'warning', 'condition': '',
+        })
+    deliveries.sort(key=lambda d: d['when'] or timezone.make_aware(timezone.datetime.min), reverse=True)
+    recent_deliveries = deliveries[:12]
+
     return render(request, 'Inventory/site_progress_edit.html', {
         'form': form,
         'site': site,
+        'recent_deliveries': recent_deliveries,
         'page_title': f'Update progress — {site.community or site.name}',
     })
 

@@ -164,7 +164,7 @@ function updateReceiptStatus(orderId, newStatus, payload = {}) {
       return;
     }
     
-    payload.quantity = qtyNum;
+    payload.partial_quantity = qtyNum;
   }
 
   const csrfToken = getCSRFToken();

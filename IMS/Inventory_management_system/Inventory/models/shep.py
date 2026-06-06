@@ -41,7 +41,9 @@ class Community(auto_prefetch.Model):
     package_number = models.CharField(
         max_length=50,
         blank=True,
-        help_text="SHEP package number for this community. SHEP-only; leave blank for other project types.",
+        help_text="Package number for this community under its project type. "
+                  "Used across programmes (SHEP, Cost Sharing, Streetlights) to "
+                  "track releases and reconcile them to a specific BoQ package line.",
     )
 
     # Geospatial fields (Phase 2)
@@ -104,6 +106,47 @@ class Community(auto_prefetch.Model):
         default=True,
         help_text="Whether this community is currently active",
     )
+
+    # ── Progress-completion targets (frozen snapshot, seeded from BoQ) ──
+    # These are the denominators for the 5-stage works completion. They are a
+    # COPY of the BoQ contract quantities taken once via the explicit
+    # "Pull targets from BoQ" action — never a live lookup. After the pull,
+    # the BoQ and the progress tracker are functionally separate: BoQ
+    # revisions / over-issuance / justifications do not move these numbers,
+    # and progress works never write back to BoQ. Targets stay manually
+    # editable so real scope can diverge from contract.
+    planned_ht_poles = models.PositiveIntegerField(
+        default=0, help_text='Planned HT poles (denominator for HT-works stage).')
+    planned_lv_poles = models.PositiveIntegerField(
+        default=0, help_text='Planned LV poles (denominator for LV-works stage).')
+    planned_transformers = models.PositiveIntegerField(
+        default=0, help_text='Planned transformers (denominator for transformer + commissioning stages).')
+    planned_connections = models.PositiveIntegerField(
+        default=0, help_text='Planned service connections / meters (denominator for the meters stage).')
+    planned_ht_conductor_m = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text='Planned HT conductor in metres (reference; not a completion denominator).')
+    planned_lv_conductor_m = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text='Planned LV conductor in metres (reference; not a completion denominator).')
+
+    TARGETS_SOURCE_CHOICES = [
+        ('manual',   'Entered manually'),
+        ('boq_pull', 'Pulled from BoQ'),
+    ]
+    targets_source = models.CharField(
+        max_length=10, choices=TARGETS_SOURCE_CHOICES, default='manual', blank=True,
+        help_text='How the planned targets were last set.')
+    targets_pulled_at = models.DateTimeField(
+        null=True, blank=True, help_text='When targets were last pulled from BoQ.')
+    targets_pulled_by = auto_prefetch.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='community_target_pulls',
+        help_text='Who last pulled targets from BoQ.')
+    targets_locked = models.BooleanField(
+        default=False,
+        help_text='When set, a BoQ pull will not overwrite these targets (manual baseline frozen).')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
