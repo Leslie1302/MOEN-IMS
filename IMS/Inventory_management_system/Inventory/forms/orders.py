@@ -429,7 +429,6 @@ class ReportSubmissionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print("Form initialized with fields:", self.fields)
 
 
 class ReleaseLetterUploadForm(forms.ModelForm):

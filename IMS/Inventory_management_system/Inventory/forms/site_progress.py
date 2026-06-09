@@ -33,6 +33,18 @@ _LIFECYCLE = {
 _COUNT = lambda: forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '1'})
 _METRES = lambda: forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '0.01'})
 
+# The cumulative works counts are optional on edit: a consultant can update just
+# the status/notes without re-entering every figure. Blank values fall back to
+# the site's current numbers in clean().
+_WORKS_FIELDS = (
+    'ht_poles_erected', 'lv_poles_erected',
+    'ht_poles_dressed', 'lv_poles_dressed',
+    'ht_poles_strung', 'lv_poles_strung',
+    'ht_conductor_strung_m', 'lv_conductor_strung_m',
+    'transformers_installed', 'transformers_commissioned',
+    'meters_1ph_installed', 'meters_3ph_installed',
+)
+
 
 class SiteProgressForm(forms.ModelForm):
     """Edits the consultant-controlled works columns on a ProjectSite."""
@@ -75,8 +87,21 @@ class SiteProgressForm(forms.ModelForm):
             'meters_3ph_installed': 'Meters installed — 3-phase',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Allow status/notes-only updates: works counts are not mandatory.
+        for name in _WORKS_FIELDS:
+            if name in self.fields:
+                self.fields[name].required = False
+
     def clean(self):
         cleaned = super().clean()
+
+        # Backfill any omitted works count with the site's current value so a
+        # partial update preserves the cumulative figures instead of zeroing them.
+        for name in _WORKS_FIELDS:
+            if cleaned.get(name) is None:
+                cleaned[name] = getattr(self.instance, name, 0) or 0
 
         # 1. Pole lifecycle is monotonic per class: strung ≤ dressed ≤ erected.
         # A pole must be erected before it can be dressed, dressed before strung.

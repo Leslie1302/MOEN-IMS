@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django_ratelimit.decorators import ratelimit
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, Http404
@@ -735,7 +736,7 @@ def export_transporters_template(request):
                 try:
                     if len(str(cell.value)) > max_length:
                         max_length = len(cell.value)
-                except:
+                except (TypeError, ValueError):
                     pass
             adjusted_width = (max_length + 2) * 1.2
             worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
@@ -1336,15 +1337,44 @@ class WaybillTemplate(SimpleDocTemplate):
         super().build(flowables, onFirstPage=first_page, onLaterPages=later_pages, canvasmaker=canvasmaker)
 
 
+@ratelimit(key='user', rate=settings.RATELIMIT_WAYBILL_PDF, method=['GET'], block=True)
 @login_required
 def download_waybill_pdf(request, transport_id):
     """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments).
+
+    Rate-limited to 10/min per user: PDF generation is CPU/memory-heavy
+    (this view builds a full multi-page document), so repeated calls are a
+    resource-exhaustion vector even for an authenticated user.
     
     Waybill is only available for download after site receipt has been logged by the consultant.
     This ensures all stamps (Store Manager, Store Officer, Driver, Recipient) are present on the final document.
     """
     transport = get_object_or_404(MaterialTransport, id=transport_id)
-    
+
+    # Object-level authorization: a waybill is only downloadable by internal
+    # staff (Store/Schedule Officers, Stores Management), Management, and
+    # superusers — OR by the external Transporter the shipment is assigned to.
+    # Without this, any authenticated user (incl. an external transporter or
+    # consultant) could pull ANY waybill by iterating transport_id (IDOR).
+    # Out-of-scope requests 404 rather than 403 so we don't leak existence.
+    _user = request.user
+    _is_internal = (
+        _user.is_superuser
+        or _user.is_staff
+        or _user.groups.filter(name='Management').exists()
+    )
+    if not _is_internal:
+        _owned = MaterialTransport.objects.filter(
+            id=transport_id, transporter__user=_user
+        ).exists()
+        # Bulk waybills: allow if the user owns ANY transport on this waybill.
+        if not _owned and transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
+            _owned = MaterialTransport.objects.filter(
+                waybill_number=transport.waybill_number, transporter__user=_user
+            ).exists()
+        if not _owned:
+            raise Http404("No MaterialTransport matches the given query.")
+
     # Check if site receipt exists - waybill can only be downloaded after receipt is confirmed
     has_site_receipt = hasattr(transport, 'site_receipt') and transport.site_receipt is not None
     

@@ -11,6 +11,8 @@ from datetime import timedelta
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django_ratelimit import ALL
+from django_ratelimit.decorators import ratelimit
 from .models import MicrosoftCredentials
 
 logger = logging.getLogger(__name__)
@@ -18,26 +20,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Trusted admin bootstrap.
 #
-# Emails listed here (or in TRUSTED_ADMIN_EMAILS env var, comma-separated) are
-# automatically promoted to is_superuser/is_staff on Microsoft OAuth login.
-# This is the only way to recover from a fresh database when no superuser
-# exists yet -- without it, every signed-in user gets bounced to the
-# "awaiting authorization" page by UserRoleMiddleware.
+# Emails in the TRUSTED_ADMIN_EMAILS env var (comma-separated) are promoted to
+# is_superuser/is_staff on Microsoft OAuth login. This is the supported way to
+# recover from a fresh database when no superuser exists yet -- otherwise every
+# signed-in user is bounced to "awaiting authorization" by UserRoleMiddleware.
 #
-# When portal/Kudu access is restored, prefer the env var and remove the
-# hardcoded list.
+# SECURITY: this list lives in the deployment environment ONLY. A hardcoded
+# email here is a privilege backdoor -- anyone who can read the source or repo
+# learns exactly which account silently becomes superuser on its next login,
+# and the promotion follows the code to every environment it's deployed to.
+# Set TRUSTED_ADMIN_EMAILS in the Azure App Service settings (see .env.example).
 # ---------------------------------------------------------------------------
-_HARDCODED_TRUSTED_ADMIN_EMAILS = {
-    "leslie.adjetey@energymin.gov.gh",
-}
-_ENV_TRUSTED_ADMIN_EMAILS = {
+TRUSTED_ADMIN_EMAILS = {
     e.strip().lower()
     for e in os.environ.get("TRUSTED_ADMIN_EMAILS", "").split(",")
     if e.strip()
 }
-TRUSTED_ADMIN_EMAILS = {
-    e.lower() for e in _HARDCODED_TRUSTED_ADMIN_EMAILS
-} | _ENV_TRUSTED_ADMIN_EMAILS
 
 def _callback_redirect_uri(request):
     """
@@ -58,10 +56,13 @@ def _msal_app():
         authority=ms["AUTHORITY"],
     )
 
+@ratelimit(key='ip', rate='15/m', method=ALL, block=True)
 def ms_login(request):
     """
     Redirects to Microsoft's OAuth login page.
     Route: GET /auth/login/
+
+    Rate-limited per IP to blunt automated OAuth-initiation abuse.
     """
     ms = settings.MICROSOFT
     state = str(uuid.uuid4())
@@ -75,11 +76,14 @@ def ms_login(request):
     )
     return redirect(auth_url)
 
+@ratelimit(key='ip', rate='30/m', method=ALL, block=True)
 def ms_callback(request):
     """
     Handles the OAuth callback from Microsoft.
     Exchanges the authorization code for tokens and logs the user in.
     Route: GET /auth/callback/?code=...&state=...
+
+    Rate-limited per IP to blunt code-replay / callback flooding.
     """
     ms = settings.MICROSOFT
     if request.GET.get("state") != request.session.pop("oauth_state", None):

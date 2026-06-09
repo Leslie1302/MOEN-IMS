@@ -1303,3 +1303,37 @@ class ObsoleteMaterialAdmin(admin.ModelAdmin):
         count = queryset.update(status='Repurposed')
         self.message_user(request, f'{count} material(s) marked as repurposed.')
     mark_as_repurposed.short_description = 'Mark selected as repurposed'
+
+
+# ---------------------------------------------------------------------------
+# Rebuilt KPI / appraisal system (targets tunable here)
+# ---------------------------------------------------------------------------
+from .models import RolePerformanceTarget, PerformanceConfig, PerformanceSnapshot  # noqa: E402
+
+
+@admin.register(RolePerformanceTarget)
+class RolePerformanceTargetAdmin(admin.ModelAdmin):
+    list_display = ('role', 'sla_days', 'throughput_target', 'quality_target_pct', 'active')
+    list_editable = ('sla_days', 'throughput_target', 'quality_target_pct', 'active')
+
+
+@admin.register(PerformanceConfig)
+class PerformanceConfigAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'weight_timeliness', 'weight_quality',
+                    'weight_throughput', 'weight_responsiveness', 'min_items_for_grade')
+
+    def has_add_permission(self, request):
+        # Singleton.
+        return not PerformanceConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PerformanceSnapshot)
+class PerformanceSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'period_year', 'period_month', 'grade',
+                    'overall_score', 'completed_count', 'insufficient_data')
+    list_filter = ('role', 'period_year', 'period_month', 'grade')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name')
+    readonly_fields = [f.name for f in PerformanceSnapshot._meta.fields]

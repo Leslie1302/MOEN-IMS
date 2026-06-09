@@ -6,6 +6,7 @@ along with AJAX endpoints for cascading dropdowns and the abbreviation legend pa
 """
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q

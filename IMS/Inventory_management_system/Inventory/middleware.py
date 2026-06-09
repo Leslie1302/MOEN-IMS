@@ -1,5 +1,4 @@
 from django.shortcuts import redirect
-from django.urls import reverse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 from django.http import HttpResponse
@@ -124,13 +123,13 @@ class UserRoleMiddleware(MiddlewareMixin):
         if request.user.is_superuser:
             return None
 
-        # If user has no groups and not on the awaiting_authorization page
-        if not hasattr(request.user, 'groups') or not request.user.groups.exists():
-            if request.path != reverse('awaiting_authorization'):
-                return redirect('awaiting_authorization')
-        
-        # If user has groups, make sure they're not trying to access the awaiting_authorization page
-        elif request.path == reverse('awaiting_authorization'):
-            return redirect('dashboard')
+        # Users without an assigned group can't use the app yet — route them
+        # to the awaiting-authorization page. That page is itself in the
+        # allowlist above, so we never reach this code while already on it.
+        # (Note: the previous `elif path == awaiting: redirect(dashboard)`
+        # branch was dead code — the allowlist short-circuits it — and was
+        # removed. See tests/test_middleware_auth.py.)
+        if not request.user.groups.exists():
+            return redirect('awaiting_authorization')
 
         return None

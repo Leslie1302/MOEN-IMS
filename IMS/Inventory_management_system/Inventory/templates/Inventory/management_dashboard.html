@@ -384,7 +384,7 @@
                             {% for user_id, data in user_grades.items %}
                             <tr {% if data.worker_of_month %}class="table-success" {% endif %}>
                                 <td>
-                                    <strong>{{ data.username }}</strong>
+                                    <strong>{{ data.display_name|default:data.username }}</strong>
                                     {% if data.worker_of_month %}
                                     <span class="badge bg-warning text-dark ms-1" title="Top Performer">
                                         Worker of the Month

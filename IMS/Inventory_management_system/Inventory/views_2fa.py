@@ -1,6 +1,7 @@
 """
 Two-Factor Authentication Views
 """
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -12,6 +13,8 @@ from django_otp.util import random_hex
 import qrcode
 import io
 import pyotp
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -93,17 +96,17 @@ def confirm_2fa(request):
             return redirect('setup_2fa')
         
         code = request.POST.get('code', '').strip()
-        print(f"DEBUG: Validating 2FA token. Code entered: '{code}'")
-        
-        # Log the verification result
+        # NB: never log the entered code itself (it is a secret).
+        logger.debug("Validating 2FA token for user %s", user.id)
+
         is_valid = device.verify_token(code)
-        print(f"DEBUG: Token verification result: {is_valid}")
-        
+        logger.debug("2FA token verification result for user %s: %s", user.id, is_valid)
+
         if is_valid:
             # Confirm the device
             device.confirmed = True
             device.save()
-            print("DEBUG: Device confirmed successfully.")
+            logger.info("2FA device confirmed for user %s", user.id)
             
             # Generate backup codes
             generate_backup_codes(user)
@@ -111,7 +114,7 @@ def confirm_2fa(request):
             messages.success(request, '2FA has been successfully enabled! Please save your backup codes.')
             return redirect('2fa_backup_codes')
         else:
-            print("DEBUG: Invalid code, sending error response.")
+            logger.info("Invalid 2FA code submitted for user %s", user.id)
             messages.error(request, 'Invalid code. Please try again.')
             return redirect('setup_2fa')
     

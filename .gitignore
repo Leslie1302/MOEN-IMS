@@ -8,7 +8,15 @@ __pycache__/
 .Python
 .env
 .env.*
+!.env.example
 *.sqlite3
+# Database snapshots/backups must never be committed (they contain live data)
+*.sqlite3.*
+db.sqlite3.*
+*.bak
+*.bak-*
+*.dump
+*.sql
 staticfiles/
 *.log
 cookies.txt

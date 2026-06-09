@@ -10,18 +10,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Run dependency scanner (pip-audit)
+          python-version: '3.12'
+      - name: Install pip-audit
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install pip-audit
-          pip-audit -l || true
-      - name: Run safety check
+      # Audit the actual production requirements file. This step BLOCKS the
+      # pipeline on vulnerable dependencies. Add `--ignore-vuln <ID>` with a
+      # written justification only when a fix is genuinely unavailable.
+      - name: Run pip-audit (blocking)
         run: |
-          if command -v safety &> /dev/null; then safety check -r -q; fi
+          pip-audit -r IMS/Inventory_management_system/requirements.txt --strict

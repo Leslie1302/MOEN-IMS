@@ -33,7 +33,7 @@ class ExcelProjectSiteImporter:
             return None
         try:
             return float(val)
-        except:
+        except (ValueError, TypeError):
             return None
 
     def _get_date_val(self, val):
@@ -42,7 +42,7 @@ class ExcelProjectSiteImporter:
         # attempt to parse as date
         try:
             return pd.to_datetime(val).date()
-        except:
+        except (ValueError, TypeError):
             return None
 
     def import_from_excel(self, excel_file, user=None):

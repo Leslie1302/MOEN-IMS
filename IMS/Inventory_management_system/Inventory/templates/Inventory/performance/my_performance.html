@@ -1,0 +1,100 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Performance Appraisal{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="mb-0">{{ perf.full_name }}</h3>
+      <small class="text-muted">{{ perf.role|default:"No gradable role" }}
+        &middot; last 30 days</small>
+    </div>
+    <div class="text-end">
+      {% if perf.insufficient_data %}
+        <span class="badge bg-secondary fs-6">Insufficient data</span>
+        <div><small class="text-muted">Needs more completed work to grade</small></div>
+      {% else %}
+        <span class="badge bg-{{ perf.grade_color }} fs-3 px-3">{{ perf.grade }}</span>
+        <div><strong>{{ perf.overall_score }}</strong>/100</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not perf.gradable %}
+    <div class="alert alert-info">This account has no role that is graded.</div>
+  {% else %}
+
+  <div class="row g-3 mb-3">
+    {% for name, score in perf.dimensions.items %}
+      <div class="col-md-3 col-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="text-muted text-capitalize small">{{ name }}</div>
+            {% if score is None %}
+              <div class="fw-bold text-muted">N/A</div>
+              <div class="progress" style="height:6px;"><div class="progress-bar bg-secondary" style="width:0%"></div></div>
+            {% else %}
+              <div class="fw-bold">{{ score|floatformat:0 }}%</div>
+              <div class="progress" style="height:6px;">
+                <div class="progress-bar {% if score >= 80 %}bg-success{% elif score >= 60 %}bg-warning{% else %}bg-danger{% endif %}"
+                     style="width:{{ score|floatformat:0 }}%"></div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">What's affecting your grade</div>
+        <div class="card-body">
+          {% if perf.issues %}
+            <ul class="mb-0">
+              {% for issue in perf.issues %}<li>{{ issue }}</li>{% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-success mb-0">No issues flagged — you're meeting the targets.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">Your targets ({{ perf.role }})</div>
+        <div class="card-body">
+          <p class="mb-1"><strong>Stage:</strong> {{ perf.target.stage_label }}</p>
+          <p class="mb-1"><strong>On-time SLA:</strong> {{ perf.target.sla_days }} day(s)</p>
+          <p class="mb-1"><strong>Throughput target:</strong> {{ perf.target.throughput_target }}/month
+            (you: {{ perf.completed_count }})</p>
+          <p class="mb-0"><strong>Quality target:</strong> {{ perf.target.quality_target_pct }}%</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if history %}
+  <div class="card mt-3">
+    <div class="card-header">Monthly history</div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Period</th><th>Score</th><th>Grade</th></tr></thead>
+        <tbody>
+          {% for h in history %}
+          <tr>
+            <td>{{ h.period_year }}-{{ h.period_month }}</td>
+            <td>{{ h.overall_score|default:"—" }}</td>
+            <td>{{ h.grade|default:"N/A" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

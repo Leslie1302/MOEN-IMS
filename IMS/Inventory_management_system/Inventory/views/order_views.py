@@ -11,11 +11,14 @@ from django.db.models import Q, Count, Sum, F
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
 from django.views.generic import View, ListView
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, Http404, HttpResponse
 from django.forms import formset_factory
 from django.utils import timezone
+from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.exceptions import ValidationError
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 
 from Inventory.models import (
     InventoryItem, MaterialOrder, MaterialOrderAudit,
@@ -105,6 +108,12 @@ def annotate_bulk_batches(orders):
     return orders
 
 
+# Throttle submissions to 6/min per user. handle_bulk_request parses an
+# uploaded Excel and writes many MaterialOrder rows per call, so the POST
+# path is a heavy, abusable input surface.
+@method_decorator(
+    ratelimit(key='user', rate=settings.RATELIMIT_BULK_REQUEST, method=['POST'], block=True), name='post'
+)
 class RequestMaterialView(LoginRequiredMixin, View):
     template_name = 'Inventory/request_material.html'
 
@@ -232,7 +241,7 @@ class RequestMaterialView(LoginRequiredMixin, View):
             messages.success(request, "Material requests submitted successfully!")
             return redirect('material_orders')
         else:
-            print("Formset errors:", formset.errors)
+            logger.debug("Material request formset errors: %s", formset.errors)
             messages.error(request, "There was an error with your submission.")
 
         # Prepare context for re-rendering the form with errors
@@ -1076,7 +1085,7 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             messages.success(request, "Material receipts submitted successfully!")
             return redirect('material_receipt')
         else:
-            print("Formset errors:", formset.errors)
+            logger.debug("Material receipt formset errors: %s", formset.errors)
             messages.error(request, "There was an error with your submission.")
 
         # Show all inventory items to all users for transparency

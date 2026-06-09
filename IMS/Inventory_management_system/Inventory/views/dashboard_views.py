@@ -9,6 +9,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Sum, Avg, Count, Q, F, Prefetch
+from django.core.exceptions import FieldError
+from django.db import DatabaseError
 from django.urls import reverse
 from django.utils import timezone
 
@@ -27,6 +29,29 @@ logger = logging.getLogger(__name__)
 
 def consultant_dash(request):
     orders = MaterialOrder.objects.all().order_by('-date_requested')
+
+    # Confidentiality: an external consultant must only see orders for the
+    # region(s) they cover — not every order nationwide. Internal staff /
+    # Management / superusers (who may also open this page) stay unrestricted.
+    # A consultant with no region binding sees NOTHING rather than everything
+    # (fail closed).
+    user = request.user
+    _internal = (
+        user.is_superuser
+        or user.is_staff
+        or user.groups.filter(name='Management').exists()
+    )
+    if not _internal:
+        from Inventory.models import ProjectConsultant
+        regions = list(
+            ProjectConsultant.objects
+            .filter(user=user, active=True)
+            .exclude(region='')
+            .values_list('region', flat=True)
+            .distinct()
+        )
+        orders = orders.filter(region__in=regions) if regions else orders.none()
+
     profile, created = Profile.objects.get_or_create(user=request.user)  # Ensure profile exists
     context = {
         'orders': orders,
@@ -77,9 +102,13 @@ def management_dashboard(request):
         except Exception as e:
             logger.error(f"Error getting user profile: {str(e)}", exc_info=True)
         
-        # Calculate comprehensive user performance grades
+        # Legacy per-user grading. RETIRED: this loop referenced model fields/
+        # relations that no longer exist (e.g. 'site_receipt') and produced
+        # garbage caught-exception defaults. Grades are now computed by the
+        # authoritative override further below (rebuilt KPI engine). We keep the
+        # block inert (empty queryset) rather than delete it in this change.
         try:
-            users = User.objects.prefetch_related('groups').all()
+            users = User.objects.none()
             user_grades = {}
             
             user_count = users.count()
@@ -291,7 +320,8 @@ def management_dashboard(request):
                     # Still add user with default values - ALWAYS show users
                     try:
                         role_name = ", ".join([g.name for g in user.groups.all()]) or "No Role"
-                    except:
+                    except Exception:
+                        logger.debug("Could not resolve groups for user %s", getattr(user, 'id', '?'), exc_info=True)
                         role_name = "No Role"
                     
                     user_grades[user.id] = {
@@ -322,7 +352,8 @@ def management_dashboard(request):
                 logger.info(f"🏆 Worker of the Month: {sorted_grades[0][1]['username']} (Score: {sorted_grades[0][1]['grade']:.1f})")
             
             context['user_grades'] = dict(sorted_grades)
-            logger.info(f"✓ Successfully calculated grades for {len(user_grades)} users. Top score: {sorted_grades[0][1]['grade']:.1f if sorted_grades else 0}")
+            _top_score = sorted_grades[0][1]['grade'] if sorted_grades else 0
+            logger.info(f"Legacy grade pass complete ({len(user_grades)} rows). Top: {_top_score}")
             
         except Exception as e:
             logger.error(f"✗ CRITICAL: Error calculating user grades: {str(e)}", exc_info=True)
@@ -333,7 +364,8 @@ def management_dashboard(request):
                 for user in users:
                     try:
                         role_name = ", ".join([g.name for g in user.groups.all()]) or "No Role"
-                    except:
+                    except Exception:
+                        logger.debug("Could not resolve groups for user %s", getattr(user, 'id', '?'), exc_info=True)
                         role_name = "No Role"
                     
                     user_grades[user.id] = {
@@ -354,7 +386,38 @@ def management_dashboard(request):
             except Exception as fallback_error:
                 logger.critical(f"✗ FALLBACK FAILED: {str(fallback_error)}", exc_info=True)
                 context['user_grades'] = {}
-        
+
+        # --- Authoritative grades from the rebuilt KPI engine. ---
+        # This overrides the legacy per-user loop above (which referenced model
+        # fields that no longer exist and silently produced default grades).
+        # The legacy block is retained only as a last-resort fallback if the
+        # service errors. TODO: delete the legacy loop once this is bedded in.
+        try:
+            from Inventory.services.performance import compute_roster
+            roster = compute_roster()
+            new_grades = {}
+            for i, r in enumerate(roster):
+                dims = r.get('dimensions', {})
+                new_grades[r['user_id']] = {
+                    'username': r['username'],          # real username (used in URLs)
+                    'display_name': r['full_name'],     # friendly label
+                    'groups': r['role'] or 'No Role',
+                    'grade': r['overall_score'] or 0,
+                    'grade_letter': r['grade'],
+                    'grade_color': r['grade_color'],
+                    'total_tasks': r['completed_count'],
+                    'completed_tasks': r['completed_count'],
+                    'completion_rate': round(dims.get('timeliness') or 0, 1),
+                    'avg_completion_days': 0,
+                    'worker_of_month': (
+                        i == 0 and (r['overall_score'] or 0) > 0
+                        and not r['insufficient_data']
+                    ),
+                }
+            context['user_grades'] = new_grades
+        except Exception:
+            logger.error("Rebuilt KPI roster failed; using legacy grades.", exc_info=True)
+
         # Get order statistics with error handling
         try:
             context['total_orders'] = MaterialOrder.objects.count()
@@ -372,14 +435,15 @@ def management_dashboard(request):
             received_by_store_officers = MaterialOrder.objects.filter(
                 user__groups__name='Store Officers'
             )
-            # Check if unit_price field exists, otherwise default to 0
-            # Assuming quantity * unit_price is desired, but checking if models support it
-            # To be safe, we'll wrap in try-except for field access
+            # NOTE: MaterialOrder has no unit_price, so a monetary value cannot
+            # be computed here (the old quantity*unit_price aggregate always
+            # errored and showed 0). Report total quantity instead.
             try:
                 context['total_received_by_store_officers'] = received_by_store_officers.aggregate(
-                    total=Sum(F('quantity') * F('unit_price'), output_field=F('quantity').output_field)
+                    total=Sum('quantity')
                 )['total'] or 0
-            except:
+            except (FieldError, DatabaseError):
+                logger.warning("Could not aggregate received-by-store-officers value", exc_info=True)
                 context['total_received_by_store_officers'] = 0
 
             # Released by Store Officers
@@ -388,9 +452,10 @@ def management_dashboard(request):
             )
             try:
                 context['total_released_by_store_officers'] = released_by_store_officers.aggregate(
-                    total=Sum(F('quantity') * F('unit_price'), output_field=F('quantity').output_field)
+                    total=Sum('quantity')
                 )['total'] or 0
-            except:
+            except (FieldError, DatabaseError):
+                logger.warning("Could not aggregate released-by-store-officers value", exc_info=True)
                 context['total_released_by_store_officers'] = 0
             
             # Other metrics
@@ -431,13 +496,16 @@ def management_dashboard(request):
         
         # Add Transport metrics
         try:
-            today = datetime.now().date()
-            
+            today = timezone.localdate()
+
             context['transport_in_transit'] = MaterialTransport.objects.filter(status='In Transit').count()
             context['transport_pending'] = MaterialTransport.objects.filter(status='Pending').count()
+            # date_delivered is a DateTimeField; filter on its date part
+            # (tz-aware) rather than comparing to a bare date, which Django
+            # coerces to a naive midnight datetime under USE_TZ.
             context['transport_completed_today'] = MaterialTransport.objects.filter(
                 status='Delivered',
-                date_delivered=today
+                date_delivered__date=today
             ).count()
         except Exception as e:
             logger.error(f"Error fetching transport data: {str(e)}", exc_info=True)
@@ -514,15 +582,22 @@ def management_dashboard(request):
         
         # Add System Health metrics
         try:
-            today = datetime.now().date()
-            yesterday = datetime.now() - timedelta(days=1)
+            # Use timezone-aware values: USE_TZ is on, so naive datetimes in
+            # these filters raise RuntimeWarnings and risk off-by-one-day
+            # boundary bugs across the project's timezone offset.
+            today = timezone.localdate()
+            yesterday = timezone.now() - timedelta(days=1)
             context['active_users'] = User.objects.filter(
                 last_login__gte=yesterday
             ).count()
-            
+
             if AuditLog:
-                today_start = datetime.combine(today, datetime.min.time())
-                today_end = datetime.combine(today, datetime.max.time())
+                today_start = timezone.make_aware(
+                    datetime.combine(today, datetime.min.time())
+                )
+                today_end = timezone.make_aware(
+                    datetime.combine(today, datetime.max.time())
+                )
                 context['today_activities'] = AuditLog.objects.filter(
                     timestamp__range=(today_start, today_end)
                 ).count()

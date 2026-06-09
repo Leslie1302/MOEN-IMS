@@ -241,7 +241,7 @@ class Profile(auto_prefetch.Model):
                     title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
                     name_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
                     text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
-            except:
+            except (OSError, IOError):
                 # Fallback to default font
                 title_font = ImageFont.load_default()
                 name_font = ImageFont.load_default()
@@ -252,11 +252,11 @@ class Profile(auto_prefetch.Model):
                 try:
                     bbox = draw.textbbox((0, 0), text, font=font)
                     return bbox[2] - bbox[0]
-                except:
+                except (AttributeError, TypeError):
                     # Fallback for older PIL versions
                     try:
                         return draw.textlength(text, font=font)
-                    except:
+                    except (AttributeError, TypeError):
                         # Last resort: estimate width
                         return len(text) * 6
             

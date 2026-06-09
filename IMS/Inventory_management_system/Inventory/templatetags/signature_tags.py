@@ -51,7 +51,7 @@ def signature_stamp(profile, size='medium'):
         year = timestamp.year
         formatted_date = timestamp.strftime('%b %d, %Y')
         formatted_time = timestamp.strftime('%I:%M %p')
-    except:
+    except (ValueError, TypeError, AttributeError):
         year = 'N/A'
         formatted_date = 'N/A'
         formatted_time = ''
@@ -102,7 +102,7 @@ def signature_stamp_inline(profile):
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('+00:00', ''))
         date_str = timestamp.strftime('%b %d, %Y')
-    except:
+    except (ValueError, TypeError, AttributeError):
         date_str = 'Unknown date'
     
     html = f'''
@@ -163,5 +163,5 @@ def signature_date(profile):
     try:
         timestamp = datetime.fromisoformat(timestamp_str.replace('+00:00', ''))
         return timestamp.strftime('%B %d, %Y at %I:%M %p')
-    except:
+    except (ValueError, TypeError, AttributeError):
         return 'N/A'

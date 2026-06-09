@@ -1,0 +1,71 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Team Performance{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+
+  <h3 class="mb-3">Team Performance <small class="text-muted fs-6">&middot; last 30 days</small></h3>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3 col-6">
+      <div class="card text-center"><div class="card-body">
+        <div class="text-muted small">Users graded</div>
+        <div class="h4 mb-0">{{ graded_count }}/{{ total_count }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="card text-center"><div class="card-body">
+        <div class="text-muted small">Average score</div>
+        <div class="h4 mb-0">{{ avg_score|default:"—" }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-6">
+      <div class="card"><div class="card-body">
+        <div class="text-muted small">Top performer</div>
+        {% if top %}
+          <div class="h5 mb-0">{{ top.full_name }}
+            <span class="badge bg-{{ top.grade_color }}">{{ top.grade }}</span>
+            <small class="text-muted">{{ top.role }} &middot; {{ top.overall_score }}/100</small>
+          </div>
+        {% else %}<div class="text-muted">No graded users yet</div>{% endif %}
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">All users</div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>User</th><th>Role</th><th>Grade</th><th>Score</th>
+            <th>Timeliness</th><th>Quality</th><th>Completed</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in roster %}
+          <tr>
+            <td>{{ r.full_name }}</td>
+            <td><small>{{ r.role }}</small></td>
+            <td>
+              {% if r.insufficient_data %}
+                <span class="badge bg-secondary">N/A</span>
+              {% else %}
+                <span class="badge bg-{{ r.grade_color }}">{{ r.grade }}</span>
+              {% endif %}
+            </td>
+            <td>{{ r.overall_score|default:"—" }}</td>
+            <td>{% if r.dimensions.timeliness is not None %}{{ r.dimensions.timeliness|floatformat:0 }}%{% else %}—{% endif %}</td>
+            <td>{% if r.dimensions.quality is not None %}{{ r.dimensions.quality|floatformat:0 }}%{% else %}—{% endif %}</td>
+            <td>{{ r.completed_count }}</td>
+            <td><a class="btn btn-sm btn-outline-primary"
+                   href="{% url 'staff_performance_detail' r.username %}">View</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-3">No users to display.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

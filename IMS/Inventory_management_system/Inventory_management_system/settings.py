@@ -12,12 +12,16 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 import logging
 import dj_database_url
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# True while running the Django test runner (manage.py test / pytest).
+TESTING = ('test' in sys.argv) or ('pytest' in sys.modules)
 
 # ---------------------------------------------------------------------------
 # Sentry Error Monitoring (only when SENTRY_DSN is set, typically production)
@@ -99,11 +103,9 @@ ALLOWED_HOSTS = [
 ]
 
 if not DEBUG:
-    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to whitenoise)
+    # Static assets are collected into `staticfiles/`. The WhiteNoise
+    # (compressed, manifest-hashed) backend is configured in STORAGES below.
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
-    # and renames the files with unique names for each version to support long-term caching
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Microsoft 365 Configuration
 MICROSOFT = {
@@ -125,7 +127,15 @@ if not TOKEN_ENCRYPTION_KEY and not DEBUG:
         "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
     )
 elif not TOKEN_ENCRYPTION_KEY:
-    TOKEN_ENCRYPTION_KEY = "DFEmz1R5YgxfDWuM9jaad8jiT77Hb-8x3xvTPgWZos4="  # Dev only
+    # Dev only: generate an ephemeral key at startup instead of shipping a real
+    # key in source control. Tokens encrypted in a previous dev run won't decrypt
+    # after a restart -- acceptable for local development.
+    from cryptography.fernet import Fernet
+    TOKEN_ENCRYPTION_KEY = Fernet.generate_key().decode()
+    logging.warning(
+        "TOKEN_ENCRYPTION_KEY not set; generated an ephemeral dev key. "
+        "Set TOKEN_ENCRYPTION_KEY in your environment for stable tokens."
+    )
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
@@ -206,11 +216,14 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_totp',
     'django_otp.plugins.otp_static',
     'accounts',
+    # Brute-force / login-throttling protection (must be installed for auth).
+    'axes',
 ]
 
 MIDDLEWARE = [
     'Inventory.middleware.CanonicalHostRedirectMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'csp.middleware.CSPMiddleware',  # Content-Security-Policy header
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -220,6 +233,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'Inventory.middleware.UserRoleMiddleware',  # Custom middleware for role-based access
+    # AxesMiddleware must be the LAST middleware in the stack.
+    'axes.middleware.AxesMiddleware',
 ]
 
 
@@ -275,33 +290,42 @@ DATABASES = {
     }
 }
 
-# Production must normally use an external database. Two escape hatches:
-#   1. Set DATABASE_URL / SCHEMATOGO_URL -- preferred path (Postgres/MySQL).
-#   2. Set ALLOW_SQLITE_IN_PROD=1 -- emergency only. Lets us keep using SQLite
-#      on the persistent /home/site/data/ mount until a real DB is provisioned.
+# Production database resolution.
+#   1. DATABASE_URL / SCHEMATOGO_URL -- the ONLY supported production path
+#      (PostgreSQL recommended). Connection pooling + SSL enabled by default.
+#   2. ALLOW_SQLITE_IN_PROD=1 -- explicit, deliberate emergency override only.
+#
+# SECURITY/RELIABILITY: SQLite is NO LONGER auto-enabled in production. It
+# serialises all writes (concurrent officers -> "database is locked" + lost
+# writes) and has no safe concurrent backup story. Production now FAILS FAST
+# unless a real database is configured. To avoid an outage on the deploy that
+# introduces this change, set ALLOW_SQLITE_IN_PROD=1 in the App Service settings
+# BEFORE deploying, then provision Postgres, set DATABASE_URL, and remove the
+# flag to complete the migration (see HARDENING_PLAN.md, P0-1).
 if not DEBUG:
     database_url = os.getenv('SCHEMATOGO_URL') or os.getenv('DATABASE_URL')
-    # Until Postgres is provisioned, default to allowing SQLite on Azure
-    # (where /home/site/data/ is persistent) so the app boots without a
-    # DATABASE_URL. Explicit ALLOW_SQLITE_IN_PROD=0 still disables it.
-    _sqlite_flag = os.getenv('ALLOW_SQLITE_IN_PROD')
-    if _sqlite_flag is None:
-        allow_sqlite_prod = ON_AZURE_APP_SERVICE
-    else:
-        allow_sqlite_prod = _sqlite_flag.lower() in ('1', 'true', 'yes')
+    allow_sqlite_prod = os.getenv('ALLOW_SQLITE_IN_PROD', '').lower() in ('1', 'true', 'yes')
     if database_url:
-        DATABASES['default'] = dj_database_url.config(default=database_url)
+        DATABASES['default'] = dj_database_url.config(
+            default=database_url,
+            # Persistent connections reduce per-request connect overhead under load.
+            conn_max_age=int(os.getenv('DB_CONN_MAX_AGE', '60')),
+            conn_health_checks=True,
+            # Require TLS to the database unless explicitly disabled.
+            ssl_require=os.getenv('DB_SSL_REQUIRE', 'True').lower() == 'true',
+        )
     elif allow_sqlite_prod:
         logging.warning(
-            "Running in production on SQLite at %s. "
-            "This is an emergency fallback -- migrate to Postgres/MySQL ASAP.",
+            "Running in production on SQLite at %s. EMERGENCY OVERRIDE ONLY -- "
+            "single-writer DB, do not run multi-user. Migrate to Postgres ASAP.",
             _sqlite_path,
         )
     else:
         raise ImproperlyConfigured(
-            "Production database is not configured. Set SCHEMATOGO_URL or DATABASE_URL "
-            "in the deployment environment, or set ALLOW_SQLITE_IN_PROD=1 as a "
-            "temporary fallback."
+            "Production database is not configured. Set DATABASE_URL (PostgreSQL) "
+            "in the deployment environment. As a deliberate temporary measure only, "
+            "set ALLOW_SQLITE_IN_PROD=1 -- but SQLite must not be used for "
+            "concurrent multi-user production."
         )
 
 
@@ -351,6 +375,8 @@ LOGIN_REDIRECT_URL = '/dashboard'
 LOGIN_URL = '/auth/login/'
 LOGOUT_REDIRECT_URL = 'index'
 AUTHENTICATION_BACKENDS = [
+    # AxesStandaloneBackend MUST be first so lockouts are enforced before auth.
+    'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
@@ -359,13 +385,63 @@ LOW_QUANTITY = 3
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-
 # Consolidated logging configured later
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# ---------------------------------------------------------------------------
+# File storage (Django 5.1 STORAGES API).
+#   - "default"     = user-uploaded media. When Azure Blob credentials are
+#                     present (production), uploads go to Blob so they survive
+#                     deploys/restarts and work across multiple App Service
+#                     instances. Falls back to local disk for dev and tests.
+#   - "staticfiles" = WhiteNoise (compressed + manifest-hashed), as before.
+# This replaces the legacy STATICFILES_STORAGE / DEFAULT_FILE_STORAGE settings,
+# which Django 5.1 no longer reads (and which conflict with STORAGES if set).
+# ---------------------------------------------------------------------------
+AZURE_ACCOUNT_NAME = os.getenv('AZURE_ACCOUNT_NAME', '').strip()
+AZURE_ACCOUNT_KEY = os.getenv('AZURE_ACCOUNT_KEY', '').strip()
+AZURE_CONTAINER = os.getenv('AZURE_CONTAINER', '').strip()
+
+_use_azure_media = bool(
+    AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY and AZURE_CONTAINER and not TESTING
+)
+
+if _use_azure_media:
+    _default_file_storage = {
+        "BACKEND": "storages.backends.azure_storage.AzureStorage",
+        "OPTIONS": {
+            "account_name": AZURE_ACCOUNT_NAME,
+            "account_key": AZURE_ACCOUNT_KEY,
+            "azure_container": AZURE_CONTAINER,
+            # The storage account has anonymous access disabled (correct — these
+            # are sensitive documents), so serve uploads via short-lived SAS
+            # URLs rather than public links.
+            "expiration_secs": int(os.getenv('AZURE_URL_EXPIRATION_SECS', '3600')),
+            # Don't silently overwrite an existing blob with the same name.
+            "overwrite_files": False,
+        },
+    }
+else:
+    _default_file_storage = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    }
+
+STORAGES = {
+    "default": _default_file_storage,
+    "staticfiles": {
+        # WhiteNoise compression WITHOUT manifest hashing. The manifest
+        # ("...ManifestStaticFilesStorage") variant requires a built manifest
+        # from `collectstatic` and raises on any missing {% static %} entry —
+        # which breaks tests (no manifest) and would 500 production on a
+        # missing asset (the templates reference at least one uncollected file,
+        # e.g. css/index.css). Non-manifest still compresses + serves and
+        # degrades gracefully. Re-enable the manifest variant later once all
+        # static references are audited, if hashed cache-busting is wanted.
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 # Removed basicConfig to rely on Django LOGGING dict for Heroku console output
 
@@ -432,3 +508,81 @@ else:
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024    # 10 MB
 DATA_UPLOAD_MAX_NUMBER_FILES = 20
+
+# =============================================================================
+# CACHING & SCALABILITY
+# =============================================================================
+# Use Redis in production (REDIS_URL) for a shared cache across App Service
+# instances; fall back to per-process local memory in dev / when unset.
+# A shared cache is required before scaling out to >1 instance, and backs the
+# rate limiter and axes lockout state below.
+_redis_url = os.getenv('REDIS_URL', '').strip()
+if _redis_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _redis_url,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'moen-ims-locmem',
+        }
+    }
+
+# =============================================================================
+# BRUTE-FORCE PROTECTION (django-axes)
+# =============================================================================
+# Protects password logins (notably Django admin) from credential stuffing.
+# Disabled under the test runner: django-axes requires a `request` argument to
+# authenticate(), which Django's test client.login() does not provide. This does
+# NOT weaken production — axes is fully active outside tests.
+AXES_ENABLED = not TESTING
+AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT', '5'))
+AXES_COOLOFF_TIME = float(os.getenv('AXES_COOLOFF_HOURS', '1'))  # hours before auto-unlock
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]           # lock on the pair, not IP alone
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+# Respect the proxy header so the real client IP is recorded behind Azure.
+AXES_IPWARE_PROXY_COUNT = int(os.getenv('AXES_PROXY_COUNT', '1'))
+AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+
+# =============================================================================
+# RATE LIMITING (django-ratelimit)
+# =============================================================================
+# Applied as decorators on sensitive views (OAuth login/callback, bulk uploads).
+RATELIMIT_ENABLE = os.getenv('RATELIMIT_ENABLE', 'True').lower() == 'true'
+RATELIMIT_USE_CACHE = 'default'
+
+# Per-endpoint limits (django-ratelimit rate strings), tunable via env so ops
+# can tighten/loosen without a code change — same pattern as the AXES_* limits.
+# These guard heavy/abusable endpoints: waybill PDF generation and bulk imports.
+RATELIMIT_WAYBILL_PDF = os.getenv('RATELIMIT_WAYBILL_PDF', '10/m')
+RATELIMIT_BULK_UPLOAD = os.getenv('RATELIMIT_BULK_UPLOAD', '6/m')
+RATELIMIT_BULK_REQUEST = os.getenv('RATELIMIT_BULK_REQUEST', '6/m')
+
+# =============================================================================
+# CONTENT SECURITY POLICY (django-csp)
+# =============================================================================
+# Rolled out in REPORT-ONLY mode first so violations are reported without
+# breaking the existing UI (Bootstrap, maps, Plotly, inline scripts). Review
+# reports, tighten the directives, then switch the key to CONTENT_SECURITY_POLICY
+# to enforce. Flip to enforcing via CSP_ENFORCE=1 once the report log is clean.
+_csp_directives = {
+    'default-src': ("'self'",),
+    'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net',
+                   'https://cdnjs.cloudflare.com', 'https://unpkg.com', 'https://code.jquery.com',
+                   'https://cdn.plot.ly'),
+    'style-src': ("'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net',
+                  'https://cdnjs.cloudflare.com', 'https://fonts.googleapis.com', 'https://unpkg.com'),
+    'font-src': ("'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com', 'data:'),
+    'img-src': ("'self'", 'data:', 'blob:', 'https:'),
+    'connect-src': ("'self'", 'https:'),
+    'frame-ancestors': ("'none'",),
+}
+if os.getenv('CSP_ENFORCE', '').lower() in ('1', 'true', 'yes'):
+    CONTENT_SECURITY_POLICY = {'DIRECTIVES': _csp_directives}
+else:
+    CONTENT_SECURITY_POLICY_REPORT_ONLY = {'DIRECTIVES': _csp_directives}

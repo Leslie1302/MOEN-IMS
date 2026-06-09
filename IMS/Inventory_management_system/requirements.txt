@@ -43,3 +43,21 @@ pyzbar>=0.1.9
 pdf2image>=1.17.0
 # Phase H — daily SQLite backup to Azure Blob Storage
 azure-storage-blob>=12.19.0
+# Media (user uploads) stored on Azure Blob via Django's storage API so files
+# survive deploys/restarts and work across multiple App Service instances.
+django-storages[azure]>=1.14.2
+
+# =============================================================================
+# Hardening (see HARDENING_PLAN.md)
+# =============================================================================
+# Brute-force login protection (admin / password auth)
+django-axes==7.0.0
+# Per-view rate limiting (OAuth login/callback, bulk uploads)
+django-ratelimit==4.1.0
+# Content-Security-Policy header
+django-csp==4.0
+# Error tracking (settings.py auto-enables when SENTRY_DSN is set)
+sentry-sdk==2.20.0
+# Redis client for the shared cache / rate-limit + lockout backend at scale
+redis==5.2.1
+# Postgres in production (psycopg2-binary already present above)

@@ -605,9 +605,12 @@ def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
                         Profile.objects.filter(pk=instance.pk).update(signature_stamp=stamp)
                         logger.info(f"Generated signature stamp for profile: {instance.user.username}")
                         
-                        # Also generate PNG stamp image
+                        # Also generate PNG stamp image. Skipped under TESTING:
+                        # it writes files to media/digital signatures/, which
+                        # slows the suite and litters the media dir. The text
+                        # stamp (DB) above is still created.
                         try:
-                            if hasattr(instance, 'generate_digital_stamp_png'):
+                            if not getattr(settings, 'TESTING', False) and hasattr(instance, 'generate_digital_stamp_png'):
                                 png_path = instance.generate_digital_stamp_png()
                                 if png_path:
                                     logger.info(f"Generated PNG digital stamp for profile: {instance.user.username} at {png_path}")

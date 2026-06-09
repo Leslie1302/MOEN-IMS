@@ -35,6 +35,23 @@ class EditItem(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def test_func(self):
         return self.request.user.is_staff
 
+    def get_queryset(self):
+        """Scope editable items to the user's own group(s).
+
+        ``is_staff`` alone is not authorisation: without this, any staff
+        user could edit another group's stock by changing the URL pk
+        (IDOR). This mirrors the app-wide scoping convention used in
+        ``views/order_views.py`` — superusers and Management see all
+        items; everyone else is restricted to their own group(s). Items
+        outside the user's scope raise 404 (not 403) so we don't leak
+        that the pk exists.
+        """
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Management').exists():
+            return qs
+        return qs.filter(group__in=user.groups.all())
+
     def form_valid(self, form):
         messages.success(self.request, 'Item updated successfully!')
         return super().form_valid(form)
@@ -48,6 +65,19 @@ class DeleteItem(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
 
     def test_func(self):
         return self.request.user.is_staff
+
+    def get_queryset(self):
+        """Scope deletable items to the user's own group(s).
+
+        Same IDOR guard as ``EditItem`` — deletion is higher-impact than
+        edit, so object-level scoping here is essential. Mirrors the
+        app-wide convention in ``views/order_views.py``.
+        """
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Management').exists():
+            return qs
+        return qs.filter(group__in=user.groups.all())
 
     def delete(self, request, *args, **kwargs):
         messages.success(self.request, self.success_message)

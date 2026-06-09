@@ -56,7 +56,8 @@ class District(auto_prefetch.Model):
 
     class Meta(auto_prefetch.Model.Meta):
         ordering = ['region', 'name']
-        unique_together = ['region', 'name', 'code']
+        # A district name and a district code are each unique within a region.
+        unique_together = [['region', 'name'], ['region', 'code']]
         verbose_name = 'District'
         verbose_name_plural = 'Districts'
 

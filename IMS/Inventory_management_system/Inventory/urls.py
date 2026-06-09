@@ -41,6 +41,9 @@ from .views.kpi_views import (
     StaffProfilePerformanceView, ManagementDashboardKPIView,
     staff_performance_api, management_dashboard_kpi_api
 )
+from .views.performance_views import (
+    MyPerformanceView, TeamPerformanceView, staff_performance_detail,
+)
 
 # Import project management views
 from .project_management_views import (
@@ -232,6 +235,10 @@ urlpatterns = [
     path('consultant_dash/', consultant_dash, name='consultant_dash'),
     path('management_dashboard/', management_dashboard, name='management_dashboard'),
     path('management-dashboard-kpi/', ManagementDashboardKPIView.as_view(), name='management_dashboard_kpi'),
+    # Rebuilt KPI / appraisal system
+    path('performance/me/', MyPerformanceView.as_view(), name='my_performance'),
+    path('performance/team/', TeamPerformanceView.as_view(), name='team_performance'),
+    path('performance/user/<str:username>/', staff_performance_detail, name='staff_performance_detail'),
     path('project-management-dashboard/', ProjectManagementDashboardView.as_view(), name='project_management_dashboard'),
     path('ghana-map/', ghana_map_view, name='ghana_map'),
     path('ghana-map-total-sites/', lambda request: __import__('django.views.generic', fromlist=['TemplateView']).TemplateView.as_view(template_name='Inventory/ghana_map_total_sites.html')(request), name='ghana_map_total_sites'),

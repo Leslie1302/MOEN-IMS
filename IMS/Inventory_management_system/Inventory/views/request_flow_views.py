@@ -20,8 +20,10 @@ Bulk: download_request_template + upload_requests
 import io
 import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django_ratelimit.decorators import ratelimit
 from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
@@ -314,9 +316,14 @@ def download_request_template(request):
     return response
 
 
+@ratelimit(key='user', rate=settings.RATELIMIT_BULK_UPLOAD, method=['POST'], block=True)
 def upload_requests(request):
     """
     Project-aware bulk material-request upload.
+
+    Rate-limited to 6 POSTs/min per user: each call parses an uploaded
+    Excel workbook and writes MaterialOrder rows in a transaction, so it is
+    a heavy, abusable input surface.
 
     POST: file (Excel), project (project type code).
     Validates each row, looks up community by name within the chosen project,

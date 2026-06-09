@@ -16,6 +16,10 @@ from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
 from .access_rate import MeterInstallation, AccessRateConfig  # Track B (access rate map)
+from .performance import (  # Rebuilt KPI / appraisal system
+    RolePerformanceTarget, PerformanceConfig, PerformanceSnapshot,
+    GRADABLE_ROLES, GRADE_BANDS,
+)
 
 from .utils import generate_abbreviation
 
@@ -41,5 +45,7 @@ __all__ = [
     'Signatory',
     'Region', 'District', 'Package',  # Geospatial models
     'MeterInstallation', 'AccessRateConfig',  # Access rate models
+    'RolePerformanceTarget', 'PerformanceConfig', 'PerformanceSnapshot',  # KPI system
+    'GRADABLE_ROLES', 'GRADE_BANDS',
     'generate_abbreviation',
 ]

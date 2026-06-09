@@ -62,8 +62,8 @@ class SiteProgressTests(TestCase):
         response = self.client.post(
             reverse('site_progress_edit', args=[self.site.pk]),
             data={
+                # Works counts are optional; a status/notes-only update is valid.
                 'works_status': 'Energised',
-                'progress_percent': '85',
                 'progress_notes': 'Conductors strung, transformer energised last week.',
             },
         )
@@ -72,7 +72,9 @@ class SiteProgressTests(TestCase):
 
         self.site.refresh_from_db()
         self.assertEqual(self.site.works_status, 'Energised')
-        self.assertEqual(self.site.progress_percent, 85)
+        # progress_percent is DERIVED from the works model against community
+        # targets (no longer entered by hand), so it is recomputed on save.
+        self.assertIsInstance(self.site.progress_percent, int)
         self.assertIsNotNone(self.site.progress_updated_at)
         self.assertGreaterEqual(self.site.progress_updated_at, before)
         self.assertEqual(self.site.progress_updated_by, self.user)

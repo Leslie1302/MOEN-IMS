@@ -1,0 +1,23 @@
+# Ruff configuration for MOEN-IMS.
+# Start conservative: catch real bugs now, tighten style rules over time.
+
+target-version = "py312"
+line-length = 100
+
+extend-exclude = [
+    "migrations",
+    "venv",
+    "venv_pdf",
+    "staticfiles",
+    "*/__pycache__/*",
+]
+
+[lint]
+# E9 = syntax errors; F63/F7/F82 = real logic bugs (undefined names, broken
+# comparisons, f-string issues). These should block CI.
+# F401 unused imports / F841 unused vars are useful but noisy on legacy code;
+# enable them once the backlog is cleared.
+select = ["E9", "F63", "F7", "F82"]
+
+[format]
+quote-style = "preserve"

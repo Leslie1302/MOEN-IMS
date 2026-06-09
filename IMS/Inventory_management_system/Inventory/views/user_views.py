@@ -364,7 +364,7 @@ class StaffProfileView(LoginRequiredMixin, View):
                 'receipt_orders': receipt_orders,
             }
             
-            return render(request, 'inventory/staff_profile.html', context)
+            return render(request, 'Inventory/staff_profile.html', context)
             
         except User.DoesNotExist:
             messages.error(request, 'User not found.')

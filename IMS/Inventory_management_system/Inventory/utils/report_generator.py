@@ -509,6 +509,12 @@ class WeeklyReportGenerator:
     
     def _generate_fallback_text(self, report, commit_stats):
         """Generate fallback plain text content if template is missing."""
+        # Optional audit-highlights block (mirrors the HTML generator).
+        _audit_text = getattr(report, 'audit_summary_text', '') or ''
+        if _audit_text:
+            audit_text_block = "AUDIT HIGHLIGHTS\n----------------\n" + _audit_text
+        else:
+            audit_text_block = ''
         text = f"""
 {report.subject}
 {'=' * len(report.subject)}

@@ -8,6 +8,8 @@ Provides functions to compute key performance indicators for different user role
 - Consultants: Site delivery & receipt logging
 """
 
+from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Count, Q, F, Avg, ExpressionWrapper, DurationField, Sum
 from django.utils import timezone
 from datetime import timedelta
@@ -15,6 +17,26 @@ from Inventory.models import (
     MaterialOrder, MaterialTransport, SiteReceipt,
     BillOfQuantity, InventoryItem
 )
+
+# Shared-aggregate KPI cache. These metrics are identical for every viewer
+# (no per-user data) and are recomputed from several COUNT/annotate queries,
+# so a short TTL absorbs dashboard auto-refresh / many managers hitting it at
+# once while bounding staleness. Backed by Redis in prod (shared across App
+# Service instances), local memory in dev/tests. Tune via env if needed.
+MANAGEMENT_SUMMARY_CACHE_KEY = 'kpi:management_dashboard_summary:v1'
+MANAGEMENT_SUMMARY_CACHE_TTL = int(
+    getattr(settings, 'KPI_SUMMARY_CACHE_TTL', 60)  # seconds
+)
+
+
+def invalidate_management_dashboard_summary():
+    """Drop the cached management KPI summary so the next read recomputes.
+
+    Call this from signals on the underlying models (MaterialOrder /
+    MaterialTransport) if you ever need the dashboard to reflect a change
+    sooner than the TTL. Safe to call even when nothing is cached.
+    """
+    cache.delete(MANAGEMENT_SUMMARY_CACHE_KEY)
 
 
 def get_store_officer_kpis(user):
@@ -81,9 +103,11 @@ def get_schedule_officer_kpis(user):
     now = timezone.now()
     last_30_days = now - timedelta(days=30)
 
-    # Get transports assigned by this user in last 30 days
+    # Transports for orders this user raised, in the last 30 days.
+    # NOTE: MaterialTransport has no `assigned_by` / `expected_delivery_date`
+    # fields; this legacy function is superseded by services/performance.py.
     transports = MaterialTransport.objects.filter(
-        assigned_by=user,
+        material_order__user=user,
         date_dispatched__gte=last_30_days
     )
 
@@ -92,11 +116,13 @@ def get_schedule_officer_kpis(user):
     in_transit = transports.filter(status='In Transit').count()
     pending = transports.filter(status='Pending').count()
 
-    # Calculate on-time delivery rate (by comparing delivery date with expected)
+    # On-time = delivered within 5 days of dispatch (no expected-date field exists).
     on_time = transports.filter(
-        status='Delivered',
-        date_delivered__lte=F('expected_delivery_date')
-    ).count()
+        status='Delivered', date_delivered__isnull=False
+    ).annotate(
+        _d=ExpressionWrapper(F('date_delivered') - F('date_dispatched'),
+                             output_field=DurationField())
+    ).filter(_d__lte=timedelta(days=5)).count()
 
     on_time_rate = 0
     if delivered > 0:
@@ -174,10 +200,11 @@ def get_management_kpis(user=None):
         budget_utilization = int((total_received / total_budget) * 100)
 
     # Count transports with delays
+    # Delayed = still in transit more than 5 days after dispatch
+    # (no expected-delivery-date field exists on the model).
     delayed_transports = MaterialTransport.objects.filter(
         status='In Transit',
-        expected_delivery_date__lt=now,
-        date_dispatched__gte=last_30_days
+        date_dispatched__lt=now - timedelta(days=5)
     ).count()
 
     return {
@@ -224,7 +251,7 @@ def get_consultant_kpis(user):
 
     # Get linked transports
     related_transports = MaterialTransport.objects.filter(
-        site_receipts__received_by=user,
+        site_receipt__received_by=user,
         date_dispatched__gte=last_30_days
     ).distinct().count()
 
@@ -268,7 +295,14 @@ def get_management_dashboard_summary():
     """
     Get top-level KPIs for the management dashboard
     Shows aggregate metrics across all users and operations
+
+    Result is cached for MANAGEMENT_SUMMARY_CACHE_TTL seconds (shared across
+    all viewers — the metrics carry no per-user data).
     """
+    cached = cache.get(MANAGEMENT_SUMMARY_CACHE_KEY)
+    if cached is not None:
+        return cached
+
     now = timezone.now()
     last_30_days = now - timedelta(days=30)
 
@@ -308,7 +342,7 @@ def get_management_dashboard_summary():
         delivered=Count('id')
     ).order_by('-delivered')[:5]
 
-    return {
+    summary = {
         'total_orders': total_orders,
         'completed_orders': completed_orders,
         'order_completion_rate': int((completed_orders / total_orders * 100) if total_orders > 0 else 0),
@@ -319,3 +353,5 @@ def get_management_dashboard_summary():
         'top_transporters': list(top_transporters),
         'period': 'Last 30 days',
     }
+    cache.set(MANAGEMENT_SUMMARY_CACHE_KEY, summary, MANAGEMENT_SUMMARY_CACHE_TTL)
+    return summary
