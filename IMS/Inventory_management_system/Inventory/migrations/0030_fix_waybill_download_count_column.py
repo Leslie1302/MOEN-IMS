@@ -6,8 +6,12 @@ def add_waybill_download_count_column(apps, schema_editor):
     table_name = "Inventory_materialtransport"
 
     with connection.cursor() as cursor:
+        # Backend-agnostic column check (the original used SQLite-only PRAGMA,
+        # which crashes on PostgreSQL). On a fresh database the column already
+        # exists via the model's earlier migrations, so this becomes a no-op.
         existing_columns = {
-            row[1] for row in cursor.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+            col.name
+            for col in connection.introspection.get_table_description(cursor, table_name)
         }
 
         if "waybill_download_count" not in existing_columns:
