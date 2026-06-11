@@ -684,12 +684,22 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                 success_count = 0
                 error_count = 0
                 
+                def _cell(value):
+                    """Coerce a pandas cell to a clean string. Blank/NaN -> ''.
+
+                    Without this, empty Excel cells arrive as float('nan') and
+                    get persisted to CharFields as the literal string 'nan'.
+                    """
+                    if not pd.notna(value):
+                        return ''
+                    return str(value).strip()
+
                 for index, row in df.iterrows():
                     try:
                         # Handle NaN or empty values
                         contract_qty = int(float(row['contract_quantity'])) if pd.notna(row['contract_quantity']) else 0
                         qty_received = int(float(row['quantity_received'])) if pd.notna(row['quantity_received']) else 0
-                        material_description = str(row['material_description']).strip() if pd.notna(row['material_description']) else None
+                        material_description = _cell(row['material_description']) or None
                         
                         if not material_description:
                             logger.warning(f"Row {index + 2}: Missing material_description, skipping")
@@ -724,13 +734,13 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
 
                         boq, created = BillOfQuantity.objects.get_or_create(
                             item_code=item_code,
-                            package_number=row['package_number'],
-                            community=row.get('community'),
+                            package_number=_cell(row['package_number']),
+                            community=_cell(row.get('community')) or None,
                             defaults={
-                                'region': row['region'],
-                                'district': row['district'],
-                                'consultant': row['consultant'],
-                                'contractor': row['contractor'],
+                                'region': _cell(row['region']),
+                                'district': _cell(row['district']),
+                                'consultant': _cell(row['consultant']),
+                                'contractor': _cell(row['contractor']),
                                 'material_description': material_description,
                                 'contract_quantity': contract_qty,
                                 'quantity_received': qty_received,
@@ -741,11 +751,11 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         )
                         if not created:
                             # Update existing record
-                            boq.region = row['region']
-                            boq.district = row['district']
-                            boq.community = row.get('community')
-                            boq.consultant = row['consultant']
-                            boq.contractor = row['contractor']
+                            boq.region = _cell(row['region'])
+                            boq.district = _cell(row['district'])
+                            boq.community = _cell(row.get('community')) or None
+                            boq.consultant = _cell(row['consultant'])
+                            boq.contractor = _cell(row['contractor'])
                             boq.material_description = material_description
                             boq.contract_quantity = contract_qty
                             boq.quantity_received = qty_received
