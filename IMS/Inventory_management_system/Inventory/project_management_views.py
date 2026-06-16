@@ -1,8 +1,12 @@
 # Inventory/project_management_views.py
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Sum, Count, Q, F, Avg, FloatField, ExpressionWrapper
 from django.db.models.functions import Coalesce
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.utils.http import urlencode
 from .models import BillOfQuantity, Project, ProjectSite
 from .utils import is_superuser, is_store_officer, is_management
 import json
@@ -835,3 +839,84 @@ class CommunityProgressBreakdownView(LoginRequiredMixin, UserPassesTestMixin, Te
             logger.error(f"Error loading community breakdown: {str(e)}", exc_info=True)
             context['error'] = str(e)
         return context
+
+
+class _TargetsPermMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """Same access as the progress pages: management / store officer / superuser."""
+    def test_func(self):
+        user = self.request.user
+        return is_management(user) or is_store_officer(user) or is_superuser(user)
+
+
+class PullTargetsFromBoqView(_TargetsPermMixin, View):
+    """POST: copy BoQ contract quantities into one community's frozen targets.
+
+    Duplicate-safe and idempotent — writes only to the canonical community
+    record that completion reads from, and SETS (not adds) the values.
+    """
+    def post(self, request, *args, **kwargs):
+        region = (request.POST.get('region') or '').strip()
+        district = (request.POST.get('district') or '').strip()
+        community = (request.POST.get('community') or '').strip()
+
+        from .services.community_progress import pull_targets_for_location
+
+        if not (region and district and community):
+            messages.error(request, "Missing community identity; cannot pull targets.")
+            return self._back(region, district, community)
+
+        res = pull_targets_for_location(region, district, community,
+                                        user=request.user, apply=True)
+        status = res['status']
+        if status == 'no_community':
+            messages.error(
+                request,
+                f"No community record found for '{community}' ({district}, {region}). "
+                "Import the community first, then pull targets.")
+        elif status == 'locked':
+            messages.warning(
+                request,
+                f"Targets for '{community}' are locked (frozen baseline) and were "
+                "not overwritten. Unlock the community to re-pull.")
+        else:
+            changed = sum(1 for d in res['diff'].values() if d['delta'] != 0)
+            msg = (f"Pulled BoQ targets for '{community}' "
+                   f"({changed} field(s) updated).")
+            if res['duplicates'] > 1:
+                msg += (f" Note: {res['duplicates']} duplicate community records "
+                        "exist for this location — targets were written to the "
+                        "canonical one only (no double-counting). Consider merging "
+                        "the duplicates.")
+            messages.success(request, msg)
+        return self._back(region, district, community)
+
+    def _back(self, region, district, community):
+        url = reverse('community_progress_breakdown')
+        qs = urlencode({'region': region, 'district': district, 'community': community})
+        return redirect(f"{url}?{qs}")
+
+
+class BulkPullTargetsFromBoqView(_TargetsPermMixin, View):
+    """POST: pull BoQ targets for every distinct community the user can access.
+
+    De-duplicates locations so a community spanning several packages is pulled
+    once. Honours locked communities and reports duplicate records seen.
+    """
+    def post(self, request, *args, **kwargs):
+        from .services.community_progress import bulk_pull_targets
+
+        access_filter = get_user_accessible_projects(request.user)
+        boq = BillOfQuantity.objects.filter(access_filter)
+        s = bulk_pull_targets(boq, user=request.user)
+
+        parts = [f"{s['pulled']} community target set(s) pulled from BoQ "
+                 f"across {s['locations']} location(s)."]
+        if s['locked']:
+            parts.append(f"{s['locked']} locked and left untouched.")
+        if s['no_community']:
+            parts.append(f"{s['no_community']} BoQ location(s) had no community record.")
+        if s['duplicates_seen']:
+            parts.append(f"{s['duplicates_seen']} location(s) had duplicate community "
+                         "records — written to the canonical row only.")
+        messages.success(request, " ".join(parts))
+        return redirect('community_progress_list')

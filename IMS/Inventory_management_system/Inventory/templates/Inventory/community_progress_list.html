@@ -18,7 +18,14 @@
                 HT/LV pole, transformer and connection breakdown for a community.
             </p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <form method="post" action="{% url 'bulk_pull_targets_from_boq' %}"
+                  onsubmit="return confirm('Pull BoQ contract quantities into completion targets for ALL accessible communities? Each community is updated once (overwrite, not add); locked communities are skipped.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-download"></i> Pull all targets from BoQ
+                </button>
+            </form>
             <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Dashboard
             </a>

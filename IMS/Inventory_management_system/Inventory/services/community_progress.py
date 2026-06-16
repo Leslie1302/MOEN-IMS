@@ -190,6 +190,86 @@ def _targets_for(region, district, community):
     ).first()
 
 
+def resolve_canonical_community(region, district, community):
+    """Return (canonical_community, duplicate_count) for a location.
+
+    The canonical row is the SAME one completion reads via ``_targets_for``
+    (``.first()`` over active matches). Duplicate community records for the
+    same (region, district, community) are reported so the caller can warn —
+    targets are only ever written to the canonical row, never multiplied
+    across duplicates.
+    """
+    from ..models import Community
+    qs = Community.objects.filter(
+        region__iexact=region or '',
+        district__iexact=district or '',
+        community__iexact=community or '',
+        is_active=True,
+    ).order_by('id')
+    rows = list(qs)
+    return (rows[0] if rows else None, len(rows))
+
+
+def pull_targets_for_location(region, district, community, user=None, *, apply=False):
+    """Resolve the canonical community for a location and pull its BoQ targets.
+
+    Returns a dict describing the outcome so a view can message the user:
+      {'status': 'applied'|'preview'|'locked'|'no_community',
+       'community': <obj or None>, 'duplicates': int, 'diff': {...} or None}
+
+    Duplicate-safe: writes only to the canonical row (see
+    ``resolve_canonical_community``); a >1 ``duplicates`` count is surfaced
+    so duplicate records can be cleaned up, but never causes double-counting.
+    Idempotent: targets are SET to the BoQ totals, so re-running yields the
+    same numbers rather than accumulating.
+    """
+    canonical, dup = resolve_canonical_community(region, district, community)
+    if canonical is None:
+        return {'status': 'no_community', 'community': None,
+                'duplicates': 0, 'diff': None}
+    if canonical.targets_locked:
+        return {'status': 'locked', 'community': canonical,
+                'duplicates': dup, 'diff': preview_targets_from_boq(canonical)}
+    diff = pull_targets_from_boq(canonical, user, apply=apply)
+    return {'status': 'applied' if apply else 'preview',
+            'community': canonical, 'duplicates': dup, 'diff': diff}
+
+
+def bulk_pull_targets(boq_queryset, user=None):
+    """Pull BoQ targets for every DISTINCT (region, district, community) in a
+    BoQ queryset. De-duplicates locations first so a community spread over
+    several package rows is pulled exactly once into its canonical record.
+
+    Returns a summary: {'pulled', 'locked', 'no_community', 'duplicates_seen',
+    'locations'}.
+    """
+    seen = set()
+    summary = {'pulled': 0, 'locked': 0, 'no_community': 0,
+               'duplicates_seen': 0, 'locations': 0}
+    for row in boq_queryset.values('region', 'district', 'community').iterator():
+        comm = (row.get('community') or '').strip()
+        if not comm:
+            continue
+        key = ((row.get('region') or '').strip().lower(),
+               (row.get('district') or '').strip().lower(),
+               comm.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        summary['locations'] += 1
+        res = pull_targets_for_location(
+            row.get('region'), row.get('district'), comm, user, apply=True)
+        if res['duplicates'] > 1:
+            summary['duplicates_seen'] += 1
+        if res['status'] == 'applied':
+            summary['pulled'] += 1
+        elif res['status'] == 'locked':
+            summary['locked'] += 1
+        elif res['status'] == 'no_community':
+            summary['no_community'] += 1
+    return summary
+
+
 def compute_site_completion(site, community=None):
     """Return the 5-stage completion for a ProjectSite.
 

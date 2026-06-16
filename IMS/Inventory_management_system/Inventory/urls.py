@@ -52,7 +52,9 @@ from .project_management_views import (
     PackageAnalysisView,
     MaterialAnalysisView,
     CommunityProgressListView,
-    CommunityProgressBreakdownView
+    CommunityProgressBreakdownView,
+    PullTargetsFromBoqView,
+    BulkPullTargetsFromBoqView
 )
 
 # Import project creation and assignment views
@@ -265,6 +267,8 @@ urlpatterns = [
     path('project-analysis/community/', CommunityAnalysisView.as_view(), name='project_community_analysis'),
     path('project-analysis/community-progress/', CommunityProgressListView.as_view(), name='community_progress_list'),
     path('project-analysis/community-progress/breakdown/', CommunityProgressBreakdownView.as_view(), name='community_progress_breakdown'),
+    path('project-analysis/community-progress/pull-targets/', PullTargetsFromBoqView.as_view(), name='pull_targets_from_boq'),
+    path('project-analysis/community-progress/pull-targets-all/', BulkPullTargetsFromBoqView.as_view(), name='bulk_pull_targets_from_boq'),
     path('project-analysis/package/', PackageAnalysisView.as_view(), name='project_package_analysis'),
     path('project-analysis/material/', MaterialAnalysisView.as_view(), name='project_material_analysis'),
 

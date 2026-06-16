@@ -17,7 +17,17 @@
                 {{ region }} &rsaquo; {{ district }} &rsaquo; {{ community }} — works breakdown
             </p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <form method="post" action="{% url 'pull_targets_from_boq' %}"
+                  onsubmit="return confirm('Pull BoQ contract quantities into this community\'s completion targets? This overwrites the current targets with the BoQ totals (it does not add to them).');">
+                {% csrf_token %}
+                <input type="hidden" name="region" value="{{ region }}">
+                <input type="hidden" name="district" value="{{ district }}">
+                <input type="hidden" name="community" value="{{ community }}">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-download"></i> Pull targets from BoQ
+                </button>
+            </form>
             <a href="{% url 'community_progress_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Community Progress
             </a>
