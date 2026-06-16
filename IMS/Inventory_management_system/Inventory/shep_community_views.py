@@ -259,6 +259,29 @@ def get_packages_by_community(request):
     return JsonResponse({'packages': list(packages)})
 
 
+# Prefix per project type for auto-generated package numbers.
+# Mirrors the COST/SPEC convention from the interactive form.
+_PACKAGE_PREFIX = {
+    PROJECT_TYPE_COST_SHARING: 'COST',
+    PROJECT_TYPE_STREETLIGHTS: 'STREET',
+}
+
+
+def build_auto_package_number(project_code, district, community, requestor=''):
+    """Build an auto package number: PREFIX-DISTRICT-COMMUNITY-REQUESTOR-RANDOM.
+
+    Shared by the interactive AJAX endpoint and the bulk importer so both
+    produce identical formats. SHEP keeps human-authored package numbers and
+    is never auto-generated here.
+    """
+    prefix = _PACKAGE_PREFIX.get(project_code, 'SPEC')
+    district_abbr = generate_abbreviation(district) if district else 'XX'
+    community_abbr = generate_abbreviation(community) if community else 'XX'
+    requestor_abbr = generate_abbreviation(requestor) if requestor else 'XX'
+    random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+    return f"{prefix}-{district_abbr}-{community_abbr}-{requestor_abbr}-{random_suffix}"
+
+
 def generate_auto_package_number(request):
     """
     AJAX endpoint to generate an auto package number for Cost-sharing/Special projects.
@@ -824,6 +847,15 @@ def upload_communities(request):
             result.add_error(excel_row, 'community', 'Required.', community_name)
         if project_type.code == PROJECT_TYPE_SHEP and not package_number:
             result.add_error(excel_row, 'package_number', 'Required for SHEP.', package_number)
+
+        # Non-SHEP: auto-generate a package number when the column is blank,
+        # matching the interactive form's format. Requires region/district/
+        # community to be present (validated above), so only generate for
+        # otherwise-valid rows.
+        if (project_type.code != PROJECT_TYPE_SHEP and not package_number
+                and region and district and community_name):
+            package_number = build_auto_package_number(
+                project_type.code, district, community_name)
 
         # MP lookup (optional, MP-routed projects only).
         mp_instance = None
