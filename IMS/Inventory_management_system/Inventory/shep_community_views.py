@@ -64,6 +64,9 @@ class SHEPCommunityListView(SuperuserRequiredMixin, ListView):
         context['regions'] = SHEPCommunity.objects.values_list('region', flat=True).distinct().order_by('region')
         context['search'] = self.request.GET.get('search', '')
         context['selected_region'] = self.request.GET.get('region', '')
+        # Drive the bulk-upload template buttons + project dropdown from the
+        # live roster of active project types (not a hardcoded three).
+        context['project_types'] = ProjectType.objects.filter(active=True).order_by('sort_order', 'name')
         return context
 
 

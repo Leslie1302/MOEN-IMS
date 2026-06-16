@@ -64,16 +64,15 @@
             <div class="row mb-3">
                 <div class="col-12">
                     <label class="form-label fw-semibold">Step 1 — download template</label>
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'download_community_template' %}?project=shep" class="btn btn-outline-success">
-                            <i class="bi bi-download"></i> SHEP template
+                    <div class="btn-group flex-wrap" role="group">
+                        {% for pt in project_types %}
+                        <a href="{% url 'download_community_template' %}?project={{ pt.code }}"
+                           class="btn {% if pt.code == 'shep' %}btn-outline-success{% elif pt.code == 'cost_sharing' %}btn-outline-info{% elif pt.code == 'streetlights' %}btn-outline-warning{% else %}btn-outline-secondary{% endif %}">
+                            <i class="bi bi-download"></i> {{ pt.name }} template
                         </a>
-                        <a href="{% url 'download_community_template' %}?project=cost_sharing" class="btn btn-outline-info">
-                            <i class="bi bi-download"></i> Cost Sharing template
-                        </a>
-                        <a href="{% url 'download_community_template' %}?project=streetlights" class="btn btn-outline-warning">
-                            <i class="bi bi-download"></i> Streetlights template
-                        </a>
+                        {% empty %}
+                        <span class="text-muted">No active project types. Activate one in the admin first.</span>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -86,9 +85,9 @@
                         <div class="col-md-3">
                             <select name="project" class="form-select" required>
                                 <option value="">— Project type —</option>
-                                <option value="shep">SHEP</option>
-                                <option value="cost_sharing">Cost Sharing</option>
-                                <option value="streetlights">Streetlights</option>
+                                {% for pt in project_types %}
+                                <option value="{{ pt.code }}">{{ pt.name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
