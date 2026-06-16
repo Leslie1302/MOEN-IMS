@@ -7,8 +7,9 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.http import urlencode
-from .models import BillOfQuantity, Project, ProjectSite
+from .models import BillOfQuantity, Project, ProjectSite, Community
 from .utils import is_superuser, is_store_officer, is_management
+from collections import defaultdict
 import json
 import logging
 
@@ -52,6 +53,64 @@ def get_user_accessible_projects(user):
 
     # If no access, return empty Q (user sees nothing)
     return accessible_projects if accessible_projects else Q(id__isnull=True)
+
+
+def _norm_pkg(p):
+    """Normalize a package number for matching across BoQ and Community
+    (strip, collapse internal whitespace, upper-case)."""
+    return ' '.join((p or '').strip().upper().split())
+
+
+def _boq_package_totals(boq_qs):
+    """Aggregate a BoQ queryset into per-package totals keyed by normalized
+    package number. BoQ has no community, so community-level figures are built
+    by joining a Community's package_number(s) to these package totals.
+
+    Returns: { norm_package: {contract, received, items, contractors:set} }
+    """
+    totals = defaultdict(lambda: {'contract': 0.0, 'received': 0.0,
+                                  'items': 0, 'contractors': set()})
+    for b in boq_qs.values('package_number', 'contract_quantity',
+                           'quantity_received', 'contractor'):
+        key = _norm_pkg(b['package_number'])
+        if not key:
+            continue
+        t = totals[key]
+        t['contract'] += b['contract_quantity'] or 0
+        t['received'] += b['quantity_received'] or 0
+        t['items'] += 1
+        c = (b['contractor'] or '').strip()
+        if c:
+            t['contractors'].add(c)
+    return totals
+
+
+def _community_works_map():
+    """Highest works progress per (region, district, community), lower-cased,
+    from ProjectSite — the 5-stage works completion source."""
+    works_map = {}
+    for s in ProjectSite.objects.values('region', 'district', 'community',
+                                         'progress_percent', 'works_status'):
+        key = ((s['region'] or '').lower(), (s['district'] or '').lower(),
+               (s['community'] or '').lower())
+        if key not in works_map or (s['progress_percent'] or 0) > (works_map[key]['progress_percent'] or 0):
+            works_map[key] = s
+    return works_map
+
+
+def _group_communities_by_packages(community_qs):
+    """Group a Community queryset into {(region, district, community): {norm_pkgs}}.
+    Communities without a name are skipped; packages are normalized."""
+    grouped = {}
+    for c in community_qs.values('region', 'district', 'community', 'package_number'):
+        key = (c['region'] or '', c['district'] or '', c['community'] or '')
+        if not key[2]:
+            continue
+        pkgs = grouped.setdefault(key, set())
+        pk = _norm_pkg(c['package_number'])
+        if pk:
+            pkgs.add(pk)
+    return grouped
 
 
 class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -306,55 +365,63 @@ class CommunityAnalysisView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         context = super().get_context_data(**kwargs)
 
         try:
-            # Get BOQ items that user can access (project segregation)
+            # Community is the spine. Material totals come from BoQ joined to
+            # each community's package_number(s); completion here is material
+            # delivery (received / contract), matching this page's original
+            # intent. Works-stage % lives on the Community Progress page.
             access_filter = get_user_accessible_projects(self.request.user)
-            boq_items = BillOfQuantity.objects.filter(access_filter)
+            pkg_tot = _boq_package_totals(BillOfQuantity.objects.filter(access_filter))
+            grouped = _group_communities_by_packages(Community.objects.filter(is_active=True))
 
-            # Community-level aggregation with full data
-            community_data = boq_items.values('community', 'region', 'district', 'phase').annotate(
-                total_contract=Coalesce(Sum('contract_quantity'), 0.0),
-                total_received=Coalesce(Sum('quantity_received'), 0.0),
-                item_count=Count('id'),
-                package_count=Count('package_number', distinct=True)
-            ).order_by('community')
-            
-            # Process all communities
             community_list = []
-            chart_labels = []
-            chart_data = []
+            chart_rows = []
             completed_count = 0
             in_progress_count = 0
             not_started_count = 0
-            
-            for comm in community_data:
-                if comm['community']:
-                    completion = (comm['total_received'] / comm['total_contract'] * 100) if comm['total_contract'] > 0 else 0
-                    status = 'Complete' if completion >= 100 else 'In Progress' if completion > 0 else 'Not Started'
-                    
-                    # Count by status
-                    if status == 'Complete':
-                        completed_count += 1
-                    elif status == 'In Progress':
-                        in_progress_count += 1
-                    else:
-                        not_started_count += 1
-                    
-                    community_list.append({
-                        'name': comm['community'],
-                        'region': comm['region'],
-                        'district': comm['district'],
-                        'phase': comm['phase'],
-                        'total_contract': comm['total_contract'],
-                        'total_received': comm['total_received'],
-                        'balance': comm['total_contract'] - comm['total_received'],
-                        'completion': round(completion, 2),
-                        'item_count': comm['item_count'],
-                        'package_count': comm['package_count'],
-                        'status': status
-                    })
-                    chart_labels.append(comm['community'] or 'Unknown')
-                    chart_data.append(round(completion, 2))
-            
+
+            for (region, district, community), pkgs in grouped.items():
+                contract = received = items = 0
+                for p in pkgs:
+                    t = pkg_tot.get(p)
+                    if t:
+                        contract += t['contract']
+                        received += t['received']
+                        items += t['items']
+                completion = (received / contract * 100) if contract > 0 else 0
+                status = 'Complete' if completion >= 100 else 'In Progress' if completion > 0 else 'Not Started'
+
+                if status == 'Complete':
+                    completed_count += 1
+                elif status == 'In Progress':
+                    in_progress_count += 1
+                else:
+                    not_started_count += 1
+
+                community_list.append({
+                    'name': community,
+                    'region': region,
+                    'district': district,
+                    'phase': '',
+                    'total_contract': contract,
+                    'total_received': received,
+                    'balance': contract - received,
+                    'completion': round(completion, 2),
+                    'item_count': items,
+                    'package_count': len(pkgs),
+                    'status': status,
+                })
+                if contract > 0:
+                    chart_rows.append((community or 'Unknown', round(completion, 2)))
+
+            community_list.sort(key=lambda c: (c['region'], c['district'], c['name']))
+
+            # Chart: only communities with BoQ material data, capped so the
+            # canvas stays readable (3k+ communities would be unusable).
+            chart_rows.sort(key=lambda r: r[1], reverse=True)
+            chart_rows = chart_rows[:50]
+            chart_labels = [r[0] for r in chart_rows]
+            chart_data = [r[1] for r in chart_rows]
+
             context.update({
                 'community_list': community_list,
                 'total_communities': len(community_list),
@@ -648,76 +715,62 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         try:
+            # Community is the spine: list every active community, attach its
+            # works % from ProjectSite, and its material totals from BoQ joined
+            # by package_number (BoQ itself carries no community).
             access_filter = get_user_accessible_projects(self.request.user)
-            boq_items = BillOfQuantity.objects.filter(access_filter)
+            pkg_tot = _boq_package_totals(BillOfQuantity.objects.filter(access_filter))
 
             q = (self.request.GET.get('q') or '').strip()
             region_f = (self.request.GET.get('region') or '').strip()
+
+            comms = Community.objects.filter(is_active=True)
             if q:
-                boq_items = boq_items.filter(
+                comms = comms.filter(
                     Q(community__icontains=q) | Q(district__icontains=q)
-                    | Q(region__icontains=q) | Q(contractor__icontains=q)
-                    | Q(package_number__icontains=q)
+                    | Q(region__icontains=q) | Q(package_number__icontains=q)
                 )
             if region_f:
-                boq_items = boq_items.filter(region=region_f)
+                comms = comms.filter(region=region_f)
 
-            community_data = boq_items.values(
-                'community', 'region', 'district'
-            ).annotate(
-                total_contract=Coalesce(Sum('contract_quantity'), 0.0),
-                total_received=Coalesce(Sum('quantity_received'), 0.0),
-                package_count=Count('package_number', distinct=True),
-                contractor_count=Count('contractor', distinct=True),
-                item_count=Count('id'),
-            ).order_by('region', 'district', 'community')
-
-            # Works progress per community, keyed case-insensitively. The
-            # completion bar now reflects the derived 5-stage works percentage
-            # (ProjectSite.progress_percent), NOT BoQ delivery — so a site
-            # progress update moves the bar. BoQ delivery is kept separately
-            # as material context.
-            works_map = {}
-            for s in ProjectSite.objects.values(
-                'region', 'district', 'community', 'progress_percent', 'works_status'
-            ):
-                key = ((s['region'] or '').lower(), (s['district'] or '').lower(),
-                       (s['community'] or '').lower())
-                # Keep the highest progress when multiple sites share a community.
-                if key not in works_map or s['progress_percent'] > works_map[key]['progress_percent']:
-                    works_map[key] = s
+            works_map = _community_works_map()
+            grouped = _group_communities_by_packages(comms)
 
             community_list = []
-            for comm in community_data:
-                if not comm['community']:
-                    continue
-                contract = comm['total_contract'] or 0
-                received = comm['total_received'] or 0
+            for (region, district, community), pkgs in grouped.items():
+                contract = received = items = 0
+                contractors = set()
+                for p in pkgs:
+                    t = pkg_tot.get(p)
+                    if t:
+                        contract += t['contract']
+                        received += t['received']
+                        items += t['items']
+                        contractors |= t['contractors']
                 material_completion = round((received / contract * 100), 1) if contract > 0 else 0
 
-                key = ((comm['region'] or '').lower(), (comm['district'] or '').lower(),
-                       (comm['community'] or '').lower())
-                works = works_map.get(key)
-                completion = works['progress_percent'] if works else 0
+                works = works_map.get((region.lower(), district.lower(), community.lower()))
+                completion = (works['progress_percent'] or 0) if works else 0
                 status = ('Complete' if completion >= 100
                           else 'In Progress' if completion > 0 else 'Not Started')
                 community_list.append({
-                    'community': comm['community'],
-                    'region': comm['region'],
-                    'district': comm['district'],
-                    'package_count': comm['package_count'],
-                    'contractor_count': comm['contractor_count'],
-                    'item_count': comm['item_count'],
+                    'community': community,
+                    'region': region,
+                    'district': district,
+                    'package_count': len(pkgs),
+                    'contractor_count': len(contractors),
+                    'item_count': items,
                     'total_contract': contract,
                     'total_received': received,
                     'completion': completion,            # works-based (5-stage)
                     'material_completion': material_completion,  # BoQ delivery
                     'status': status,
                 })
+            community_list.sort(key=lambda c: (c['region'], c['district'], c['community']))
 
             regions = list(
-                boq_items.exclude(region='').values_list('region', flat=True)
-                .distinct().order_by('region')
+                Community.objects.filter(is_active=True).exclude(region='')
+                .values_list('region', flat=True).distinct().order_by('region')
             )
 
             context.update({
@@ -759,10 +812,26 @@ class CommunityProgressBreakdownView(LoginRequiredMixin, UserPassesTestMixin, Te
             community = (self.request.GET.get('community') or '').strip()
 
             access_filter = get_user_accessible_projects(self.request.user)
-            items = BillOfQuantity.objects.filter(access_filter).filter(
-                region__iexact=region,
-                district__iexact=district,
-                community__iexact=community,
+            boq_all = BillOfQuantity.objects.filter(access_filter)
+
+            # BoQ carries no community, so resolve this community's package
+            # number(s) from the Community model and match BoQ by package.
+            # Keep the legacy community-text match as a fallback for any data
+            # that does carry a community.
+            comm_pkgs_norm = {
+                _norm_pkg(p) for p in Community.objects.filter(
+                    region__iexact=region, district__iexact=district,
+                    community__iexact=community,
+                ).values_list('package_number', flat=True) if _norm_pkg(p)
+            }
+            raw_match = [
+                pn for pn in boq_all.values_list('package_number', flat=True).distinct()
+                if _norm_pkg(pn) in comm_pkgs_norm
+            ]
+            items = boq_all.filter(
+                Q(package_number__in=raw_match)
+                | Q(region__iexact=region, district__iexact=district,
+                    community__iexact=community)
             )
 
             # Group the BoQ rows by package (each package may have its own
