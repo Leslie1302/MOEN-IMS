@@ -6,9 +6,11 @@
 {% block extra_head %}
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <style>
-    /* Make Tom Select controls match Bootstrap form sizing */
+    /* Match Bootstrap form sizing */
     .ts-wrapper.form-control { padding: 0; height: auto; }
     .ts-control { min-height: calc(1.5em + 0.75rem + 2px); }
+    /* Dropdown is appended to <body> so the card can't clip it — keep it on top */
+    .ts-dropdown { z-index: 1060; }
 </style>
 {% endblock %}
 
@@ -367,22 +369,22 @@
 // original <select> in the DOM and fires native 'change' events, so the
 // live-stock and consignee-preview scripts above keep working unchanged.
 (function () {
-    function enhance(id, placeholder) {
+    function enhance(id) {
         var el = document.getElementById(id);
         if (!el || el.tomselect) return;
         new TomSelect(el, {
             maxOptions: 1000,
             allowEmptyOption: true,
             create: false,                 // must pick an existing item
-            placeholder: placeholder,
+            placeholder: ' ',              // bare field — no "select ..." text
+            dropdownParent: 'body',        // detach menu so the card can't clip it
             sortField: { field: 'text', direction: 'asc' },
-            // Search both the visible label and any data-* if present.
             searchField: ['text']
         });
     }
-    enhance('id_name', '— search material —');
-    enhance('id_community', '— search community —');
-    enhance('id_warehouse', '— any warehouse —');
+    enhance('id_name');
+    enhance('id_community');
+    enhance('id_warehouse');
 })();
 </script>
 {% endblock %}
