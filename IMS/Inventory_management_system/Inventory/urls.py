@@ -446,6 +446,11 @@ urlpatterns = [
 
     # Members of Parliament bulk import.
     path('download-mp-template/', download_mp_template, name='download_mp_template'),
+    path('upload-mps/', upload_members_of_parliament, name='upload_mps'),
+
+    # Project consultant bulk import.
+    path('download-consultant-template/', download_consultant_template, name='download_consultant_template'),
+    path('upload-consultants/', upload_project_consultants, name='upload_consultants'),
 
     # Geospatial API endpoints (Ghana Map - Phase 2)
     path('api/ghana-map-project-sites/', ghana_map_project_sites_api, name='ghana_map_project_sites_api'),
