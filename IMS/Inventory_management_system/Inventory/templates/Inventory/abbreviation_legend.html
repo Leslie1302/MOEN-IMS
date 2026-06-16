@@ -18,28 +18,30 @@
     <div class="row">
         <!-- Regions -->
         <div class="col-lg-4 mb-4">
-            <div class="card h-100">
+            <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="bi bi-globe me-2"></i>Regions</h5>
                 </div>
                 <div class="card-body p-0">
                     {% if regions %}
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Full Name</th>
-                                <th>Abbreviation</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in regions %}
-                            <tr>
-                                <td>{{ item.region }}</td>
-                                <td><span class="badge bg-primary">{{ item.region_abbr }}</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>Full Name</th>
+                                    <th>Abbreviation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in regions %}
+                                <tr>
+                                    <td>{{ item.region }}</td>
+                                    <td><span class="badge bg-primary">{{ item.region_abbr }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                     {% else %}
                     <div class="text-center py-4 text-muted">
                         No regions found
@@ -51,7 +53,7 @@
 
         <!-- Districts -->
         <div class="col-lg-4 mb-4">
-            <div class="card h-100">
+            <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="bi bi-map me-2"></i>Districts</h5>
                 </div>
@@ -88,7 +90,7 @@
 
         <!-- Communities -->
         <div class="col-lg-4 mb-4">
-            <div class="card h-100">
+            <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Communities</h5>
                 </div>

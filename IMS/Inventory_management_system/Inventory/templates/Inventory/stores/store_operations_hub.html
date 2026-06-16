@@ -51,7 +51,7 @@
     
     .stat-card.today::before { background: var(--hub-accent); }
     .stat-card.pending::before { background: var(--hub-warning); }
-    .stat-card.progress::before { background: #6366f1; }
+    .stat-card.inprogress::before { background: #6366f1; }
     .stat-card.transit::before { background: #8b5cf6; }
     .stat-card.completed::before { background: var(--hub-success); }
     
@@ -401,7 +401,7 @@
             <div class="stat-value">{{ stats.pending_start }}</div>
             <div class="stat-label">Pending Start</div>
         </div>
-        <div class="stat-card progress">
+        <div class="stat-card inprogress">
             <i class="fas fa-spinner stat-icon"></i>
             <div class="stat-value">{{ stats.in_progress|add:stats.partially_fulfilled }}</div>
             <div class="stat-label">In Progress</div>
