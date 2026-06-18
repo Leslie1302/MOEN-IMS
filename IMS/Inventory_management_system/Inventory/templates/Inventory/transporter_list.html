@@ -20,7 +20,7 @@
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Transporters</h1>
         <div>
-            <button class="btn btn-primary" data-toggle="modal" data-target="#importModal">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="fas fa-file-import"></i> Import from Excel
             </button>
             <a href="{% url 'transporter_create' %}" class="btn btn-success">
@@ -246,16 +246,14 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="importModalLabel">Import Transporters from Excel</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="post" action="{% url 'transporter_import' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
                         <div class="custom-file">
-                            <input type="file" class="custom-file-input" id="excelFile" name="excel_file" accept=".xlsx, .xls" required>
+                            <input type="file" class="custom-file-input" id="excelFile" name="file" accept=".xlsx, .xls" required>
                             <label class="custom-file-label" for="excelFile">Choose Excel file</label>
                         </div>
                         <small class="form-text text-muted">
@@ -271,7 +269,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Import</button>
                 </div>
             </form>
@@ -285,9 +283,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 Are you sure you want to delete <strong id="transporterName"></strong>? This action cannot be undone.
@@ -297,7 +293,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form id="deleteForm" method="post" action="">
                     {% csrf_token %}
                     <input type="hidden" name="transporter_id" id="transporterId">
@@ -338,7 +334,8 @@ $(document).ready(function() {
         $('#transporterId').val(id);
         $('#transporterName').text(name);
         $('#deleteForm').attr('action', '{% url "transporter_delete" 0 %}'.replace('0', id));
-        $('#deleteModal').modal('show');
+        // Bootstrap 5 modal API (the bundle is jQuery-free).
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).show();
     });
     
     // Update file input label when file is selected

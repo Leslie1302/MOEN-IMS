@@ -24,6 +24,7 @@ community), case-insensitive.
 """
 
 import csv
+import hashlib
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -158,12 +159,19 @@ class Command(BaseCommand):
                             comm_obj.save()
                             targets_set += 1
 
+                # ProjectSite has a unique (project, code) constraint, and
+                # many communities share one package number — so derive a code
+                # that's unique per location (deterministic, idempotent).
+                loc_hash = hashlib.md5(
+                    f"{region}|{district}|{community}".encode()).hexdigest()[:8]
+                site_code = f"{(community[:30] or 'SITE')}-{loc_hash}"[:50]
+
                 site, created = ProjectSite.objects.update_or_create(
                     project=project, region=region, district=district,
                     community=community,
                     defaults=dict(
                         name=community[:200],
-                        code=(row.get('package_number') or 'SITE')[:50],
+                        code=site_code,
                         **works_fields,
                     ),
                 )
