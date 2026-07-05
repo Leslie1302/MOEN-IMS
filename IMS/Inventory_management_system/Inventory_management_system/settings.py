@@ -508,6 +508,10 @@ else:
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024    # 10 MB
 DATA_UPLOAD_MAX_NUMBER_FILES = 20
+# Admin bulk actions post one hidden field per selected row; Django's default
+# cap of 1,000 fields turns large "select all -> delete" confirmations into
+# HTTP 400 (TooManyFieldsSent). 25k covers the full BoQ table with headroom.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 25000
 
 # =============================================================================
 # CACHING & SCALABILITY

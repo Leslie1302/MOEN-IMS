@@ -21,6 +21,7 @@ Community for the frozen targets.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 from django.utils import timezone
@@ -31,17 +32,42 @@ STAGE_WEIGHT = 20  # percentage points per stage; 5 stages × 20 = 100
 
 # ───────────────────────── material-kind helpers ─────────────────────────
 
+# Fittings/hardware that mention a structural word but are not the structure
+# itself — "HT Concrete Pole Accessories", "Pole-Mounted LV Fuse Unit",
+# "Shackle Insulator Straps", "11KV Angle Iron Crossarm c/w Straps", etc.
+# These must contribute to no target.
+_ACCESSORY_WORDS = (
+    'fuse', 'insulator', 'accessor', 'crossarm', 'cross arm', 'clamp',
+    'bracket', 'stirrup', 'stay', 'connector', 'lug', 'thimble', 'binding',
+)
+
+# Transformer spec names often carry no "transformer" keyword at all —
+# inventory items look like "11/0.433, 100KVA. 3-ph" or "33/25KVA, 1-ph".
+_KVA_RE = re.compile(r'\d+\s*kva')
+
+# Pole heights: "10 Meter Concrete Pole", "9M Wooden Pole", "11M Steel
+# Tubular Pole". 10 m and above are HT poles by convention; below are LV.
+_POLE_HEIGHT_RE = re.compile(r'\b(\d{1,2})\s*(?:m\b|meter|metre)')
+
+
 def _kind(description: str, item_code: str = '') -> str:
     """Classify a BoQ line as 'pole' / 'conductor' / 'transformer' / 'meter'
     / '' from its text. ``voltage_class`` carries HT vs LV; this carries the
-    physical kind so HT poles and HT conductor don't conflate in the pull."""
+    physical kind so HT poles and HT conductor don't conflate in the pull.
+
+    Ordering matters: 'pole' is checked BEFORE 'meter' because pole lengths
+    are written in meters ("10 Meter Concrete Pole" is a pole, not a meter).
+    Accessory/fitting lines are excluded before either check.
+    """
     text = f"{description or ''} {item_code or ''}".lower()
-    if 'transformer' in text or 'xfmr' in text:
+    if 'transformer' in text or 'xfmr' in text or _KVA_RE.search(text):
         return 'transformer'
-    if 'meter' in text:
-        return 'meter'
+    if any(k in text for k in _ACCESSORY_WORDS):
+        return ''
     if 'pole' in text:
         return 'pole'
+    if 'meter' in text:
+        return 'meter'
     if any(k in text for k in ('conductor', 'cable', 'acsr', 'abc')):
         return 'conductor'
     return ''
@@ -84,7 +110,8 @@ def _derive_targets_from_boq(community):
         kind = _kind(boq.material_description, boq.item_code)
         vc = (boq.voltage_class or '').upper()
 
-        # Resolve HT vs LV: explicit field first, then keyword fallback.
+        # Resolve HT vs LV: explicit field first, then keyword fallback,
+        # then pole height (10 m and above are HT poles, below are LV).
         desc = (boq.material_description or '').lower()
         if vc in ('HT', 'LV'):
             voltage = vc
@@ -92,6 +119,8 @@ def _derive_targets_from_boq(community):
             voltage = 'HT'
         elif any(k in desc for k in ('l.v', 'lv ', '415v', '400v', 'low tension', 'low voltage', 'secondary')):
             voltage = 'LV'
+        elif kind == 'pole' and (m := _POLE_HEIGHT_RE.search(desc)):
+            voltage = 'HT' if int(m.group(1)) >= 10 else 'LV'
         else:
             voltage = 'LV'  # generic reticulation default
 
