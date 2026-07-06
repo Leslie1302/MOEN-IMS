@@ -515,6 +515,19 @@ def handle_low_inventory_notifications(sender, instance, created, **kwargs):
         logger.error(f"Error in inventory notification handler: {str(e)}", exc_info=True)
 
 
+# ===== BULK-UPLOAD SIGNAL SUPPRESSION =====
+# BoQ imports save thousands of rows one-by-one. The per-row notification and
+# site-sync signals below turn that into an O(N^2) scan + notification flood
+# that hangs the worker (Azure returns 499). The importer sets this flag for
+# the duration of its loop to skip them, then syncs sites once at the end.
+import threading as _threading
+_boq_bulk = _threading.local()
+
+
+def boq_bulk_active():
+    return getattr(_boq_bulk, 'on', False)
+
+
 # ===== BOQ SIGNALS =====
 
 @receiver(post_save, sender=BillOfQuantity)
@@ -522,6 +535,8 @@ def handle_boq_notifications(sender, instance, created, **kwargs):
     """
     Create notifications when BOQ entries are created or updated.
     """
+    if boq_bulk_active():
+        return  # bulk import: skip per-row notifications (one summary is enough)
     try:
         if created:
             # New BOQ entry - notify Management and Schedule Officers
@@ -943,6 +958,8 @@ def handle_boq_overissuance_justification_notifications(sender, instance, create
 @receiver(post_save, sender=BillOfQuantity, dispatch_uid='boq_sync_project_site')
 def sync_project_site_from_boq(sender, instance, **kwargs):
     """Update the ProjectSite matching this BoQ row's community."""
+    if boq_bulk_active():
+        return  # bulk import: sites are synced once after the loop, not per row
     try:
         from .models.projects import ProjectSite
         community = (instance.community or '').strip()

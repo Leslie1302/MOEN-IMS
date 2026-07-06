@@ -668,6 +668,9 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
         form = ExcelUploadForm(request.POST, request.FILES)
         if form.is_valid():
             file = request.FILES['file']
+            from Inventory.signals import _boq_bulk
+            from django.core.management import call_command
+            did_bulk = False
             try:
                 df = pd.read_excel(file, engine='openpyxl')
                 # material_description must exactly match existing InventoryItem names
@@ -694,6 +697,10 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         return ''
                     return str(value).strip()
 
+                # Bulk mode: suppress per-row BoQ signals for the whole loop,
+                # then sync sites once in `finally`. Prevents the O(N^2) hang.
+                _boq_bulk.on = True
+                did_bulk = True
                 for index, row in df.iterrows():
                     try:
                         # Handle NaN or empty values
@@ -783,6 +790,29 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
             except Exception as e:
                 logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
                 messages.error(request, f"Error processing file: {str(e)}")
+            finally:
+                # Always clear the bulk flag (worker threads are reused) and,
+                # if we imported, recompute site statuses once instead of per row.
+                _boq_bulk.on = False
+                if did_bulk:
+                    try:
+                        call_command('sync_sites_from_boq')
+                    except Exception as sync_err:
+                        logger.error(f"Post-import site sync failed: {sync_err}", exc_info=True)
+                    # One summary email to Management instead of one per line item.
+                    try:
+                        from Inventory.signals import create_notification
+                        regions = ', '.join(sorted(str(r) for r in df['region'].dropna().unique()))
+                        create_notification(
+                            notification_type='boq_updated',
+                            title=f'BoQ import: {success_count} lines ({regions})',
+                            message=(f'{success_count} Bill of Quantity lines were imported '
+                                     f'for {regions}. ({error_count} rows skipped.)'),
+                            recipient_group='Management',
+                            sender=request.user,
+                        )
+                    except Exception as note_err:
+                        logger.error(f"BoQ summary notification failed: {note_err}", exc_info=True)
             return redirect('bill_of_quantity')
 
         return render(request, 'Inventory/upload_bill_of_quantity.html', {'form': form})
