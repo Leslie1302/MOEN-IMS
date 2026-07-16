@@ -17,7 +17,7 @@ from django.urls import reverse
 
 from Inventory.models import (
     MaterialOrder, MaterialTransport, Notification, SiteReceipt,
-    StoreOrderAssignment, Transporter,
+    StoreOrderAssignment, Transporter, Unit,
 )
 
 AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
@@ -31,7 +31,7 @@ class EndToEndWorkflowTest(TestCase):
         # Groups (both singular/plural store variants are used in the code)
         for name in ['Store Officer', 'Store Officers', 'Management',
                      'Schedule Officers', 'Consultant']:
-            Group.objects.create(name=name)
+            Group.objects.get_or_create(name=name)
 
         def make_user(username, *groups):
             u = User.objects.create_user(username, f'{username}@test.gh', 'pw')
@@ -48,13 +48,15 @@ class EndToEndWorkflowTest(TestCase):
             name='Volta Haulage Ltd', is_active=True,
         )
 
+        cls.unit = Unit.objects.create(name='drums')
+
     def test_full_release_order_lifecycle(self):
         # ── Stage 1: Schedule officer files a release request ─────────
         # (mirrors what the request-material view sets on creation)
         order = MaterialOrder.objects.create(
             name='ABC Conductor 50mm',
             quantity=100,
-            unit='drums',
+            unit=self.unit,
             request_type='Release',
             status='Pending',
             user=self.scheduler,
