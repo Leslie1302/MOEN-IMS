@@ -195,7 +195,10 @@
         color: white;
         position: relative;
         overflow: hidden;
-        min-height: 180px;
+        height: 100%;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
     }
 
     .programme-card h4 {
@@ -244,22 +247,6 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--on-surface-variant);
-    }
-
-    .about-footer {
-        background: var(--surface-container-lowest);
-        border-top: 1px solid var(--outline-variant);
-        padding: 2rem 0;
-    }
-
-    .about-footer a {
-        color: var(--on-surface-variant);
-        text-decoration: none;
-        transition: color 0.2s;
-    }
-
-    .about-footer a:hover {
-        color: var(--primary);
     }
 
     .contact-btn {
@@ -510,10 +497,10 @@
         <div class="row g-4">
             <!-- SHEP -->
             <div class="col-md-4">
-                <div class="programme-card pc-shep">
+                <div class="programme-card pc-shep h-100">
                     <h4>SHEP</h4>
-                    <p style="font-size: 0.875rem;">Self-Help Electrification — the core programme. Communities carry predetermined package numbers.</p>
-                    <span class="consignee">
+                    <p style="font-size: 0.875rem; flex: 1;">Self-Help Electrification — the core programme. Communities carry predetermined package numbers.</p>
+                    <span class="consignee mt-auto">
                         <span class="material-symbols-outlined" style="font-size: 14px;">person_search</span>
                         Consignee: Consultant
                     </span>
@@ -522,10 +509,10 @@
             </div>
             <!-- Cost Sharing -->
             <div class="col-md-4">
-                <div class="programme-card pc-cost">
+                <div class="programme-card pc-cost h-100">
                     <h4>Cost Sharing</h4>
-                    <p style="font-size: 0.875rem;">Beneficiary-supported electrification with auto-generated package numbers per request.</p>
-                    <span class="consignee">
+                    <p style="font-size: 0.875rem; flex: 1;">Beneficiary-supported electrification with auto-generated package numbers per request.</p>
+                    <span class="consignee mt-auto">
                         <span class="material-symbols-outlined" style="font-size: 14px;">account_balance</span>
                         Consignee: Member of Parliament
                     </span>
@@ -534,10 +521,10 @@
             </div>
             <!-- Streetlights -->
             <div class="col-md-4">
-                <div class="programme-card pc-street">
+                <div class="programme-card pc-street h-100">
                     <h4>Streetlights</h4>
-                    <p style="font-size: 0.875rem;">Public lighting deployments with auto-generated packages and pole/lumen specifications.</p>
-                    <span class="consignee">
+                    <p style="font-size: 0.875rem; flex: 1;">Public lighting deployments with auto-generated packages and pole/lumen specifications.</p>
+                    <span class="consignee mt-auto">
                         <span class="material-symbols-outlined" style="font-size: 14px;">account_balance</span>
                         Consignee: Member of Parliament
                     </span>
@@ -547,23 +534,6 @@
         </div>
     </section>
 </main>
-
-<!-- Footer -->
-<footer class="about-footer">
-    <div class="container" style="max-width: 1280px;">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
-            <div class="text-center text-md-start">
-                <span style="font-weight: 700; color: var(--on-surface);">Republic of Ghana Ministry of Energy</span>
-                <p style="font-size: 0.875rem; color: var(--on-surface-variant); margin: 0;">&copy; 2024 MOEGT Integrated Energy Project System (IEPS). All rights reserved.</p>
-            </div>
-            <div class="d-flex gap-4">
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-                <a href="#">Official Website</a>
-            </div>
-        </div>
-    </div>
-</footer>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
