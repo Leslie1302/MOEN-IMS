@@ -725,17 +725,18 @@ class MaterialOrder(auto_prefetch.Model):
         """Calculate remaining quantity available for transport assignment"""
         if not self.processed_quantity:
             return 0
-        
-        total_transported = self.transports.aggregate(
-            total=models.Sum('quantity')
-        )['total'] or 0
-        
-        return max(0, self.processed_quantity - total_transported)
-    
+
+        return max(0, self.processed_quantity - self.total_transported_quantity)
+
     @property
     def total_transported_quantity(self):
-        """Calculate total quantity already assigned to transporters"""
-        return self.transports.aggregate(
+        """Calculate total quantity already assigned to transporters.
+
+        Excludes 'Awaiting Transporter' placeholder rows (auto-created on
+        order completion) — those represent transport that still NEEDS
+        assigning, not quantity already on a truck.
+        """
+        return self.transports.exclude(status='Awaiting Transporter').aggregate(
             total=models.Sum('quantity')
         )['total'] or 0
     

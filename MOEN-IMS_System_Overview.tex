@@ -1,0 +1,149 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages (all standard; compiles with pdflatex) ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{lastpage}
+\usepackage{fancyhdr}
+
+% --- Styling ---
+\definecolor{moenblue}{HTML}{1A5490}
+\titleformat{\section}{\large\bfseries\color{moenblue}}{}{0em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+\titlespacing{\section}{0pt}{10pt}{4pt}
+\setlist[itemize]{leftmargin=1.4em,itemsep=1pt,topsep=2pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\lhead{\small\color{moenblue}MOEN-IMS — System Overview}
+\rhead{\small\thepage\ of \pageref{LastPage}}
+\cfoot{}
+
+\begin{document}
+
+% --- Title block ---
+\begin{center}
+{\LARGE\bfseries\color{moenblue} MOEN-IMS: Inventory Management System}\\[4pt]
+{\large Ministry of Energy — Integrated Energy Project System (IEPS)}\\[6pt]
+{\normalsize System Overview Report}\\[2pt]
+{\small Date: 15 July 2026}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+% --- 1. Purpose ---
+\section{1. Purpose}
+MOEN-IMS is a web-based platform that manages and tracks construction and project
+materials across their full lifecycle — from warehouse stock through requisition,
+approval, transport, and confirmed delivery to site. It replaces paper-based forms,
+telephone coordination, and disconnected spreadsheets with a single system that gives
+every stakeholder a shared, real-time view of material movements and an auditable
+record of every transaction.
+
+% --- 2. System at a Glance ---
+\section{2. System at a Glance}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Detail} \\
+\midrule
+Type & Web application (browser-based, mobile-friendly) \\
+Core function & End-to-end material request, tracking and delivery management \\
+User roles & 6 (Administrator, Schedule Officer, Storekeeper, Management, Consultant, Transporter) \\
+Deployment & Cloud-hosted; supports concurrent multi-office use \\
+Status & Operational, with an enhanced feature set in phased rollout \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- 3. Technology & Architecture ---
+\section{3. Technology and Architecture}
+The system is built on the Django (Python) web framework using a Model–View–Template
+architecture, with a PostgreSQL database in production. The application follows a
+signal-based design so that notifications, status updates, and audit entries are
+generated automatically as records change.
+
+\begin{itemize}
+  \item \textbf{Backend:} Django 5.1 (Python), served via Gunicorn.
+  \item \textbf{Database:} PostgreSQL (SQLite for development).
+  \item \textbf{Frontend:} HTML, CSS/Bootstrap, and JavaScript; responsive on desktop and mobile.
+  \item \textbf{Data \& reporting:} pandas and openpyxl for Excel import/export; ReportLab, Plotly and Matplotlib for PDF reports and dashboards.
+  \item \textbf{Supporting services:} QR-code generation and verification, Microsoft 365 e-mail notifications, and one-time-password (OTP) two-factor authentication.
+\end{itemize}
+
+% --- 4. User Roles ---
+\section{4. User Roles}
+Access is role-based; each user sees only the functions relevant to their
+responsibilities.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{3.2cm}p{11cm}@{}}
+\toprule
+\textbf{Role} & \textbf{Primary Responsibility} \\
+\midrule
+Administrator & Full system access: user management, configuration, and oversight of all records. \\
+Schedule Officer & Raise material requests for projects and track their status. \\
+Storekeeper & Process requests, manage inventory levels, and assign transporters. \\
+Management & Oversight, approvals, reporting, and analytics across all activity. \\
+Consultant & Confirm site deliveries, log receipts, and report discrepancies. \\
+Transporter & Execute deliveries and update transport status to completion. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- 5. Core Capabilities ---
+\section{5. Core Capabilities}
+\begin{itemize}
+  \item \textbf{Material request workflow:} digital requisitions with unique tracking codes moving through a Draft $\rightarrow$ Pending $\rightarrow$ Approved $\rightarrow$ Completed lifecycle.
+  \item \textbf{Inventory dashboard:} real-time stock levels with colour-coded low-stock alerts.
+  \item \textbf{Transport management:} approved transporter and vehicle records, with status tracking from Assigned $\rightarrow$ In Transit $\rightarrow$ Delivered.
+  \item \textbf{Waybill generation:} automatic, uniquely numbered waybills carrying QR codes for on-the-spot verification.
+  \item \textbf{Budget (BOQ) control:} requests checked against Bill of Quantities allocations, with automatic detection and controlled approval of over-issuance.
+  \item \textbf{Site receipt confirmation:} consultants log delivery, condition, and any discrepancies as digital proof of receipt.
+  \item \textbf{Reporting:} automated weekly and management reports exported to PDF and Excel.
+  \item \textbf{Bulk operations:} bulk transporter assignment and consignment tracking for multi-order deliveries.
+\end{itemize}
+
+% --- 6. Security & Controls ---
+\section{6. Security and Controls}
+The platform applies layered, industry-standard controls to protect data and
+ensure accountability:
+
+\begin{itemize}
+  \item Role-based access control and session management.
+  \item Two-factor authentication (OTP) and strong password hashing.
+  \item Protection against SQL injection, cross-site scripting (XSS), cross-site request forgery (CSRF), and clickjacking.
+  \item Encrypted transport (SSL/HTTPS) and validated file uploads.
+  \item QR-verified waybills and cryptographic digital signature stamps to deter fraud and forgery.
+  \item Complete audit trail of user actions for regulatory compliance.
+\end{itemize}
+
+% --- 7. Current Status ---
+\section{7. Current Status and Outlook}
+The core system is operational in production, with an enhanced feature set —
+including assigned-order stores management, QR digital waybills, digital signature
+stamps, BOQ over-issuance controls, performance dashboards, and automated reporting —
+being deployed in phases. The cloud-based architecture is designed to scale with
+demand, and planned next steps include an offline mode for low-connectivity sites
+and API integration with accounting systems.
+
+\vspace{6pt}
+\hrule
+\vspace{4pt}
+{\footnotesize\itshape Prepared as a system overview of the MOEN-IMS platform. Internal use only.}
+
+\end{document}

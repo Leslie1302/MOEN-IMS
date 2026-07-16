@@ -169,8 +169,12 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         # Keep orders visible if they have remaining_quantity > 0 (for future processing and transport)
         fully_completed_orders = []
         for order in queryset:
-            # Calculate total transported quantity for this order
-            total_transported = order.transports.aggregate(
+            # Calculate total transported quantity for this order.
+            # Exclude 'Awaiting Transporter' placeholders (auto-created on
+            # completion) — counting them hid completed orders from this page.
+            total_transported = order.transports.exclude(
+                status='Awaiting Transporter'
+            ).aggregate(
                 total=Sum('quantity')
             )['total'] or 0
             
@@ -302,7 +306,10 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         order = MaterialOrder.objects.get(id=order_id)
                         
                         # Calculate available quantity for transport
-                        total_transported = order.transports.aggregate(
+                        # (placeholder 'Awaiting Transporter' rows don't count)
+                        total_transported = order.transports.exclude(
+                            status='Awaiting Transporter'
+                        ).aggregate(
                             total=Sum('quantity')
                         )['total'] or 0
                         

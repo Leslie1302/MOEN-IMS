@@ -332,11 +332,35 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
     """
     try:
         if created:
+            if instance.transporter is None:
+                # Placeholder row (auto-created on order completion) — no
+                # transporter assigned yet. Saying "assigned" here was
+                # misleading; notify Management that assignment is needed.
+                create_notification(
+                    notification_type='transport_assigned',
+                    title=f'Awaiting Transporter: {instance.material_order.name if instance.material_order else "Materials"}',
+                    message=f'Order {instance.material_order.request_code if instance.material_order else ""} is processed and '
+                            f'awaiting transporter assignment. '
+                            f'Quantity: {instance.quantity} {instance.material_order.unit if instance.material_order else "units"}',
+                    recipient_group='Management',
+                    sender=instance.created_by,
+                    related_transport=instance,
+                    related_order=instance.material_order
+                )
+                return
+
+            # A real assignment supersedes any auto-created placeholder row
+            # for the same order — remove it so it can't linger as a ghost.
+            MaterialTransport.objects.filter(
+                material_order=instance.material_order,
+                status='Awaiting Transporter'
+            ).delete()
+
             # Transport assigned - notify transporter and management
             create_notification(
                 notification_type='transport_assigned',
                 title=f'Transport Assignment: {instance.material_order.name if instance.material_order else "Materials"}',
-                message=f'Transport assigned to {instance.transporter.name if instance.transporter else "transporter"}. '
+                message=f'Transport assigned to {instance.transporter.name}. '
                         f'Vehicle: {instance.vehicle.registration_number if instance.vehicle else "TBD"}. '
                         f'Quantity: {instance.quantity} {instance.material_order.unit if instance.material_order else "units"}',
                 recipient_group='Management',
@@ -344,14 +368,14 @@ def handle_transport_notifications(sender, instance, created, **kwargs):
                 related_transport=instance,
                 related_order=instance.material_order
             )
-            
+
             # Notify Schedule Officers if they made the request
             if instance.material_order and instance.material_order.user:
                 create_notification(
                     notification_type='transport_assigned',
                     title=f'Transport Assigned for Your Request',
                     message=f'Transport has been assigned for your material request ({instance.material_order.name}). '
-                            f'Transporter: {instance.transporter.name if instance.transporter else "TBD"}',
+                            f'Transporter: {instance.transporter.name}',
                     recipient_group='All',
                     sender=instance.created_by,
                     recipient_user=instance.material_order.user,
