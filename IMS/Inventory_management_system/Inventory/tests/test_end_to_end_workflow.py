@@ -4,7 +4,8 @@ entire system lifecycle, hitting the real HTTP endpoints each role uses.
 
     request → assign to store officer → partial + full processing →
     auto placeholder + notification → transporter assignment (waybill) →
-    in transit → site receipt → delivered → archived
+    in transit → site receipt → BoQ drawdown → project site completed →
+    consultant progress → Ghana map + project dashboards → archived
 
 Run with:
     python manage.py test Inventory.tests.test_end_to_end_workflow
@@ -16,8 +17,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from Inventory.models import (
-    MaterialOrder, MaterialTransport, Notification, SiteReceipt,
-    StoreOrderAssignment, Transporter,
+    BillOfQuantity, MaterialOrder, MaterialTransport, Notification,
+    Project, ProjectSite, SiteReceipt, StoreOrderAssignment, Transporter,
 )
 
 AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
@@ -48,11 +49,47 @@ class EndToEndWorkflowTest(TestCase):
             name='Volta Haulage Ltd', is_active=True,
         )
 
+        # ── Geography / project spine (feeds Ghana map & project status) ──
+        cls.project = Project.objects.create(
+            name='SHEP-4 Volta Electrification',
+            code='SHEP4-VOLTA',
+            description='E2E test project',
+            project_type='SHEP',
+            status='Active',
+            consultant='Volta Consult Ltd',
+            contractor='PowerBuild Ltd',
+            created_by=cls.manager,
+        )
+        cls.site = ProjectSite.objects.create(
+            project=cls.project,
+            name='Adidome Site',
+            code='SITE-ADIDOME',
+            region='Volta',
+            district='Central Tongu',
+            community='Adidome',
+            status='Planned',
+        )
+        # One contract line — fully delivering it must flip the site to
+        # Completed via the BoQ→site sync signal.
+        cls.boq = BillOfQuantity.objects.create(
+            region='Volta',
+            district='Central Tongu',
+            community='Adidome',
+            consultant='Volta Consult Ltd',
+            contractor='PowerBuild Ltd',
+            package_number='PKG-VOLTA-7',
+            project_type='SHEP',
+            material_description='ABC Conductor 50mm',
+            item_code='COND-50',
+            contract_quantity=100,
+        )
+
     def test_full_release_order_lifecycle(self):
         # ── Stage 1: Schedule officer files a release request ─────────
         # (mirrors what the request-material view sets on creation)
         order = MaterialOrder.objects.create(
             name='ABC Conductor 50mm',
+            code='COND-50',                 # matches the BoQ item_code
             quantity=100,
             unit='drums',
             request_type='Release',
@@ -60,6 +97,11 @@ class EndToEndWorkflowTest(TestCase):
             user=self.scheduler,
             processed_quantity=0,
             remaining_quantity=100,
+            # Destination — lets the site receipt post to the right BoQ line
+            region='Volta',
+            district='Central Tongu',
+            community='Adidome',
+            package_number='PKG-VOLTA-7',
         )
         self.assertTrue(order.request_code.startswith('REQ-'))
         # Creation notified the store officers
@@ -171,11 +213,59 @@ class EndToEndWorkflowTest(TestCase):
         transport.refresh_from_db()
         self.assertEqual(transport.status, 'Delivered')
         self.assertIsNotNone(transport.date_delivered)
-        # No BoQ lines exist in this test DB → flagged as off-BoQ, not silent
-        receipt.refresh_from_db()
-        self.assertFalse(receipt.boq_matched)
 
-        # ── Stage 7: Final state — archived, off the live board ───────
+        # Receipt posted to the matching BoQ line (item code + package)
+        receipt.refresh_from_db()
+        self.assertTrue(receipt.boq_matched)
+        self.boq.refresh_from_db()
+        self.assertEqual(self.boq.quantity_received, 100.0)
+        self.assertEqual(self.boq.balance, 0.0)
+
+        # BoQ→site sync signal flipped the project site to Completed
+        self.site.refresh_from_db()
+        self.assertEqual(self.site.status, 'Completed')
+        self.assertIsNotNone(self.site.actual_completion_date)
+
+        # ── Stage 7: Consultant reports works progress ────────────────
+        # (mirrors the Site Progress page — feeds the map's headline
+        # access rate, which reads works_status, not material status)
+        self.site.works_status = 'Energised'
+        self.site.progress_percent = 100
+        self.site.progress_updated_by = self.consultant
+        self.site.save()
+
+        # ── Stage 8: Ghana map & project dashboards reflect it all ────
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse('ghana_map_data_api'))
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+
+        volta = next(r for r in payload['data'] if r['name'] == 'Volta')
+        self.assertEqual(volta['total_sites'], 1)
+        self.assertEqual(volta['completed_sites'], 1)
+        self.assertEqual(volta['site_completion_rate'], 100.0)   # BoQ signal
+        self.assertEqual(volta['material_delivery_rate'], 100.0) # receipt
+        self.assertEqual(volta['access_rate'], 100.0)            # consultant
+        self.assertEqual(volta['energised_sites'], 1)
+        shep = next(t for t in volta['by_project_type']
+                    if t['project_type'] == 'SHEP')
+        self.assertEqual(shep['completed_sites'], 1)
+
+        national = payload['national']
+        self.assertEqual(national['total_sites'], 1)
+        self.assertEqual(national['completed_sites'], 1)
+        self.assertEqual(national['material_delivery_rate'], 100.0)
+        self.assertEqual(national['access_rate']['rate_pct'], 100.0)
+
+        # Project status pages render with the data
+        resp = self.client.get(reverse('project_management_dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        resp = self.client.get(reverse('project_detail',
+                                       args=[self.project.code]))
+        self.assertEqual(resp.status_code, 200)
+
+        # ── Stage 9: Final state — archived, off the live board ───────
+        self.client.force_login(self.storekeeper)
         resp = self.client.get(reverse('transportation_status'))
         self.assertNotIn(transport, resp.context['transports'])
         resp = self.client.get(reverse('transportation_archive'))
