@@ -473,14 +473,14 @@ class MaterialOrder(auto_prefetch.Model):
     )
     
     # Status tracking
+    # Phase 6: 'Pending' and 'Ready for Pickup' removed — nothing in the
+    # workflow ever set them (orders go Draft → Approved at assignment).
     STATUS_CHOICES = [
         ('Draft', 'Draft'),
-        ('Pending', 'Pending Approval'),
         ('Seen', 'Seen'),
         ('Approved', 'Approved'),
         ('In Progress', 'In Progress'),
         ('Partially Fulfilled', 'Partially Fulfilled'),
-        ('Ready for Pickup', 'Ready for Pickup'),
         ('In Transit', 'In Transit'),
         ('Delivered', 'Delivered'),
         ('Completed', 'Completed'),

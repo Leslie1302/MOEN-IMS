@@ -151,6 +151,25 @@ class Project(auto_prefetch.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+    @property
+    def derived_status(self):
+        """Status rolled up from this project's sites (Phase 6 decision 2).
+
+        The manual ``status`` field never updates as work happens, so
+        dashboards read this instead: all sites Completed → Completed,
+        any movement → Active, otherwise fall back to the manual value.
+        """
+        statuses = set(self.sites.values_list('status', flat=True))
+        if not statuses:
+            return self.status
+        if statuses == {'Completed'}:
+            return 'Completed'
+        if statuses & {'Active', 'Completed'}:
+            return 'Active'
+        if 'On Hold' in statuses:
+            return 'On Hold'
+        return self.status
+
 
 class ProjectSite(auto_prefetch.Model):
     """

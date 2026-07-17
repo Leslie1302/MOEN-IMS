@@ -938,9 +938,13 @@ def process_order_partial(request, order_id):
                         assignment.started_at = timezone.now()
                 assignment.save()
 
+        message = f'Successfully processed {quantity_to_process} {order.unit}'
+        if getattr(order, 'processing_warning', ''):
+            message += f' — {order.processing_warning}'
+
         return JsonResponse({
             'success': True,
-            'message': f'Successfully processed {quantity_to_process} {order.unit}',
+            'message': message,
             'order_id': order.id,
             'processed_quantity': new_processed,
             'remaining_quantity': order.remaining_quantity,

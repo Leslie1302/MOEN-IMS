@@ -110,7 +110,7 @@ class EndToEndWorkflowTest(TestCase):
             quantity=100,
             unit=self.unit,
             request_type='Release',
-            status='Pending',
+            status='Draft',  # 'Pending' removed in Phase 6 (dead status)
             user=self.scheduler,
             processed_quantity=0,
             remaining_quantity=100,
@@ -295,7 +295,9 @@ class EndToEndWorkflowTest(TestCase):
         self.assertEqual(national['total_sites'], 1)
         self.assertEqual(national['completed_sites'], 1)
         self.assertEqual(national['material_delivery_rate'], 100.0)
-        self.assertEqual(national['access_rate']['rate_pct'], 100.0)
+        # Phase 6: headline is the meter formula; the consultant signal
+        # (works_status) is what this E2E drives to 100%.
+        self.assertEqual(national['access_rate']['consultant_rate_pct'], 100.0)
 
         # Project status pages render with the data
         resp = self.client.get(reverse('project_management_dashboard'))

@@ -66,8 +66,12 @@ def process_quantity(order, quantity, user):
     # post_save deduction signal — which works on the delta — does not
     # deduct again. Missing inventory item logs a warning but does not
     # block, matching long-standing behaviour for off-inventory releases.
+    order.processing_warning = ''  # surfaced in the endpoints' responses
     inventory_item = _pick_inventory_item(order, quantity)
     if inventory_item is None:
+        order.processing_warning = (
+            f"No warehouse stock record matches '{order.code}' — released "
+            f"off-inventory, no stock was deducted.")
         logger.warning(
             f"Inventory item with code '{order.code}' not found "
             f"(warehouse={order.warehouse}). Skipping inventory update.")

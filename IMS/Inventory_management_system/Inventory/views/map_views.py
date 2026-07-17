@@ -208,27 +208,51 @@ def ghana_map_data_api(request):
         (boq_national_received / boq_national_contract) * 100, 2
     ) if boq_national_contract > 0 else 0
 
-    # National access rate -- the headline number. Interim source is
-    # consultant-reported completion via the Site Progress page; the
-    # meter-formula calculator lives on the backend at
-    # ``services/access_rate.compute_access_rate()`` for the future flow
-    # but is not exposed here.
+    # National access rate — the headline number. Phase 6 decision 3:
+    # the meter formula IS the methodology (verified meter connections ×
+    # persons-per-connection against baseline + total population), so it
+    # drives the headline. Consultant-reported completion rides alongside
+    # (decision 4: all three signals stay visible).
     (national_access_rate, national_total_sites_for_access,
      national_energised, national_avg_progress) = _consultant_access_rate(
         ProjectSite.objects.all(),
     )
-    access_payload = {
-        'rate_pct': national_access_rate,
+    consultant_keys = {
+        'consultant_rate_pct': national_access_rate,
         'energised_sites': national_energised,
         'total_sites_in_scope': national_total_sites_for_access,
         'avg_consultant_progress': national_avg_progress,
-        'source': 'consultant_inputs',
-        'caveat': (
-            'Interim: averaged from consultant-reported works status. '
-            'Replaces the meter-formula calc until Energy Commission '
-            'engagement closes.'
-        ),
     }
+    try:
+        formula = compute_access_rate()
+        access_payload = {
+            'rate_pct': formula.rate_pct,
+            'source': 'meter_formula',
+            'total_meters': formula.total_meters,
+            'meters_1ph': formula.meters_1ph,
+            'meters_3ph': formula.meters_3ph,
+            'pop_newly_served': formula.pop_newly_served,
+            'baseline_population': formula.baseline_population,
+            'total_population': formula.total_population,
+            'persons_per_connection': formula.persons_per_connection,
+            'caveat': (
+                'Verified meter connections × persons-per-connection, '
+                'against baseline + total population.'
+            ),
+            **consultant_keys,
+        }
+    except RuntimeError:
+        # No AccessRateConfig seeded — fall back to the consultant signal
+        # rather than 500-ing the whole map.
+        access_payload = {
+            'rate_pct': national_access_rate,
+            'source': 'consultant_inputs_fallback',
+            'caveat': (
+                'AccessRateConfig missing — showing consultant-reported '
+                'completion until a config row is created in the admin.'
+            ),
+            **consultant_keys,
+        }
 
     national_by_type_payload = []
     for pt, vals in national_by_type.items():

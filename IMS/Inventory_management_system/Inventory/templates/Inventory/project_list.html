@@ -155,8 +155,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-{% if project.status == 'Active' %}success{% elif project.status == 'Planning' %}info{% elif project.status == 'Completed' %}secondary{% elif project.status == 'On Hold' %}warning{% else %}danger{% endif %}">
-                                    {{ project.get_status_display }}
+                                <span class="badge bg-{% if project.derived_status == 'Active' %}success{% elif project.derived_status == 'Planning' %}info{% elif project.derived_status == 'Completed' %}secondary{% elif project.derived_status == 'On Hold' %}warning{% else %}danger{% endif %}">
+                                    {{ project.derived_status }}
                                 </span>
                             </td>
                             <td>

@@ -867,7 +867,11 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                     'remaining_quantity': float(order.remaining_quantity or 0),
                     'is_completed': order.status in ['Completed', 'Rejected'] or order.remaining_quantity <= 0,
                     'last_updated_by': order.last_updated_by.username if order.last_updated_by else 'System',
-                    'message': f'Order {order.request_code or order.id} status updated to {order.get_status_display()}'
+                    'message': (
+                        f'Order {order.request_code or order.id} status updated to {order.get_status_display()}'
+                        + (f' — {order.processing_warning}'
+                           if getattr(order, 'processing_warning', '') else '')
+                    )
                 }
 
                 logger.info(f"Successfully processed order {order_id}: {response_data}")

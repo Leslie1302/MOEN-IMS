@@ -83,10 +83,11 @@ class GhanaMapApiTests(TestCase):
         self._login()
 
         before = self.client.get(reverse('ghana_map_data_api')).json()
-        before_pct = before['national']['access_rate']['rate_pct']
-        # Source flag tells the front-end the interim path is live.
-        self.assertEqual(before['national']['access_rate']['source'],
-                         'consultant_inputs')
+        # Phase 6: the meter formula is the headline; consultant signal
+        # rides alongside as consultant_rate_pct.
+        self.assertIn(before['national']['access_rate']['source'],
+                      ('meter_formula', 'consultant_inputs_fallback'))
+        before_pct = before['national']['access_rate']['consultant_rate_pct']
 
         # Consultant flips the site to Energised.
         site.works_status = 'Energised'
@@ -96,7 +97,7 @@ class GhanaMapApiTests(TestCase):
         site.save()
 
         after = self.client.get(reverse('ghana_map_data_api')).json()
-        after_pct = after['national']['access_rate']['rate_pct']
+        after_pct = after['national']['access_rate']['consultant_rate_pct']
         self.assertGreater(after_pct, before_pct)
 
     def test_meter_install_does_not_move_headline(self):

@@ -73,15 +73,19 @@ manual step; the mismatch panel is empty on clean data.
    `MaterialOrder.STATUS_CHOICES` needs a `makemigrations` pass — moved to
    the Phase 6 table alongside the 'Pending' decision.
 
-## Phase 6 — Parked decisions (no code until decided)
+## Phase 6 — Decisions made & implemented (2026-07-17, NOT yet test-run)
 
-| Item | Options | Default recommendation |
+All six answered by the user and coded — see `HANDOFF_2026-07-17.md` for
+run instructions and risk notes.
+
+| # | Decision | Implementation |
 |---|---|---|
-| `Project.status` never rolls up | derive from sites / drop from dashboards | derive as a read-only property |
-| Three progress signals (BoQ, consultant %, meters) | pick one / show divergence | show all three on site drill-down; divergence = data-quality alarm |
-| Unused meter formula (`compute_access_rate`) | wire it / delete it | delete; git remembers, EC decision can resurrect it |
-| Waybill PDF code (~1,100 lines in a views file) | move to `services/` | move during next waybill change, not before |
-| Seed commands (1,133 lines, unreferenced) | keep one / delete | keep `seed_demo_data`, delete `seed_simulation` |
+| 1 | Delete dead statuses ('Pending', 'Ready for Pickup') | model + migration 0069 |
+| 2 | Project status derives from sites | `Project.derived_status` + templates |
+| 3 | Meter formula is the real methodology — wired as map headline | `map_views` uses `compute_access_rate()`, consultant fallback if no config |
+| 4 | Show all three progress signals | headline + `consultant_rate_pct` + material rate in payload |
+| 5 | Off-inventory releases warn-but-allow, surfaced in UI | `order.processing_warning` in both endpoints' responses |
+| 6 | Waybill PDF → `services/waybill_pdf.py`; seed_simulation deleted | done, urls unchanged via re-export |
 
 ---
 
