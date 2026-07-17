@@ -21,7 +21,7 @@ the post-Energy-Commission flow.
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Avg, Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -29,6 +29,7 @@ from django.utils import timezone
 
 from ..forms.site_progress import SiteProgressForm
 from ..models import Community, MeterInstallation, Project, ProjectSite
+from ..utils import is_consultant, is_management
 
 
 def _sync_meter_installations(site, prev_1ph, prev_3ph, user):
@@ -168,6 +169,7 @@ def site_progress_list(request):
 
 
 @login_required
+@user_passes_test(lambda u: is_consultant(u) or is_management(u))
 def site_progress_edit(request, pk: int):
     """Update one ProjectSite's progress fields."""
     site = get_object_or_404(

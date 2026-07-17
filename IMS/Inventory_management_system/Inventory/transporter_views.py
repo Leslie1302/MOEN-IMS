@@ -8,7 +8,6 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Q, Count, Sum, F
-from django.db.models import Q, Count, Sum, F
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
@@ -120,82 +119,35 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         return is_store_officer(self.request.user) or is_superuser(self.request.user)
     
     def get_queryset(self):
-        # Clear any potential caching by forcing fresh query
-        from django.core.cache import cache
-        cache.clear()
-        
-        # Get release orders that could potentially need transport assignment
+        # Release orders with processed quantities awaiting transport.
+        # 'Completed' included: an order can be completed for its processed
+        # portion while remaining_quantity still needs future processing.
         queryset = MaterialOrder.objects.filter(
-            request_type='Release'  # Only release orders need transport
-        ).select_related('release_letter', 'unit', 'user').prefetch_related('transports')
-        
-        # Debug: Log total release orders
-        import logging
-        logger = logging.getLogger(__name__)
-        total_release_orders = queryset.count()
-        logger.info(f"=== FRESH QUERYSET DEBUG ===")
-        logger.info(f"Total release orders found: {total_release_orders}")
-        
-        # Log all release orders with their current processed quantities
-        all_orders = queryset.order_by('-date_requested')[:10]
-        for order in all_orders:
-            logger.info(f"Order {order.request_code}: Status={order.status}, Processed={order.processed_quantity}, Requested={order.date_requested}")
-        
-        # Only include orders that have processed quantities and are ready for transport
-        # Include orders that are processed and ready for transport assignment
-        # Note: 'Completed' status included because an order might be marked completed for its 
-        # processed portion while still having remaining_quantity that needs future processing
-        queryset = queryset.filter(
-            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed']
-        ).filter(
-            processed_quantity__isnull=False
+            request_type='Release',
+            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed'],
+            processed_quantity__isnull=False,
         ).exclude(
             processed_quantity=0
-        )
-        
-        # Debug: Log after status and processed quantity filter
-        after_basic_filter = queryset.count()
-        logger.info(f"Orders with processed quantities > 0: {after_basic_filter}")
-        
-        # Additional debug: Check all orders regardless of processed_quantity
-        all_release_orders = MaterialOrder.objects.filter(request_type='Release').exclude(
-            status__in=['Draft', 'Rejected', 'Cancelled']
-        )
-        logger.info(f"All non-draft/rejected/cancelled release orders: {all_release_orders.count()}")
-        for order in all_release_orders[:5]:
-            logger.info(f"Order {order.request_code}: Status={order.status}, Processed={order.processed_quantity} (type: {type(order.processed_quantity)})")
-        
-        # Exclude orders that have been fully transported AND have no remaining quantity
-        # Keep orders visible if they have remaining_quantity > 0 (for future processing and transport)
+        ).select_related('release_letter', 'unit', 'user').prefetch_related('transports')
+
+        # Exclude orders whose processed quantity is fully transported AND
+        # have nothing left to process. 'Awaiting Transporter' placeholders
+        # (auto-created on completion) don't count as transported.
+        # ponytail: python-side loop, fine at this row count; move to a
+        # Sum() annotation if the page ever slows down.
         fully_completed_orders = []
         for order in queryset:
-            # Calculate total transported quantity for this order.
-            # Exclude 'Awaiting Transporter' placeholders (auto-created on
-            # completion) — counting them hid completed orders from this page.
             total_transported = order.transports.exclude(
                 status='Awaiting Transporter'
             ).aggregate(
                 total=Sum('quantity')
             )['total'] or 0
-            
-            # Only exclude if:
-            # 1. All processed quantity has been transported, AND
-            # 2. There is no remaining quantity to process
             if total_transported >= order.processed_quantity and order.remaining_quantity <= 0:
                 fully_completed_orders.append(order.id)
-                logger.info(f"Excluding fully completed order {order.request_code}: transported={total_transported}, processed={order.processed_quantity}, remaining={order.remaining_quantity}")
-            elif total_transported >= order.processed_quantity and order.remaining_quantity > 0:
-                logger.info(f"Keeping order {order.request_code} visible: All processed quantity transported but {order.remaining_quantity} still unprocessed")
-        
+
         if fully_completed_orders:
             queryset = queryset.exclude(id__in=fully_completed_orders)
-            logger.info(f"Excluded {len(fully_completed_orders)} fully completed orders")
-        
-        # Debug: Log after transport exclusion
-        after_transport_filter = queryset.count()
-        logger.info(f"Final orders available for transport assignment: {after_transport_filter}")
-        logger.info(f"=== END FRESH QUERYSET DEBUG ===")
-        
+
         # Apply search filters if provided
         search_query = self.request.GET.get('search', '').strip()
         if search_query:
@@ -220,10 +172,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
             queryset = queryset.filter(date_requested__date__gte=date_from)
         if date_to:
             queryset = queryset.filter(date_requested__date__lte=date_to)
-        
-        final_count = queryset.count()
-        logger.info(f"Final queryset count after filters: {final_count}")
-        
+
         return queryset.order_by('-date_requested', 'priority')
     
     def get_context_data(self, **kwargs):
@@ -542,7 +491,17 @@ def update_transport_status(request, pk):
     if request.method == 'POST':
         new_status = request.POST.get('status')
         notes = request.POST.get('notes', '')
-        
+
+        if new_status == 'Delivered':
+            # Delivered only via a Site Receipt — receipts post the delivery
+            # to the Bill of Quantity; this endpoint would skip the books.
+            return JsonResponse({
+                'success': False,
+                'error': 'Mark deliveries by logging a Site Receipt, not by '
+                         'setting status directly. The receipt records the '
+                         'delivery against the Bill of Quantity.',
+            }, status=400)
+
         if new_status in dict(MaterialTransport.STATUS_CHOICES):
             updated_count = 0
             updated_orders = []
@@ -1128,140 +1087,6 @@ class TransportArchiveView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
         context['is_store_officer'] = is_store_officer(self.request.user)
         return context
 
-
-@login_required
-@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
-def debug_transport_records(request):
-    """Debug view to check MaterialTransport records in the database."""
-    from django.http import JsonResponse
-    
-    all_transports = MaterialTransport.objects.all().select_related('material_order', 'transporter')
-    
-    debug_data = []
-    for transport in all_transports:
-        debug_data.append({
-            'id': transport.id,
-            'material_order_id': transport.material_order.id if transport.material_order else None,
-            'material_order_code': transport.material_order.request_code if transport.material_order else None,
-            'transporter_name': transport.transporter.name if transport.transporter else None,
-            'status': transport.status,
-            'date_dispatched': transport.date_dispatched.isoformat() if transport.date_dispatched else None,
-        })
-    
-    # Also check the queryset used by TransportationStatusView
-    status_view_queryset = MaterialTransport.objects.filter(
-        status__in=['Assigned', 'Loading', 'Loaded', 'In Transit', 'Delivered']
-    ).select_related('material_order', 'transporter', 'vehicle', 'material_order__release_letter')
-    
-    status_view_data = []
-    for transport in status_view_queryset:
-        status_view_data.append({
-            'id': transport.id,
-            'material_order_code': transport.material_order.request_code if transport.material_order else None,
-            'transporter_name': transport.transporter.name if transport.transporter else None,
-            'status': transport.status,
-        })
-    
-    return JsonResponse({
-        'all_transports_count': len(debug_data),
-        'all_transports': debug_data,
-        'status_view_count': len(status_view_data),
-        'status_view_transports': status_view_data,
-        'status_choices': dict(MaterialTransport.STATUS_CHOICES),
-    }, indent=2)
-
-
-@login_required
-@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
-def create_test_transport(request):
-    """Create a test transport record for debugging."""
-    from django.http import JsonResponse
-    
-    try:
-        # Get the first available order and transporter
-        order = MaterialOrder.objects.filter(status__in=['Approved', 'Seen']).first()
-        transporter = Transporter.objects.filter(is_active=True).first()
-        
-        if not order or not transporter:
-            return JsonResponse({
-                'success': False, 
-                'error': 'No available order or transporter found',
-                'orders_count': MaterialOrder.objects.count(),
-                'transporters_count': Transporter.objects.count()
-            })
-        
-        # Create test transport
-        transport = MaterialTransport.objects.create(
-            material_order=order,
-            transporter=transporter,
-            status='Assigned',
-            quantity=order.quantity,
-            date_dispatched=timezone.now()
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'transport_id': transport.id,
-            'transport_status': transport.status,
-            'order_code': order.request_code,
-            'transporter_name': transporter.name,
-            'message': f'Test transport created: ID {transport.id}'
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
-
-@login_required
-@user_passes_test(lambda u: is_store_officer(u) or is_superuser(u))
-def debug_assignment_orders(request):
-    """Debug view to check which orders should appear in assignment table."""
-    from django.http import JsonResponse
-    
-    # Get all release orders
-    all_release_orders = MaterialOrder.objects.filter(request_type='Release')
-    
-    debug_data = {
-        'total_release_orders': all_release_orders.count(),
-        'orders_by_status': {},
-        'orders_with_processed_qty': [],
-        'orders_without_processed_qty': [],
-        'assignment_ready_orders': []
-    }
-    
-    # Group by status
-    for status_code, status_display in MaterialOrder.STATUS_CHOICES:
-        count = all_release_orders.filter(status=status_code).count()
-        if count > 0:
-            debug_data['orders_by_status'][status_code] = {
-                'display': status_display,
-                'count': count
-            }
-    
-    # Check processed quantities
-    for order in all_release_orders.exclude(status__in=['Draft', 'Rejected', 'Cancelled']):
-        order_info = {
-            'id': order.id,
-            'code': order.request_code,
-            'status': order.status,
-            'processed_quantity': float(order.processed_quantity or 0),
-            'remaining_transport_quantity': order.remaining_transport_quantity,
-            'total_transported_quantity': order.total_transported_quantity,
-            'transport_count': order.transports.count()
-        }
-        
-        if order.processed_quantity and order.processed_quantity > 0:
-            debug_data['orders_with_processed_qty'].append(order_info)
-            
-            # Check if it should be in assignment table
-            if order.remaining_transport_quantity > 0:
-                debug_data['assignment_ready_orders'].append(order_info)
-        else:
-            debug_data['orders_without_processed_qty'].append(order_info)
-    
-    return JsonResponse(debug_data, indent=2)
 
 
 def generate_qr_code(data, size=100):

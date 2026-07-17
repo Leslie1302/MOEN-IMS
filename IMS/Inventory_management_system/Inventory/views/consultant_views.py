@@ -7,6 +7,7 @@ from django.urls import reverse_lazy
 
 from Inventory.models import MaterialTransport, SiteReceipt
 from Inventory.forms import SiteReceiptForm
+from Inventory.utils import is_consultant
 from .main_views import SuperuserOnlyMixin
 
 # Configure logger
@@ -16,6 +17,10 @@ class ConsultantDeliveriesView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     """
     View for consultants to see materials in transit to their project sites
     """
+    def test_func(self):
+        # Consultants log deliveries; SuperuserOnlyMixin's default locked
+        # them out of their own page (is_consultant includes superusers).
+        return is_consultant(self.request.user)
     model = MaterialTransport
     template_name = 'Inventory/consultant_deliveries.html'
     context_object_name = 'transports'
@@ -37,6 +42,9 @@ class SiteReceiptCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     model = SiteReceipt
     form_class = SiteReceiptForm
     template_name = 'Inventory/site_receipt_form.html'
+
+    def test_func(self):
+        return is_consultant(self.request.user)
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

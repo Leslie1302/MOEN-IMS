@@ -1,0 +1,23 @@
+name: Tests
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r IMS/Inventory_management_system/requirements.txt
+      # Full Inventory suite, including the end-to-end workflow test.
+      # This is the merge gate: red suite = no merge.
+      - name: Run tests
+        working-directory: IMS/Inventory_management_system
+        run: python manage.py test Inventory --noinput

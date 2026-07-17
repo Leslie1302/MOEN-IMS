@@ -8,16 +8,17 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from Inventory.models import MaterialOrder, MaterialTransport, Transporter
+from Inventory.models import MaterialOrder, MaterialTransport, Transporter, Unit
 
 
 class AwaitingTransporterPlaceholderTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('officer', password='x')
+        self.unit = Unit.objects.create(name='drums')
         self.order = MaterialOrder.objects.create(
             name='Conductor',
             quantity=100,
-            unit='drums',
+            unit=self.unit,
             request_type='Release',
             user=self.user,
             status='Approved',

@@ -10,29 +10,34 @@ entire system lifecycle, hitting the real HTTP endpoints each role uses.
 Run with:
     python manage.py test Inventory.tests.test_end_to_end_workflow
 """
+import tempfile
 from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from Inventory.models import (
     BillOfQuantity, MaterialOrder, MaterialTransport, Notification,
     Project, ProjectSite, SiteReceipt, StoreOrderAssignment, Transporter,
+    Unit,
 )
 
 AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class EndToEndWorkflowTest(TestCase):
     """One order, front to back, through the real views."""
 
     @classmethod
     def setUpTestData(cls):
         # Groups (both singular/plural store variants are used in the code)
+        # get_or_create: migration 0031 already seeds the canonical groups
         for name in ['Store Officer', 'Store Officers', 'Management',
                      'Schedule Officers', 'Consultant']:
-            Group.objects.create(name=name)
+            Group.objects.get_or_create(name=name)
 
         def make_user(username, *groups):
             u = User.objects.create_user(username, f'{username}@test.gh', 'pw')
@@ -48,6 +53,7 @@ class EndToEndWorkflowTest(TestCase):
         cls.transporter = Transporter.objects.create(
             name='Volta Haulage Ltd', is_active=True,
         )
+        cls.unit = Unit.objects.create(name='drums')
 
         # ── Geography / project spine (feeds Ghana map & project status) ──
         cls.project = Project.objects.create(
@@ -91,7 +97,7 @@ class EndToEndWorkflowTest(TestCase):
             name='ABC Conductor 50mm',
             code='COND-50',                 # matches the BoQ item_code
             quantity=100,
-            unit='drums',
+            unit=self.unit,
             request_type='Release',
             status='Pending',
             user=self.scheduler,
@@ -202,14 +208,36 @@ class EndToEndWorkflowTest(TestCase):
         self.assertIn(transport, resp.context['transports'])
 
         # ── Stage 6: Consultant logs the site receipt ─────────────────
-        # (model-level: the receipt form requires file uploads; save()
-        # is where the business logic lives — BoQ posting + delivery)
-        receipt = SiteReceipt.objects.create(
-            material_transport=transport,
-            received_quantity=Decimal('100'),
-            received_by=self.consultant,
-            condition='Good',
-        )
+        # The Delivered back door must be shut: status endpoint refuses it
+        resp = self.client.post(
+            reverse('update_transport_status', args=[transport.pk]),
+            {'status': 'Delivered'})
+        self.assertEqual(resp.status_code, 400)
+        transport.refresh_from_db()
+        self.assertEqual(transport.status, 'In Transit')
+
+        # Receipt form is hidden from non-consultants (404, not 403)
+        resp = self.client.get(
+            reverse('site_receipt_create', args=[transport.id]))
+        self.assertEqual(resp.status_code, 404)
+
+        # Consultant sees the pending delivery and logs the receipt via HTTP
+        self.client.force_login(self.consultant)
+        resp = self.client.get(reverse('consultant_deliveries'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(transport, resp.context['transports'])
+
+        resp = self.client.post(
+            reverse('site_receipt_create', args=[transport.id]), {
+                'received_quantity': '100',
+                'condition': 'Good',
+                'notes': 'All drums intact.',
+                'site_photos': SimpleUploadedFile(
+                    'site.jpg', b'fake-jpeg-bytes', 'image/jpeg'),
+            })
+        self.assertEqual(resp.status_code, 302)  # redirect on success
+        receipt = SiteReceipt.objects.get(material_transport=transport)
+        self.assertEqual(receipt.received_by, self.consultant)
         transport.refresh_from_db()
         self.assertEqual(transport.status, 'Delivered')
         self.assertIsNotNone(transport.date_delivered)
@@ -274,3 +302,19 @@ class EndToEndWorkflowTest(TestCase):
         # Full audit trail exists for the order
         self.assertTrue(order.materialorderaudit_set.filter(
             action__icontains='Transporter assigned').exists())
+
+    def test_site_progress_edit_gated_to_consultants_and_management(self):
+        """The access-rate headline is only writable by the right roles."""
+        url = reverse('site_progress_edit', args=[self.site.pk])
+
+        # Storekeeper: bounced (user_passes_test redirects to login)
+        self.client.force_login(self.storekeeper)
+        self.assertEqual(self.client.post(url, {}).status_code, 302)
+        self.site.refresh_from_db()
+        self.assertEqual(self.site.progress_percent, 0)  # nothing written
+
+        # Consultant and management: allowed through
+        self.client.force_login(self.consultant)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.force_login(self.manager)
+        self.assertEqual(self.client.get(url).status_code, 200)

@@ -136,13 +136,27 @@ class SecretsHygieneTest(TestCase):
     """Basic guardrail so a committed plaintext .env is harder to miss."""
 
     def test_repo_env_file_not_committed(self):
-        """The app tree should not contain a plaintext .env secrets file."""
+        """A plaintext .env must never be TRACKED BY GIT.
+
+        A local .env on a dev machine is fine (that's what .gitignore is
+        for) — the hazard is the file entering version control. So ask git,
+        not the filesystem.
+        """
+        import subprocess
         from pathlib import Path
 
         app_root = Path(settings.BASE_DIR)
-        committed_env = app_root / '.env'
+        try:
+            result = subprocess.run(
+                ['git', 'ls-files', '--error-unmatch', '.env'],
+                cwd=app_root, capture_output=True, text=True, timeout=10,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            self.skipTest('git not available in this environment')
 
-        self.assertFalse(
-            committed_env.exists(),
-            f"Remove plaintext secrets file: {committed_env}"
+        # returncode 0 == git tracks the file == secrets are committed
+        self.assertNotEqual(
+            result.returncode, 0,
+            "IMS/Inventory_management_system/.env is tracked by git — "
+            "remove it (git rm --cached .env) and rotate its secrets."
         )

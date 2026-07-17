@@ -69,7 +69,7 @@ from .transporter_views import (
     TransporterListView, TransporterDetailView, TransporterCreateView, TransporterUpdateView, TransporterDeleteView,
     TransportVehicleListView, TransportVehicleDetailView, TransportVehicleCreateView, TransportVehicleUpdateView, TransportVehicleDeleteView,
     TransporterAssignmentView, TransporterLegendView, import_transporters, export_transporters_template, ajax_load_vehicles,
-    TransportationStatusView, update_transport_status, debug_transport_records, create_test_transport, debug_assignment_orders
+    TransportationStatusView, update_transport_status,
 )
 
 # Import help view
