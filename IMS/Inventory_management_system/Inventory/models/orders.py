@@ -685,25 +685,20 @@ class MaterialOrder(auto_prefetch.Model):
             unique_id = uuid.uuid4().hex[:6].upper()
             self.request_code = f"REQ-{date_str}-{unique_id}"
         
-        # Always compute remaining and status based on quantity and processed_quantity
+        # Keep remaining_quantity derived from quantity/processed_quantity.
+        # NOTE (Phase 3): save() no longer recomputes ``status``. That
+        # shadow state machine silently reverted explicit transitions
+        # (e.g. In Transit snapped back to Completed on any save). Status
+        # is now set explicitly by services.order_flow and the transport
+        # flow — whatever a caller sets is what sticks.
         try:
             q = float(self.quantity or 0)
             p = float(self.processed_quantity or 0)
-            # Initialize remaining for new records
             self.remaining_quantity = max(0.0, q - p)
-            if p <= 0:
-                # Not yet processed
-                if self.status in ['Partially Fulfilled', 'Completed']:
-                    self.status = 'Approved'
-            elif p >= q > 0:
-                self.status = 'Completed'
-                self.remaining_quantity = 0
-            else:
-                self.status = 'Partially Fulfilled'
         except Exception:
             # Fallback: do not block save if any conversion issue
             pass
-        
+
         super().save(*args, **kwargs)
     
     @property

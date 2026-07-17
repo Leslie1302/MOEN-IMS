@@ -124,7 +124,10 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
         # portion while remaining_quantity still needs future processing.
         queryset = MaterialOrder.objects.filter(
             request_type='Release',
-            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed'],
+            # 'In Transit' included: status is explicit now, so a partially
+            # transported order keeps that status while the rest of its
+            # processed quantity still needs a transporter.
+            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed', 'In Transit'],
             processed_quantity__isnull=False,
         ).exclude(
             processed_quantity=0
@@ -302,10 +305,12 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                             date_dispatched=timezone.now()
                         )
                         
-                        # Update order status
-                        order.status = 'In Progress'
-                        order.save()
-                        
+                        # Mark transport underway — but never demote a
+                        # completed order (status is explicit now).
+                        if order.status not in ('Completed', 'In Transit'):
+                            order.status = 'In Progress'
+                            order.save()
+
                         # Create audit log
                         MaterialOrderAudit.objects.create(
                             order=order,
@@ -424,10 +429,12 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
                         transport.status = 'Assigned'
                         transport.save()
                     
-                    # Update order status
-                    order.status = 'In Progress'
-                    order.save()
-                    
+                    # Mark transport underway — but never demote a
+                    # completed order (status is explicit now).
+                    if order.status not in ('Completed', 'In Transit'):
+                        order.status = 'In Progress'
+                        order.save()
+
                     # Create audit log entry
                     MaterialOrderAudit.objects.create(
                         order=order,

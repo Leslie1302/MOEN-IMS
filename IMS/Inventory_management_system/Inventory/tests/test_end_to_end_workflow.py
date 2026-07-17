@@ -20,8 +20,8 @@ from django.urls import reverse
 
 from Inventory.models import (
     BillOfQuantity, MaterialOrder, MaterialTransport, Notification,
-    Project, ProjectSite, SiteReceipt, StoreOrderAssignment, Transporter,
-    Unit,
+    Project, ProjectSite, ReleaseLetter, SiteReceipt, StoreOrderAssignment,
+    Transporter, Unit,
 )
 
 AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
@@ -75,6 +75,17 @@ class EndToEndWorkflowTest(TestCase):
             community='Adidome',
             status='Planned',
         )
+        # Signed release letter — the signed-letter guard blocks Release
+        # processing on every path until the scan is on file.
+        cls.letter = ReleaseLetter.objects.create(
+            request_code='REQ-E2E',
+            title='Volta conductor release',
+            total_quantity=100,
+            uploaded_by=cls.manager,
+            pdf_file=SimpleUploadedFile(
+                'signed_letter.pdf', b'%PDF-1.4 signed', 'application/pdf'),
+        )
+
         # One contract line — fully delivering it must flip the site to
         # Completed via the BoQ→site sync signal.
         cls.boq = BillOfQuantity.objects.create(
@@ -108,6 +119,7 @@ class EndToEndWorkflowTest(TestCase):
             district='Central Tongu',
             community='Adidome',
             package_number='PKG-VOLTA-7',
+            release_letter=self.letter,  # signed — processing is allowed
         )
         self.assertTrue(order.request_code.startswith('REQ-'))
         # Creation notified the store officers
@@ -199,10 +211,10 @@ class EndToEndWorkflowTest(TestCase):
         transport.refresh_from_db()
         order.refresh_from_db()
         self.assertEqual(transport.status, 'In Transit')
-        # NOTE: MaterialOrder.save() always recomputes status from processed
-        # quantities, so a fully-processed order stays 'Completed' — the
-        # transport row carries the movement status, not the order.
-        self.assertEqual(order.status, 'Completed')
+        # Status is explicit now (Phase 3): the In Transit transition set
+        # by the transport flow sticks instead of being silently reverted
+        # to 'Completed' by MaterialOrder.save().
+        self.assertEqual(order.status, 'In Transit')
         # Visible on the live Transportation Status board
         resp = self.client.get(reverse('transportation_status'))
         self.assertIn(transport, resp.context['transports'])

@@ -796,7 +796,9 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                 # Handle simple status changes
                 if new_status in ["Seen", "Approved", "Rejected"]:
                     order.status = new_status
-                
+                    order.last_updated_by = request.user
+                    order.save()
+
                 # Handle quantity processing (Partial/Full)
                 elif new_status in ["Partially Fulfilled", "Full"]:
                     
@@ -835,111 +837,20 @@ class UpdateMaterialStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
                             "error": "Quantity must be greater than zero"
                         }, status=400)
                     
-                    if partial_quantity > order.remaining_quantity:
-                        return JsonResponse({
-                            'success': False, 
-                            'error': f'Quantity {partial_quantity} exceeds remaining quantity {order.remaining_quantity}'
-                        }, status=400)
-
-                    # Update order quantities
-                    order.processed_quantity = (order.processed_quantity or 0) + partial_quantity
-                    order.remaining_quantity = max(0, order.quantity - order.processed_quantity)
-                    
-                    # Set processing tracking fields
-                    order.processed_by = request.user
-                    order.processed_at = timezone.now()
-                    
-                    # SIGNED LETTER GUARD: a Release cannot draw down stock
-                    # until the signed scan is on file. This bars accidental
-                    # processing of an order whose paperwork hasn't been
-                    # countersigned yet.
-                    if order.request_type == "Release":
-                        rl = order.release_letter
-                        if rl is None:
-                            return JsonResponse({
-                                'success': False,
-                                'error': 'Cannot release: no release letter has been created for this order. Generate the release letter first.'
-                            }, status=400)
-                        if not rl.pdf_file:
-                            return JsonResponse({
-                                'success': False,
-                                'error': f'Cannot release: signed copy of release letter {rl.code or rl.reference_number or ""} is not attached. Upload the signed scan before processing.'
-                            }, status=400)
-
-                    # Update inventory
+                    # Shared processing core: validation, signed-letter
+                    # guard, stock deduction, quantities, explicit status.
+                    # Same path as the Store Operations Hub.
+                    from Inventory.services.order_flow import (
+                        ProcessingError, process_quantity,
+                    )
                     try:
-                        # Match by code and warehouse (unique_together constraint).
-                        # When the request was filed with "any warehouse", pick
-                        # the warehouse with enough stock so the deduction
-                        # actually goes somewhere instead of blowing up on
-                        # MultipleObjectsReturned.
-                        inventory_item = None
-                        if order.warehouse:
-                            inventory_item = InventoryItem.objects.filter(
-                                code=order.code,
-                                warehouse=order.warehouse,
-                            ).first()
-                        else:
-                            candidates = list(
-                                InventoryItem.objects.filter(code=order.code)
-                                .order_by('-quantity')
-                            )
-                            if order.request_type == "Release":
-                                # Pick the warehouse that can satisfy the draw.
-                                for cand in candidates:
-                                    if (cand.quantity or 0) >= partial_quantity:
-                                        inventory_item = cand
-                                        break
-                                if inventory_item is None and candidates:
-                                    # Fall back to the largest holder so the
-                                    # error message below reports a real number.
-                                    inventory_item = candidates[0]
-                            else:
-                                # Receipts: deposit into the order's stored
-                                # warehouse if any; else the first sibling.
-                                inventory_item = candidates[0] if candidates else None
-                        if inventory_item is None:
-                            logger.warning(
-                                f"Inventory item with code '{order.code}' not found "
-                                f"(warehouse={order.warehouse}). Skipping inventory update."
-                            )
-                        else:
-                            if order.request_type == "Release":
-                                if inventory_item.quantity < partial_quantity:
-                                    return JsonResponse({
-                                        'success': False,
-                                        'error': f'Insufficient inventory. Available: {inventory_item.quantity}, Requested: {partial_quantity}'
-                                    }, status=400)
-                                inventory_item.quantity -= partial_quantity
-                            elif order.request_type == "Receipt":
-                                inventory_item.quantity += partial_quantity
-                            inventory_item.save()
-                            # Track how much stock has already been moved so the
-                            # post_save signal only deducts the delta (prevents
-                            # double deduction when the view and signal both run).
-                            order.stock_deducted_quantity = (order.stock_deducted_quantity or 0) + partial_quantity
-                            # Stamp the warehouse used for the draw so audit
-                            # trails reflect where the stock actually moved.
-                            if not order.warehouse_id and inventory_item.warehouse_id:
-                                order.warehouse = inventory_item.warehouse
-
-                    except InventoryItem.DoesNotExist:
-                        logger.warning(f"Inventory item with code '{order.code}' not found in warehouse '{order.warehouse}'. Skipping inventory update.")
-                    except InventoryItem.MultipleObjectsReturned:
+                        process_quantity(order, partial_quantity, request.user)
+                    except ProcessingError as e:
                         return JsonResponse({
                             'success': False,
-                            'error': f'Multiple inventory items found with code "{order.code}". Please contact administrator to resolve duplicate items.'
-                        }, status=500)
+                            'error': str(e)
+                        }, status=400)
 
-                    # Update order status based on remaining quantity
-                    if order.remaining_quantity <= 0:
-                        order.status = 'Completed'
-                    else:
-                        order.status = 'Partially Fulfilled'
-
-                # Update audit fields
-                order.last_updated_by = request.user
-                order.save()
                 order.refresh_from_db()
 
                 # Prepare response data

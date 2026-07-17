@@ -902,41 +902,22 @@ def process_order_partial(request, order_id):
                 'success': False,
                 'message': 'Invalid quantity provided'
             }, status=400)
-        
-        if quantity_to_process <= 0:
-            return JsonResponse({
-                'success': False,
-                'message': 'Quantity must be greater than zero'
-            }, status=400)
-        
-        # Calculate remaining quantity
-        current_processed = order.processed_quantity or Decimal('0')
-        remaining = order.quantity - current_processed
-        
-        if quantity_to_process > remaining:
-            return JsonResponse({
-                'success': False,
-                'message': f'Cannot process {quantity_to_process}. Only {remaining} remaining.'
-            }, status=400)
-        
-        # Update order
+
+        # Shared processing core: validation, signed-letter guard, stock
+        # deduction, quantities, explicit status. Same path as the
+        # officers' order table.
+        from Inventory.services.order_flow import ProcessingError, process_quantity
+
         with transaction.atomic():
-            new_processed = current_processed + quantity_to_process
-            order.processed_quantity = new_processed
-            
-            # Determine new status based on fulfillment
-            if new_processed >= order.quantity:
-                order.status = 'Completed'
-            elif new_processed > 0:
-                order.status = 'Partially Fulfilled'
-            else:
-                order.status = 'In Progress'
-            
-            # Update remaining quantity
-            order.remaining_quantity = order.quantity - new_processed
-            order.last_updated_by = user
-            order.save()
-            
+            try:
+                process_quantity(order, quantity_to_process, user)
+            except ProcessingError as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': str(e)
+                }, status=400)
+            new_processed = order.processed_quantity
+
             # Update assignment if exists
             assignment = StoreOrderAssignment.objects.filter(
                 material_order=order,
@@ -952,9 +933,7 @@ def process_order_partial(request, order_id):
                     if not assignment.started_at:
                         assignment.started_at = timezone.now()
                 assignment.save()
-        
-        logger.info(f"Order {order.request_code} processed: +{quantity_to_process}, total={new_processed}/{order.quantity}")
-        
+
         return JsonResponse({
             'success': True,
             'message': f'Successfully processed {quantity_to_process} {order.unit}',

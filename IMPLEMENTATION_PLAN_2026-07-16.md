@@ -32,7 +32,7 @@ The back half of the workflow is broken in prod: receipts are superuser-only and
 
 **Done when:** only consultant/management accounts can write progress.
 
-## Phase 3 — One processing path, one status machine (1–2 days)
+## Phase 3 — One processing path, one status machine (DONE 2026-07-17)
 
 Root cause under three separate bugs this month.
 

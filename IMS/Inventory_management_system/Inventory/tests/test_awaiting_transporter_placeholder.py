@@ -25,8 +25,10 @@ class AwaitingTransporterPlaceholderTests(TestCase):
         )
 
     def _fully_process(self):
+        # Status is explicit since Phase 3 — set it the way the
+        # processing service does (save() no longer recomputes it).
         self.order.processed_quantity = Decimal('100')
-        self.order._status_changed = True
+        self.order.status = 'Completed'
         self.order.save()
         self.order.refresh_from_db()
 
