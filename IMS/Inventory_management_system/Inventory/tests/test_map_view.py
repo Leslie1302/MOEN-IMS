@@ -148,8 +148,9 @@ class GhanaMapApiTests(TestCase):
         payload = self.client.get(reverse('ghana_map_data_api')).json()
         gar = next((r for r in payload['data'] if r['name'] == 'Greater Accra'), None)
         self.assertIsNotNone(gar, 'Greater Accra row missing from regional payload')
-        # 1 of 2 sites is Energised -> regional access_rate = 50%.
+        # Phase 4: setUp's registered Community auto-creates a third site
+        # (Planned, 0%). So: 1 of 3 sites Energised -> 33.33%.
         self.assertEqual(gar['energised_sites'], 1)
-        self.assertEqual(gar['access_rate'], 50.0)
-        # Average consultant progress = (80 + 40) / 2 = 60.
-        self.assertEqual(gar['consultant_avg_progress'], 60.0)
+        self.assertEqual(gar['access_rate'], 33.33)
+        # Average consultant progress = (80 + 40 + 0) / 3 = 40.
+        self.assertEqual(gar['consultant_avg_progress'], 40.0)

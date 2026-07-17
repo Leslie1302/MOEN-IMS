@@ -82,9 +82,11 @@ def is_management(user):
 def is_consultant(user):
     """
     Check if the user is a consultant.
-    A user is considered a consultant if they are in the 'Consultant' group.
+    Accepts both the canonical 'Consultants' group and the legacy singular.
     """
-    return user.groups.filter(name=Roles.CONSULTANT).exists() or user.is_superuser
+    return user.groups.filter(
+        name__in=(Roles.CONSULTANT, Roles.CONSULTANTS)
+    ).exists() or user.is_superuser
 
 
 def is_transport_officer(user):

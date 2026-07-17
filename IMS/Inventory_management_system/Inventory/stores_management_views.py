@@ -45,8 +45,10 @@ class StoresStaffMixin(UserPassesTestMixin):
             return False
         if self.request.user.is_superuser:
             return True
-        # Store Officers process assigned orders
-        return self.request.user.groups.filter(name='Store Officers').exists()
+        # Store Officers process assigned orders (any alias accepted)
+        from Inventory.utils import Roles
+        return self.request.user.groups.filter(
+            name__in=Roles.STORE_OPERATION_ALIASES).exists()
 
 
 class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
@@ -212,8 +214,10 @@ class AssignOrderView(LoginRequiredMixin, StoresManagementMixin, View):
                     'message': 'Selected staff member not found'
                 }, status=404)
             
-            # Ensure selected user is a Store Officer
-            if not staff_member.groups.filter(name='Store Officer').exists():
+            # Ensure selected user is a Store Officer (any alias accepted)
+            from Inventory.utils import Roles
+            if not staff_member.groups.filter(
+                    name__in=Roles.STORE_OPERATION_ALIASES).exists():
                 return JsonResponse({
                     'success': False,
                     'message': 'Selected user is not a Store Officer and cannot be assigned store orders'

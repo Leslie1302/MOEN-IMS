@@ -127,7 +127,9 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
             # 'In Transit' included: status is explicit now, so a partially
             # transported order keeps that status while the rest of its
             # processed quantity still needs a transporter.
-            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Ready for Pickup', 'Fulfilled', 'Completed', 'In Transit'],
+            # ponytail: 'Ready for Pickup' / 'Fulfilled' removed — nothing
+            # in the codebase ever sets them (dead statuses, Phase 5).
+            status__in=['Approved', 'In Progress', 'Partially Fulfilled', 'Completed', 'In Transit'],
             processed_quantity__isnull=False,
         ).exclude(
             processed_quantity=0

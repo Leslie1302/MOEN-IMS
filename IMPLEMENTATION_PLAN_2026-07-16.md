@@ -42,21 +42,36 @@ Root cause under three separate bugs this month.
 
 **Done when:** grep finds one place that mutates `processed_quantity`, and `save()` no longer touches `status`.
 
-## Phase 4 — Feed the map (1 day)
+## Phase 4 — Feed the map from the community registry (DONE 2026-07-17)
 
-The map only shows hand-registered sites, joined to deliveries by string-matching community names.
+Revised per direction: the map populates via the community progress page's
+spine (the Community registry), not via BoQ uploads.
 
-1. **Auto-create sites:** BoQ upload does `ProjectSite.objects.get_or_create` (community+project) for each new community; one management command backfills from existing BoQ rows.
-2. **Mismatch report:** panel on the release-letter tracking dashboard listing BoQ communities with no matching ProjectSite (and vice versa) — makes silent string-match failures visible instead of zero-ing the map. <!-- ponytail: report first; SHEPCommunity FKs only if typos keep hurting after this -->
+1. **Community → site sync** (`services/map_sync.py` + post_save signal):
+   every active Community gets a ProjectSite under an umbrella programme
+   Project (PRG-SHEP, …). Existing sites are reused, never duplicated.
+   Completion then flows: consultant records progress (Site Progress page)
+   → community progress page shows it → Ghana map access rate moves;
+   deliveries flip the same site via the existing BoQ sync.
+2. **Backfill:** `python manage.py sync_community_sites` (run once on prod).
+3. **Mismatch panel** on the community progress page: BoQ communities
+   missing from the registry — the silent string-match failures.
+   <!-- ponytail: report first; Community FKs only if typos keep hurting -->
 
-**Done when:** uploading a BoQ for a new community makes it appear on the map with no manual step; the mismatch panel is empty on seeded data.
+**Done when:** registering a community makes it appear on the map with no
+manual step; the mismatch panel is empty on clean data.
 
-## Phase 5 — State-machine and role cleanup (1 day)
+## Phase 5 — Role cleanup (DONE 2026-07-17; status-choice removal → Phase 6)
 
-1. **Dead statuses:** nothing ever sets `'Pending'` or `'Ready for Pickup'`, and `'Fulfilled'` is filtered on but isn't a valid choice. Decide: delete the choices (recommended) or wire a real Draft→Pending submit step. Default: delete.
-2. **Merge store groups:** data migration folds `Store Officer` / `Store Officers` / `Storekeeper` members into one group; all checks route through `Inventory.utils.Roles`. Kills the "assignable but can't see their queue" trap.
-
-**Done when:** every status in `STATUS_CHOICES` is reachable, and `grep "name='Store"` outside utils returns nothing.
+1. **Groups merged:** migration `0068_merge_role_group_aliases` folds all
+   store-officer aliases into 'Store Officers' and 'Consultant' into
+   'Consultants'. The singular/plural checks in code now accept all aliases
+   (`Roles.STORE_OPERATION_ALIASES`; `is_consultant` takes both). Deleted
+   unimported `utils_DEPRECATED.py`.
+2. **Dead status strings** removed from the transporter filter
+   ('Ready for Pickup', 'Fulfilled'). Removing them from
+   `MaterialOrder.STATUS_CHOICES` needs a `makemigrations` pass — moved to
+   the Phase 6 table alongside the 'Pending' decision.
 
 ## Phase 6 — Parked decisions (no code until decided)
 

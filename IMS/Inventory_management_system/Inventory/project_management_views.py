@@ -773,6 +773,11 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
                 .values_list('region', flat=True).distinct().order_by('region')
             )
 
+            # BoQ communities missing from the registry: their deliveries
+            # roll up to nothing on the map until someone registers them.
+            from .services.map_sync import boq_communities_without_registry
+            unregistered = boq_communities_without_registry()
+
             context.update({
                 'community_list': community_list,
                 'total_communities': len(community_list),
@@ -782,6 +787,7 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
                 'regions': regions,
                 'filters': {'q': q, 'region': region_f},
                 'title': 'Community Progress',
+                'unregistered_boq_communities': unregistered,
             })
         except Exception as e:
             logger.error(f"Error loading community progress list: {str(e)}", exc_info=True)

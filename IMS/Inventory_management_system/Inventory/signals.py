@@ -676,6 +676,24 @@ def generate_signature_stamp_for_profile(sender, instance, created, **kwargs):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Phase 4 — Community registry → Ghana map sync.
+# Every active Community gets a ProjectSite so the map and the community
+# progress page have a row to roll up against. Idempotent; reuses any
+# existing site for the same place.
+# ─────────────────────────────────────────────────────────────────────
+@receiver(post_save, sender='Inventory.Community')
+def sync_site_from_community(sender, instance, **kwargs):
+    try:
+        from .services.map_sync import ensure_site_for_community
+        ensure_site_for_community(instance)
+    except Exception as e:
+        logger.error(
+            f"Community→site sync failed for community {instance.pk}: {e}",
+            exc_info=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Phase F.5 — Mandatory transport on order completion.
 # When a Storekeeper marks a MaterialOrder Completed, auto-create a
 # placeholder MaterialTransport row in "Awaiting Transporter" status so

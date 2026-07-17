@@ -64,6 +64,25 @@
         </div>
     </div>
 
+    {% if unregistered_boq_communities %}
+    <!-- Data-quality alarm: BoQ lines whose community is not in the registry.
+         Their deliveries roll up to NOTHING on the Ghana map until fixed. -->
+    <div class="alert alert-warning shadow-sm">
+        <strong><i class="bi bi-exclamation-triangle"></i>
+            {{ unregistered_boq_communities|length }} BoQ communit{{ unregistered_boq_communities|length|pluralize:"y,ies" }} missing from the registry</strong>
+        — deliveries for these are invisible on the Ghana map until the
+        community is registered (check spelling against the BoQ):
+        <ul class="mb-0 mt-1">
+            {% for m in unregistered_boq_communities|slice:":15" %}
+            <li>{{ m.community }} <span class="text-muted">({{ m.district }}, {{ m.region }})</span></li>
+            {% endfor %}
+            {% if unregistered_boq_communities|length > 15 %}
+            <li class="text-muted">… and {{ unregistered_boq_communities|length|add:"-15" }} more</li>
+            {% endif %}
+        </ul>
+    </div>
+    {% endif %}
+
     <!-- Filters -->
     <form method="get" class="card border-0 shadow-sm mb-3">
         <div class="card-body row g-2 align-items-end">
