@@ -13,11 +13,18 @@
     </div>
     {% endif %}
 
-    {% if user.is_superuser %}
-    <div class="d-flex justify-content-end mb-3">
-        <a href="{% url 'upload_inventory' %}" class="btn btn-success">Upload Excel</a>
+    <div class="page-header">
+        <div>
+            <h1>Inventory Dashboard</h1>
+            <p class="page-subtitle">Monitor and manage material levels across all regional warehouses.</p>
+        </div>
+        {% if user.is_superuser %}
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'upload_inventory' %}" class="btn btn-outline-primary"><i class="bi bi-upload"></i> Upload Excel</a>
+            <a href="{% url 'add-item' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add New Item</a>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     {% if low_inventory_items %}
     <div class="alert alert-warning text-center" role="alert">
@@ -32,12 +39,6 @@
 
     <div class="container-fluid px-3">
         <div class="mt-4">
-            {% if user.is_superuser %}
-            <div class="d-flex justify-content-end mb-3">
-                <a href="{% url 'add-item' %}" class="btn btn-primary">+ Add Item</a>
-            </div>
-            {% endif %}
-
             <div class="table-responsive">
                 <table class="table table-hover" id="inventory-table" data-no-enhanced
                     data-export-filename="inventory_list">

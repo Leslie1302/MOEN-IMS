@@ -1,21 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
-    /* MOEGT IEPS Design Tokens */
-    --bs-primary: #2563eb;
+    /* MOEGT IEPS — Institutional design tokens (HTMS/IEPS design language).
+       Forest Green primary + slate headers. See stitch DESIGN.md. */
+    --moen-primary: #2e7d32;        /* actions, branding, active states */
+    --moen-primary-dark: #1b6d24;   /* hover */
+    --moen-primary-darker: #155a1c; /* active */
+    --moen-primary-tint: #e8f5e9;   /* row highlight / soft surfaces */
+    --moen-header: #1e293b;          /* slate-900 nav + table headers */
+    --moen-header-hi: #0f172a;
+    --moen-gold: #fcd116;            /* Ghana flag */
+    --moen-red: #ce1126;
+    --moen-green: #006b3f;
+
+    /* Bootstrap overrides */
+    --bs-primary: #2e7d32;
+    --bs-primary-rgb: 46, 125, 50;
     --bs-secondary: #6b7280;
-    --bs-success: #10b981;
+    --bs-success: #2e7d32;
+    --bs-success-rgb: 46, 125, 50;
     --bs-info: #3b82f6;
     --bs-warning: #f59e0b;
-    --bs-danger: #ef4444;
+    --bs-danger: #ba1a1a;
+    --bs-danger-rgb: 186, 26, 26;
     --bs-light: #f9fafb;
-    --bs-dark: #111827;
-    --bs-body-bg: #fafafa;
+    --bs-dark: #141b2b;
+    --bs-body-bg: #f9f9ff;
     --bs-body-color: #1f2937;
-    --bs-border-radius: 0.375rem;
-    --bs-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    --bs-link-color: #2563eb;
-    --bs-link-hover-color: #1d4ed8;
+    --bs-border-radius: 0.25rem;
+    --bs-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --bs-link-color: #1b6d24;
+    --bs-link-color-rgb: 27, 109, 36;
+    --bs-link-hover-color: #155a1c;
 
-    /* Custom spacing */
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
     --spacing-md: 1rem;
@@ -40,25 +57,23 @@ body {
     line-height: 1.6;
     display: flex;
     flex-direction: column;
+    font-feature-settings: "tnum" 0;
 }
 
-/* Scrollbar styling for a premium feel */
-::-webkit-scrollbar {
-    width: 8px;
+/* Tabular figures for financial / metric columns */
+.tnum,
+.table td .badge,
+code,
+.kpi-value,
+.mono-data {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
 }
 
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #aaa;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c7cdd9; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #aab2c0; }
 
 /* Layout */
 .content {
@@ -69,23 +84,26 @@ body {
 }
 
 /* Typography */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
     color: var(--bs-dark);
+    letter-spacing: -0.01em;
     margin-bottom: 1rem;
 }
 
-/* Navbar Enhancement */
+/* ============================================================
+   Institutional top navigation — slate header + tri-color strip
+   ============================================================ */
 .navbar {
-    background-color: #ffffff !important;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    border-bottom: 1px solid #e5e7eb;
-    padding: 0.75rem 0;
+    background-color: var(--moen-header) !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.15);
+    border-bottom: 4px solid transparent;
+    /* Ghana tri-color strip immediately below the header */
+    border-image: linear-gradient(to right,
+        var(--moen-red) 0 33.33%,
+        var(--moen-gold) 33.33% 66.66%,
+        var(--moen-green) 66.66% 100%) 1;
+    padding: 0.5rem 0;
     position: relative;
     z-index: 1030 !important;
 }
@@ -93,22 +111,37 @@ h6 {
 .navbar-brand {
     font-weight: 700 !important;
     letter-spacing: -0.025em;
+    color: #ffffff !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
+
+
 .navbar-nav .nav-link {
-    color: #4b5563 !important;
+    color: #cbd5e1 !important;
     font-weight: 500;
     padding: 0.5rem 1rem !important;
     transition: color 0.2s;
 }
 
-.navbar-nav .nav-link:hover {
-    color: var(--bs-primary) !important;
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link.active,
+.navbar-nav .show > .nav-link {
+    color: #ffffff !important;
+}
+
+.navbar .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.35);
+}
+.navbar .navbar-toggler-icon {
+    filter: invert(1) grayscale(1) brightness(2);
 }
 
 .navbar .dropdown-menu {
     border: 1px solid #e5e7eb;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.12);
     border-radius: 0.5rem;
     padding: 0.5rem;
     z-index: 1050 !important;
@@ -119,12 +152,18 @@ h6 {
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
 }
-
-.dropdown-item:hover {
-    background-color: #f3f4f6;
+.dropdown-item:hover { background-color: var(--moen-primary-tint); }
+.dropdown-header {
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #94a3b8;
 }
 
-/* Cards */
+/* ============================================================
+   Cards
+   ============================================================ */
 .card {
     border: 1px solid #e5e7eb;
     box-shadow: var(--bs-box-shadow);
@@ -133,7 +172,6 @@ h6 {
     margin-bottom: 1.5rem;
     overflow: hidden;
 }
-
 .card-header {
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
@@ -141,99 +179,172 @@ h6 {
     color: var(--bs-dark);
     padding: 1rem 1.25rem;
 }
+.card-body { padding: 1.25rem; }
 
-.card-body {
-    padding: 1.25rem;
+/* KPI summary card (dashboard headline metrics) */
+.kpi-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: var(--bs-box-shadow);
+    height: 100%;
+}
+.kpi-card .kpi-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+}
+.kpi-card .kpi-value {
+    font-size: 2.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--moen-primary);
+    letter-spacing: -0.02em;
+    margin: 0.5rem 0;
 }
 
-/* Interactive Elements */
+/* Dark oversight panel (matches stitch nationwide panel) */
+.panel-dark {
+    background: var(--moen-header);
+    color: #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 2rem;
+}
+.panel-dark h2, .panel-dark h3 { color: #a3f69c; }
+
+/* ============================================================
+   Buttons
+   ============================================================ */
 .btn {
-    border-radius: 0.375rem;
+    border-radius: 0.25rem;
     font-weight: 500;
     padding: 0.5rem 1rem;
-    transition: all 0.2s;
+    transition: all 0.15s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
 }
-
-.btn-primary {
-    background-color: var(--bs-primary);
-    border-color: var(--bs-primary);
+.btn-primary,
+.btn-success {
+    --bs-btn-bg: var(--moen-primary);
+    --bs-btn-border-color: var(--moen-primary);
+    --bs-btn-hover-bg: var(--moen-primary-dark);
+    --bs-btn-hover-border-color: var(--moen-primary-dark);
+    --bs-btn-active-bg: var(--moen-primary-darker);
+    --bs-btn-active-border-color: var(--moen-primary-darker);
+    --bs-btn-disabled-bg: var(--moen-primary);
+    --bs-btn-disabled-border-color: var(--moen-primary);
+    color: #fff;
 }
-
-.btn-primary:hover {
-    background-color: #1d4ed8;
-    border-color: #1d4ed8;
+.btn-primary:hover,
+.btn-success:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
+.btn-outline-primary,
+.btn-outline-success {
+    --bs-btn-color: var(--moen-primary);
+    --bs-btn-border-color: var(--moen-primary);
+    --bs-btn-hover-bg: var(--moen-primary);
+    --bs-btn-hover-border-color: var(--moen-primary);
+    --bs-btn-active-bg: var(--moen-primary-dark);
+    --bs-btn-active-border-color: var(--moen-primary-dark);
+}
 
-/* Forms */
+/* ============================================================
+   Brand utility overrides (bg/text/badge primary → green)
+   ============================================================ */
+.bg-primary { background-color: var(--moen-primary) !important; }
+.bg-success { background-color: var(--moen-primary) !important; }
+.text-primary { color: var(--moen-primary) !important; }
+.text-success { color: var(--moen-primary) !important; }
+.badge.bg-primary { background-color: var(--moen-primary) !important; }
+.link-primary { color: var(--moen-primary) !important; }
+a { color: var(--bs-link-color); }
+code {
+    color: #be185d;
+    background: transparent;
+    font-weight: 600;
+}
+
+/* ============================================================
+   Forms
+   ============================================================ */
 .form-control,
 .form-select {
     border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    padding: 0.625rem 0.75rem;
+    border-radius: 0.25rem;
+    padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     background-color: #ffffff;
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
-
 .form-control:focus,
 .form-select:focus {
-    border-color: var(--bs-primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    border-color: var(--moen-primary);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
     outline: none;
 }
 
-/* Tables - Unified Dark Header Style */
+/* ============================================================
+   Page header helper
+   ============================================================ */
+.page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.page-header h1 { font-size: 1.75rem; margin: 0; }
+.page-header .page-subtitle { color: #64748b; font-size: 0.9rem; margin: 0.25rem 0 0; }
+
+/* ============================================================
+   Tables — dark slate header
+   ============================================================ */
 .table-responsive {
     border-radius: 0.5rem;
     border: 1px solid #e5e7eb;
     margin-bottom: 1.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
-
-.table {
-    margin-bottom: 0;
-}
-
+.table { margin-bottom: 0; }
 .table thead th {
-    background-color: #111827;
+    background-color: var(--moen-header);
     color: #ffffff;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     letter-spacing: 0.05em;
     padding: 0.75rem 1rem;
     border-bottom: none;
     white-space: nowrap;
 }
-
 .table tbody td {
-    padding: 0.875rem 1rem;
+    padding: 0.75rem 1rem;
     color: #374151;
     vertical-align: middle;
     border-bottom: 1px solid #f3f4f6;
 }
+.table tbody tr:last-child td { border-bottom: none; }
+.table-hover tbody tr:hover { background-color: var(--moen-primary-tint); }
 
-.table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.table-hover tbody tr:hover {
-    background-color: #f9fafb;
-}
-
-/* Status Badges */
+/* Status chips (pill radius per DESIGN.md) */
 .badge {
-    font-weight: 500;
+    font-weight: 600;
     padding: 0.35em 0.65em;
     border-radius: 2rem;
 }
 
-/* Footer */
+/* ============================================================
+   Footer
+   ============================================================ */
 footer {
     background-color: #ffffff;
     color: #6b7280;
@@ -244,50 +355,26 @@ footer {
 }
 
 /* Modal Z-index Fixes */
-.modal-backdrop {
-    z-index: 1040 !important;
-}
+.modal-backdrop { z-index: 1040 !important; }
+.modal { z-index: 1055 !important; }
+body.modal-open { overflow: hidden !important; }
 
-.modal {
-    z-index: 1055 !important;
-}
-
-body.modal-open {
-    overflow: hidden !important;
-}
-
-/* Table Utilities & Filtering */
-.table-responsive {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
+/* ============================================================
+   Table Utilities & Filtering (unchanged behaviour)
+   ============================================================ */
 .table thead th.sortable {
     cursor: pointer;
     transition: background-color 0.2s;
     position: relative;
 }
+.table thead th.sortable:hover { background-color: var(--moen-header-hi); }
+.table th.sort-asc::after { content: ' ↑'; opacity: 0.7; }
+.table th.sort-desc::after { content: ' ↓'; opacity: 0.7; }
 
-.table thead th.sortable:hover {
-    background-color: #1a252f;
-}
-
-.table th.sort-asc::after {
-    content: ' ↑';
-    opacity: 0.7;
-}
-
-.table th.sort-desc::after {
-    content: ' ↓';
-    opacity: 0.7;
-}
-
-/* Filter styles */
 .filter-row th {
     background-color: #f9fafb !important;
     padding: 0.5rem !important;
 }
-
 .filter-input {
     width: 100%;
     padding: 0.25rem 0.5rem;
@@ -295,7 +382,6 @@ body.modal-open {
     border: 1px solid #d1d5db;
     border-radius: 0.25rem;
 }
-
 .filter-dropdown {
     position: absolute;
     z-index: 1060;
@@ -309,11 +395,7 @@ body.modal-open {
     max-height: 400px;
     overflow-y: auto;
 }
-
-.filter-dropdown.show {
-    display: block;
-}
-
+.filter-dropdown.show { display: block; }
 .filter-dropdown-item {
     padding: 0.375rem 0.5rem;
     cursor: pointer;
@@ -321,41 +403,14 @@ body.modal-open {
     font-size: 0.875rem;
     border-radius: 0.25rem;
 }
+.filter-dropdown-item:hover { background-color: var(--moen-primary-tint); }
+.filter-icon { cursor: pointer; color: #6c757d; font-size: 0.75rem; }
+.filter-clear { cursor: pointer; color: #ef4444; font-size: 0.75rem; display: none; }
+.filter-clear.visible { display: inline-block; }
 
-.filter-dropdown-item:hover {
-    background-color: #f3f4f6;
-}
-
-.filter-icon {
-    cursor: pointer;
-    color: #6c757d;
-    font-size: 0.75rem;
-}
-
-.filter-clear {
-    cursor: pointer;
-    color: #ef4444;
-    font-size: 0.75rem;
-    display: none;
-}
-
-.filter-clear.visible {
-    display: inline-block;
-}
-
-/* Animations Utilities */
-.fade-in {
-    animation: fadeIn 0.5s ease-in;
-}
-
+/* Animations */
+.fade-in { animation: fadeIn 0.5s ease-in; }
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

@@ -1,101 +1,208 @@
 {% extends 'Inventory/base.html' %}
 {% load static %}
 
-{% block content %}
-<div class="container text-center py-5">
-    <!-- Logo at the Top -->
-    <div class="mb-5 fade-in">
-        <a href="https://freeimage.host/i/FsV36Yb">
-            <img src="https://iili.io/FsV36Yb.md.png" alt="App Logo" class="img-fluid logo" style="max-width: 200px;">
-        </a>
-    </div>
+{% block full_width_content %}
 
-    <!-- Centered Content -->
-    <div class="row justify-content-center mb-5 fade-in" style="animation-delay: 0.1s;">
-        <div class="col-md-8">
-            <h1 class="display-5 mb-3">Track and Manage Your Inventory</h1>
-            <p class="lead text-muted mb-4">Keep track of your projects and inventory with real-time stock alerts.</p>
-            {% if user.is_authenticated %}
-            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg px-5 shadow-sm">
-                Go to Dashboard <i class="bi bi-arrow-right ms-2"></i>
-            </a>
-            {% else %}
-            <a href="{% url 'ms_login' %}" class="btn btn-primary btn-lg px-5 shadow-sm d-inline-flex align-items-center gap-2">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style="width: 20px; height: 20px;">
-                Sign in with Microsoft
-            </a>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- About Section -->
-    <div class="row justify-content-center py-5 fade-in"
-        style="background-color: #ffffff; border-radius: 1rem; border: 1px solid #e5e7eb; animation-delay: 0.2s;">
-        <div class="col-md-10 col-lg-8">
-            <h2 class="mb-4">About the System</h2>
-            <p class="text-secondary">
-                The **MOEGT Integrated Energy Project System (IEPS)** is designed to help the Ministry efficiently track
-                energy projects, stock levels, manage material requests, and streamline procurement processes.
-                With real-time updates and user-friendly features, you’ll always stay informed about your project and
-                inventory status.
-            </p>
-            <p class="text-secondary">
-                Whether you're handling warehouse supplies or office resources, this system ensures smooth and
-                hassle-free inventory control across all regions.
-            </p>
-        </div>
-    </div>
-
-    <!-- Contact Information Section -->
-    <div class="row justify-content-center mt-5 fade-in" style="animation-delay: 0.3s;">
-        <div class="col-md-6 text-muted">
-            <p>
-                Have any questions or needs <a href="mailto:leslie.adjetey@energymin.gov.gh"
-                    class="text-primary font-bold">support?</a> <br>
-                Reach out to us anytime!
-            </p>
+<!-- HTMS-style dark hero: text left, animated Ghana map right -->
+<div class="hero-band">
+    <div class="container py-5">
+        <div class="row align-items-center g-5">
+            <!-- Left: copy -->
+            <div class="col-lg-6 hero-left fade-in">
+                <span class="hero-badge">
+                    <img src="https://flagcdn.com/gh.svg" alt="Ghana" style="width:18px;height:12px;border-radius:2px;">
+                    Integrated Energy Project System &middot; Ghana
+                </span>
+                <h1>Track and manage your inventory.</h1>
+                <p class="hero-sub">
+                    Real-time stock alerts, material requests and a fully audited project pipeline — for the
+                    Ministry of Energy &amp; Green Transition's electrification programme.
+                </p>
+                <div class="hero-cta">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-box-arrow-in-right"></i> Go to Dashboard
+                    </a>
+                    {% else %}
+                    <a href="{% url 'ms_login' %}" class="btn btn-primary btn-lg d-inline-flex align-items-center gap-2">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style="width:18px;height:18px;">
+                        Sign in with Microsoft
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'about' %}" class="btn btn-outline-light btn-lg">See how it works</a>
+                </div>
+                <div class="hero-stats">
+                    <div><span class="hs-num">16</span><span class="hs-cap">regions covered</span></div>
+                    <div><span class="hs-num">Real-time</span><span class="hs-cap">stock visibility</span></div>
+                    <div><span class="hs-num">Secure</span><span class="hs-cap">Microsoft 365 SSO</span></div>
+                </div>
+            </div>
+            <!-- Right: animated map -->
+            <div class="col-lg-6">
+                <div class="hero-map-wrap fade-in" style="animation-delay:.15s;">
+                    <div id="ghana-hero-map"></div>
+                    <div class="map-hero-caption"><span class="pulse-dot"></span> Live transmission network across Ghana</div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Simple JavaScript for Logo Bounce -->
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Simple Bounce effect for logo
-        setTimeout(() => {
-            const logo = document.querySelector(".logo");
-            if (logo) logo.style.transform = "translateY(-5px)";
-        }, 1000);
-    });
-</script>
+<div class="container mt-5">
+    <!-- About the System -->
+    <div class="card fade-in" style="animation-delay: 0.2s;">
+        <div class="card-body p-4 p-lg-5">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-7">
+                    <h2 class="mb-3">About the System</h2>
+                    <p class="text-secondary">
+                        The <strong>MOEGT Integrated Energy Project System (IEPS)</strong> is designed to help the
+                        Ministry efficiently track energy projects, stock levels, manage material requests, and
+                        streamline procurement processes. With real-time updates and user-friendly features, you'll
+                        always stay informed about your project and inventory status.
+                    </p>
+                    <p class="text-secondary mb-4">
+                        Whether you're handling warehouse supplies or office resources, this system ensures smooth and
+                        hassle-free inventory control across all regions, reflecting the Ministry's commitment to
+                        stability and progress.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <span class="d-inline-flex align-items-center gap-2 border rounded px-3 py-2 small fw-semibold">
+                            <i class="bi bi-shield-lock" style="color:#2e7d32;"></i> Secure Access
+                        </span>
+                        <span class="d-inline-flex align-items-center gap-2 border rounded px-3 py-2 small fw-semibold">
+                            <i class="bi bi-clock-history" style="color:#2e7d32;"></i> Real-time Data
+                        </span>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="h-100 d-flex flex-column justify-content-center" style="background:#1e293b;color:#e2e8f0;border-radius:.75rem;padding:2rem;">
+                        <p class="text-uppercase fw-bold mb-2" style="color:#94a3b8;font-size:.75rem;letter-spacing:.05em;">Nationwide Oversight</p>
+                        <p class="mb-0">
+                            Live map integration monitoring 16 regions with localized inventory tracking for the
+                            Green Transition projects.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support -->
+    <div class="text-center mt-5 mb-4 text-muted fade-in" style="animation-delay: 0.3s;">
+        <p class="mb-0">
+            Have any questions or need
+            <a href="mailto:leslie.adjetey@energymin.gov.gh" class="fw-semibold" style="color:#1b6d24;">support?</a>
+            Reach out to us anytime.
+        </p>
+    </div>
+</div>
 
 <style>
-    .logo {
-        transition: transform 0.5s ease-in-out;
+    /* HTMS-style dark hero band (same slate as the navigation) */
+    .hero-band {
+        background: var(--moen-header, #1e293b);
+        color: #e2e8f0;
+        margin-top: -2rem; /* sit flush under the nav (cancels .content top padding) */
     }
+    .hero-badge {
+        display: inline-flex; align-items: center; gap: .5rem;
+        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+        color: #cbd5e1; padding: .4rem .9rem; border-radius: 2rem; font-size: .8rem; font-weight: 500;
+        margin-bottom: 1.5rem;
+    }
+    .hero-band h1 { color: #fff; font-weight: 700; font-size: 2.9rem; letter-spacing: -.02em; line-height: 1.08; }
+    .hero-sub { color: #94a3b8; font-size: 1.05rem; max-width: 34rem; margin-bottom: 0; }
+    .hero-cta { display: flex; gap: .75rem; flex-wrap: wrap; margin: 1.75rem 0; }
+    .hero-band .btn-outline-light {
+        --bs-btn-color: #e2e8f0; --bs-btn-border-color: rgba(255,255,255,.28);
+        --bs-btn-hover-bg: rgba(255,255,255,.1); --bs-btn-hover-border-color: rgba(255,255,255,.45);
+        --bs-btn-hover-color: #fff;
+    }
+    .hero-stats { display: flex; gap: 2.5rem; flex-wrap: wrap; margin-top: .5rem; }
+    .hero-stats .hs-num { display: block; color: #fff; font-weight: 700; font-size: 1.5rem; line-height: 1.1; }
+    .hero-stats .hs-cap { color: #64748b; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+    .hero-map-wrap { position: relative; height: 440px; }
+    @media (max-width: 991px) { .hero-map-wrap { height: 340px; } .hero-band h1 { font-size: 2.3rem; } }
+    #ghana-hero-map { position: absolute; inset: 0; }
+    .map-hero-caption {
+        position: absolute; bottom: 8px; right: 8px; color: #64748b; font-size: .72rem;
+        display: inline-flex; align-items: center; gap: .4rem; z-index: 2;
+    }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #5ec578; box-shadow: 0 0 0 0 rgba(94,197,120,.7); animation: pulseDot 1.8s infinite; }
+    @keyframes pulseDot { 70% { box-shadow: 0 0 0 8px rgba(94,197,120,0); } 100% { box-shadow: 0 0 0 0 rgba(94,197,120,0); } }
 </style>
-{% endblock content %}
 
-{% block page_splash %}
+<script src="{% static 'js/echarts.min.js' %}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        PageSplash.init({
-            pageId: 'welcome_index',
-            title: 'Welcome to MOEGT IEPS',
-            subtitle: 'Integrated Energy Project System',
-            icon: '',
-            features: [
-                { icon: '', title: 'Project Tracking', desc: 'End-to-end energy project management' },
-                { icon: '', title: 'Inventory Control', desc: 'Real-time stock and material tracking' },
-                { icon: '', title: 'Collaboration', desc: 'Connects schedules, stores, and sites' },
-                { icon: '', title: 'Analytics', desc: 'Data-driven insights and reporting' }
-            ],
-            tips: [
-                'Sign in to access your dashboard',
-                'Contact support if you need an account',
-                'Check the About section for system details'
-            ]
+(function () {
+    var el = document.getElementById('ghana-hero-map');
+    if (!el || typeof echarts === 'undefined') return;
+
+    // Major grid nodes: [lng, lat, name, weight]
+    var nodes = [
+        [-0.20, 5.56, 'Accra', 100], [0.02, 5.67, 'Tema', 90], [-1.62, 6.69, 'Kumasi', 85],
+        [-1.76, 4.90, 'Takoradi', 70], [-1.24, 5.11, 'Cape Coast', 55], [-0.26, 6.09, 'Koforidua', 55],
+        [0.47, 6.60, 'Ho', 55], [-2.33, 7.34, 'Sunyani', 55], [-1.94, 7.59, 'Techiman', 50],
+        [-0.84, 9.41, 'Tamale', 75], [-0.01, 9.44, 'Yendi', 45], [0.06, 8.86, 'Bimbilla', 40],
+        [-0.85, 10.79, 'Bolgatanga', 55], [-2.50, 10.06, 'Wa', 50], [-1.82, 9.08, 'Damongo', 40],
+        [-0.76, 6.55, 'Nkawkaw', 40]
+    ];
+    var byName = {};
+    nodes.forEach(function (n) { byName[n[2]] = [n[0], n[1]]; });
+
+    var pairs = [
+        ['Tema', 'Accra'], ['Accra', 'Koforidua'], ['Koforidua', 'Kumasi'], ['Accra', 'Cape Coast'],
+        ['Cape Coast', 'Takoradi'], ['Kumasi', 'Takoradi'], ['Kumasi', 'Techiman'], ['Techiman', 'Sunyani'],
+        ['Techiman', 'Damongo'], ['Damongo', 'Tamale'], ['Tamale', 'Yendi'], ['Tamale', 'Bimbilla'],
+        ['Tamale', 'Bolgatanga'], ['Tamale', 'Wa'], ['Accra', 'Ho'], ['Koforidua', 'Nkawkaw'], ['Nkawkaw', 'Kumasi']
+    ];
+    var lines = pairs.map(function (p) { return { coords: [byName[p[0]], byName[p[1]]] }; });
+
+    var chart = echarts.init(el, null, { renderer: 'canvas' });
+
+    fetch("{% static 'geojson/ghana_regions.json' %}")
+        .then(function (r) { return r.json(); })
+        .then(function (geo) {
+            echarts.registerMap('GhanaHero', geo);
+            chart.setOption({
+                backgroundColor: 'transparent',
+                geo: {
+                    map: 'GhanaHero', roam: false, silent: true,
+                    layoutCenter: ['50%', '50%'], layoutSize: '100%',
+                    itemStyle: { areaColor: '#16233b', borderColor: 'rgba(94,197,120,.35)', borderWidth: 1 },
+                    emphasis: { disabled: true }
+                },
+                series: [
+                    {
+                        name: 'grid', type: 'lines', coordinateSystem: 'geo', zlevel: 1, data: lines,
+                        lineStyle: { color: '#5ec578', width: 1, opacity: 0.3, curveness: 0.2, type: 'dashed' },
+                        effect: { show: true, period: 5, trailLength: 0.5, color: '#a3f69c', symbolSize: 3 }
+                    },
+                    {
+                        name: 'sites', type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2,
+                        data: [],
+                        symbolSize: function (v) { return 4 + (v[2] / 100) * 8; },
+                        rippleEffect: { brushType: 'stroke', scale: 3, period: 3.5 },
+                        itemStyle: { color: '#5ec578', shadowBlur: 8, shadowColor: 'rgba(94,197,120,.8)' },
+                        label: { show: true, position: 'right', formatter: '{b}', color: '#cbd5e1', fontSize: 10, fontWeight: 600 }
+                    }
+                ]
+            });
+
+            // Pop the sites up one-by-one across the country
+            var order = nodes.slice().sort(function () { return Math.random() - 0.5; });
+            var shown = [];
+            var i = 0;
+            var timer = setInterval(function () {
+                if (i >= order.length) { clearInterval(timer); return; }
+                var n = order[i++];
+                shown.push({ name: n[2], value: [n[0], n[1], n[3]] });
+                chart.setOption({ series: [{ name: 'sites', data: shown }] });
+            }, 220);
         });
-    });
+
+    window.addEventListener('resize', function () { chart.resize(); });
+})();
 </script>
-{% endblock %}
+{% endblock full_width_content %}
