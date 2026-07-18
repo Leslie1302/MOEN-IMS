@@ -37,7 +37,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-1 text-gray-800">Regional Electrification Map</h2>
-            <p class="text-muted mb-0">Visual representation of completed vs planned project sites</p>
+            <p class="text-muted mb-0">Regional electricity access rate and community electrification progress</p>
         </div>
         <div>
             <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
@@ -63,7 +63,7 @@
                 <div class="col-md-7">
                     <div class="text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em; opacity: 0.8;">
                         National electricity access rate
-                        <span class="badge bg-light text-primary ms-2" title="Consultant-reported (interim)">INTERIM</span>
+                        <span class="badge bg-light text-primary ms-2" title="GSS Mar 2026 snapshot baseline + verified meter connections">BASELINE + METERS</span>
                     </div>
                     <div class="display-4 font-weight-bold" id="national-access-rate">—</div>
                     <div class="small mt-1" id="national-access-caveat" style="opacity: 0.85;">
@@ -74,11 +74,11 @@
                     <div class="d-inline-block text-start p-3 rounded"
                          style="background: rgba(255,255,255,0.12); backdrop-filter: blur(4px);">
                         <div class="small text-uppercase" style="letter-spacing: 0.1em; opacity: 0.8;">
-                            Sites in scope
+                            Communities in scope
                         </div>
                         <div class="h5 mb-0">
                             <span id="national-energised">0</span> energised /
-                            <span id="national-total-sites">0</span> sites
+                            <span id="national-total-sites">0</span> communities
                         </div>
                         <div class="small mt-2" style="opacity: 0.85;">
                             Avg consultant progress:
@@ -96,7 +96,7 @@
             <div class="card stats-card bg-primary text-white h-100">
                 <div class="card-body">
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        Total Sites Nationwide</div>
+                        Total Communities Nationwide</div>
                     <div class="h3 mb-0 font-weight-bold" id="total-sites-count">0</div>
                 </div>
             </div>
@@ -105,7 +105,7 @@
             <div class="card stats-card bg-success text-white h-100">
                 <div class="card-body">
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        Completed Sites</div>
+                        Completed Communities</div>
                     <div class="h3 mb-0 font-weight-bold" id="completed-sites-count">0</div>
                 </div>
             </div>
@@ -114,7 +114,7 @@
             <div class="card stats-card bg-warning text-white h-100">
                 <div class="card-body">
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        Active Sites</div>
+                        Active Communities</div>
                     <div class="h3 mb-0 font-weight-bold text-dark" id="active-sites-count">0</div>
                 </div>
             </div>
@@ -123,11 +123,11 @@
             <div class="card stats-card bg-info text-white h-100">
                 <div class="card-body">
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        Site Completion
-                        <span class="badge bg-light text-info ms-1" title="Sites with status=Completed">SITE</span>
+                        Community Completion
+                        <span class="badge bg-light text-info ms-1" title="Communities with status=Completed">STATUS</span>
                     </div>
                     <div class="h3 mb-0 font-weight-bold" id="national-progress">0%</div>
-                    <small class="opacity-75">% sites marked Completed</small>
+                    <small class="opacity-75">% communities marked Completed</small>
                 </div>
             </div>
         </div>
@@ -188,11 +188,11 @@
 
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            Total Project Sites
+                            Total Communities
                             <span class="badge bg-primary rounded-pill fs-6" id="detail-total">0</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            Completed Sites
+                            Completed Communities
                             <span class="badge bg-success rounded-pill fs-6" id="detail-completed">0</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
@@ -222,11 +222,11 @@
                             <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
                                 <strong>Three measures</strong> are surfaced separately.
                                 <em>Access rate</em> (headline) is the
-                                <strong>share of sites consultants have flipped to
-                                Energised or Commissioned</strong> via the Site Progress page;
-                                interim until the Energy Commission engagement
-                                settles a fuller methodology.
-                                <em>Site completion</em> = % of sites marked
+                                <strong>population access-rate formula</strong>: the GSS
+                                March 2026 baseline plus verified meter connections and
+                                completed communities' connection targets
+                                × persons-per-connection, over the region's population.
+                                <em>Community completion</em> = % of communities marked
                                 <strong class="text-success">Completed</strong> in the region (BoQ-driven).
                                 <em>Material flow</em> = quantity received ÷ contracted across BoQ lines.
                             </div>
@@ -245,9 +245,9 @@
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1"
                                 style="opacity: 0.9;">Project Access Rate (AR%)</div>
                             <div class="h6 mb-0 text-gray-800" style="font-size: 0.85rem;">
-                                Current project-wide electricity access rate is
+                                Current national electricity access rate is
                                 <strong class="text-dark" style="font-size: 1.1rem;" id="project-ar-display">—</strong>
-                                based on site completion across all regions.
+                                from the population baseline plus verified meter connections.
                             </div>
                             <div class="mt-2 small text-muted">
                                 <span id="ar-details">Loading metrics...</span>
@@ -383,7 +383,7 @@
                 const arDetails = document.getElementById('ar-details');
                 arDisplay.innerText = (accessPct != null ? accessPct.toFixed(2) : '—') + '%';
                 arDetails.innerHTML =
-                    `Site completion: <strong>${siteCompletionPct.toFixed(1)}%</strong> · ` +
+                    `Community completion: <strong>${siteCompletionPct.toFixed(1)}%</strong> · ` +
                     `Material flow: <strong>${nationalBoqAR.toFixed(1)}%</strong> ` +
                     `(${Math.round(nationalBoqReceived).toLocaleString()} / ${Math.round(nationalBoqContract).toLocaleString()})`;
 
@@ -435,8 +435,8 @@
                             <div style="font-weight:bold;font-size:14px;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:5px;">
                                 ${params.name} Region
                             </div>
-                            <span>Site Progress: <strong style="color:${params.data.value > 70 ? '#28a745' : params.data.value > 30 ? '#ffc107' : '#dc3545'}">${params.data.value}%</strong></span><br/>
-                            <span>Total Sites: ${params.data.total_sites}</span><br/>
+                            <span>Access rate: <strong style="color:${params.data.value > 70 ? '#28a745' : params.data.value > 30 ? '#ffc107' : '#dc3545'}">${params.data.value}%</strong></span><br/>
+                            <span>Total Communities: ${params.data.total_sites}</span><br/>
                             <span>Completed: ${params.data.completed_sites}</span><br/>
                             <span>BoQ Material Flow: <strong>${boqAr.toFixed(1)}%</strong></span>
                         `;
@@ -453,7 +453,7 @@
                                 // Default Color scale: Red (0-30), Yellow (30-70), Green (70-100)
                                 color: ['#dc3545', '#ffc107', '#28a745']
                             },
-                            text: ['100% Completed', '0% Progress'],
+                            text: ['100% access', '0% access'],
                             calculable: true,
                             formatter: '{value}%'
                         },

@@ -7,8 +7,8 @@ Covers the contract documented in IMPLEMENTATION_PLAN_POLES_AND_ACCESS_RATE.md:
   * +1 verified 1ph meter -> numerator goes up by persons_per_connection
   * +1 verified 3ph meter -> same weighting as 1ph
   * unverified rows do not contribute
-  * region filter narrows the meter count but keeps the national
-    baseline/denominator
+  * region filter uses that region's own baseline/denominator when a
+    RegionPopulation row is seeded, else falls back to national
   * a newer AccessRateConfig row takes over once its effective_from
     has been reached
   * as_of dates roll the rate back to the historical config
@@ -24,7 +24,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from Inventory.models import (
-    AccessRateConfig, Community, MeterInstallation, ProjectType,
+    AccessRateConfig, Community, MeterInstallation, ProjectType, RegionPopulation,
 )
 from Inventory.services.access_rate import compute_access_rate, regional_meter_breakdown
 
@@ -69,8 +69,8 @@ class AccessRateCalculatorTests(TestCase):
         self.assertEqual(result.meters_3ph, 0)
         self.assertEqual(result.pop_newly_served, 0)
         self.assertEqual(result.rate_pct, expected_pct)
-        # Sanity-check the documented number from the plan.
-        self.assertAlmostEqual(expected_pct, 88.85, places=1)
+        # Sanity-check the current seed: March 2026 snapshot -> 89.13%.
+        self.assertAlmostEqual(expected_pct, 89.13, places=1)
 
     # ---- meter contributions ----------------------------------------------
 
@@ -147,7 +147,11 @@ class AccessRateCalculatorTests(TestCase):
 
     # ---- geographic filters -----------------------------------------------
 
-    def test_region_filter_narrows_meters_but_not_denominator(self):
+    def test_region_with_population_row_uses_its_own_baseline(self):
+        # Greater Accra + Ashanti are seeded RegionPopulation rows (migration
+        # 0070). A regional query now uses that region's own denominator and
+        # baseline -- a true regional rate, not a national-denominator
+        # contribution.
         for community in (self.community_a, self.community_b):
             self._verify_install(MeterInstallation.objects.create(
                 community=community,
@@ -161,12 +165,60 @@ class AccessRateCalculatorTests(TestCase):
 
         self.assertEqual(national.meters_1ph, 2)
         self.assertEqual(region.meters_1ph, 1)
-        # Denominator unchanged across scopes.
-        self.assertEqual(region.total_population, national.total_population)
-        self.assertEqual(region.baseline_population, national.baseline_population)
-        # And the result is flagged.
+        # Regional denominator/baseline now come from the region's own row.
+        ga = RegionPopulation.objects.get(region='Greater Accra')
+        self.assertNotEqual(region.total_population, national.total_population)
+        self.assertEqual(region.total_population, ga.total_population)
+        self.assertEqual(region.baseline_population, ga.baseline_population_access)
         self.assertEqual(region.scope, 'region')
         self.assertEqual(national.scope, 'national')
+
+    def test_region_without_population_row_falls_back_to_national(self):
+        # A region with no seeded row keeps the national baseline/denominator.
+        national = compute_access_rate()
+        result   = compute_access_rate(region='Nowhere')
+        self.assertEqual(result.total_population, national.total_population)
+        self.assertEqual(result.baseline_population, national.baseline_population)
+        self.assertEqual(result.scope, 'region')
+
+    def test_region_baseline_excludes_meters_on_or_before_snapshot(self):
+        # The regional baseline already counts everything up to its snapshot
+        # date, so meters dated on/before effective_from must not be added
+        # again (double-count guard). community_a is in Greater Accra.
+        ga = RegionPopulation.objects.get(region='Greater Accra')
+        self._verify_install(MeterInstallation.objects.create(
+            community=self.community_a, phase_type='1ph', quantity=10,
+            installation_date=ga.effective_from,                       # on snapshot
+            reported_by=self.reporter,
+        ))
+        self._verify_install(MeterInstallation.objects.create(
+            community=self.community_a, phase_type='1ph', quantity=3,
+            installation_date=ga.effective_from + datetime.timedelta(days=1),  # after
+            reported_by=self.reporter,
+        ))
+        region = compute_access_rate(region='Greater Accra')
+        self.assertEqual(region.meters_1ph, 3)
+
+    def test_completed_community_credits_connection_target(self):
+        # A community marked Energised on Site Progress credits its connection
+        # target even before meters are logged ("target now, meters refine").
+        from Inventory.models import Project, ProjectSite
+        self.community_a.planned_connections = 100
+        self.community_a.save(update_fields=['planned_connections'])
+        project = Project.objects.create(
+            name='P', code='P-1', description='', project_type='SHEP',
+            status='Active', consultant='—',
+            start_date=timezone.localdate(), planned_end_date=timezone.localdate(),
+        )
+        ProjectSite.objects.create(
+            project=project, name='Osu S', code='OSU-S',
+            region='Greater Accra', district='Accra Metro', community='Osu',
+            works_status='Energised',
+            progress_updated_at=timezone.now(),  # after the Mar-2026 snapshot
+        )
+        region = compute_access_rate(region='Greater Accra')
+        # 100 connections credited (no meters yet) × persons_per_connection.
+        self.assertEqual(region.pop_newly_served, region.persons_per_connection * 100)
 
     def test_district_filter_works(self):
         for community, qty in (

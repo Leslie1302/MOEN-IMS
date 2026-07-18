@@ -217,3 +217,49 @@ class AccessRateConfig(auto_prefetch.Model):
             .order_by('-effective_from')
             .first()
         )
+
+
+class RegionPopulation(auto_prefetch.Model):
+    """Per-region denominator + already-electrified baseline.
+
+    Seeded from the standardised GSS/Ministry access-rate snapshot (see
+    migration 0070). Gives each region its own population and baseline so a
+    regional ``compute_access_rate`` returns a *true* regional rate instead
+    of the national-denominator contribution it used to. Verified meters
+    installed after ``effective_from`` accrue on top of the baseline; the
+    baseline already counts everything up to that date.
+    """
+
+    region = models.CharField(
+        max_length=100, unique=True, db_index=True,
+        help_text='Region name. Must match the map GeoJSON and '
+                  'Community.region spelling exactly (16 standard regions).',
+    )
+    total_population = models.PositiveBigIntegerField(
+        help_text='Region population — the denominator for this region.',
+    )
+    baseline_population_access = models.PositiveBigIntegerField(
+        help_text='Population already electrified as at effective_from. '
+                  'The additive constant in the regional numerator.',
+    )
+    effective_from = models.DateField(
+        help_text='Date the baseline snapshot was struck. Only meters '
+                  'installed after this date add to the regional rate.',
+    )
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # ponytail: one row per region, updated in place. Add effective_from
+    # versioning like AccessRateConfig only if historical regional
+    # reproducibility is ever needed.
+
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['region']
+        verbose_name = 'region population'
+        verbose_name_plural = 'region populations'
+
+    def __str__(self):
+        return (
+            f"{self.region}: {self.baseline_population_access:,}"
+            f"/{self.total_population:,}"
+        )

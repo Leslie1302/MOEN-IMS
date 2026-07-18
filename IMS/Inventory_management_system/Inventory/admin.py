@@ -1337,3 +1337,14 @@ class PerformanceSnapshotAdmin(admin.ModelAdmin):
     list_filter = ('role', 'period_year', 'period_month', 'grade')
     search_fields = ('user__username', 'user__first_name', 'user__last_name')
     readonly_fields = [f.name for f in PerformanceSnapshot._meta.fields]
+
+
+from .models import RegionPopulation  # noqa: E402
+
+
+@admin.register(RegionPopulation)
+class RegionPopulationAdmin(admin.ModelAdmin):
+    list_display = ('region', 'total_population', 'baseline_population_access',
+                    'effective_from', 'updated_at')
+    list_editable = ('total_population', 'baseline_population_access', 'effective_from')
+    search_fields = ('region',)

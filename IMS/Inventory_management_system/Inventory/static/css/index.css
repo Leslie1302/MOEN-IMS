@@ -1,8 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    /* MOEGT IEPS — Institutional design tokens (HTMS/IEPS design language).
-       Forest Green primary + slate headers. See stitch DESIGN.md. */
+    /* MOEGT IEPS — Institutional design tokens (IEPS design language).
+       Forest Green primary + slate headers. */
     --moen-primary: #2e7d32;        /* actions, branding, active states */
     --moen-primary-dark: #1b6d24;   /* hover */
     --moen-primary-darker: #155a1c; /* active */

@@ -99,17 +99,25 @@ def ghana_map_data_api(request):
     for region in standard_regions:
         region_sites = ProjectSite.objects.filter(region__icontains=region)
 
+        # True regional access rate from the meter formula on this region's
+        # own seeded baseline + denominator (RegionPopulation), plus verified
+        # meters logged since the snapshot. Starts at the Mar-2026 baseline
+        # and rises as officers/consultants log installs.
+        meter_access_rate = compute_access_rate(region=region).rate_pct
+
         total_sites = region_sites.count()
-        completed_sites = region_sites.filter(status='Completed').count()
+        # "Completed communities" reflects the Site Progress signal
+        # (works_status Energised/Commissioned) so consultant completions
+        # show up here immediately. Material/BoQ completion still surfaces
+        # via the Material Flow card.
+        completed_sites = region_sites.filter(
+            works_status__in=('Energised', 'Commissioned')).count()
         active_sites = region_sites.filter(status='Active').count()
         planned_sites = region_sites.filter(status='Planned').count()
         on_hold_sites = region_sites.filter(status='On Hold').count()
 
-        # Site-completion rate: share of ProjectSites that the BoQ signal
-        # has flipped to 'Completed'. Useful operationally but does NOT
-        # mean people have electricity -- communities can be 100% green
-        # here while no meters are energised. Renamed from access_rate to
-        # site_completion_rate in Phase B3 to remove that ambiguity.
+        # Community-completion rate: share of communities consultants have
+        # marked Energised/Commissioned via the Site Progress page.
         site_completion_rate = (
             round((completed_sites / total_sites) * 100, 2) if total_sites > 0 else 0
         )
@@ -164,11 +172,13 @@ def ghana_map_data_api(request):
 
         data.append({
             'name': region,
-            # The map's choropleth fill keys off `value`. Keep this on
-            # site_completion_rate so existing front-end colour scales
-            # continue to work; the formula-driven national access rate
-            # is shown in the headline card, not the regional fill.
-            'value': site_completion_rate,
+            # The map's choropleth fill keys off `value`: the true regional
+            # access rate (meter formula on this region's own baseline +
+            # denominator), so the map lights up at the seeded snapshot
+            # values and rises as meters are logged. site_completion_rate
+            # stays available below for its own panel.
+            'value': meter_access_rate,
+            'meter_access_rate': meter_access_rate,
             'total_sites': total_sites,
             'completed_sites': completed_sites,
             'active_sites': active_sites,
