@@ -10,6 +10,7 @@ from django.utils.http import urlencode
 from .models import BillOfQuantity, Project, ProjectSite, Community
 from .utils import is_superuser, is_store_officer, is_management
 from collections import defaultdict
+from datetime import datetime, timedelta
 import json
 import logging
 
@@ -197,7 +198,8 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
             package_list = []
             package_chart_labels = []
             package_chart_data = []
-            
+            package_chart_assigned = []
+
             for pkg in package_data:
                 if pkg['package_number']:
                     completion = (pkg['total_received'] / pkg['total_contract'] * 100) if pkg['total_contract'] > 0 else 0
@@ -213,10 +215,17 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                         'community_count': pkg['community_count']
                     })
                     
-                    # Top 10 packages for chart
-                    if len(package_chart_labels) < 10:
-                        package_chart_labels.append(pkg['package_number'])
-                        package_chart_data.append(round(completion, 2))
+                    # All packages go to the chart (ordered by contract size);
+                    # the front end slices the top 10 of whichever status
+                    # filter is active. `assigned` = has a real contractor, so
+                    # unawarded/TBD packages can be filtered out of the
+                    # active-contracts view instead of flattening the scale.
+                    contractor = (pkg['contractor'] or '').strip()
+                    package_chart_labels.append(pkg['package_number'])
+                    package_chart_data.append(round(completion, 2))
+                    package_chart_assigned.append(
+                        bool(contractor) and contractor.upper() != 'TBD'
+                    )
             
             # Material-level aggregation (top materials by quantity)
             material_data = boq_items.values('material_description', 'item_code').annotate(
@@ -308,8 +317,90 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 'over_issued_lines': [s['over_issued_lines'] for s in project_segments],
             })
 
+            # ── NES dashboard panels (all from stored data) ──────────────
+            from django.utils import timezone as _tz
+            from django.db.models.functions import TruncMonth
+            from .models import SiteReceipt, MeterInstallation
+
+            today = _tz.localdate()
+
+            # Per-project completion from its sites' consultant progress.
+            site_progress = {
+                r['project_id']: (r['avg'] or 0)
+                for r in ProjectSite.objects.values('project_id').annotate(avg=Avg('progress_percent'))
+            }
+
+            # Portfolio health. 'At Risk' / 'Delayed' aren't stored statuses —
+            # they're derived from the planned end date vs actual completion.
+            roadmap, health = [], {'active': 0, 'at_risk': 0, 'delayed': 0}
+            live = [p for p in Project.objects.exclude(status='Completed')]
+            for p in live:
+                pct = round(site_progress.get(p.id, 0), 1)
+                overdue = bool(p.planned_end_date and p.planned_end_date < today)
+                due_soon = bool(
+                    p.planned_end_date and not overdue
+                    and (p.planned_end_date - today).days <= 30
+                )
+                if overdue:
+                    state, colour = 'Delayed', 'danger'
+                    health['delayed'] += 1
+                elif due_soon and pct < 90:
+                    state, colour = 'At Risk', 'warning'
+                    health['at_risk'] += 1
+                else:
+                    state, colour = 'On Track', 'success'
+                    health['active'] += 1
+                roadmap.append({
+                    'name': p.name, 'code': p.code, 'state': state,
+                    'colour': colour, 'completion': pct,
+                    'start': p.start_date, 'end': p.planned_end_date,
+                })
+
+            # Gantt geometry: position each bar across the overall date window.
+            dated = [r for r in roadmap if r['start'] and r['end'] and r['end'] > r['start']]
+            if dated:
+                win_start = min(r['start'] for r in dated)
+                win_end = max(r['end'] for r in dated)
+                span = max((win_end - win_start).days, 1)
+                for r in dated:
+                    r['left_pct'] = round((r['start'] - win_start).days / span * 100, 2)
+                    r['width_pct'] = round(max((r['end'] - r['start']).days, 1) / span * 100, 2)
+            roadmap = sorted(dated, key=lambda r: r['start'])[:8]
+
+            total_live = sum(health.values())
+            health['score'] = round(health['active'] / total_live * 100) if total_live else 0
+
+            # Six-month trend: materials delivered + connections energised.
+            def _monthly(qs, date_field, value_field):
+                rows = (qs.annotate(m=TruncMonth(date_field))
+                          .values('m').annotate(t=Sum(value_field)).order_by('m'))
+                return {r['m'].strftime('%b %Y'): float(r['t'] or 0) for r in rows if r['m']}
+
+            cutoff = today.replace(day=1) - timedelta(days=185)
+            mat = _monthly(SiteReceipt.objects.filter(received_date__date__gte=cutoff),
+                           'received_date', 'received_quantity')
+            con = _monthly(MeterInstallation.objects.filter(
+                installation_date__gte=cutoff, verified_at__isnull=False),
+                'installation_date', 'quantity')
+            months = sorted(set(mat) | set(con),
+                            key=lambda s: datetime.strptime(s, '%b %Y'))[-6:]
+
+            # Regional distribution from the community roll-up.
+            region_counts = defaultdict(int)
+            for c in community_list:
+                region_counts[c['region'] or 'Unassigned'] += 1
+            regional_distribution = sorted(
+                ({'region': k, 'communities': v} for k, v in region_counts.items()),
+                key=lambda r: -r['communities'])
+
             # Add all data to context
             context.update({
+                'nes_roadmap': roadmap,
+                'nes_health': health,
+                'nes_trend_labels': json.dumps(months),
+                'nes_trend_materials': json.dumps([mat.get(m, 0) for m in months]),
+                'nes_trend_connections': json.dumps([con.get(m, 0) for m in months]),
+                'nes_regional_distribution': regional_distribution,
                 'total_items': total_items,
                 'total_communities': total_communities,
                 'total_packages': total_packages,
@@ -330,6 +421,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 'community_chart_data': json.dumps(community_chart_data),
                 'package_chart_labels': json.dumps(package_chart_labels),
                 'package_chart_data': json.dumps(package_chart_data),
+                'package_chart_assigned': json.dumps(package_chart_assigned),
                 'material_chart_labels': json.dumps(material_chart_labels),
                 'material_contract_data': json.dumps(material_contract_data),
                 'material_received_data': json.dumps(material_received_data),

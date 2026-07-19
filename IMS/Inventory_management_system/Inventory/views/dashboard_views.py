@@ -418,6 +418,37 @@ def management_dashboard(request):
         except Exception:
             logger.error("Rebuilt KPI roster failed; using legacy grades.", exc_info=True)
 
+        # Safety net: the roster only contains users whose group is a gradable
+        # role, and the legacy block above is inert (User.objects.none()), so a
+        # failure OR an all-ungradable estate rendered "0 users" and claimed no
+        # users existed. Fall back to listing real active users with N/A grades
+        # so the page always reflects reality.
+        if not context.get('user_grades'):
+            try:
+                fallback = {}
+                for u in User.objects.filter(is_active=True).prefetch_related('groups'):
+                    roles = ", ".join(g.name for g in u.groups.all()) or 'No Role'
+                    fallback[u.id] = {
+                        'username': u.username,
+                        'display_name': (u.get_full_name() or u.username),
+                        'groups': roles,
+                        'grade': 0,
+                        'grade_letter': 'N/A',
+                        'grade_color': 'secondary',
+                        'total_tasks': 0,
+                        'completed_tasks': 0,
+                        'completion_rate': 0,
+                        'avg_completion_days': 0,
+                        'worker_of_month': False,
+                    }
+                context['user_grades'] = fallback
+                context['user_grades_ungraded'] = True
+                logger.warning(
+                    "Performance roster empty — showing %d active users ungraded. "
+                    "Check that user groups match GRADABLE_ROLES.", len(fallback))
+            except Exception:
+                logger.exception("Could not build fallback user list.")
+
         # Get order statistics with error handling
         try:
             context['total_orders'] = MaterialOrder.objects.count()

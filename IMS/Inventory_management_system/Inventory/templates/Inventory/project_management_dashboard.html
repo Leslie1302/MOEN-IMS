@@ -112,6 +112,117 @@
         </div>
     </div>
 
+    <!-- ── NES: Strategic Roadmap + Portfolio Health ─────────────────── -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100 nes-card">
+                <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0"><i class="bi bi-clock-history"></i> Strategic Roadmap</h6>
+                    <span class="nes-label text-muted">Live projects by schedule</span>
+                </div>
+                <div class="card-body">
+                    {% if nes_roadmap %}
+                    <div class="nes-gantt">
+                        {% for r in nes_roadmap %}
+                        <div class="nes-gantt-row">
+                            <div class="nes-gantt-label" title="{{ r.name }}">
+                                <div class="fw-semibold text-truncate">{{ r.name }}</div>
+                                <div class="nes-label text-muted">{{ r.code }}</div>
+                            </div>
+                            <div class="nes-gantt-track">
+                                <div class="nes-gantt-bar bg-{{ r.colour }}-subtle"
+                                     style="left:{{ r.left_pct }}%; width:{{ r.width_pct }}%;"
+                                     title="{{ r.start|date:'d M Y' }} → {{ r.end|date:'d M Y' }}">
+                                    <div class="nes-gantt-fill bg-{{ r.colour }}"
+                                         style="width:{{ r.completion }}%;"></div>
+                                    <span class="nes-gantt-text">{{ r.completion }}% · {{ r.state }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0 py-4 text-center">
+                        No live projects with a start and planned end date yet.
+                        Add dates to a project to see it on the roadmap.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100 nes-card">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h6 class="card-title mb-0"><i class="bi bi-activity"></i> Portfolio Health</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height:170px; position:relative;">
+                        <canvas id="portfolioHealthChart"></canvas>
+                        <div class="nes-donut-centre">
+                            <div class="h3 mb-0 fw-bold">{{ nes_health.score }}%</div>
+                            <div class="nes-label text-muted">On track</div>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush mt-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><span class="nes-dot bg-success"></span> On track</span>
+                            <strong>{{ nes_health.active }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><span class="nes-dot bg-warning"></span> At risk</span>
+                            <strong>{{ nes_health.at_risk }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><span class="nes-dot bg-danger"></span> Delayed</span>
+                            <strong>{{ nes_health.delayed }}</strong>
+                        </li>
+                    </ul>
+                    <p class="nes-label text-muted mt-2 mb-0">
+                        Derived from planned end date vs recorded progress.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── NES: Delivery trends ──────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4 nes-card">
+        <div class="card-header bg-white border-0 pt-3">
+            <h6 class="card-title mb-1"><i class="bi bi-graph-up-arrow"></i> Delivery Trends</h6>
+            <div class="small text-muted">
+                Materials delivered (site receipts) and connections energised (verified meters), by month
+            </div>
+        </div>
+        <div class="card-body" style="height:260px;">
+            <canvas id="nesTrendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ── NES: Regional distribution ────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4 nes-card">
+        <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0"><i class="bi bi-map"></i> Regional Distribution</h6>
+            <a href="{% url 'ghana_map' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-geo-alt"></i> Open map
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for r in nes_regional_distribution %}
+                <div class="col-6 col-md-3">
+                    <div class="nes-region-tile">
+                        <div class="nes-label text-muted text-uppercase">{{ r.region }}</div>
+                        <div class="h4 mb-0 fw-bold text-primary">{{ r.communities }}</div>
+                        <div class="nes-label text-muted">communities</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12"><p class="text-muted mb-0">No community data yet.</p></div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
     <!-- Project Type Segregation -->
     {% if project_segments %}
     <div class="container mb-4">
@@ -144,6 +255,30 @@
                     </div>
                     {% endfor %}
                 </div>
+                <!-- Over-issuance alert: pulled out of the chart, where it was
+                     invisible against the community-count scale. -->
+                <div id="overissue-alert" class="d-none align-items-center justify-content-between
+                            border rounded p-3 mb-3"
+                     style="background:#fff8f1; border-color:#fd7e14 !important;">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-exclamation-triangle-fill fs-4" style="color:#fd7e14;"></i>
+                        <div>
+                            <div class="fw-bold" style="color:#8a4b08;">
+                                <span id="overissue-total">0</span> over-issued BoQ lines
+                            </div>
+                            <div class="small text-muted" id="overissue-breakdown"></div>
+                        </div>
+                    </div>
+                    <a href="{% url 'boq_overissuance_summary' %}"
+                       class="btn btn-sm btn-outline-warning fw-semibold text-nowrap">
+                        Review over-issuance
+                    </a>
+                </div>
+                <div id="overissue-clear" class="d-none align-items-center gap-2 small text-muted mb-3">
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                    No over-issued BoQ lines.
+                </div>
+
                 <div class="mb-2 small text-muted">
                     <strong>Communities by status, per project type</strong>
                     — not redundant with the tiles above; shows where work is stuck.
@@ -232,7 +367,18 @@
                             <i class="bi bi-arrows-fullscreen"></i> Details
                         </a>
                     </div>
-                    <div class="card-body" style="height: 250px;">
+                    <div class="px-3 pb-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Package status filter">
+                            <button type="button" class="btn btn-outline-secondary active"
+                                    data-pkg-filter="all">All</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    data-pkg-filter="active">Active contracts</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    data-pkg-filter="tbd">Unassigned / TBD</button>
+                        </div>
+                        <span class="small text-muted ms-2" id="pkg-filter-count"></span>
+                    </div>
+                    <div class="card-body pt-0" style="height: 250px;">
                         <canvas id="packageChart"></canvas>
                     </div>
                 </div>
@@ -425,6 +571,60 @@
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
 
+        // ── Portfolio health donut ────────────────────────────────────
+        var healthCanvas = document.getElementById('portfolioHealthChart');
+        if (healthCanvas) {
+            new Chart(healthCanvas.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['On track', 'At risk', 'Delayed'],
+                    datasets: [{
+                        data: [{{ nes_health.active }}, {{ nes_health.at_risk }}, {{ nes_health.delayed }}],
+                        backgroundColor: ['#2e7d32', '#f59e0b', '#ba1a1a'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    cutout: '72%',
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // ── Delivery trends: materials + connections ──────────────────
+        var trendCanvas = document.getElementById('nesTrendChart');
+        if (trendCanvas) {
+            new Chart(trendCanvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: {{ nes_trend_labels|safe }},
+                    datasets: [
+                        { label: 'Materials delivered',
+                          data: {{ nes_trend_materials|safe }},
+                          borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,.12)',
+                          fill: true, tension: .35, yAxisID: 'y' },
+                        { label: 'Connections energised',
+                          data: {{ nes_trend_connections|safe }},
+                          borderColor: '#00639a', backgroundColor: 'rgba(0,99,154,.12)',
+                          fill: true, tension: .35, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        y:  { beginAtZero: true, position: 'left',
+                              title: { display: true, text: 'Materials (qty)' } },
+                        y1: { beginAtZero: true, position: 'right',
+                              title: { display: true, text: 'Connections' },
+                              grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
         // Project-type segregation chart — community-status buckets
         // stacked per project type, plus an over-issued line count as a
         // second-axis line. Deliberately avoids the contract / received
@@ -432,39 +632,52 @@
         var ptCanvas = document.getElementById('projectTypeChart');
         if (ptCanvas) {
             var ptData = {{ project_segments_json|safe }};
+            // Status only — horizontal stacked bars read far better than a
+            // dual-axis mix. Over-issuance moved to its own alert tile above.
             new Chart(ptCanvas.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: ptData.labels || [],
                     datasets: [
-                        { type: 'bar', label: 'Completed',   data: ptData.completed   || [],
-                          backgroundColor: '#198754', stack: 'comm', yAxisID: 'y' },
-                        { type: 'bar', label: 'In Progress', data: ptData.in_progress || [],
-                          backgroundColor: '#0d6efd', stack: 'comm', yAxisID: 'y' },
-                        { type: 'bar', label: 'Not Started', data: ptData.not_started || [],
-                          backgroundColor: '#dc3545', stack: 'comm', yAxisID: 'y' },
-                        { type: 'line', label: 'Over-issued BoQ lines',
-                          data: ptData.over_issued_lines || [],
-                          borderColor: '#fd7e14', backgroundColor: '#fd7e14',
-                          yAxisID: 'y1', tension: 0.3 }
+                        { label: 'Completed',   data: ptData.completed   || [],
+                          backgroundColor: '#2e7d32', stack: 'comm' },
+                        { label: 'In Progress', data: ptData.in_progress || [],
+                          backgroundColor: '#f59e0b', stack: 'comm' },
+                        { label: 'Not Started', data: ptData.not_started || [],
+                          backgroundColor: '#cbd5e1', stack: 'comm' }
                     ]
                 },
                 options: {
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { position: 'bottom' } },
                     scales: {
-                        x:  { stacked: true },
-                        y:  { stacked: true, beginAtZero: true, position: 'left',
-                              title: { display: true, text: 'Communities' },
-                              ticks: { precision: 0 } },
-                        y1: { beginAtZero: true, position: 'right',
-                              title: { display: true, text: 'Over-issued lines' },
-                              grid: { drawOnChartArea: false },
-                              ticks: { precision: 0 } }
+                        x: { stacked: true, beginAtZero: true,
+                             title: { display: true, text: 'Communities' },
+                             ticks: { precision: 0 } },
+                        y: { stacked: true }
                     }
                 }
             });
+
+            // Surface over-issuance as a high-priority tile instead.
+            var oi = ptData.over_issued_lines || [];
+            var oiTotal = oi.reduce(function (a, b) { return a + (b || 0); }, 0);
+            var alertEl = document.getElementById('overissue-alert');
+            var clearEl = document.getElementById('overissue-clear');
+            if (oiTotal > 0) {
+                document.getElementById('overissue-total').textContent = oiTotal.toLocaleString();
+                document.getElementById('overissue-breakdown').textContent =
+                    (ptData.labels || [])
+                        .map(function (l, i) { return oi[i] ? l + ': ' + oi[i] : null; })
+                        .filter(Boolean).join(' · ');
+                alertEl.classList.remove('d-none');
+                alertEl.classList.add('d-flex');
+            } else {
+                clearEl.classList.remove('d-none');
+                clearEl.classList.add('d-flex');
+            }
         }
 
         // Community Completion Chart
@@ -544,46 +757,80 @@
         }
     });
 
-    // Package Completion Chart
+    // Package Completion Chart — filterable by contract status so unawarded
+    // (TBD) packages don't flatten the scale for live contracts.
+    const pkgAll = {
+        labels: {{ package_chart_labels| safe }},
+        data: {{ package_chart_data| safe }},
+        assigned: {{ package_chart_assigned| safe }}
+    };
+
     const packageCtx = document.getElementById('packageChart').getContext('2d');
-    new Chart(packageCtx, {
+    const packageChart = new Chart(packageCtx, {
         type: 'bar',
         data: {
-            labels: {{ package_chart_labels| safe }},
-        datasets: [{
-            label: 'Completion %',
-            data: {{ package_chart_data| safe }},
-        backgroundColor: 'rgba(13, 202, 240, 0.8)',
-        borderColor: 'rgba(13, 202, 240, 1)',
-        borderWidth: 1
+            labels: [],
+            datasets: [{
+                label: 'Completion %',
+                data: [],
+                backgroundColor: 'rgba(46, 125, 50, 0.8)',
+                borderColor: 'rgba(46, 125, 50, 1)',
+                borderWidth: 1
             }]
         },
         options: {
-        indexAxis: 'y',
-        scales: {
-            x: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: 'Completion Percentage'
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: { display: true, text: 'Completion Percentage' }
                 }
-            }
-        },
-        plugins: {
-            legend: {
-                display: false
             },
-            tooltip: {
-                callbacks: {
-                    label: function (context) {
-                        return context.parsed.x.toFixed(2) + '%';
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return context.parsed.x.toFixed(2) + '%';
+                        }
                     }
                 }
             }
         }
-    }
     });
+
+    function renderPackageChart(filter) {
+        var labels = [], data = [], matched = 0;
+        for (var i = 0; i < pkgAll.labels.length; i++) {
+            var isAssigned = !!pkgAll.assigned[i];
+            if (filter === 'active' && !isAssigned) continue;
+            if (filter === 'tbd' && isAssigned) continue;
+            matched++;
+            if (labels.length < 10) {          // top 10 of this filter
+                labels.push(pkgAll.labels[i]);
+                data.push(pkgAll.data[i]);
+            }
+        }
+        packageChart.data.labels = labels;
+        packageChart.data.datasets[0].data = data;
+        packageChart.update();
+        document.getElementById('pkg-filter-count').textContent =
+            matched ? 'showing ' + labels.length + ' of ' + matched : 'no packages';
+    }
+
+    document.querySelectorAll('[data-pkg-filter]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('[data-pkg-filter]').forEach(function (b) {
+                b.classList.remove('active');
+            });
+            this.classList.add('active');
+            renderPackageChart(this.getAttribute('data-pkg-filter'));
+        });
+    });
+    renderPackageChart('all');
 
     // Material Fulfillment Chart
     const materialCtx = document.getElementById('materialChart').getContext('2d');
@@ -660,6 +907,52 @@
 
     .bg-gradient-primary {
         background: linear-gradient(135deg, #2e7d32 0%, #1b6d24 100%);
+    }
+
+    /* ── NES dashboard (Precision PM design language) ──────────────── */
+    .nes-card { border-radius: 12px; }
+    .nes-label {
+        font-size: 12px; letter-spacing: .05em; font-weight: 500;
+    }
+    .nes-dot {
+        display: inline-block; width: 9px; height: 9px;
+        border-radius: 50%; margin-right: .5rem;
+    }
+    /* Gantt */
+    .nes-gantt-row {
+        display: grid; grid-template-columns: 170px 1fr;
+        gap: 12px; align-items: center; padding: 6px 0;
+    }
+    .nes-gantt-label { min-width: 0; font-size: 13px; }
+    .nes-gantt-track {
+        position: relative; height: 26px; border-radius: 4px;
+        background: #f3f4f5; overflow: hidden;
+    }
+    .nes-gantt-bar {
+        position: absolute; top: 0; height: 100%;
+        border-radius: 999px; overflow: hidden; min-width: 60px;
+        display: flex; align-items: center;
+    }
+    .nes-gantt-fill {
+        position: absolute; left: 0; top: 0; height: 100%;
+        border-radius: 999px; opacity: .85;
+    }
+    .nes-gantt-text {
+        position: relative; z-index: 1; font-size: 11px; font-weight: 600;
+        color: #17321b; padding: 0 10px; white-space: nowrap;
+    }
+    /* Donut centre label */
+    .nes-donut-centre {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; pointer-events: none;
+    }
+    /* Region tiles */
+    .nes-region-tile {
+        border: 1px solid #e5e7eb; border-radius: 8px;
+        padding: 1rem; height: 100%; background: #fff;
+    }
+    @media (max-width: 767px) {
+        .nes-gantt-row { grid-template-columns: 110px 1fr; }
     }
 
     .icon-circle {

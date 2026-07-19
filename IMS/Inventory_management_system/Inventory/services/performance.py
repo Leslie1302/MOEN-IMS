@@ -19,9 +19,12 @@ MaterialTransport.date_dispatched / date_delivered, SiteReceipt.received_date.
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from django.db.models import F, ExpressionWrapper, DurationField, Q
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from Inventory.models import (
     MaterialOrder, MaterialTransport, SiteReceipt, Transporter,
@@ -339,7 +342,15 @@ def compute_roster(since=None, until=None):
     rows = []
     users = User.objects.filter(is_active=True).prefetch_related("groups")
     for user in users:
-        res = compute_user_performance(user, since, until, config=config, targets=targets)
+        # One user with bad data must not zero out the whole roster — that
+        # turned the management page into "0 users" regardless of reality.
+        try:
+            res = compute_user_performance(
+                user, since, until, config=config, targets=targets)
+        except Exception:
+            logger.exception("Performance computation failed for user %s; skipping.",
+                             getattr(user, 'username', user.pk))
+            continue
         if res["gradable"]:
             rows.append(res)
     # Sort: graded users by score desc, insufficient-data last.
