@@ -98,10 +98,10 @@
                     </thead>
                     <tbody>
                         {% for comm in community_list %}
-                        <tr class="community-row" data-community-id="{{ comm.id }}">
+                        <tr class="community-row" data-community-id="{{ forloop.counter }}">
                             <td>
                                 <button class="btn btn-sm btn-outline-secondary expand-toggle" type="button"
-                                        title="View details" data-community-id="{{ comm.id }}">
+                                        title="View details" data-community-id="{{ forloop.counter }}">
                                     <i class="bi bi-chevron-right"></i>
                                 </button>
                             </td>
@@ -137,7 +137,7 @@
                             </td>
                         </tr>
                         <!-- Expanded detail row (hidden by default) -->
-                        <tr class="community-detail-row" data-community-id="{{ comm.id }}" style="display: none;">
+                        <tr class="community-detail-row" data-community-id="{{ forloop.counter }}" style="display: none;">
                             <td colspan="12" class="p-0">
                                 <div class="community-detail-container bg-light border-top p-4">
                                     <div class="row">
@@ -145,10 +145,10 @@
                                             <div class="detail-section">
                                                 <h6 class="text-muted mb-2">Project Progress</h6>
                                                 <div class="progress mb-2" style="height: 25px;">
-                                                    <div class="progress-bar bg-success" id="completion-bar-{{ comm.id }}"
+                                                    <div class="progress-bar bg-success" id="completion-bar-{{ forloop.counter }}"
                                                          role="progressbar" style="width: {{ comm.completion }}%" aria-valuenow="{{ comm.completion }}"
                                                          aria-valuemin="0" aria-valuemax="100">
-                                                        <small id="completion-text-{{ comm.id }}" class="text-dark">{{ comm.completion }}%</small>
+                                                        <small id="completion-text-{{ forloop.counter }}" class="text-dark">{{ comm.completion }}%</small>
                                                     </div>
                                                 </div>
                                                 <small class="text-muted d-block">Contract: {{ comm.total_contract|floatformat:2 }} | Received: {{ comm.total_received|floatformat:2 }}</small>
@@ -267,16 +267,14 @@
             const detailRow = document.querySelector(
                 `.community-detail-row[data-community-id="${communityId}"]`
             );
+            if (!detailRow) return;
 
-            if (detailRow.style.display === 'none') {
-                detailRow.style.display = 'table-row';
-                this.classList.add('expanded');
-                this.innerHTML = '<i class="bi bi-chevron-down"></i>';
-            } else {
-                detailRow.style.display = 'none';
-                this.classList.remove('expanded');
-                this.innerHTML = '<i class="bi bi-chevron-right"></i>';
-            }
+            // The chevron stays bi-chevron-right; the .expanded CSS rotates it
+            // 90° to point down. (Swapping the icon *and* rotating made it
+            // point left.)
+            const isHidden = detailRow.style.display === 'none';
+            detailRow.style.display = isHidden ? 'table-row' : 'none';
+            this.classList.toggle('expanded', isHidden);
         });
     });
 </script>

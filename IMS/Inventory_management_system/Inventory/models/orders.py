@@ -790,7 +790,13 @@ class BoQOverissuanceJustification(auto_prefetch.Model):
         blank=True,
         help_text="Reference to supporting documents or file paths"
     )
-    
+    supporting_file = models.FileField(
+        upload_to='overissuance_justifications/',
+        null=True, blank=True,
+        help_text="Upload evidence (waybill, memo, photo, signed approval) "
+                  "for the reviewing manager."
+    )
+
     # Status tracking
     status = models.CharField(
         max_length=20,

@@ -115,6 +115,22 @@
                     </div>
                     {% endif %}
 
+                    {% if justification.supporting_file %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Attached Evidence:</label>
+                        <div class="p-3 bg-light rounded d-flex align-items-center justify-content-between">
+                            <span class="text-truncate">
+                                <i class="bi bi-paperclip"></i>
+                                {{ justification.supporting_file.name|cut:"overissuance_justifications/" }}
+                            </span>
+                            <a href="{{ justification.supporting_file.url }}" target="_blank"
+                               class="btn btn-sm btn-outline-primary ms-3">
+                                <i class="bi bi-download"></i> View / Download
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="row">
                         <div class="col-md-6">
                             <p class="mb-0">

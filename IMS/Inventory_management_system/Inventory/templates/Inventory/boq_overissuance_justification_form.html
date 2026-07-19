@@ -54,7 +54,8 @@
                     </div>
 
                     <!-- Justification Form -->
-                    <form method="post" class="needs-validation" novalidate>
+                    <form method="post" class="needs-validation" novalidate
+                          enctype="multipart/form-data">
                         {% csrf_token %}
                         
                         <div class="mb-3">
@@ -94,6 +95,19 @@
                             {% if form.supporting_documents.errors %}
                                 <div class="text-danger mt-1">
                                     {{ form.supporting_documents.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.supporting_file.id_for_label }}" class="form-label">
+                                <strong>{{ form.supporting_file.label }}</strong>
+                            </label>
+                            {{ form.supporting_file }}
+                            <div class="form-text">{{ form.supporting_file.help_text }}</div>
+                            {% if form.supporting_file.errors %}
+                                <div class="text-danger mt-1">
+                                    {{ form.supporting_file.errors }}
                                 </div>
                             {% endif %}
                         </div>

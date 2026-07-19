@@ -40,7 +40,7 @@
     <div class="container-fluid px-3">
         <div class="mt-4">
             <div class="table-responsive">
-                <table class="table table-hover" id="inventory-table" data-no-enhanced
+                <table class="table table-hover enhanced-table" id="inventory-table"
                     data-export-filename="inventory_list">
                     <thead>
                         <tr>
@@ -136,16 +136,8 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Standardized Table Initialization
-        const inventoryTable = new EnhancedTable({
-            table: '#inventory-table',
-            searchable: true,
-            sortable: true,
-            pagination: true,
-            rowsPerPage: 25,
-            exportable: true,
-            exportFileName: 'Inventory_Report'
-        });
+        // Table is auto-initialised by table-utils.js via the
+        // `enhanced-table` class + `data-export-filename` attribute.
 
         // Scroll top button logic
         const scrollBtn = document.getElementById('scroll-top-btn');

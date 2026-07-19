@@ -79,7 +79,8 @@ class BoQOverissuanceJustificationForm(forms.ModelForm):
     """Form for submitting justification for Bill of Quantity overissuances"""
     class Meta:
         model = BoQOverissuanceJustification
-        fields = ['justification_category', 'reason', 'supporting_documents']
+        fields = ['justification_category', 'reason', 'supporting_documents',
+                  'supporting_file']
         widgets = {
             'justification_category': forms.Select(attrs={
                 'class': 'form-control',
@@ -95,17 +96,23 @@ class BoQOverissuanceJustificationForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'List any supporting documents, file references, or related documentation...'
+            }),
+            'supporting_file': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx'
             })
         }
         labels = {
             'justification_category': 'Category of Justification',
             'reason': 'Detailed Reason for Overissuance',
-            'supporting_documents': 'Supporting Documents/References'
+            'supporting_documents': 'Supporting Documents/References',
+            'supporting_file': 'Upload Supporting File'
         }
         help_texts = {
             'justification_category': 'Select the category that best describes the reason for overissuance',
             'reason': 'Provide a comprehensive explanation including when and why the overissuance occurred',
-            'supporting_documents': 'Optional: Reference any documents that support this justification'
+            'supporting_documents': 'Optional: Reference any documents that support this justification',
+            'supporting_file': 'Optional: attach the evidence itself (PDF, image, Word or Excel) for the reviewing manager'
         }
     
     def __init__(self, *args, **kwargs):

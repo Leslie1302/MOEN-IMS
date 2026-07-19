@@ -819,13 +819,21 @@ class EnhancedTable {
 // Auto-initialize tables with the 'enhanced-table' class
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('table.enhanced-table').forEach(table => {
+        // Opt-out marker, honoured so the attribute actually means something.
+        if (table.hasAttribute('data-no-enhanced')) return;
+
         // Check if Django pagination exists (look for pagination controls in the page)
         const hasDjangoPagination = document.querySelector('.pagination');
-        
+
+        // Export is enabled by declaring a filename on the table.
+        const exportFileName = table.getAttribute('data-export-filename');
+
         // If Django pagination exists, disable JavaScript pagination
-        new EnhancedTable({ 
+        new EnhancedTable({
             table,
-            pagination: !hasDjangoPagination  // Disable JS pagination if Django handles it
+            pagination: !hasDjangoPagination,  // Disable JS pagination if Django handles it
+            exportable: !!exportFileName,
+            exportFileName: exportFileName || 'table_export'
         });
     });
 });
