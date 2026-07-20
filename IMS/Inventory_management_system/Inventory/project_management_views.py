@@ -131,193 +131,34 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
         context = super().get_context_data(**kwargs)
 
         try:
-            # Get BOQ items that user can access (project segregation)
             access_filter = get_user_accessible_projects(self.request.user)
             boq_items = BillOfQuantity.objects.filter(access_filter)
-            
-            # Overall statistics
+
             total_items = boq_items.count()
             total_communities = boq_items.values('community').distinct().count()
             total_packages = boq_items.values('package_number').distinct().count()
             total_regions = boq_items.values('region').distinct().count()
             total_districts = boq_items.values('district').distinct().count()
-            
-            # Calculate overall contract quantity and received quantity
+
             overall_stats = boq_items.aggregate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0)
             )
-            
             total_contract = float(overall_stats['total_contract'])
             total_received = float(overall_stats['total_received'])
             overall_completion = (total_received / total_contract * 100) if total_contract > 0 else 0
-            
-            # Community-level aggregation
-            community_data = boq_items.values('community', 'region', 'district', 'phase').annotate(
+
+            # Community-level data for regional distribution roll-up
+            community_data = boq_items.values('community', 'region').annotate(
                 total_contract=Coalesce(Sum('contract_quantity'), 0.0),
                 total_received=Coalesce(Sum('quantity_received'), 0.0),
-                item_count=Count('id'),
-                package_count=Count('package_number', distinct=True)
-            ).order_by('-total_contract')
-            
-            # Calculate completion percentage for each community
-            community_list = []
-            community_chart_labels = []
-            community_chart_data = []
-            
-            for comm in community_data:
-                if comm['community']:  # Skip null communities
-                    completion = (comm['total_received'] / comm['total_contract'] * 100) if comm['total_contract'] > 0 else 0
-                    community_list.append({
-                        'name': comm['community'],
-                        'region': comm['region'],
-                        'district': comm['district'],
-                        'phase': comm['phase'],
-                        'total_contract': comm['total_contract'],
-                        'total_received': comm['total_received'],
-                        'completion': round(completion, 2),
-                        'item_count': comm['item_count'],
-                        'package_count': comm['package_count'],
-                        'status': 'Complete' if completion >= 100 else 'In Progress' if completion > 0 else 'Not Started'
-                    })
-                    
-                    # Top 10 communities for chart
-                    if len(community_chart_labels) < 10:
-                        community_chart_labels.append(comm['community'] or 'Unknown')
-                        community_chart_data.append(round(completion, 2))
-            
-            # Package-level aggregation
-            package_data = boq_items.values('package_number', 'contractor', 'consultant', 'phase').annotate(
-                total_contract=Coalesce(Sum('contract_quantity'), 0.0),
-                total_received=Coalesce(Sum('quantity_received'), 0.0),
-                item_count=Count('id'),
-                community_count=Count('community', distinct=True)
-            ).order_by('-total_contract')
-            
-            # Calculate completion for packages
-            package_list = []
-            package_chart_labels = []
-            package_chart_data = []
-            package_chart_assigned = []
-
-            for pkg in package_data:
-                if pkg['package_number']:
-                    completion = (pkg['total_received'] / pkg['total_contract'] * 100) if pkg['total_contract'] > 0 else 0
-                    package_list.append({
-                        'number': pkg['package_number'],
-                        'contractor': pkg['contractor'],
-                        'consultant': pkg['consultant'],
-                        'phase': pkg['phase'],
-                        'total_contract': pkg['total_contract'],
-                        'total_received': pkg['total_received'],
-                        'completion': round(completion, 2),
-                        'item_count': pkg['item_count'],
-                        'community_count': pkg['community_count']
-                    })
-                    
-                    # All packages go to the chart (ordered by contract size);
-                    # the front end slices the top 10 of whichever status
-                    # filter is active. `assigned` = has a real contractor, so
-                    # unawarded/TBD packages can be filtered out of the
-                    # active-contracts view instead of flattening the scale.
-                    contractor = (pkg['contractor'] or '').strip()
-                    package_chart_labels.append(pkg['package_number'])
-                    package_chart_data.append(round(completion, 2))
-                    package_chart_assigned.append(
-                        bool(contractor) and contractor.upper() != 'TBD'
-                    )
-            
-            # Material-level aggregation (top materials by quantity)
-            material_data = boq_items.values('material_description', 'item_code').annotate(
-                total_contract=Coalesce(Sum('contract_quantity'), 0.0),
-                total_received=Coalesce(Sum('quantity_received'), 0.0)
-            ).order_by('-total_contract')[:15]  # Top 15 materials
-            
-            material_chart_labels = []
-            material_contract_data = []
-            material_received_data = []
-            
-            for mat in material_data:
-                material_chart_labels.append(mat['material_description'][:30] + '...' if len(mat['material_description']) > 30 else mat['material_description'])
-                material_contract_data.append(float(mat['total_contract']))
-                material_received_data.append(float(mat['total_received']))
-            
-            # Completion status breakdown
-            completed_count = sum(1 for c in community_list if c['completion'] >= 100)
-            in_progress_count = sum(1 for c in community_list if 0 < c['completion'] < 100)
-            not_started_count = sum(1 for c in community_list if c['completion'] == 0)
-
-            # Project-type segregation — the dashboard's whole point. Every
-            # tile is rolled up per project_type so SHEP, Cost Sharing,
-            # Streetlights, Turnkey, etc. are each visible as a standalone
-            # column instead of being averaged into one number.
-            #
-            # The chart deliberately does NOT repeat the Contract-vs-Received
-            # data the tiles already show. It instead surfaces two things
-            # the BoQ alone can answer that aren't visible anywhere else:
-            #   (a) community-completion buckets per project type — where
-            #       work is stuck (Not Started / In Progress / Completed)
-            #   (b) over-issued line counts per project type — the leading
-            #       indicator of contract / drawdown trouble.
-            type_rows = boq_items.values('project_type').annotate(
-                items=Count('id'),
-                communities=Count('community', distinct=True),
-                packages=Count('package_number', distinct=True),
-                contract=Coalesce(Sum('contract_quantity'), 0.0),
-                received=Coalesce(Sum('quantity_received'), 0.0),
-            ).order_by('project_type')
-
-            # Pre-bucket communities per project type once so we don't run
-            # one query per type per bucket.
-            per_type_comm = {}
-            comm_rows = boq_items.values('project_type', 'community').annotate(
-                contract=Coalesce(Sum('contract_quantity'), 0.0),
-                received=Coalesce(Sum('quantity_received'), 0.0),
             )
-            for r in comm_rows:
-                if not r['community']: continue
-                pt = r['project_type'] or 'Unassigned'
-                c = float(r['contract'] or 0)
-                rcv = float(r['received'] or 0)
-                completion = (rcv / c * 100) if c > 0 else 0
-                bucket = 'completed' if completion >= 100 else ('in_progress' if completion > 0 else 'not_started')
-                d = per_type_comm.setdefault(pt, {'completed': 0, 'in_progress': 0, 'not_started': 0})
-                d[bucket] += 1
+            region_counts = defaultdict(int)
+            for c in community_data:
+                if c['community']:
+                    region_counts[c['region'] or 'Unassigned'] += 1
 
-            # Over-issued line counts per project type (received > contract).
-            over_issued = {}
-            for r in boq_items.values('project_type').annotate(
-                n=Count('id', filter=Q(quantity_received__gt=F('contract_quantity'))),
-            ):
-                over_issued[r['project_type'] or 'Unassigned'] = r['n']
-
-            project_segments = []
-            for row in type_rows:
-                pt = row['project_type'] or 'Unassigned'
-                contract = float(row['contract'] or 0)
-                received = float(row['received'] or 0)
-                project_segments.append({
-                    'project_type': pt,
-                    'items': row['items'],
-                    'communities': row['communities'],
-                    'packages': row['packages'],
-                    'contract_quantity': contract,
-                    'received_quantity': received,
-                    'completion': round((received / contract * 100) if contract > 0 else 0, 2),
-                    'over_issued_lines': over_issued.get(pt, 0),
-                    'communities_completed': per_type_comm.get(pt, {}).get('completed', 0),
-                    'communities_in_progress': per_type_comm.get(pt, {}).get('in_progress', 0),
-                    'communities_not_started': per_type_comm.get(pt, {}).get('not_started', 0),
-                })
-            project_segments_json = json.dumps({
-                'labels': [s['project_type'] for s in project_segments],
-                'completed': [s['communities_completed'] for s in project_segments],
-                'in_progress': [s['communities_in_progress'] for s in project_segments],
-                'not_started': [s['communities_not_started'] for s in project_segments],
-                'over_issued_lines': [s['over_issued_lines'] for s in project_segments],
-            })
-
-            # ── NES dashboard panels (all from stored data) ──────────────
+            # ── NES dashboard panels ────────────────────────────────────
             from django.utils import timezone as _tz
             from django.db.models.functions import TruncMonth
             from .models import SiteReceipt, MeterInstallation
@@ -330,10 +171,11 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 for r in ProjectSite.objects.values('project_id').annotate(avg=Avg('progress_percent'))
             }
 
-            # Portfolio health. 'At Risk' / 'Delayed' aren't stored statuses —
-            # they're derived from the planned end date vs actual completion.
+            # Strategic Roadmap — all live projects, not just those with dates.
+            # Projects missing start/end dates get a synthetic window so they
+            # still appear on the chart rather than being silently dropped.
             roadmap, health = [], {'active': 0, 'at_risk': 0, 'delayed': 0}
-            live = [p for p in Project.objects.exclude(status='Completed')]
+            live = Project.objects.exclude(status='Completed')
             for p in live:
                 pct = round(site_progress.get(p.id, 0), 1)
                 overdue = bool(p.planned_end_date and p.planned_end_date < today)
@@ -350,22 +192,29 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 else:
                     state, colour = 'On Track', 'success'
                     health['active'] += 1
+
+                has_start = bool(p.start_date)
+                has_end = bool(p.planned_end_date)
+                start = p.start_date or today
+                end = p.planned_end_date or (today + timedelta(days=180))
+                dates_missing = not (has_start and has_end)
+
                 roadmap.append({
                     'name': p.name, 'code': p.code, 'state': state,
                     'colour': colour, 'completion': pct,
-                    'start': p.start_date, 'end': p.planned_end_date,
+                    'start': start, 'end': end,
+                    'dates_missing': dates_missing,
                 })
 
             # Gantt geometry: position each bar across the overall date window.
-            dated = [r for r in roadmap if r['start'] and r['end'] and r['end'] > r['start']]
-            if dated:
-                win_start = min(r['start'] for r in dated)
-                win_end = max(r['end'] for r in dated)
+            if roadmap:
+                win_start = min(r['start'] for r in roadmap)
+                win_end = max(r['end'] for r in roadmap)
                 span = max((win_end - win_start).days, 1)
-                for r in dated:
+                for r in roadmap:
                     r['left_pct'] = round((r['start'] - win_start).days / span * 100, 2)
                     r['width_pct'] = round(max((r['end'] - r['start']).days, 1) / span * 100, 2)
-            roadmap = sorted(dated, key=lambda r: r['start'])[:8]
+            roadmap = sorted(roadmap, key=lambda r: r['start'])[:15]
 
             total_live = sum(health.values())
             health['score'] = round(health['active'] / total_live * 100) if total_live else 0
@@ -385,15 +234,40 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
             months = sorted(set(mat) | set(con),
                             key=lambda s: datetime.strptime(s, '%b %Y'))[-6:]
 
-            # Regional distribution from the community roll-up.
-            region_counts = defaultdict(int)
-            for c in community_list:
-                region_counts[c['region'] or 'Unassigned'] += 1
-            regional_distribution = sorted(
-                ({'region': k, 'communities': v} for k, v in region_counts.items()),
-                key=lambda r: -r['communities'])
+            # Regional distribution: baseline community count + officer metrics.
+            from .services.access_rate import compute_access_rate
 
-            # Add all data to context
+            all_regions = sorted(set(
+                list(region_counts.keys())
+                + list(Community.objects.filter(is_active=True)
+                       .exclude(region='').values_list('region', flat=True).distinct())
+            ))
+            regional_distribution = []
+            for region_name in all_regions:
+                communities = region_counts.get(region_name, 0)
+                try:
+                    access = compute_access_rate(region=region_name)
+                    regional_distribution.append({
+                        'region': region_name,
+                        'communities': communities,
+                        'access_rate': access.rate_pct,
+                        'meters_1ph': access.meters_1ph,
+                        'meters_3ph': access.meters_3ph,
+                        'pop_served': access.pop_newly_served,
+                    })
+                except Exception:
+                    # AccessRateConfig not seeded — fall back to community count
+                    regional_distribution.append({
+                        'region': region_name,
+                        'communities': communities,
+                        'access_rate': None,
+                        'meters_1ph': 0,
+                        'meters_3ph': 0,
+                        'pop_served': 0,
+                    })
+
+            regional_distribution.sort(key=lambda r: -r['communities'])
+
             context.update({
                 'nes_roadmap': roadmap,
                 'nes_health': health,
@@ -409,26 +283,10 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 'total_contract': total_contract,
                 'total_received': total_received,
                 'overall_completion': round(overall_completion, 2),
-                'community_list': community_list,
-                'package_list': package_list,
-                'completed_count': completed_count,
-                'in_progress_count': in_progress_count,
-                'not_started_count': not_started_count,
-                'project_segments': project_segments,
-                'project_segments_json': project_segments_json,
-                # Chart data as JSON for JavaScript
-                'community_chart_labels': json.dumps(community_chart_labels),
-                'community_chart_data': json.dumps(community_chart_data),
-                'package_chart_labels': json.dumps(package_chart_labels),
-                'package_chart_data': json.dumps(package_chart_data),
-                'package_chart_assigned': json.dumps(package_chart_assigned),
-                'material_chart_labels': json.dumps(material_chart_labels),
-                'material_contract_data': json.dumps(material_contract_data),
-                'material_received_data': json.dumps(material_received_data),
             })
-            
+
             logger.info(f"Project management dashboard loaded successfully with {total_items} BOQ items")
-            
+
         except Exception as e:
             logger.error(f"Error loading project management dashboard: {str(e)}", exc_info=True)
             context.update({
@@ -436,10 +294,8 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 'total_items': 0,
                 'total_communities': 0,
                 'total_packages': 0,
-                'community_list': [],
-                'package_list': [],
             })
-        
+
         return context
 
 

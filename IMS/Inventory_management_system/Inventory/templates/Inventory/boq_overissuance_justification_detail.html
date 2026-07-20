@@ -21,22 +21,22 @@
             </div>
 
             <!-- Status Badge -->
-            <div class="alert alert-{{ justification.status|lower }} d-flex justify-content-between align-items-center">
+            <div class="d-flex justify-content-between align-items-center mb-4 p-3 rounded" style="background: var(--moen-primary-tint); border-left: 4px solid var(--moen-primary);">
                 <div>
                     <h5 class="mb-0">
-                        <span class="badge bg-{{ justification.status|lower }} fs-6">
+                        <span class="badge fs-6" style="background: var(--bs-primary); color: #fff;">
                             {{ justification.status }}
                         </span>
                     </h5>
                 </div>
-                <small>
+                <small class="text-muted">
                     Submitted: {{ justification.submitted_at|date:"M d, Y H:i" }}
                 </small>
             </div>
 
             <!-- Project Information -->
             <div class="card mb-4 shadow">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header" style="background: var(--moen-header); color: #fff;">
                     <h5 class="mb-0"><i class="bi bi-folder-fill"></i> Project Information</h5>
                 </div>
                 <div class="card-body">
@@ -59,25 +59,25 @@
 
             <!-- Overissuance Details -->
             <div class="card mb-4 shadow">
-                <div class="card-header bg-warning text-dark">
+                <div class="card-header" style="background: var(--bs-warning); color: #000;">
                     <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Overissuance Details</h5>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-4">
-                            <div class="p-3 bg-light rounded">
+                            <div class="p-3 rounded" style="background: var(--moen-primary-tint);">
                                 <h6 class="text-muted">Contract Quantity</h6>
-                                <h3 class="text-primary">{{ justification.boq_item.contract_quantity|floatformat:2 }}</h3>
+                                <h3 style="color: var(--bs-primary);">{{ justification.boq_item.contract_quantity|floatformat:2 }}</h3>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 bg-light rounded">
+                            <div class="p-3 rounded" style="background: rgba(186,26,26,.08);">
                                 <h6 class="text-muted">Quantity Received</h6>
-                                <h3 class="text-danger">{{ justification.boq_item.quantity_received|floatformat:2 }}</h3>
+                                <h3 style="color: var(--bs-danger);">{{ justification.boq_item.quantity_received|floatformat:2 }}</h3>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3 bg-danger text-white rounded">
+                            <div class="p-3 rounded" style="background: var(--bs-danger); color: #fff;">
                                 <h6>Overissuance Amount</h6>
                                 <h3>+{{ justification.overissuance_quantity|floatformat:2 }}</h3>
                             </div>
@@ -88,14 +88,14 @@
 
             <!-- Justification Content -->
             <div class="card mb-4 shadow">
-                <div class="card-header bg-info text-white">
+                <div class="card-header" style="background: var(--moen-header); color: #fff;">
                     <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Justification</h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Category:</label>
                         <div>
-                            <span class="badge bg-secondary fs-6">{{ justification.justification_category }}</span>
+                            <span class="badge fs-6" style="background: var(--moen-header); color: #fff;">{{ justification.justification_category }}</span>
                         </div>
                     </div>
                     
@@ -156,7 +156,7 @@
             <!-- Review Section -->
             {% if justification.reviewed_by or justification.review_comments %}
             <div class="card mb-4 shadow">
-                <div class="card-header bg-success text-white">
+                <div class="card-header" style="background: var(--moen-primary); color: #fff;">
                     <h5 class="mb-0"><i class="bi bi-check-circle"></i> Review Information</h5>
                 </div>
                 <div class="card-body">
@@ -193,8 +193,8 @@
 
             <!-- Review Action Form (for authorized users) -->
             {% if can_review and justification.status == 'Pending' or justification.status == 'Under Review' %}
-            <div class="card mb-4 shadow border-warning">
-                <div class="card-header bg-warning text-dark">
+            <div class="card mb-4 shadow border-0">
+                <div class="card-header" style="background: var(--bs-warning); color: #000;">
                     <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Review This Justification</h5>
                 </div>
                 <div class="card-body">
@@ -208,14 +208,14 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button type="submit" name="action" value="Under Review" class="btn btn-info">
+                            <button type="submit" name="action" value="Under Review" class="btn" style="background: var(--bs-info); color: #fff;">
                                 <i class="bi bi-hourglass-split"></i> Mark Under Review
                             </button>
-                            <button type="submit" name="action" value="Rejected" class="btn btn-danger" 
+                            <button type="submit" name="action" value="Rejected" class="btn" style="background: var(--bs-danger); color: #fff;"
                                     onclick="return confirm('Are you sure you want to reject this justification?')">
                                 <i class="bi bi-x-circle"></i> Reject
                             </button>
-                            <button type="submit" name="action" value="Approved" class="btn btn-success" 
+                            <button type="submit" name="action" value="Approved" class="btn" style="background: var(--bs-success); color: #fff;"
                                     onclick="return confirm('Are you sure you want to approve this justification?')">
                                 <i class="bi bi-check-circle"></i> Approve
                             </button>
@@ -237,37 +237,37 @@
 
 <style>
     .alert-pending {
-        background-color: #fff3cd;
-        border-color: #ffc107;
-        color: #000;
+        background-color: color-mix(in srgb, var(--bs-warning) 15%, white);
+        border-color: var(--bs-warning);
+        color: #92400e;
     }
     .alert-approved {
-        background-color: #d4edda;
-        border-color: #28a745;
-        color: #155724;
+        background-color: color-mix(in srgb, var(--bs-success) 15%, white);
+        border-color: var(--bs-success);
+        color: #14532d;
     }
     .alert-rejected {
-        background-color: #f8d7da;
-        border-color: #dc3545;
-        color: #721c24;
+        background-color: color-mix(in srgb, var(--bs-danger) 15%, white);
+        border-color: var(--bs-danger);
+        color: #7f1d1d;
     }
     .alert-under {
-        background-color: #d1ecf1;
-        border-color: #17a2b8;
-        color: #0c5460;
+        background-color: color-mix(in srgb, var(--bs-info) 15%, white);
+        border-color: var(--bs-info);
+        color: #1e3a5f;
     }
     .badge.bg-pending {
-        background-color: #ffc107 !important;
+        background-color: var(--bs-warning) !important;
         color: #000;
     }
     .badge.bg-approved {
-        background-color: #28a745 !important;
+        background-color: var(--bs-success) !important;
     }
     .badge.bg-rejected {
-        background-color: #dc3545 !important;
+        background-color: var(--bs-danger) !important;
     }
     .badge.bg-under {
-        background-color: #17a2b8 !important;
+        background-color: var(--bs-info) !important;
     }
 </style>
 {% endblock %}
