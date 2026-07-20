@@ -498,6 +498,7 @@ class Notification(auto_prefetch.Model):
         ('site_receipt_logged', 'Site Receipt Logged'),
         ('boq_updated', 'BOQ Updated'),
         ('staff_prompt', 'Staff Prompt'),
+        ('security_alert', 'Security Alert'),
     ]
     
     RECIPIENT_GROUPS = [

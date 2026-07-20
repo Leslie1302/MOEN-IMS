@@ -19,9 +19,9 @@
 
                     <div class="bg-light p-4 rounded mb-4">
                         <div class="row">
-                            {% for token in tokens %}
+                            {% for t in tokens %}
                             <div class="col-md-6 mb-2">
-                                <code class="fs-6">{{ token.token }}</code>
+                                <code class="fs-6">{{ t.token }}</code>
                             </div>
                             {% endfor %}
                         </div>
@@ -59,32 +59,37 @@
 </div>
 
 <script>
+    function getFormattedCodes() {
+        var codes = [];
+        {% for t in tokens %}
+        codes.push('{{ t.token }}');
+        {% endfor %}
+        return codes;
+    }
+
     function printCodes() {
         window.print();
     }
 
     function copyCodes() {
-        const codes = [{% for token in tokens %} '{{ token.token }}', {% endfor %}];
-    const text = codes.join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Backup codes copied to clipboard!');
-    });
+        navigator.clipboard.writeText(getFormattedCodes().join('\n')).then(function() {
+            alert('Backup codes copied to clipboard!');
+        });
     }
 
     function downloadCodes() {
-        const codes = [{% for token in tokens %} '{{ token.token }}', {% endfor %}];
-    const text = 'MOEGT IEPS Backup Codes\n' +
-        '======================\n\n' +
-        codes.join('\n') +
-        '\n\nKeep these codes safe! Each can only be used once.';
+        var text = 'MOEGT IEPS Backup Codes\n' +
+            '======================\n\n' +
+            getFormattedCodes().join('\n') +
+            '\n\nKeep these codes safe! Each can only be used once.';
 
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'moegt-ieps-backup-codes.txt';
-    a.click();
-    window.URL.revokeObjectURL(url);
+        var blob = new Blob([text], { type: 'text/plain' });
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'moegt-ieps-backup-codes.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
     }
 </script>
 {% endblock content %}

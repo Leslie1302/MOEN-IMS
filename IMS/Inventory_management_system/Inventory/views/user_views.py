@@ -33,11 +33,20 @@ class ProfileView(LoginRequiredMixin, View):
         profile, created = Profile.objects.get_or_create(user=request.user)
         if not profile.profile_picture:
             profile.profile_picture = None
+
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django_otp.plugins.otp_static.models import StaticDevice
+        has_2fa = (
+            TOTPDevice.objects.filter(user=request.user, confirmed=True).exists()
+            or StaticDevice.objects.filter(user=request.user, name='backup').exists()
+        )
+
         context = {
             'user_form': UserUpdateForm(instance=request.user),
             'profile_form': ProfileUpdateForm(instance=profile),
             'password_form': PasswordChangeForm(),
-            'profile': profile
+            'profile': profile,
+            'has_2fa': has_2fa,
         }
         return render(request, self.template_name, context)
     
@@ -48,7 +57,14 @@ class ProfileView(LoginRequiredMixin, View):
         user_form = UserUpdateForm(request.POST, instance=request.user)
         profile_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
         password_form = PasswordChangeForm(request.POST)
-        
+
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django_otp.plugins.otp_static.models import StaticDevice
+        has_2fa = (
+            TOTPDevice.objects.filter(user=request.user, confirmed=True).exists()
+            or StaticDevice.objects.filter(user=request.user, name='backup').exists()
+        )
+
         if 'update_info' in request.POST:
             if user_form.is_valid() and profile_form.is_valid():
                 user_form.save()
@@ -71,7 +87,8 @@ class ProfileView(LoginRequiredMixin, View):
             'user_form': user_form,
             'profile_form': profile_form,
             'password_form': password_form,
-            'profile': profile
+            'profile': profile,
+            'has_2fa': has_2fa,
         }
         return render(request, self.template_name, context)
 

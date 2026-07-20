@@ -45,6 +45,21 @@
                     <h4 class="fw-semibold text-dark">{{ user.username }}</h4>
                     <p class="text-muted mb-3">{{ user.email }}</p>
 
+                    <!-- 2FA Status -->
+                    <div class="mb-3">
+                        {% if has_2fa %}
+                            <span class="badge bg-success fs-6">
+                                <i class="fas fa-shield-alt me-1"></i>2FA Enabled
+                            </span>
+                            <a href="{% url 'disable_2fa' %}" class="btn btn-outline-danger btn-sm ms-2">Disable</a>
+                        {% else %}
+                            <span class="badge bg-warning text-dark fs-6">
+                                <i class="fas fa-shield-alt me-1"></i>2FA Disabled
+                            </span>
+                            <a href="{% url 'setup_2fa' %}" class="btn btn-outline-primary btn-sm ms-2">Enable</a>
+                        {% endif %}
+                    </div>
+
                     <!-- Toggle Buttons -->
                     <div class="d-grid gap-2">
                         <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#updateForm">

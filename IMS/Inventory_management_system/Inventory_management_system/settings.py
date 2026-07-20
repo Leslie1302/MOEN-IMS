@@ -566,6 +566,8 @@ RATELIMIT_USE_CACHE = 'default'
 RATELIMIT_WAYBILL_PDF = os.getenv('RATELIMIT_WAYBILL_PDF', '10/m')
 RATELIMIT_BULK_UPLOAD = os.getenv('RATELIMIT_BULK_UPLOAD', '6/m')
 RATELIMIT_BULK_REQUEST = os.getenv('RATELIMIT_BULK_REQUEST', '6/m')
+RATELIMIT_2FA_VERIFY = os.getenv('RATELIMIT_2FA_VERIFY', '5/m')
+RATELIMIT_2FA_CONFIRM = os.getenv('RATELIMIT_2FA_CONFIRM', '5/m')
 
 # =============================================================================
 # CONTENT SECURITY POLICY (django-csp)
