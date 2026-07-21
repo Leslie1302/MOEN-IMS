@@ -171,13 +171,36 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 for r in ProjectSite.objects.values('project_id').annotate(avg=Avg('progress_percent'))
             }
 
+            # Fallback: average phase completion per project.
+            phase_progress = {
+                r['project_id']: (r['avg'] or 0)
+                for r in Project.objects.filter(
+                    phases__isnull=False
+                ).values('id').annotate(avg=Avg('phases__completion_percentage'))
+            }
+
+            # Fallback: BoQ material delivery completion per project phase.
+            boq_delivery = {}
+            for b in boq_items.values('phase').annotate(
+                tc=Coalesce(Sum('contract_quantity'), 0.0),
+                tr=Coalesce(Sum('quantity_received'), 0.0),
+            ):
+                if b['phase'] and b['tc'] > 0:
+                    boq_delivery[b['phase']] = round(b['tr'] / b['tc'] * 100, 1)
+
             # Strategic Roadmap — all live projects, not just those with dates.
             # Projects missing start/end dates get a synthetic window so they
             # still appear on the chart rather than being silently dropped.
             roadmap, health = [], {'active': 0, 'at_risk': 0, 'delayed': 0}
-            live = Project.objects.exclude(status='Completed')
-            for p in live:
+            live_qs = Project.objects.exclude(status='Completed')
+            if not (is_superuser(self.request.user) or is_management(self.request.user)):
+                live_qs = live_qs.filter(access_filter)
+            for p in live_qs:
                 pct = round(site_progress.get(p.id, 0), 1)
+                if pct == 0:
+                    pct = round(phase_progress.get(p.id, 0), 1)
+                if pct == 0 and p.phase:
+                    pct = round(boq_delivery.get(p.phase, 0), 1)
                 overdue = bool(p.planned_end_date and p.planned_end_date < today)
                 due_soon = bool(
                     p.planned_end_date and not overdue
@@ -242,28 +265,44 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
                 + list(Community.objects.filter(is_active=True)
                        .exclude(region='').values_list('region', flat=True).distinct())
             ))
+
+            # Baseline community count per region (communities already in the registry).
+            baseline_community_counts = {}
+            for rc in Community.objects.filter(is_active=True).exclude(region='').values('region').annotate(
+                cnt=Count('id')
+            ):
+                baseline_community_counts[rc['region']] = rc['cnt']
+
             regional_distribution = []
             for region_name in all_regions:
                 communities = region_counts.get(region_name, 0)
+                baseline_communities = baseline_community_counts.get(region_name, 0)
+                total_communities = max(communities, baseline_communities)
                 try:
                     access = compute_access_rate(region=region_name)
                     regional_distribution.append({
                         'region': region_name,
-                        'communities': communities,
+                        'communities': total_communities,
+                        'officer_communities': communities,
                         'access_rate': access.rate_pct,
                         'meters_1ph': access.meters_1ph,
                         'meters_3ph': access.meters_3ph,
-                        'pop_served': access.pop_newly_served,
+                        'pop_served': access.baseline_population + access.pop_newly_served,
+                        'baseline_pop': access.baseline_population,
+                        'newly_served': access.pop_newly_served,
                     })
                 except Exception:
                     # AccessRateConfig not seeded — fall back to community count
                     regional_distribution.append({
                         'region': region_name,
-                        'communities': communities,
+                        'communities': total_communities,
+                        'officer_communities': communities,
                         'access_rate': None,
                         'meters_1ph': 0,
                         'meters_3ph': 0,
                         'pop_served': 0,
+                        'baseline_pop': 0,
+                        'newly_served': 0,
                     })
 
             regional_distribution.sort(key=lambda r: -r['communities'])

@@ -220,7 +220,13 @@
                             <div class="nes-label text-muted">Access Rate</div>
                             <div class="h5 mb-0 fw-bold text-success">{{ r.access_rate }}%</div>
                             <div class="nes-label text-muted">
-                                {{ r.meters_1ph }} 1-ph &middot; {{ r.meters_3ph }} 3-ph &middot; {{ r.pop_served|intcomma }} served
+                                {{ r.meters_1ph }} 1-ph &middot; {{ r.meters_3ph }} 3-ph
+                            </div>
+                            <div class="nes-label text-muted mt-1">
+                                {{ r.pop_served|intcomma }} total served
+                                {% if r.baseline_pop %}
+                                <br><span class="text-secondary">baseline: {{ r.baseline_pop|intcomma }} + new: {{ r.newly_served|intcomma }}</span>
+                                {% endif %}
                             </div>
                         </div>
                         {% endif %}
