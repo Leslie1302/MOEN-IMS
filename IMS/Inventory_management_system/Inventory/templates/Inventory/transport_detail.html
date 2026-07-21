@@ -1,58 +1,161 @@
 {% extends "Inventory/base.html" %}
+{% load humanize %}
 
 {% block title %}Transport {{ transport.waybill_number|default:transport.id }} — IMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    .td-hero {
+        background: linear-gradient(180deg, #ffffff, #f7f8fa);
+        border: 1px solid var(--rl-border, #e3e6ea);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+    }
+    .td-hero h1 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0.25rem 0 0;
+        color: #1f2933;
+    }
+    .td-hero .td-meta {
+        color: #6c757d;
+        font-size: 0.82rem;
+        margin-top: 0.4rem;
+    }
+    .td-pill {
+        font-family: 'SF Mono','Menlo','Monaco','Courier New',monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+        background: #1f2933;
+        color: #fff;
+        padding: 0.2rem 0.6rem;
+        border-radius: 5px;
+        letter-spacing: 0.04em;
+    }
+    .td-section {
+        background: #fff;
+        border: 1px solid var(--rl-border, #e3e6ea);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+    }
+    .td-section .card-header {
+        background: var(--moen-header, #1e293b);
+        color: #fff;
+        border: none;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+    }
+    .td-section .card-header i { margin-right: 0.4rem; }
+    .td-section .card-body { padding: 0; }
+    .td-section .table { margin: 0; }
+    .td-section .table th {
+        background: #f8f9fa;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #495057;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: middle;
+        padding: 0.6rem 1rem;
+    }
+    .td-section .table td {
+        vertical-align: middle;
+        font-size: 0.88rem;
+        color: #1f2933;
+        padding: 0.6rem 1rem;
+    }
+    .td-badge {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 0.25rem 0.65rem;
+        border-radius: 5px;
+    }
+    .td-actions {
+        background: #f8f9fa;
+        border: 1px solid var(--rl-border, #e3e6ea);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .td-actions .btn { font-size: 0.82rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
-    <div class="mb-4">
-        <a href="{% url 'transport_list' %}" class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Transport List
-        </a>
-    </div>
-
-    <h1>Transport Details</h1>
 
     {% with order=transport.material_order letter=order.release_letter %}
-    <div class="d-flex flex-wrap gap-2 mb-3 small">
-        {% if order.request_code %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-paper-plane me-1"></i> Request <code>{{ order.request_code }}</code>
-        </span>
-        {% endif %}
-        {% if letter.code %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-file-signature me-1"></i> Release <code>{{ letter.code }}</code>
-        </span>
-        {% endif %}
-        {% if transport.waybill_number %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-truck me-1"></i> Waybill <code>{{ transport.waybill_number }}</code>
-        </span>
-        {% endif %}
-        {% if transport.site_receipt %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-receipt me-1"></i> Receipt <code>#{{ transport.site_receipt.id }}</code>
-        </span>
+    <!-- Hero header -->
+    <div class="td-hero">
+        <a href="{% url 'transport_list' %}" class="td-back" style="font-size:0.78rem;color:#6c757d;text-decoration:none;">
+            <i class="fas fa-arrow-left me-1"></i> Back to Transport List
+        </a>
+        <h1>
+            {% if transport.waybill_number %}
+                <i class="fas fa-truck me-1" style="font-size:1.1rem;"></i>
+                Waybill {{ transport.waybill_number }}
+            {% else %}
+                Transport #{{ transport.id }}
+            {% endif %}
+        </h1>
+        <div class="td-meta d-flex flex-wrap gap-2 align-items-center">
+            {% if order.request_code %}
+                <span class="td-pill"><i class="fas fa-paper-plane me-1"></i> Request {{ order.request_code }}</span>
+            {% endif %}
+            {% if letter.code %}
+                <span class="td-pill"><i class="fas fa-file-signature me-1"></i> Release {{ letter.code }}</span>
+            {% endif %}
+            {% if transport.waybill_number %}
+                <span class="td-pill"><i class="fas fa-truck me-1"></i> Waybill {{ transport.waybill_number }}</span>
+            {% endif %}
+            {% if transport.site_receipt %}
+                <span class="td-pill"><i class="fas fa-receipt me-1"></i> Receipt #{{ transport.site_receipt.id }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="mb-3">
+        {% if transport.status == 'Delivered' %}
+            <span class="td-badge" style="background:#e8f5e9;color:#1b5e20;">
+                <i class="fas fa-check-circle me-1"></i> Delivered
+            </span>
+        {% elif transport.status == 'In Transit' %}
+            <span class="td-badge" style="background:#fff3cd;color:#856404;">
+                <i class="fas fa-shipping-fast me-1"></i> In Transit
+            </span>
+        {% else %}
+            <span class="td-badge" style="background:#e3f2fd;color:#0d47a1;">
+                <i class="fas fa-clock me-1"></i> {{ transport.status|default:"Pending" }}
+            </span>
         {% endif %}
     </div>
     {% endwith %}
 
-    <div class="card">
+    <!-- Waybill Information -->
+    <div class="td-section mb-3">
         <div class="card-header">
-            <h2>
-                {% if transport.waybill_number %}
-                    Waybill {{ transport.waybill_number }}
-                {% else %}
-                    Transport #{{ transport.id }}
-                {% endif %}
-            </h2>
+            <i class="fas fa-file-alt"></i> Waybill Information
         </div>
         <div class="card-body">
-            <table class="table table-bordered">
+            <table class="table table-bordered mb-0">
                 <tbody>
+                    {% if transport.waybill_number %}
+                    <tr>
+                        <th style="width:220px;">Waybill Number</th>
+                        <td><code style="font-size:0.88rem;">{{ transport.waybill_number }}</code></td>
+                    </tr>
+                    {% endif %}
                     {% if transport.material_order %}
                     <tr>
-                        <th>Material</th>
+                        <th>Material Order</th>
                         <td>{{ transport.material_order.name|default:"N/A" }}</td>
                     </tr>
                     <tr>
@@ -66,19 +169,28 @@
                     </tr>
                     <tr>
                         <th>Quantity</th>
-                        <td>{{ transport.quantity|default:"N/A" }}</td>
+                        <td><strong>{{ transport.quantity|default:"N/A" }}</strong></td>
                     </tr>
                     <tr>
-                        <th>Recipient</th>
-                        <td>{{ transport.recipient|default:"N/A" }}</td>
+                        <th>Dispatched</th>
+                        <td>{{ transport.date_dispatched|date:"d M Y, H:i"|default:"N/A" }}</td>
                     </tr>
-                    <tr>
-                        <th>Status</th>
-                        <td><span class="badge bg-info">{{ transport.status|default:"N/A" }}</span></td>
-                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Transporter & Vehicle -->
+    <div class="td-section mb-3">
+        <div class="card-header">
+            <i class="fas fa-shipping-fast"></i> Transporter Details
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered mb-0">
+                <tbody>
                     {% if transport.transporter %}
                     <tr>
-                        <th>Transporter</th>
+                        <th style="width:220px;">Transporter</th>
                         <td>{{ transport.transporter.name|default:"N/A" }}</td>
                     </tr>
                     {% endif %}
@@ -89,25 +201,122 @@
                     </tr>
                     {% endif %}
                     <tr>
-                        <th>Created At</th>
-                        <td>{{ transport.date_dispatched|date:"Y-m-d H:i"|default:"N/A" }}</td>
+                        <th>Driver Name</th>
+                        <td>{{ transport.driver_name|default:"N/A" }}</td>
                     </tr>
-                    {% if transport.site_receipt %}
                     <tr>
-                        <th>Site Receipt</th>
-                        <td>
-                            <a href="{% url 'site_receipt_detail' transport.site_receipt.id %}" class="btn btn-sm btn-outline-primary">
-                                View Receipt #{{ transport.site_receipt.id }}
-                            </a>
-                        </td>
+                        <th>Driver Phone</th>
+                        <td>{{ transport.driver_phone|default:"N/A" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Destination & Recipient -->
+    <div class="td-section mb-3">
+        <div class="card-header">
+            <i class="fas fa-map-marker-alt"></i> Destination & Recipient
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <th style="width:220px;">Recipient</th>
+                        <td>{{ transport.recipient|default:"N/A" }}</td>
+                    </tr>
+                    {% if transport.consultant %}
+                    <tr>
+                        <th>Consultant</th>
+                        <td>{{ transport.consultant }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.region %}
+                    <tr>
+                        <th>Region</th>
+                        <td>{{ transport.region }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.district %}
+                    <tr>
+                        <th>District</th>
+                        <td>{{ transport.district }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.community %}
+                    <tr>
+                        <th>Community</th>
+                        <td><strong>{{ transport.community }}</strong></td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.package_number %}
+                    <tr>
+                        <th>Package Number</th>
+                        <td><code>{{ transport.package_number }}</code></td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.destination_contact %}
+                    <tr>
+                        <th>Contact Person</th>
+                        <td>{{ transport.destination_contact }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.destination_phone %}
+                    <tr>
+                        <th>Contact Phone</th>
+                        <td>{{ transport.destination_phone }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
-        <div class="card-footer">
-            <a href="{% url 'transport_list' %}" class="btn btn-secondary">Back to List</a>
+    </div>
+
+    <!-- Site Receipt -->
+    {% if transport.site_receipt %}
+    <div class="td-section mb-3">
+        <div class="card-header" style="background:#198754;">
+            <i class="fas fa-receipt"></i> Site Receipt
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <th style="width:220px;">Receipt Number</th>
+                        <td><code>{{ transport.site_receipt.receipt_number|default:transport.site_receipt.id }}</code></td>
+                    </tr>
+                    {% if transport.site_receipt.received_date %}
+                    <tr>
+                        <th>Received Date</th>
+                        <td>{{ transport.site_receipt.received_date|date:"d M Y, H:i" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if transport.site_receipt.received_by %}
+                    <tr>
+                        <th>Received By</th>
+                        <td>{{ transport.site_receipt.received_by.get_full_name|default:transport.site_receipt.received_by.username }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="td-actions">
+        <a href="{% url 'transport_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+        <a href="{% url 'download_waybill_pdf' transport.id %}" target="_blank" class="btn btn-sm" style="background:var(--moen-primary,#2e7d32);color:#fff;">
+            <i class="fas fa-file-pdf me-1"></i> Download Waybill PDF
+        </a>
+        {% if transport.site_receipt %}
+        <a href="{% url 'site_receipt_detail' transport.site_receipt.id %}" class="btn btn-sm btn-outline-info">
+            <i class="fas fa-receipt me-1"></i> View Receipt
+        </a>
+        {% endif %}
+    </div>
+
 </div>
 {% endblock %}

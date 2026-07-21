@@ -293,6 +293,12 @@ def download_waybill_pdf(request, transport_id):
     # Define styles
     styles = getSampleStyleSheet()
     
+    # System theme colors — green (MOEN IMS primary)
+    _primary = '#2e7d32'
+    _primary_dark = '#1b5e20'
+    _primary_light = '#4caf50'
+    _accent = '#1e293b'  # slate header
+
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
@@ -318,7 +324,7 @@ def download_waybill_pdf(request, transport_id):
         'CustomHeading',
         parent=styles['Heading2'],
         fontSize=13,
-        textColor=colors.HexColor('#1a5490'),
+        textColor=colors.HexColor(_primary),
         spaceAfter=6,
         spaceBefore=10,
         fontName='Helvetica-Bold',
@@ -339,7 +345,7 @@ def download_waybill_pdf(request, transport_id):
         'CoverTitle',
         parent=styles['Heading1'],
         fontSize=36,
-        textColor=colors.HexColor('#1a5490'),
+        textColor=colors.HexColor(_primary),
         spaceAfter=20,
         alignment=TA_CENTER,
         fontName='Helvetica-Bold',
@@ -364,7 +370,7 @@ def download_waybill_pdf(request, transport_id):
         'CoverTitle',
         parent=styles['Heading1'],
         fontSize=20,
-        textColor=colors.black,
+        textColor=colors.HexColor(_primary),
         spaceAfter=8,
         alignment=TA_CENTER,
         fontName='Helvetica-Bold',
@@ -398,7 +404,7 @@ def download_waybill_pdf(request, transport_id):
         'SectionHeading',
         parent=styles['Heading2'],
         fontSize=12,
-        textColor=colors.black,
+        textColor=colors.HexColor(_primary),
         spaceAfter=4,
         spaceBefore=2,
         fontName='Helvetica-Bold',
@@ -448,7 +454,7 @@ def download_waybill_pdf(request, transport_id):
         'SectionHeading',
         parent=styles['Heading2'],
         fontSize=12,
-        textColor=colors.black,
+        textColor=colors.HexColor(_primary),
         spaceAfter=4,
         spaceBefore=2,
         fontName='Helvetica-Bold',
@@ -495,7 +501,7 @@ def download_waybill_pdf(request, transport_id):
         'SectionHeading',
         parent=styles['Heading2'],
         fontSize=12,
-        textColor=colors.black,
+        textColor=colors.HexColor(_primary),
         spaceAfter=6,
         spaceBefore=2,
         fontName='Helvetica-Bold',
@@ -695,7 +701,7 @@ def download_waybill_pdf(request, transport_id):
     
     signature_cover_table = Table(signature_cover_data, colWidths=[1.8*inch, 3.0*inch, 1.7*inch])
     signature_cover_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_primary)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -735,14 +741,14 @@ def download_waybill_pdf(request, transport_id):
     else:
         header_table = Table(header_data, colWidths=[7*inch])
     header_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#1a5490')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(_primary)),
         ('ALIGN', (1, 0), (1, 0), 'CENTER'),  # Center the title
         ('ALIGN', (0, 0), (0, 0), 'LEFT'),     # Left align logo
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 15),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LINEABOVE', (0, 0), (-1, 0), 3, colors.HexColor('#0d3a6b')),
-        ('LINEBELOW', (0, -1), (-1, -1), 3, colors.HexColor('#2c5f8d')),
+        ('LINEABOVE', (0, 0), (-1, 0), 3, colors.HexColor(_primary_dark)),
+        ('LINEBELOW', (0, -1), (-1, -1), 3, colors.HexColor(_primary_light)),
     ]))
     
     elements.append(header_table)
@@ -753,7 +759,7 @@ def download_waybill_pdf(request, transport_id):
     ]]
     subtitle_table = Table(subtitle_data, colWidths=[7*inch])
     subtitle_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2c5f8d')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(_primary_dark)),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
@@ -763,7 +769,7 @@ def download_waybill_pdf(request, transport_id):
     elements.append(Spacer(1, 0.25*inch))
     
     # Waybill Information Box with colored accent
-    elements.append(Paragraph("📋 Waybill Information", heading_style))
+    elements.append(Paragraph("WAYBILL INFORMATION", heading_style))
     
     waybill_data = [
         ['Waybill Number:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
@@ -775,22 +781,22 @@ def download_waybill_pdf(request, transport_id):
     
     waybill_table = Table(waybill_data, colWidths=[2*inch, 4.5*inch])
     waybill_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f8ff')),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f5e9')),
         ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_primary)),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('PADDING', (0, 0), (-1, -1), 10),
-        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#1a5490')),
+        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor(_primary)),
     ]))
     
     elements.append(waybill_table)
     elements.append(Spacer(1, 0.25*inch))
     
     # Material Information - Show ALL materials on this waybill
-    elements.append(Paragraph("📦 Materials on This Waybill", heading_style))
+    elements.append(Paragraph("MATERIALS ON THIS WAYBILL", heading_style))
     
     # Build table with all materials - Use Paragraph for text wrapping
     material_data = [[
@@ -813,31 +819,31 @@ def download_waybill_pdf(request, transport_id):
     
     material_table = Table(material_data, colWidths=[0.35*inch, 2.5*inch, 0.9*inch, 1.1*inch, 1.15*inch])
     material_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_primary)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Center # column
         ('ALIGN', (1, 0), (-1, -1), 'LEFT'),   # Left align rest
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#1a5490')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_primary)),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for wrapping
         ('PADDING', (0, 0), (-1, -1), 8),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#0d3a6b')),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor(_primary_dark)),
     ]))
     
     elements.append(material_table)
     elements.append(Spacer(1, 0.25*inch))
     
     # Transporter Information
-    elements.append(Paragraph("🚚 Transporter Information", heading_style))
+    elements.append(Paragraph("TRANSPORTER INFORMATION", heading_style))
     
     transporter_data = [
         ['Transporter:', Paragraph(f"<b>{transport.transporter.name if transport.transporter else 'N/A'}</b>", normal_style)],
         ['Vehicle:', Paragraph(f"<b>{transport.vehicle.registration_number}</b> ({transport.vehicle.vehicle_type})" 
                     if transport.vehicle else 'N/A', normal_style)],
         ['Driver Name:', Paragraph(transport.driver_name or 'N/A', normal_style)],
-        ['Driver Phone:', Paragraph(f"<font color='#1a5490'>{transport.driver_phone or 'N/A'}</font>", normal_style)],
+        ['Driver Phone:', Paragraph(f"<font color='{_primary}'>{transport.driver_phone or 'N/A'}</font>", normal_style)],
     ]
     
     transporter_table = Table(transporter_data, colWidths=[1.8*inch, 4.7*inch])
@@ -857,7 +863,7 @@ def download_waybill_pdf(request, transport_id):
     elements.append(Spacer(1, 0.25*inch))
     
     # Destination Information
-    elements.append(Paragraph("📍 Destination Information", heading_style))
+    elements.append(Paragraph("DESTINATION INFORMATION", heading_style))
     
     destination_data = [
         ['Recipient:', Paragraph(f"<b>{transport.recipient or 'N/A'}</b>", normal_style)],
@@ -885,7 +891,7 @@ def download_waybill_pdf(request, transport_id):
     elements.append(Spacer(1, 0.3*inch))
     
     # Signatures
-    elements.append(Paragraph("✍️ Signatures & Endorsements", heading_style))
+    elements.append(Paragraph("SIGNATURES & ENDORSEMENTS", heading_style))
     elements.append(Spacer(1, 0.1*inch))
     
     # Get store officer info and stamp for main waybill (with image embedding support)
@@ -1179,19 +1185,19 @@ def download_waybill_pdf(request, transport_id):
     
     signature_table = Table(signature_data, colWidths=[1.8*inch, 1.6*inch, 1.6*inch, 1.0*inch])
     signature_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#6c757d')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_accent)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#6c757d')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_accent)),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 1), (-1, -1), 18),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 18),
         ('PADDING', (0, 0), (-1, 0), 8),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white]),
-        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#495057')),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor(_accent)),
     ]))
     
     elements.append(signature_table)
@@ -1202,7 +1208,7 @@ def download_waybill_pdf(request, transport_id):
         'Note',
         parent=normal_style,
         fontSize=9,
-        textColor=colors.HexColor('#856404'),
+        textColor=colors.HexColor(_primary_dark),
         alignment=TA_LEFT,
         leftIndent=10
     )
@@ -1215,8 +1221,8 @@ def download_waybill_pdf(request, transport_id):
     note_data = [[Paragraph(note_text, note_style)]]
     note_table = Table(note_data, colWidths=[6.5*inch])
     note_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fff3cd')),
-        ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#ffc107')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#e8f5e9')),
+        ('BOX', (0, 0), (-1, -1), 2, colors.HexColor(_primary)),
         ('PADDING', (0, 0), (-1, -1), 12),
     ]))
     
@@ -1256,6 +1262,7 @@ def verify_waybill_qr(request, waybill_identifier):
     QR code verification endpoint.
     After login, identifies user role and auto-places digital stamp on waybill.
     Users scan QR code, sign in, and their stamp is automatically recorded.
+    Redirects to the transport detail page after verification.
     """
     from django.contrib.auth.models import User
     from .models import Profile
@@ -1302,23 +1309,17 @@ def verify_waybill_qr(request, waybill_identifier):
         
         if is_store_officer_user:
             role = "Store Officer (Issued By)"
-            # Store Officer stamp is already embedded in waybill generation
-            # This is just for verification/audit
             stamp_recorded = True
         elif is_transporter_user:
             role = "Transporter/Driver (Received By)"
-            # Record transporter stamp (could be stored in a separate model for tracking)
-            # For now, we'll just log it
             stamp_recorded = True
         elif is_consultant_user:
             role = "Consultant (Delivered To)"
-            # Record consultant stamp
             stamp_recorded = True
         else:
             role = "Authorized User"
         
         if stamp_recorded:
-            # Log the stamp verification in audit trail
             try:
                 MaterialOrderAudit.objects.create(
                     material_order=transport.material_order if transport.material_order else None,
@@ -1327,12 +1328,40 @@ def verify_waybill_qr(request, waybill_identifier):
                     timestamp=timezone.now()
                 )
             except Exception:
-                pass  # Don't fail if audit logging fails
+                pass
     
     messages.success(
         request, 
-        f"Waybill verified! Your digital stamp as {role} has been recorded for waybill {transport.waybill_number or waybill_identifier}."
+        f"Waybill {transport.waybill_number or waybill_identifier} verified! "
+        f"Your stamp as {role} has been recorded."
     )
     
-    # Redirect to transportation status or waybill detail
-    return redirect('transportation_status')
+    # Auto-mark the linked release letter as 'released' if all transports
+    # under its material orders have site receipts (physically confirmed).
+    try:
+        if transport.material_order and transport.material_order.release_letter:
+            rl = transport.material_order.release_letter
+            if rl.workflow_status == 'approved':
+                all_orders = rl.material_orders.all()
+                all_confirmed = all(
+                    MaterialTransport.objects.filter(
+                        material_order=order
+                    ).exclude(waybill_number__in=['', 'Unknown']).filter(
+                        site_receipt__isnull=False
+                    ).exists()
+                    for order in all_orders
+                )
+                if all_confirmed:
+                    rl.workflow_status = 'released'
+                    rl.save(update_fields=['workflow_status'])
+                    MaterialOrderAudit.objects.create(
+                        material_order=transport.material_order,
+                        user=request.user,
+                        action=f'Auto-released: all waybills verified for {rl.code}',
+                        timestamp=timezone.now()
+                    )
+    except Exception:
+        pass  # Don't fail verification if auto-release logic errors
+    
+    # Redirect to the transport detail page
+    return redirect('transport_detail', pk=transport.pk)

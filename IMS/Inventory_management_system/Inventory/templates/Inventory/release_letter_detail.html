@@ -479,16 +479,11 @@
                             Confirmed by
                             <strong>{{ release_letter.scan_confirmed_by.get_full_name|default:release_letter.scan_confirmed_by.username }}</strong>
                             on {{ release_letter.scan_confirmed_at|date:"d M Y, H:i" }}.
-                            Materials may now be physically released from MMU.
                         </div>
-                        {% if can_generate_documents %}
-                        <form method="post" action="{% url 'release_letter_mark_released' release_letter.pk %}">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-truck me-1"></i> Mark physically released
-                            </button>
-                        </form>
-                        {% endif %}
+                        <div class="rl-next-help mt-2" style="background:#e8f5e9;border-radius:8px;padding:0.65rem 0.85rem;border:1px solid #c8e6c9;">
+                            <i class="fas fa-info-circle me-1" style="color:#2e7d32;"></i>
+                            <strong style="color:#1b5e20;">Physical release</strong> is confirmed automatically when the waybill QR code is scanned by the consignee. No manual action is needed here.
+                        </div>
 
                     {% elif release_letter.workflow_status == 'released' %}
                         <div class="rl-next-title text-success">

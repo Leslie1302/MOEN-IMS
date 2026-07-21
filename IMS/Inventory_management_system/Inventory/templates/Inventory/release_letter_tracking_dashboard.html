@@ -11,13 +11,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h2 class="mb-1">
-                        <i class="bi bi-clipboard-data"></i> Release Letter Tracking
+                        <i class="fas fa-clipboard-list"></i> Release Letter Tracking
                     </h2>
                     <p class="text-muted mb-0">Track authorized material releases against actual stock movements</p>
                 </div>
                 <div>
                     <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </a>
                 </div>
             </div>
@@ -34,8 +34,8 @@
                             <h6 class="text-muted mb-1">Total Letters</h6>
                             <h3 class="mb-0">{{ summary.total_letters }}</h3>
                         </div>
-                        <div class="bg-primary bg-opacity-10 rounded-circle p-3">
-                            <i class="bi bi-file-text text-primary fs-4"></i>
+                        <div class="rounded-circle p-3" style="background:rgba(30,41,59,0.08);">
+                            <i class="fas fa-file-alt fs-4" style="color:var(--moen-header,#1e293b);"></i>
                         </div>
                     </div>
                 </div>
@@ -47,10 +47,10 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-1">Open Letters</h6>
-                            <h3 class="mb-0 text-success">{{ summary.open_letters }}</h3>
+                            <h3 class="mb-0" style="color:var(--moen-primary,#2e7d32);">{{ summary.open_letters }}</h3>
                         </div>
-                        <div class="bg-success bg-opacity-10 rounded-circle p-3">
-                            <i class="bi bi-unlock text-success fs-4"></i>
+                        <div class="rounded-circle p-3" style="background:rgba(46,125,50,0.08);">
+                            <i class="fas fa-unlock fs-4" style="color:var(--moen-primary,#2e7d32);"></i>
                         </div>
                     </div>
                 </div>
@@ -62,10 +62,10 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-1">Threshold Alerts</h6>
-                            <h3 class="mb-0 text-warning">{{ summary.threshold_alerts }}</h3>
+                            <h3 class="mb-0" style="color:var(--bs-warning,#f59e0b);">{{ summary.threshold_alerts }}</h3>
                         </div>
-                        <div class="bg-warning bg-opacity-10 rounded-circle p-3">
-                            <i class="bi bi-exclamation-triangle text-warning fs-4"></i>
+                        <div class="rounded-circle p-3" style="background:rgba(245,158,11,0.08);">
+                            <i class="fas fa-exclamation-triangle fs-4" style="color:var(--bs-warning,#f59e0b);"></i>
                         </div>
                     </div>
                 </div>
@@ -77,10 +77,10 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-1">Avg Fulfillment</h6>
-                            <h3 class="mb-0 text-info">{{ summary.avg_fulfillment|floatformat:1 }}%</h3>
+                            <h3 class="mb-0" style="color:var(--bs-info,#3b82f6);">{{ summary.avg_fulfillment|floatformat:1 }}%</h3>
                         </div>
-                        <div class="bg-info bg-opacity-10 rounded-circle p-3">
-                            <i class="bi bi-check2-circle text-info fs-4"></i>
+                        <div class="rounded-circle p-3" style="background:rgba(59,130,246,0.08);">
+                            <i class="fas fa-check-circle fs-4" style="color:var(--bs-info,#3b82f6);"></i>
                         </div>
                     </div>
                 </div>
@@ -124,12 +124,12 @@
                                 placeholder="Search reference or title..." value="{{ search_query }}">
                         </div>
                         <div class="col-md-3 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                                <i class="bi bi-search"></i> Filter
+                            <button type="submit" class="btn btn-sm" style="background:var(--moen-primary,#2e7d32);color:#fff;">
+                                <i class="fas fa-search"></i> Filter
                             </button>
                             <a href="{% url 'release_letter_tracking_dashboard' %}"
                                 class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-x"></i> Clear
+                                <i class="fas fa-times"></i> Clear
                             </a>
                         </div>
                     </form>
@@ -165,7 +165,7 @@
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover table-sm mb-0" id="release-letter-table">
-                            <thead class="table-light">
+                            <thead style="background:var(--moen-header,#1e293b);color:#fff;">
                                 <tr>
                                     <th scope="col">Reference</th>
                                     <th scope="col">Title</th>
@@ -189,7 +189,7 @@
                                 {% if not release_letters %}
                                 <tr>
                                     <td colspan="16" class="text-center text-muted py-4">
-                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        <i class="fas fa-inbox fs-1 d-block mb-2"></i>
                                         No release letters found. Create one to start tracking.
                                     </td>
                                 </tr>
@@ -200,14 +200,14 @@
                                         <a href="{% url 'release_letter_detail' rl.id %}"
                                             class="fw-bold text-decoration-none"
                                             title="Open release letter {{ rl.reference_number }}">
-                                            {{ rl.reference_number }} <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                                            {{ rl.reference_number }} <i class="fas fa-external-link-alt small text-muted"></i>
                                         </a>
                                     </td>
                                     <td>
                                         <a href="{% url 'release_letter_detail' rl.id %}"
                                             class="text-decoration-none" title="{{ rl.title }}">{{ rl.title|truncatewords:5 }}</a>
                                         {% if rl.project_phase %}
-                                        <br><small class="text-muted"><i class="bi bi-diagram-3"></i> {{ rl.project_phase }}</small>
+                                        <br><small class="text-muted"><i class="fas fa-project-diagram"></i> {{ rl.project_phase }}</small>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -241,7 +241,7 @@
                                         <span class="badge bg-warning text-dark"
                                             title="Materials requested but not yet delivered">{{ rl.gap_display }}</span>
                                         {% else %}
-                                        <span class="text-success"><i class="bi bi-check-circle"></i> 0</span>
+                                        <span class="text-success"><i class="fas fa-check-circle"></i> 0</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
@@ -250,18 +250,18 @@
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-primary" title="{{ rl.order_count }} material order(s)"><i
-                                                class="bi bi-cart"></i> {{ rl.order_count }}</span>
+                                                class="fas fa-shopping-cart"></i> {{ rl.order_count }}</span>
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex flex-column gap-1 small">
                                             <span class="badge bg-success" title="Delivered transports"><i
-                                                    class="bi bi-truck"></i> {{ rl.delivered_count }}</span>
+                                                    class="fas fa-truck"></i> {{ rl.delivered_count }}</span>
                                             {% if rl.in_transit_count > 0 %}
                                             <span class="badge bg-warning text-dark" title="In transit"><i
-                                                    class="bi bi-arrow-right"></i> {{ rl.in_transit_count }}</span>
+                                                    class="fas fa-arrow-right"></i> {{ rl.in_transit_count }}</span>
                                             {% endif %}
                                             {% if rl.pending_count > 0 %}
-                                            <span class="badge bg-secondary" title="Pending"><i class="bi bi-clock"></i>
+                                            <span class="badge bg-secondary" title="Pending"><i class="fas fa-clock"></i>
                                                 {{ rl.pending_count }}</span>
                                             {% endif %}
                                         </div>
@@ -269,14 +269,14 @@
                                     <td>
                                         {% if rl.boq_item %}
                                         <small title="{{ rl.boq_item.material_description }}"><i
-                                                class="bi bi-link-45deg"></i> {{ rl.boq_item.material_description|truncatewords:3 }}</small>
+                                                class="fas fa-link"></i> {{ rl.boq_item.material_description|truncatewords:3 }}</small>
                                         {% else %}
                                         <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if rl.uploaded_by %}
-                                        <small><i class="bi bi-person"></i> {{ rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span
+                                        <small><i class="fas fa-user"></i> {{ rl.uploaded_by.get_full_name|default:rl.uploaded_by.username }}<br><span
                                                 class="text-muted">{{ rl.upload_time|date:"M d, Y" }}</span></small>
                                         {% else %}
                                         <span class="text-muted">—</span>
@@ -286,7 +286,7 @@
                                         {% include "Inventory/includes/signature_stamp_badge.html" with workflow_status=rl.workflow_status %}
                                         {% if rl.is_threshold_exceeded %}
                                         <br><span class="badge bg-warning text-dark mt-2" title="Threshold exceeded"><i
-                                                class="bi bi-exclamation-triangle"></i> Threshold Alert</span>
+                                                class="fas fa-exclamation-triangle"></i> Threshold Alert</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
@@ -295,7 +295,7 @@
                                                 data-bs-toggle="collapse" data-bs-target="#details-{{ rl.id }}"
                                                 aria-expanded="false" aria-controls="details-{{ rl.id }}"
                                                 title="Toggle detailed information">
-                                                <i class="bi bi-chevron-down"></i>
+                                                <i class="fas fa-chevron-down"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-warning edit-quantity-btn"
                                                 type="button" data-bs-toggle="modal" data-bs-target="#editQuantityModal"
@@ -303,7 +303,7 @@
                                                 data-rl-title="{{ rl.title }}"
                                                 data-rl-quantity="{{ rl.total_quantity }}"
                                                 title="Adjust Authorized Quantity">
-                                                <i class="bi bi-pencil"></i>
+                                                <i class="fas fa-pencil-alt"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -315,18 +315,18 @@
                                             <div class="row g-3">
                                                 <!-- Material Orders -->
                                                 <div class="col-md-6">
-                                                    <h6 class="text-primary mb-3"><i class="bi bi-cart-check"></i>
+                                                    <h6 class="text-primary mb-3"><i class="fas fa-shopping-cart-check"></i>
                                                         Material Orders</h6>
                                                     {% if rl.material_orders.all %}
                                                     <div class="table-responsive">
                                                         <table class="table table-sm table-bordered">
                                                             <thead class="table-secondary">
                                                                 <tr>
-                                                                    <th>Request #</th>
-                                                                    <th>Material</th>
-                                                                    <th class="text-end">Quantity</th>
-                                                                    <th>Status</th>
-                                                                    <th>Date</th>
+                                                                    <th style="font-size:0.75rem;">Request #</th>
+                                                                    <th style="font-size:0.75rem;">Material</th>
+                                                                    <th style="font-size:0.75rem;" class="text-end">Quantity</th>
+                                                                    <th style="font-size:0.75rem;">Status</th>
+                                                                    <th style="font-size:0.75rem;">Date</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -337,7 +337,7 @@
                                                                             target="_blank"
                                                                             class="text-decoration-none fw-bold small">
                                                                             {{ order.request_code }} <i
-                                                                                class="bi bi-box-arrow-up-right small text-muted"></i>
+                                                                                class="fas fa-external-link-alt small text-muted"></i>
                                                                         </a>
                                                                     </td>
                                                                     <td>{{ order.name|truncatewords:4 }}</td>
@@ -360,24 +360,24 @@
                                                         </table>
                                                     </div>
                                                     {% else %}
-                                                    <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> No
+                                                    <p class="text-muted mb-0"><i class="fas fa-info-circle"></i> No
                                                         material orders linked to this release letter.</p>
                                                     {% endif %}
                                                 </div>
 
                                                 <!-- Transports -->
                                                 <div class="col-md-6">
-                                                    <h6 class="text-success mb-3"><i class="bi bi-truck"></i> Transport
+                                                    <h6 class="text-success mb-3"><i class="fas fa-truck"></i> Transport
                                                         Records</h6>
                                                     {% if rl.all_transports %}
                                                     <div class="table-responsive">
                                                         <table class="table table-sm table-bordered">
                                                             <thead class="table-secondary">
                                                                 <tr>
-                                                                    <th>Vehicle</th>
-                                                                    <th>Driver</th>
-                                                                    <th>Status</th>
-                                                                    <th>Date</th>
+                                                                    <th style="font-size:0.75rem;">Vehicle</th>
+                                                                    <th style="font-size:0.75rem;">Driver</th>
+                                                                    <th style="font-size:0.75rem;">Status</th>
+                                                                    <th style="font-size:0.75rem;">Date</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -407,16 +407,16 @@
                                                         transports</small>
                                                     {% endif %}
                                                     {% else %}
-                                                    <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> No
+                                                    <p class="text-muted mb-0"><i class="fas fa-info-circle"></i> No
                                                         transport records for this release letter.</p>
                                                     {% endif %}
                                                 </div>
 
                                                 <!-- Summary Info -->
                                                 <div class="col-md-12">
-                                                    <div class="card border-info">
+                                                    <div class="card border-0 shadow-sm mt-3">
                                                         <div class="card-body">
-                                                            <h6 class="text-info mb-3"><i class="bi bi-info-circle"></i>
+                                                            <h6 class="mb-3" style="color:var(--bs-info,#3b82f6);"><i class="fas fa-info-circle me-1"></i>
                                                                 Release Letter Summary</h6>
                                                             <div class="row">
                                                                 <div class="col-md-3">
@@ -469,9 +469,9 @@
             <h5 class="mb-3">Tracking Insights</h5>
         </div>
         <div class="col-md-6 mb-3">
-            <div class="card border-warning border-2">
-                <div class="card-header bg-warning bg-opacity-10">
-                    <strong><i class="bi bi-hourglass-split"></i> Fulfillment Gap Analysis</strong>
+            <div class="card border-0 shadow-sm">
+                <div class="card-header" style="background:rgba(245,158,11,0.08);border-bottom:1px solid rgba(245,158,11,0.2);">
+                    <strong style="color:var(--bs-warning,#f59e0b);"><i class="fas fa-hourglass-half me-1"></i> Fulfillment Gap Analysis</strong>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-2">Materials requested but not yet delivered:</p>
@@ -485,16 +485,16 @@
                         </li>
                         {% endif %}
                         {% empty %}
-                        <li class="text-success"><i class="bi bi-check-circle"></i> All materials delivered!</li>
+                        <li class="text-success"><i class="fas fa-check-circle"></i> All materials delivered!</li>
                         {% endfor %}
                     </ul>
                 </div>
             </div>
         </div>
         <div class="col-md-6 mb-3">
-            <div class="card border-info border-2">
-                <div class="card-header bg-info bg-opacity-10">
-                    <strong><i class="bi bi-bar-chart"></i> Utilization by Material Type</strong>
+            <div class="card border-0 shadow-sm">
+                <div class="card-header" style="background:rgba(59,130,246,0.08);border-bottom:1px solid rgba(59,130,246,0.2);">
+                    <strong style="color:var(--bs-info,#3b82f6);"><i class="fas fa-chart-bar me-1"></i> Utilization by Material Type</strong>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-2">Average drawdown by material category:</p>
@@ -522,18 +522,15 @@
     .progress {
         border-radius: 4px;
     }
-
     .progress-bar {
         font-size: 11px;
         font-weight: 600;
     }
-
-    .card {
-        transition: transform 0.2s ease-in-out;
-    }
-
-    .card:hover {
-        transform: translateY(-2px);
+    .table th {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 </style>
 <!-- Edit Quantity Modal -->
