@@ -173,7 +173,7 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
 
             # Fallback: average phase completion per project.
             phase_progress = {
-                r['project_id']: (r['avg'] or 0)
+                r['id']: (r['avg'] or 0)
                 for r in Project.objects.filter(
                     phases__isnull=False
                 ).values('id').annotate(avg=Avg('phases__completion_percentage'))
@@ -193,8 +193,6 @@ class ProjectManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, Te
             # still appear on the chart rather than being silently dropped.
             roadmap, health = [], {'active': 0, 'at_risk': 0, 'delayed': 0}
             live_qs = Project.objects.exclude(status='Completed')
-            if not (is_superuser(self.request.user) or is_management(self.request.user)):
-                live_qs = live_qs.filter(access_filter)
             for p in live_qs:
                 pct = round(site_progress.get(p.id, 0), 1)
                 if pct == 0:
