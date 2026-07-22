@@ -1,0 +1,295 @@
+{% extends 'Inventory/base.html' %}
+{% load static humanize %}
+
+{% block title %}Waybill Verification — IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --wv-primary: #2e7d32;
+        --wv-primary-dark: #1b5e20;
+        --wv-primary-tint: #e8f5e9;
+        --wv-header: #1e293b;
+        --wv-border: #e5e7eb;
+        --wv-surface: #ffffff;
+        --wv-radius: 10px;
+        --wv-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .wv-container {
+        max-width: 680px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+
+    .wv-card {
+        background: var(--wv-surface);
+        border: 1px solid var(--wv-border);
+        border-radius: var(--wv-radius);
+        box-shadow: var(--wv-shadow);
+        overflow: hidden;
+    }
+
+    .wv-header {
+        background: var(--wv-header);
+        color: #fff;
+        padding: 1.25rem 1.5rem;
+        text-align: center;
+    }
+    .wv-header h1 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.01em;
+    }
+    .wv-header .wv-sub {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+    }
+
+    .wv-status-banner {
+        padding: 1rem 1.5rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .wv-status-banner.received {
+        background: var(--wv-primary-tint);
+        color: var(--wv-primary-dark);
+        border-bottom: 3px solid var(--wv-primary);
+    }
+    .wv-status-banner.pending {
+        background: #fff8e1;
+        color: #f57f17;
+        border-bottom: 3px solid #f59e0b;
+    }
+    .wv-status-banner.not-found {
+        background: #fce4ec;
+        color: #c62828;
+        border-bottom: 3px solid #c62828;
+    }
+
+    .wv-body {
+        padding: 1.5rem;
+    }
+
+    .wv-section {
+        margin-bottom: 1.25rem;
+    }
+    .wv-section-title {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 1px solid var(--wv-border);
+    }
+
+    .wv-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.4rem 0;
+        font-size: 0.88rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .wv-row:last-child { border-bottom: none; }
+    .wv-row .wv-label { color: #6b7280; }
+    .wv-row .wv-value { font-weight: 500; text-align: right; color: #1f2937; }
+    .wv-row .wv-value code {
+        background: #f1f5f9;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.82rem;
+        color: var(--wv-primary-dark);
+    }
+
+    .wv-stamp-box {
+        background: #f8fafc;
+        border: 1px dashed var(--wv-border);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        margin-top: 0.75rem;
+    }
+    .wv-stamp-box .wv-stamp-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+    }
+    .wv-stamp-box .wv-stamp-text {
+        font-size: 0.82rem;
+        color: var(--wv-primary-dark);
+        font-weight: 500;
+    }
+    .wv-stamp-box .wv-stamp-role {
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+
+    .wv-footer {
+        padding: 0.75rem 1.5rem;
+        background: #f9fafb;
+        border-top: 1px solid var(--wv-border);
+        text-align: center;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .wv-actions {
+        margin-top: 1.25rem;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wv-container">
+    <div class="wv-card">
+        <div class="wv-header">
+            <h1><i class="fas fa-truck me-1"></i> Waybill Verification</h1>
+            <div class="wv-sub">Ministry of Energy and Green Transition — IMS</div>
+        </div>
+
+        {% if role %}
+        <div class="wv-status-banner received">
+            <i class="fas fa-check-circle me-1"></i>
+            Waybill <code>{{ transport.waybill_number }}</code> verified
+        </div>
+        {% elif receipt %}
+        <div class="wv-status-banner received">
+            <i class="fas fa-check-circle me-1"></i>
+            Delivery confirmed — materials received on site
+        </div>
+        {% else %}
+        <div class="wv-status-banner pending">
+            <i class="fas fa-clock me-1"></i>
+            Waybill exists — awaiting site receipt confirmation
+        </div>
+        {% endif %}
+
+        <div class="wv-body">
+            <!-- Waybill Info -->
+            <div class="wv-section">
+                <div class="wv-section-title">Waybill Details</div>
+                <div class="wv-row">
+                    <span class="wv-label">Waybill Number</span>
+                    <span class="wv-value"><code>{{ transport.waybill_number|default:"N/A" }}</code></span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Status</span>
+                    <span class="wv-value">
+                        {% if transport.status == 'Delivered' %}
+                            <span style="color:var(--wv-primary);">Delivered</span>
+                        {% else %}
+                            {{ transport.status }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Date Dispatched</span>
+                    <span class="wv-value">{{ transport.date_dispatched|date:"d M Y"|default:"N/A" }}</span>
+                </div>
+                {% if transport.material_order %}
+                <div class="wv-row">
+                    <span class="wv-label">Request Code</span>
+                    <span class="wv-value"><code>{{ transport.material_order.request_code|default:"N/A" }}</code></span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Material -->
+            <div class="wv-section">
+                <div class="wv-section-title">Material</div>
+                <div class="wv-row">
+                    <span class="wv-label">Material</span>
+                    <span class="wv-value">{{ transport.material_name|default:"N/A" }}</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Quantity</span>
+                    <span class="wv-value">{{ transport.quantity|floatformat:0|intcomma }} {{ transport.unit|default:"" }}</span>
+                </div>
+                {% if transport.material_order.code %}
+                <div class="wv-row">
+                    <span class="wv-label">Code</span>
+                    <span class="wv-value"><code>{{ transport.material_order.code }}</code></span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Transporter -->
+            <div class="wv-section">
+                <div class="wv-section-title">Transport</div>
+                <div class="wv-row">
+                    <span class="wv-label">Transporter</span>
+                    <span class="wv-value">{{ transport.transporter.name|default:"N/A" }}</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Driver</span>
+                    <span class="wv-value">{{ transport.driver_name|default:"N/A" }}</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Vehicle</span>
+                    <span class="wv-value">{{ transport.vehicle.registration_number|default:"N/A" }}</span>
+                </div>
+            </div>
+
+            <!-- Delivery -->
+            <div class="wv-section">
+                <div class="wv-section-title">Delivery Confirmation</div>
+                {% if receipt %}
+                <div class="wv-row">
+                    <span class="wv-label">Received</span>
+                    <span class="wv-value" style="color:var(--wv-primary);">Yes</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Received By</span>
+                    <span class="wv-value">{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Received Date</span>
+                    <span class="wv-value">{{ receipt.received_date|date:"d M Y, H:i" }}</span>
+                </div>
+                <div class="wv-row">
+                    <span class="wv-label">Condition</span>
+                    <span class="wv-value">{{ receipt.condition|default:"Good" }}</span>
+                </div>
+                {% else %}
+                <div class="wv-row">
+                    <span class="wv-label">Status</span>
+                    <span class="wv-value" style="color:#f59e0b;">Awaiting site receipt</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if role %}
+            <div class="wv-stamp-box">
+                <div class="wv-stamp-icon"><i class="fas fa-stamp" style="color:var(--wv-primary);"></i></div>
+                <div class="wv-stamp-text">Your digital stamp has been recorded</div>
+                <div class="wv-stamp-role">{{ role }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="wv-footer">
+            System-generated verification — MOEN-IMS &middot; {{ transport.waybill_number|default:"N/A" }}
+        </div>
+    </div>
+
+    <div class="wv-actions">
+        {% if request.user.is_authenticated %}
+            <a href="{% url 'transportation_status' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Back to Transports
+            </a>
+        {% else %}
+            <a href="{% url 'signin' %}?next={% url 'verify_waybill_qr' transport.waybill_number %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-sign-in-alt me-1"></i> Sign in to record your stamp
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,158 +1,793 @@
 """
-Waybill PDF generation + QR verification (moved from transporter_views.py,
-Phase 6 decision 6 — pure relocation, no behavior change).
+Waybill PDF generation + public QR verification.
+
+Phase 1 rewrite: canvas-based rendering matching the release letter style
+(pdf_generator.py).  The QR code encodes the waybill number directly so
+anyone can scan and verify authenticity without logging in.
 """
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django_ratelimit.decorators import ratelimit
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.http import JsonResponse, HttpResponse, Http404
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db import transaction
-from django.db.models import Q, Count, Sum, F
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.template.loader import render_to_string
-from django.conf import settings
-import pandas as pd
-import json
+
+import io
+import logging
 import os
-from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak, KeepTogether
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
-try:
-    import qrcode
-    QRCODE_AVAILABLE = True
-except ImportError:
-    QRCODE_AVAILABLE = False
-try:
-    from PIL import Image as PILImage
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
 
-from ..models import (
-    MaterialOrder, ReleaseLetter, MaterialTransport, Transporter, TransportVehicle, 
-    MaterialOrderAudit, SiteReceipt
-    # Note: Notification, Project, ProjectSite, ProjectPhase will be available after migration
-)
-from ..forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
-from ..utils import is_store_officer, is_superuser, is_schedule_officer
-
+from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.contrib import messages
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from django_ratelimit.decorators import ratelimit
+
+from ..models import (
+    MaterialOrder, MaterialOrderAudit, MaterialTransport, ReleaseLetter,
+    SiteReceipt, Transporter, TransportVehicle,
+)
+from ..utils import is_store_officer, is_superuser, is_schedule_officer
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Shared helpers (font registration, logo, QR, text wrap)
+# Imported from the release-letter generator so both document families
+# share identical rendering primitives.
+# ---------------------------------------------------------------------------
+from .pdf_generator import (
+    BODY_FONT, BODY_FONT_BOLD,
+    _find_logo_path, _render_qr_code, _wrap_text,
+)
 
 
+# ---------------------------------------------------------------------------
+# Colour palette — matches the system UI (index.css tokens)
+# ---------------------------------------------------------------------------
+_PRIMARY = '#2e7d32'
+_PRIMARY_DARK = '#1b5e20'
+_HEADER_BG = '#1e293b'
+_TINT = '#e8f5e9'
+_SURFACE = '#ffffff'
 
 
-def generate_qr_code(data, size=100):
-    """Generate a QR code image from data."""
-    if not QRCODE_AVAILABLE:
-        return None
+def _tricolor_bar(pdf, width, page_height, bar_h=2.5 * 1):
+    """Draw the Ghana tricolor accent bar (red / yellow / green) at the top of the page."""
+    from reportlab.lib.units import mm
+    bar_h = bar_h * mm
+    y = page_height - bar_h  # top of page
+    seg_w = width / 3
+    pdf.setFillColorRGB(0.76, 0.15, 0.15)
+    pdf.rect(0, y, seg_w, bar_h, stroke=0, fill=1)
+    pdf.setFillColorRGB(0.85, 0.65, 0.13)
+    pdf.rect(seg_w, y, seg_w, bar_h, stroke=0, fill=1)
+    pdf.setFillColorRGB(0.18, 0.49, 0.20)
+    pdf.rect(seg_w * 2, y, seg_w, bar_h, stroke=0, fill=1)
+
+
+def _section_title(pdf, x, y, title, right_edge):
+    """Draw a bold green section title + thin gray divider below it."""
+    from reportlab.lib.units import mm
+    pdf.setFont(BODY_FONT_BOLD, 11)
+    pdf.setFillColorRGB(0.10, 0.36, 0.16)  # dark forest green
+    pdf.drawString(x, y, title)
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= 2 * mm
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.setLineWidth(0.5)
+    pdf.line(x, y, right_edge, y)
+    y -= 5 * mm
+    return y
+
+
+def _label_value_row(pdf, x, y, label, value, label_w=45 * 1, font_size=9):
+    """Draw a single label: value row.  Returns new y."""
+    from reportlab.lib.units import mm
+    pdf.setFont(BODY_FONT_BOLD, font_size)
+    pdf.drawString(x, y, label)
+    pdf.setFont(BODY_FONT, font_size)
+    pdf.drawString(x + label_w * mm, y, str(value)[:70])
+    y -= 6.5 * mm
+    return y
+
+
+# ---------------------------------------------------------------------------
+# Stamp / signature lookup  (single implementation, replaces 3 copies)
+# ---------------------------------------------------------------------------
+def _get_user_stamp(user):
+    """Return (stamp_image_path_or_None, name, date_string) for *user*."""
+    if user is None:
+        return None, '', ''
+
+    from ..models import Profile
+
+    name = (user.get_full_name() or user.username).upper()
+    date_str = ''
+
+    digital_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
+    if not os.path.exists(digital_dir):
+        digital_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
+
+    for ext in ('png', 'jpg', 'jpeg'):
+        for pattern in (f"{user.username}.{ext}", f"{user.id}.{ext}"):
+            path = os.path.join(digital_dir, pattern)
+            if os.path.exists(path):
+                return path, name, date_str
+
     try:
-        qr = qrcode.QRCode(version=1, box_size=10, border=4)
-        qr.add_data(data)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        # Resize to desired size
-        if PIL_AVAILABLE:
-            img = img.resize((size, size), PILImage.Resampling.LANCZOS)
-        # Convert to BytesIO
-        img_buffer = BytesIO()
-        img.save(img_buffer, format='PNG')
-        img_buffer.seek(0)
-        return img_buffer
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error generating QR code: {str(e)}")
-        return None
+        profile = Profile.objects.filter(user=user).first()
+        if profile and hasattr(profile, 'generate_digital_stamp_png'):
+            path = profile.generate_digital_stamp_png()
+            if path and os.path.exists(path):
+                return path, name, date_str
+    except Exception:
+        pass
+
+    return None, name, date_str
 
 
-class WaybillTemplate(SimpleDocTemplate):
-    """Custom PDF template that adds QR code and watermark to every page."""
-    def __init__(self, *args, qr_code_data=None, watermark_text=None, **kwargs):
-        self.qr_code_data = qr_code_data
-        self.watermark_text = watermark_text
-        super().__init__(*args, **kwargs)
-    
-    def build(self, flowables, onFirstPage=None, onLaterPages=None, canvasmaker=canvas.Canvas):
-        """Override build to add QR code and watermark to every page."""
-        def add_qr_and_watermark(canvas_obj, doc):
-            # Add QR code to top right of every page
-            if self.qr_code_data and QRCODE_AVAILABLE:
-                qr_img = generate_qr_code(self.qr_code_data, size=80)
-                if qr_img:
-                    try:
-                        canvas_obj.saveState()
-                        # Position QR code at top right
-                        qr_x = doc.width - 1.2*inch
-                        qr_y = doc.height - 1.0*inch
-                        canvas_obj.drawImage(ImageReader(qr_img), qr_x, qr_y, width=0.8*inch, height=0.8*inch, mask='auto')
-                        canvas_obj.restoreState()
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.error(f"Error adding QR code to PDF: {str(e)}")
-            
-            # Add watermark (diagonal text)
-            if self.watermark_text:
-                try:
-                    canvas_obj.saveState()
-                    canvas_obj.setFont("Helvetica-Bold", 48)
-                    canvas_obj.setFillColor(colors.HexColor('#cccccc'), alpha=0.3)
-                    # Rotate and position watermark diagonally
-                    canvas_obj.translate(doc.width/2, doc.height/2)
-                    canvas_obj.rotate(45)
-                    canvas_obj.drawCentredString(0, 0, self.watermark_text)
-                    canvas_obj.restoreState()
-                except Exception as e:
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"Error adding watermark to PDF: {str(e)}")
-        
-        # Combine custom function with user's functions
-        def first_page(canvas_obj, doc):
-            add_qr_and_watermark(canvas_obj, doc)
-            if onFirstPage:
-                onFirstPage(canvas_obj, doc)
-        
-        def later_pages(canvas_obj, doc):
-            add_qr_and_watermark(canvas_obj, doc)
-            if onLaterPages:
-                onLaterPages(canvas_obj, doc)
-        
-        super().build(flowables, onFirstPage=first_page, onLaterPages=later_pages, canvasmaker=canvasmaker)
+# ---------------------------------------------------------------------------
+# Signature rows builder
+# ---------------------------------------------------------------------------
+def _build_signature_rows(transport):
+    """Return 4 tuples: (role_main, role_sub, name, sig_date[, stamp_path])."""
+    order = transport.material_order
+
+    # Store Officer
+    so_user = None
+    if order:
+        so_user = order.processed_by or order.assigned_to or order.created_by
+    so_stamp, so_name, _ = _get_user_stamp(so_user)
+    so_date = ''
+    if order and order.processed_at:
+        so_date = order.processed_at.strftime('%d %B %Y')
+    elif transport.date_dispatched:
+        so_date = transport.date_dispatched.strftime('%d %B %Y')
+
+    # Store Manager
+    sm_user = None
+    if order and order.assigned_by:
+        sm_user = order.assigned_by
+    elif transport.created_by:
+        sm_user = transport.created_by
+    sm_stamp, sm_name, _ = _get_user_stamp(sm_user)
+    sm_date = ''
+    if order and order.assigned_at:
+        sm_date = order.assigned_at.strftime('%d %B %Y')
+    elif transport.date_dispatched:
+        sm_date = transport.date_dispatched.strftime('%d %B %Y')
+
+    # Driver
+    driver_name = transport.driver_name or ''
+    veh = transport.vehicle
+    driver_sub = veh.registration_number if veh else ''
+    driver_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
+
+    # Recipient / Consultant
+    rcpt_user = None
+    if hasattr(transport, 'site_receipt') and transport.site_receipt:
+        rcpt_user = transport.site_receipt.received_by
+    rcpt_stamp, rcpt_name, _ = _get_user_stamp(rcpt_user)
+    if not rcpt_name and transport.consultant:
+        rcpt_name = transport.consultant
+    rcpt_date = ''
+    if hasattr(transport, 'site_receipt') and transport.site_receipt and transport.site_receipt.received_date:
+        rcpt_date = transport.site_receipt.received_date.strftime('%d %B %Y')
+
+    return [
+        ('Issued By', 'Store Officer', so_name, so_date, so_stamp),
+        ('Approved By', 'Store Manager', sm_name, sm_date, sm_stamp),
+        ('Picked Up By', 'Driver', driver_name, driver_date, driver_sub),
+        ('Received By', 'Acknowledgement Form', rcpt_name, rcpt_date, rcpt_stamp),
+    ]
 
 
+def _build_ref_ids(transport):
+    """Return (ack_ref, waybill_ref) for the two pages."""
+    wb = transport.waybill_number or ''
+    # wb format: WB-YYYYMMDD-NNNN
+    parts = wb.split('-')
+    if len(parts) == 3:
+        date_part = parts[1]  # e.g. 20260722
+        seq_part = parts[2]   # e.g. 0002
+        year = date_part[:4]
+        ack_ref = f'WB-GH-{year}-{seq_part}-ACK'
+        waybill_ref = f'{wb}-TRANS'
+    else:
+        ack_ref = f'WB-GH-ACK-{transport.id}'
+        waybill_ref = f'{wb}-TRANS' if wb else f'WB-TRANS-{transport.id}'
+    return ack_ref, waybill_ref
+
+
+def _draw_makeshift_stamp(pdf, cx, cy, radius, name):
+    """Draw a circular makeshift stamp with driver name and 'PICKED UP' text."""
+    import math
+    from reportlab.lib.units import mm as _mm
+
+    pdf.saveState()
+
+    # Outer circle — dark green
+    pdf.setStrokeColorRGB(0.10, 0.36, 0.16)
+    pdf.setLineWidth(1.2)
+    pdf.circle(cx, cy, radius, stroke=1, fill=0)
+
+    # Inner circle
+    pdf.setLineWidth(0.4)
+    pdf.circle(cx, cy, radius - 1.5 * _mm, stroke=1, fill=0)
+
+    # "PICKED UP" centered
+    pdf.setFont(BODY_FONT_BOLD, 6)
+    pdf.setFillColorRGB(0.10, 0.36, 0.16)
+    pdf.drawCentredString(cx, cy + 1 * _mm, "PICKED UP")
+    pdf.setFont(BODY_FONT, 4.5)
+    pdf.drawCentredString(cx, cy - 2.5 * _mm, "BY DRIVER")
+
+    # Name curved around the top of the circle
+    display_name = (name or 'DRIVER').upper()
+    if len(display_name) > 24:
+        display_name = display_name[:22] + '..'
+
+    n_chars = len(display_name)
+    if n_chars > 0:
+        start_angle = 150
+        end_angle = 30
+        total_arc = (360 - start_angle) + end_angle
+        char_arc = total_arc / max(n_chars, 1)
+        text_radius = radius - 3.5 * _mm
+
+        for i, ch in enumerate(display_name):
+            angle_deg = start_angle + i * char_arc
+            angle_rad = math.radians(angle_deg)
+            tx = cx + text_radius * math.cos(angle_rad)
+            ty = cy + text_radius * math.sin(angle_rad)
+
+            pdf.saveState()
+            pdf.translate(tx, ty)
+            pdf.rotate(angle_deg - 90)
+            pdf.setFont(BODY_FONT_BOLD, 4.5)
+            pdf.setFillColorRGB(0.10, 0.36, 0.16)
+            pdf.drawCentredString(0, 0, ch)
+            pdf.restoreState()
+
+    pdf.restoreState()
+
+
+def _draw_signature_table(pdf, left, right, y, rows_data, from_page=1):
+    """Draw the 4-column signature table.  Returns y after table."""
+    from reportlab.lib.units import mm
+
+    usable = right - left
+    col_role = int(usable * 0.20)
+    col_name = int(usable * 0.25)
+    col_sig = int(usable * 0.30)
+    col_date = usable - col_role - col_name - col_sig
+
+    # Header row
+    hdr_h = 7 * mm
+    pdf.setFillColorRGB(0.11, 0.16, 0.23)  # dark navy
+    pdf.rect(left, y - hdr_h, usable, hdr_h, stroke=0, fill=1)
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont(BODY_FONT_BOLD, 7)
+    cx = left + 3 * mm
+    for hdr, cw in [('ROLE', col_role), ('NAME', col_name),
+                     ('SIGNATURE / STAMP', col_sig), ('DATE', col_date)]:
+        pdf.drawString(cx, y - 4.5 * mm, hdr)
+        cx += cw
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= hdr_h + 1 * mm
+
+    row_h = 16 * mm
+    for idx, row in enumerate(rows_data):
+        if y - row_h < 25 * mm:
+            pdf.showPage()
+            # Draw tricolor bar on new page
+            _tricolor_bar(pdf, pdf._pagesize[0], pdf._pagesize[1])
+            y = pdf._pagesize[1] - 20 * mm
+            y -= row_h
+
+        role_main = row[0]
+        role_sub = row[1]
+        name = row[2]
+        sig_date = row[3]
+        extra = row[4] if len(row) > 4 else ''
+
+        # For Picked Up By, extra is vehicle reg (shown under name)
+        # For others, extra is stamp image path (rendered in signature box)
+        stamp_path = None
+        name_sub = ''
+        if role_main == 'Picked Up By':
+            name_sub = extra
+        elif extra:
+            stamp_path = extra if os.path.isfile(str(extra)) else None
+
+        pdf.setFillColorRGB(0, 0, 0)
+
+        cx = left + 3 * mm
+        # Role column — main label bold, sub-label smaller gray
+        pdf.setFont(BODY_FONT_BOLD, 8)
+        pdf.drawString(cx, y - 4 * mm, role_main)
+        pdf.setFont(BODY_FONT, 7)
+        pdf.setFillColorRGB(0.45, 0.45, 0.45)
+        pdf.drawString(cx, y - 8 * mm, f'({role_sub})')
+        pdf.setFillColorRGB(0, 0, 0)
+        cx += col_role
+
+        # Name column — name + optional sub-line (vehicle reg)
+        pdf.setFont(BODY_FONT, 8)
+        pdf.drawString(cx, y - 4 * mm, (name or '')[:40])
+        if name_sub:
+            pdf.setFont(BODY_FONT, 7)
+            pdf.setFillColorRGB(0.45, 0.45, 0.45)
+            pdf.drawString(cx, y - 8.5 * mm, name_sub)
+            pdf.setFillColorRGB(0, 0, 0)
+        cx += col_name
+
+        # Signature / Stamp — bordered box with stamp image or "Digitally Verified" seal
+        box_w = col_sig - 6 * mm
+        box_h = row_h - 5 * mm
+        box_x = cx + 1 * mm
+        box_y = y - row_h + 2.5 * mm
+        # White fill for clean look
+        pdf.setFillColorRGB(1, 1, 1)
+        pdf.rect(box_x, box_y, box_w, box_h, stroke=0, fill=1)
+        pdf.setStrokeColorRGB(0.78, 0.78, 0.82)
+        pdf.setLineWidth(0.4)
+        pdf.rect(box_x, box_y, box_w, box_h, stroke=1, fill=0)
+
+        if stamp_path:
+            # Render actual stamp image
+            try:
+                stamp_pad = 2 * mm
+                pdf.drawImage(stamp_path, box_x + stamp_pad, box_y + stamp_pad,
+                              width=box_w - stamp_pad * 2, height=box_h - stamp_pad * 2,
+                              preserveAspectRatio=True, mask='auto')
+            except Exception:
+                pass
+        elif role_main == 'Picked Up By' and name:
+            # Makeshift circular stamp for driver (no user account)
+            _draw_makeshift_stamp(pdf, box_x + box_w / 2, box_y + box_h / 2,
+                                  min(box_w, box_h) / 2 - 1.5 * mm, name)
+        else:
+            # "Digitally Verified" text seal when no stamp
+            seal_cx = box_x + box_w / 2
+            seal_cy = box_y + box_h / 2
+            pdf.setFont(BODY_FONT_BOLD, 5.5)
+            pdf.setFillColorRGB(0.10, 0.36, 0.16)
+            pdf.drawCentredString(seal_cx, seal_cy + 1.5 * mm, "DIGITALLY")
+            pdf.drawCentredString(seal_cx, seal_cy - 2 * mm, "VERIFIED")
+            pdf.setFillColorRGB(0, 0, 0)
+        cx += col_sig
+
+        # Date
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.setFont(BODY_FONT, 8)
+        pdf.drawString(cx, y - 4 * mm, sig_date or '')
+
+        y -= row_h
+
+    # Outer border around entire table
+    table_top = y + row_h * len(rows_data) + (hdr_h + 1 * mm)
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.setLineWidth(0.5)
+    pdf.rect(left, y + 1 * mm, usable, table_top - y - 1 * mm, stroke=1, fill=0)
+
+    return y
+
+
+# ---------------------------------------------------------------------------
+# Page 1  —  ACKNOWLEDGEMENT FORM
+# ---------------------------------------------------------------------------
+def _draw_acknowledgement(pdf, width, height, transport, all_transports, copy_label):
+    """Render the first page: Acknowledgement Form."""
+    from reportlab.lib.units import mm
+
+    margin = 25 * mm
+    left = margin
+    right = width - margin
+    usable = right - left
+
+    # ── Tricolor accent bar ────────────────────────────────────────────
+    _tricolor_bar(pdf, width, height)
+    y = height - 12 * mm
+
+    # ── Logo in pale green box ─────────────────────────────────────────
+    logo_path = _find_logo_path()
+    logo_size = 18 * mm
+    logo_box_pad = 4 * mm
+    logo_box_size = logo_size + logo_box_pad * 2
+    logo_box_x = (width - logo_box_size) / 2
+    logo_box_y = y - logo_box_size
+    # Pale green background
+    pdf.setFillColorRGB(0.91, 0.96, 0.91)
+    pdf.rect(logo_box_x, logo_box_y, logo_box_size, logo_box_size,
+             stroke=0, fill=1)
+    pdf.setFillColorRGB(0, 0, 0)
+    # Draw logo centered in box
+    if logo_path:
+        try:
+            logo_x = (width - logo_size) / 2
+            logo_y = logo_box_y + logo_box_pad
+            pdf.drawImage(logo_path, logo_x, logo_y, width=logo_size, height=logo_size,
+                          preserveAspectRatio=True, mask='auto')
+        except Exception:
+            pass
+    y = logo_box_y - 5 * mm
+
+    # ── Eyebrow text ──────────────────────────────────────────────────
+    pdf.setFont(BODY_FONT_BOLD, 7)
+    pdf.setFillColorRGB(0.35, 0.35, 0.35)
+    pdf.drawCentredString(width / 2, y,
+                          "M I N I S T R Y   O F   E N E R G Y   A N D   G R E E N   T R A N S I T I O N")
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= 7 * mm
+
+    # ── Main heading ──────────────────────────────────────────────────
+    pdf.setFont(BODY_FONT_BOLD, 20)
+    pdf.setFillColorRGB(0.10, 0.36, 0.16)
+    pdf.drawCentredString(width / 2, y, "ACKNOWLEDGEMENT FORM")
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= 5 * mm
+
+    # ── Thin divider ──────────────────────────────────────────────────
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.setLineWidth(0.5)
+    pdf.line(left, y, right, y)
+    y -= 7 * mm
+
+    # ── Meta row: Waybill No + Date ───────────────────────────────────
+    pdf.setFont(BODY_FONT_BOLD, 9)
+    pdf.drawString(left, y, "Waybill No:")
+    pdf.setFont(BODY_FONT, 9)
+    pdf.drawString(left + 25 * mm, y, transport.waybill_number or 'N/A')
+    pdf.setFont(BODY_FONT_BOLD, 9)
+    pdf.drawString(right - 40 * mm, y, "Date:")
+    pdf.setFont(BODY_FONT, 9)
+    date_str = (transport.date_dispatched or timezone.now()).strftime('%d %B %Y')
+    pdf.drawString(right - 28 * mm, y, date_str)
+    y -= 9 * mm
+
+    # ── Store / Issuing Information ───────────────────────────────────
+    y = _section_title(pdf, left, y, "Store / Issuing Information", right)
+
+    order = transport.material_order
+    storekeeper = None
+    if order:
+        storekeeper = order.processed_by or order.assigned_to or order.created_by
+
+    wh = getattr(transport, 'warehouse', None)
+    if wh is None and order:
+        wh = order.warehouse
+
+    if wh:
+        y = _label_value_row(pdf, left, y, 'Warehouse:', wh.name)
+        if wh.location:
+            y = _label_value_row(pdf, left, y, 'Location:', wh.location)
+    if storekeeper:
+        y = _label_value_row(pdf, left, y, 'Storekeeper:',
+                             storekeeper.get_full_name() or storekeeper.username)
+    y -= 5 * mm
+
+    # ── Destination / Recipient Information ────────────────────────────
+    y = _section_title(pdf, left, y, "Destination / Recipient Information", right)
+
+    dest_rows = []
+    if transport.recipient:
+        dest_rows.append(('Recipient:', str(transport.recipient)))
+    if getattr(transport, 'consultant', None):
+        dest_rows.append(('Consultant:', transport.consultant))
+    if getattr(transport, 'region', None):
+        dest_rows.append(('Region:', transport.region))
+    if getattr(transport, 'district', None):
+        dest_rows.append(('District:', transport.district))
+    if getattr(transport, 'community', None):
+        dest_rows.append(('Community:', transport.community))
+    if getattr(transport, 'package_number', None):
+        dest_rows.append(('Package No:', transport.package_number))
+
+    for label, value in dest_rows:
+        y = _label_value_row(pdf, left, y, label, value)
+    if not dest_rows:
+        y = _label_value_row(pdf, left, y, 'Recipient:', 'N/A')
+    y -= 5 * mm
+
+    # ── Signatures & Endorsements ─────────────────────────────────────
+    y = _section_title(pdf, left, y, "Signatures & Endorsements", right)
+
+    rows_data = _build_signature_rows(transport)
+    y = _draw_signature_table(pdf, left, right, y, rows_data)
+
+
+# ---------------------------------------------------------------------------
+# Page 2  —  MATERIAL WAYBILL
+# ---------------------------------------------------------------------------
+def _draw_waybill_page(pdf, width, height, transport, all_transports,
+                       copy_label, download_count):
+    """Render the second page: full Material Waybill."""
+    from reportlab.lib.units import mm
+
+    margin = 25 * mm
+    left = margin
+    right = width - margin
+    usable = right - left
+
+    # ── Tricolor accent bar ────────────────────────────────────────────
+    _tricolor_bar(pdf, width, height)
+    y = height - 2.5 * mm
+
+    # ── Green header banner ───────────────────────────────────────────
+    banner_h = 42 * mm
+    banner_y = y - banner_h
+    pdf.setFillColorRGB(0.10, 0.36, 0.16)  # dark forest green
+    pdf.rect(0, banner_y, width, banner_h, stroke=0, fill=1)
+
+    # Logo in white box (left side)
+    logo_path = _find_logo_path()
+    if logo_path:
+        logo_box_size = 24 * mm
+        logo_box_x = left + 2 * mm
+        logo_box_y = banner_y + (banner_h - logo_box_size) / 2
+        pdf.setFillColorRGB(1, 1, 1)
+        pdf.rect(logo_box_x, logo_box_y, logo_box_size, logo_box_size,
+                 stroke=0, fill=1)
+        try:
+            logo_pad = 2 * mm
+            pdf.drawImage(logo_path, logo_box_x + logo_pad, logo_box_y + logo_pad,
+                          width=logo_box_size - logo_pad * 2,
+                          height=logo_box_size - logo_pad * 2,
+                          preserveAspectRatio=True, mask='auto')
+        except Exception:
+            pass
+
+    # Text centered horizontally and vertically in banner
+    txt_top = banner_y + (banner_h + 13 * mm) / 2
+    pdf.setFillColorRGB(1, 1, 1)
+
+    pdf.setFont(BODY_FONT_BOLD, 18)
+    pdf.drawCentredString(width / 2, txt_top, "MATERIAL WAYBILL")
+
+    pdf.setFont(BODY_FONT, 9)
+    pdf.drawCentredString(width / 2, txt_top - 7 * mm,
+                   "MINISTRY OF ENERGY AND GREEN TRANSITION OF GHANA")
+
+    pdf.setFont(BODY_FONT_BOLD, 6.5)
+    pdf.drawCentredString(width / 2, txt_top - 13 * mm,
+                   "I N V E N T O R Y   M A N A G E M E N T   S Y S T E M")
+
+    pdf.setFillColorRGB(0, 0, 0)
+    y = banner_y - 12 * mm
+
+    # ── Waybill Information section ───────────────────────────────────
+    y = _section_title(pdf, left, y, "Waybill Information", right)
+
+    # Two-column layout: left = info box, right = QR code
+    info_box_w = usable * 0.62
+    qr_area_w = usable - info_box_w - 6 * mm
+
+    # Left: tinted info box with 2×2 grid
+    info_h = 16 * mm
+    info_x = left
+    info_y = y
+    pdf.setFillColorRGB(0.94, 0.95, 0.97)  # pale lavender-gray
+    pdf.rect(info_x, info_y - info_h, info_box_w, info_h, stroke=0, fill=1)
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.setLineWidth(0.4)
+    pdf.rect(info_x, info_y - info_h, info_box_w, info_h, stroke=1, fill=0)
+
+    # 2×2 grid inside the box
+    grid_pad = 2 * mm
+    cell_w = (info_box_w - grid_pad * 2) / 2
+    cell_h = (info_h - grid_pad * 2) / 2
+    info_pairs = [
+        ('WAYBILL NUMBER', transport.waybill_number or 'N/A'),
+        ('SHIPMENT TYPE', 'Bulk Shipment' if len(all_transports) > 1 else 'Single Shipment'),
+        ('TOTAL MATERIALS', f'{len(all_transports)} Item{"s" if len(all_transports) != 1 else ""}'),
+        ('DATE DISPATCHED', (transport.date_dispatched or timezone.now()).strftime('%d %B %Y')),
+    ]
+    for i, (lbl, val) in enumerate(info_pairs):
+        col = i % 2
+        row = i // 2
+        cx = info_x + grid_pad + col * cell_w
+        cy = info_y - grid_pad - row * cell_h
+        pdf.setFont(BODY_FONT_BOLD, 6)
+        pdf.setFillColorRGB(0.45, 0.45, 0.45)
+        pdf.drawString(cx, cy, lbl)
+        pdf.setFont(BODY_FONT, 8)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawString(cx, cy - 3.5 * mm, val)
+
+    # Right: QR code in bordered box
+    qr_x = left + info_box_w + 6 * mm
+    qr_box_size = min(qr_area_w, info_h - 2 * mm)
+    qr_box_y = info_y - info_h + 1 * mm
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.rect(qr_x, qr_box_y, qr_box_size, info_h - 2 * mm, stroke=0, fill=1)
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.rect(qr_x, qr_box_y, qr_box_size, info_h - 2 * mm, stroke=1, fill=0)
+
+    qr_payload = transport.waybill_number or str(transport.id)
+    qr_img = _render_qr_code(qr_payload)
+    if qr_img:
+        qr_inner = qr_box_size - 6 * mm
+        qr_img_x = qr_x + (qr_box_size - qr_inner) / 2
+        qr_img_y = qr_box_y + (info_h - 2 * mm - qr_inner) / 2
+        pdf.drawImage(qr_img, qr_img_x, qr_img_y,
+                      width=qr_inner, height=qr_inner, mask='auto')
+    # Caption below QR
+    pdf.setFont(BODY_FONT, 5.5)
+    pdf.setFillColorRGB(0.45, 0.45, 0.45)
+    pdf.drawCentredString(qr_x + qr_box_size / 2, qr_box_y - 4 * mm, qr_payload)
+    pdf.setFillColorRGB(0, 0, 0)
+
+    y = info_y - info_h - 8 * mm
+
+    # ── Materials table ───────────────────────────────────────────────
+    y = _section_title(pdf, left, y, "Materials on This Waybill", right)
+
+    col_no = int(usable * 0.06)
+    col_mname = int(usable * 0.34)
+    col_code = int(usable * 0.16)
+    col_qty = int(usable * 0.20)
+    col_req = usable - col_no - col_mname - col_code - col_qty
+
+    # Header
+    hdr_h = 7 * mm
+    pdf.setFillColorRGB(0.11, 0.16, 0.23)
+    pdf.rect(left, y - hdr_h, usable, hdr_h, stroke=0, fill=1)
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont(BODY_FONT_BOLD, 7)
+    cx = left + 2 * mm
+    for hdr, cw in [('#', col_no), ('MATERIAL', col_mname), ('CODE', col_code),
+                     ('QUANTITY', col_qty), ('REQUEST CODE', col_req)]:
+        pdf.drawString(cx, y - 4.5 * mm, hdr)
+        cx += cw
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= hdr_h + 1 * mm
+
+    row_h = 6.5 * mm
+    for idx, t in enumerate(all_transports, 1):
+        if y < 65 * mm:
+            pdf.showPage()
+            _tricolor_bar(pdf, width, height)
+            y = height - 20 * mm
+
+        if idx % 2 == 0:
+            pdf.setFillColorRGB(0.97, 0.97, 0.98)
+            pdf.rect(left, y - row_h, usable, row_h, stroke=0, fill=1)
+        pdf.setFillColorRGB(0, 0, 0)
+
+        pdf.setFont(BODY_FONT, 8)
+        cx = left + 2 * mm
+        pdf.drawString(cx, y - 3 * mm, str(idx))
+        cx += col_no
+        pdf.drawString(cx, y - 3 * mm, (t.material_name or '')[:50])
+        cx += col_mname
+        pdf.drawString(cx, y - 3 * mm, (t.material_code or 'N/A')[:20])
+        cx += col_code
+        # Quantity in bold green
+        pdf.setFont(BODY_FONT_BOLD, 8)
+        pdf.setFillColorRGB(0.10, 0.36, 0.16)
+        pdf.drawString(cx, y - 3 * mm, f"{t.quantity} {t.unit or ''}")
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.setFont(BODY_FONT, 8)
+        cx += col_qty
+        pdf.drawString(cx, y - 3 * mm,
+                       (t.material_order.request_code if t.material_order else 'N/A')[:25])
+        y -= row_h
+
+    # Table border
+    table_bottom = y + 1 * mm
+    pdf.setStrokeColorRGB(0.82, 0.82, 0.82)
+    pdf.setLineWidth(0.4)
+    pdf.rect(left, table_bottom, usable,
+             (hdr_h + 1 * mm + row_h * len(all_transports) if all_transports else hdr_h),
+             stroke=1, fill=0)
+    y -= 6 * mm
+
+    # ── Two-column: Transporter + Destination ─────────────────────────
+    half_w = (usable - 6 * mm) / 2
+    left_col_x = left
+    right_col_x = left + half_w + 6 * mm
+
+    # Transporter (left)
+    tx_y = _section_title(pdf, left_col_x, y, "Transporter Information", left_col_x + half_w)
+    tx_info = [
+        ('Transporter:', transport.transporter.name if transport.transporter else 'N/A'),
+        ('Vehicle:', f"{transport.vehicle.registration_number} ({transport.vehicle.vehicle_type})" if transport.vehicle else 'N/A'),
+        ('Driver Name:', transport.driver_name or 'N/A'),
+        ('Driver Phone:', transport.driver_phone or 'N/A'),
+    ]
+    for label, value in tx_info:
+        pdf.setFont(BODY_FONT, 8)
+        pdf.drawString(left_col_x, tx_y, label)
+        pdf.setFont(BODY_FONT_BOLD, 8)
+        pdf.drawString(left_col_x + 28 * mm, tx_y, str(value)[:45])
+        tx_y -= 5.5 * mm
+
+    # Destination (right)
+    dest_y = _section_title(pdf, right_col_x, y, "Destination Information", right)
+    dest_info = [
+        ('Recipient:', str(transport.recipient) if transport.recipient else 'N/A'),
+        ('Consultant:', getattr(transport, 'consultant', '') or 'N/A'),
+        ('Region:', getattr(transport, 'region', '') or 'N/A'),
+        ('District:', getattr(transport, 'district', '') or 'N/A'),
+        ('Community:', getattr(transport, 'community', '') or 'N/A'),
+        ('Package No:', getattr(transport, 'package_number', '') or 'N/A'),
+    ]
+    for label, value in dest_info:
+        pdf.setFont(BODY_FONT, 8)
+        pdf.drawString(right_col_x, dest_y, label)
+        pdf.setFont(BODY_FONT_BOLD, 8)
+        pdf.drawString(right_col_x + 28 * mm, dest_y, str(value)[:45])
+        dest_y -= 5.5 * mm
+
+    y = min(tx_y, dest_y) - 6 * mm
+
+    # ── Signatures & Endorsements ─────────────────────────────────────
+    if y < 80 * mm:
+        pdf.showPage()
+        _tricolor_bar(pdf, width, height)
+        y = height - 20 * mm
+
+    y = _section_title(pdf, left, y, "Signatures & Endorsements", right)
+
+    rows_data = _build_signature_rows(transport)
+    y = _draw_signature_table(pdf, left, right, y, rows_data)
+
+    # ── Footer ────────────────────────────────────────────────────────
+    y -= 6 * mm
+
+    # Important notice box (pale green tint with border)
+    box_h = 16 * mm
+    pdf.setFillColorRGB(0.91, 0.96, 0.91)  # pale green tint
+    pdf.rect(left, y - box_h, usable, box_h, stroke=0, fill=1)
+    pdf.setStrokeColorRGB(0.18, 0.55, 0.20)
+    pdf.setLineWidth(0.5)
+    pdf.rect(left, y - box_h, usable, box_h, stroke=1, fill=0)
+
+    bx = left + 3 * mm
+    by = y - 4 * mm
+    pdf.setFont(BODY_FONT_BOLD, 6.5)
+    pdf.setFillColorRGB(0.10, 0.36, 0.16)
+    pdf.drawString(bx, by, "Important:")
+    pdf.setFont(BODY_FONT, 6)
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.drawString(bx + 18 * mm, by,
+                   "This waybill must accompany the materials during transport. "
+                   "All parties must verify quantities before signing.")
+    by -= 4 * mm
+    pdf.drawString(bx + 18 * mm, by,
+                   "Any discrepancies should be reported immediately.")
+
+    y = y - box_h - 5 * mm
+
+    # Ministry + system name
+    pdf.setFont(BODY_FONT, 5.5)
+    pdf.setFillColorRGB(0.45, 0.45, 0.45)
+    pdf.drawCentredString(width / 2, y,
+                          "Ministry of Energy and Green Transition of Ghana - Inventory Management System")
+    y -= 4 * mm
+    pdf.drawCentredString(width / 2, y,
+                          "This is a computer-generated waybill. For verification or queries, contact IMS Support.")
+    y -= 4 * mm
+    gen_time = timezone.now().strftime('%d %B %Y at %H:%M')
+    pdf.setFont(BODY_FONT_BOLD, 5.5)
+    pdf.drawCentredString(width / 2, y, f"Document Generated: {gen_time}")
+    pdf.setFillColorRGB(0, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Main view — download waybill PDF
+# ---------------------------------------------------------------------------
 @ratelimit(key='user', rate=settings.RATELIMIT_WAYBILL_PDF, method=['GET'], block=True)
 @login_required
 def download_waybill_pdf(request, transport_id):
-    """Generate and download waybill PDF for a transport (or all transports with same waybill for bulk assignments).
+    """Generate and download waybill PDF for a transport.
 
-    Rate-limited to 10/min per user: PDF generation is CPU/memory-heavy
-    (this view builds a full multi-page document), so repeated calls are a
-    resource-exhaustion vector even for an authenticated user.
-    
-    Waybill is only available for download after site receipt has been logged by the consultant.
-    This ensures all stamps (Store Manager, Store Officer, Driver, Recipient) are present on the final document.
+    Rate-limited to 10/min per user.  Waybill is only available after
+    site receipt has been logged by the consultant.
     """
     transport = get_object_or_404(MaterialTransport, id=transport_id)
 
-    # Object-level authorization: a waybill is only downloadable by internal
-    # staff (Store/Schedule Officers, Stores Management), Management, and
-    # superusers — OR by the external Transporter the shipment is assigned to.
-    # Without this, any authenticated user (incl. an external transporter or
-    # consultant) could pull ANY waybill by iterating transport_id (IDOR).
-    # Out-of-scope requests 404 rather than 403 so we don't leak existence.
+    # ── Authorization ──────────────────────────────────────────────────
     _user = request.user
     _is_internal = (
         _user.is_superuser
@@ -163,7 +798,6 @@ def download_waybill_pdf(request, transport_id):
         _owned = MaterialTransport.objects.filter(
             id=transport_id, transporter__user=_user
         ).exists()
-        # Bulk waybills: allow if the user owns ANY transport on this waybill.
         if not _owned and transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
             _owned = MaterialTransport.objects.filter(
                 waybill_number=transport.waybill_number, transporter__user=_user
@@ -171,1197 +805,189 @@ def download_waybill_pdf(request, transport_id):
         if not _owned:
             raise Http404("No MaterialTransport matches the given query.")
 
-    # Check if site receipt exists - waybill can only be downloaded after receipt is confirmed
-    has_site_receipt = hasattr(transport, 'site_receipt') and transport.site_receipt is not None
-    
-    # For bulk assignments, check if ALL transports have site receipts
+    # ── Site receipt gate ──────────────────────────────────────────────
+    has_receipt = hasattr(transport, 'site_receipt') and transport.site_receipt is not None
+
     if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
-        bulk_transports = MaterialTransport.objects.filter(
-            waybill_number=transport.waybill_number
-        )
+        bulk = MaterialTransport.objects.filter(waybill_number=transport.waybill_number)
         all_received = all(
-            hasattr(t, 'site_receipt') and t.site_receipt is not None 
-            for t in bulk_transports
+            hasattr(t, 'site_receipt') and t.site_receipt is not None
+            for t in bulk
         )
         if not all_received:
             messages.error(
-                request, 
-                'Waybill cannot be downloaded until ALL materials in this shipment are confirmed received on site. '
-                'Please ensure the consultant has logged site receipt for all items.'
+                request,
+                'Waybill cannot be downloaded until ALL materials in this shipment '
+                'are confirmed received on site.'
             )
             return redirect('transportation_status')
-    elif not has_site_receipt:
+    elif not has_receipt:
         messages.error(
-            request, 
-            'Waybill cannot be downloaded until materials are confirmed received on site. '
-            'The consultant must first log the site receipt.'
+            request,
+            'Waybill cannot be downloaded until materials are confirmed received on site.'
         )
         return redirect('transportation_status')
-    
-    # Track download count without requiring a database field on the model.
-    # If a real field exists in a future migration, keep it in sync too.
+
+    # ── Download counter ───────────────────────────────────────────────
     download_count_key = f"waybill_download_count_{transport.pk}"
     download_count = int(request.session.get(download_count_key, 0)) + 1
     request.session[download_count_key] = download_count
-    if hasattr(transport, 'waybill_download_count'):
-        try:
+    try:
+        if hasattr(transport, 'waybill_download_count'):
             transport.waybill_download_count = download_count
             transport.save(update_fields=['waybill_download_count'])
-        except Exception:
-            pass
+    except Exception:
+        pass
 
-    # Determine copy label
-    if download_count == 1:
-        copy_label = "ORIGINAL COPY"
-    else:
-        copy_label = f"DUPLICATE COPY {download_count - 1}"
-    
-    # For bulk assignments, fetch ALL transports with the same waybill number
+    copy_label = "ORIGINAL COPY" if download_count == 1 else f"DUPLICATE COPY {download_count - 1}"
+
+    # ── Collect all transports on this waybill ─────────────────────────
     if transport.waybill_number and transport.waybill_number not in ['Unknown', '']:
-        # Bulk assignment - get all materials on this waybill
-        all_transports = MaterialTransport.objects.filter(
-            waybill_number=transport.waybill_number
-        ).select_related('material_order', 'transporter', 'vehicle').order_by('id')
+        all_transports = list(
+            MaterialTransport.objects.filter(waybill_number=transport.waybill_number)
+            .select_related('material_order', 'transporter', 'vehicle')
+            .order_by('id')
+        )
     else:
-        # Single assignment
         all_transports = [transport]
-    
-    # Generate QR code URL for waybill verification - points to sign-in with redirect
-    from django.urls import reverse
-    waybill_id = transport.waybill_number or str(transport.id)
-    # QR code links to sign-in page with next parameter pointing to waybill verification
-    signin_url = request.build_absolute_uri(reverse('signin'))
-    verify_url = request.build_absolute_uri(reverse('verify_waybill_qr', args=[waybill_id]))
-    qr_url = f"{signin_url}?next={verify_url}"
-    
-    # Load logo if available - Ministry of Energy and Green Transition of Ghana logo
-    logo_path = None
-    logo_paths = [
-        # Check both 'logo' and 'logos' directories (user may have created either)
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'black.jpg'),  # Primary logo location (plural)
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'black.jpg'),   # Primary logo location (singular)
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'black.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'black.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.jpg'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.jpg'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'ministry_logo.jpeg'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'ministry_logo.jpeg'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.png'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.jpg'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.jpg'),
-        os.path.join(settings.MEDIA_ROOT, 'logos', 'logo.jpeg'),
-        os.path.join(settings.MEDIA_ROOT, 'logo', 'logo.jpeg'),
-        # Fallback locations
-        os.path.join(settings.MEDIA_ROOT, 'profile_pics', 'ministry_logo.png'),
-        os.path.join(settings.BASE_DIR, 'static', 'images', 'ministry_logo.png'),
-        os.path.join(settings.MEDIA_ROOT, 'profile_pics', 'logo.png'),
-        os.path.join(settings.BASE_DIR, 'static', 'images', 'logo.png'),
-    ]
-    for path in logo_paths:
-        if os.path.exists(path):
-            logo_path = path
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"Using logo from: {logo_path}")
-            break
-    
-    # Debug: Log if no logo found
-    if not logo_path:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"No logo found. Checked paths: {logo_paths[:3]}...")
-    
-    # Create PDF buffer with custom template
-    buffer = BytesIO()
-    doc = WaybillTemplate(
-        buffer, 
-        pagesize=A4, 
-        rightMargin=0.5*inch, 
-        leftMargin=0.5*inch, 
-        topMargin=0.4*inch, 
-        bottomMargin=0.5*inch,
-        qr_code_data=qr_url,
-        watermark_text=copy_label
-    )
-    
-    # Container for the 'Flowable' objects
-    elements = []
-    
-    # Define styles
-    styles = getSampleStyleSheet()
-    
-    # System theme colors — green (MOEN IMS primary)
-    _primary = '#2e7d32'
-    _primary_dark = '#1b5e20'
-    _primary_light = '#4caf50'
-    _accent = '#1e293b'  # slate header
 
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=28,
-        textColor=colors.white,
-        spaceAfter=0,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold',
-        leading=32
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'Subtitle',
-        parent=styles['Normal'],
-        fontSize=11,
-        textColor=colors.white,
-        alignment=TA_CENTER,
-        fontName='Helvetica',
-        spaceAfter=0
-    )
-    
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
-        fontSize=13,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=6,
-        spaceBefore=10,
-        fontName='Helvetica-Bold',
-        borderPadding=5,
-        leftIndent=8
-    )
-    
-    normal_style = styles['Normal']
-    
-    small_text = ParagraphStyle(
-        'SmallText',
-        parent=styles['Normal'],
-        fontSize=8,
-        leading=10
-    )
-    
-    cover_title_style = ParagraphStyle(
-        'CoverTitle',
-        parent=styles['Heading1'],
-        fontSize=36,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=20,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold',
-    )
-    
-    # ========== ACKNOWLEDGEMENT FORM (First Page) ==========
-    # Simplified format matching the template
-    cover_elements = []
-    cover_elements.append(Spacer(1, 0.2*inch))
-    
-    # Logo at top left
-    if logo_path and os.path.exists(logo_path):
-        try:
-            logo_img = Image(logo_path, width=1.2*inch, height=1.2*inch)
-            cover_elements.append(logo_img)
-            cover_elements.append(Spacer(1, 0.1*inch))
-        except Exception:
-            pass  # Continue without logo if there's an error
-    
-    # Title: ACKNOWLEDGEMENT FORM
-    cover_elements.append(Paragraph("ACKNOWLEDGEMENT FORM", ParagraphStyle(
-        'CoverTitle',
-        parent=styles['Heading1'],
-        fontSize=20,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=8,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold',
-    )))
-    cover_elements.append(Spacer(1, 0.15*inch))
-    
-    # Waybill Number and Date - simple format matching template
-    waybill_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else timezone.now().strftime('%d %B %Y')
-    waybill_info_data = [
-        ['Waybill No:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
-        ['Date:', Paragraph(waybill_date, normal_style)],
-    ]
-    
-    waybill_info_table = Table(waybill_info_data, colWidths=[1.2*inch, 5.3*inch])
-    waybill_info_table.setStyle(TableStyle([
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    cover_elements.append(waybill_info_table)
-    cover_elements.append(Spacer(1, 0.2*inch))
-    
-    # Store/Issuing Information
-    cover_elements.append(Paragraph("<b>Store/Issuing Information</b>", ParagraphStyle(
-        'SectionHeading',
-        parent=styles['Heading2'],
-        fontSize=12,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=4,
-        spaceBefore=2,
-        fontName='Helvetica-Bold',
-    )))
-    
-    # Get storekeeper from processed_by (who actually processed it), assigned_to, or created_by
-    storekeeper_for_cover = None
-    if transport.material_order:
-        storekeeper_for_cover = (transport.material_order.processed_by or 
-                                transport.material_order.assigned_to or 
-                                transport.material_order.created_by)
-    
-    store_data = []
-    if transport.warehouse:
-        store_data.append(['Warehouse:', Paragraph(f"<b>{transport.warehouse.name}</b>", normal_style)])
-        if transport.warehouse.location:
-            store_data.append(['Location:', Paragraph(transport.warehouse.location, normal_style)])
-        if transport.warehouse.contact_person:
-            store_data.append(['Contact Person:', Paragraph(transport.warehouse.contact_person, normal_style)])
-        if transport.warehouse.contact_phone:
-            store_data.append(['Contact Phone:', Paragraph(transport.warehouse.contact_phone, normal_style)])
-    if storekeeper_for_cover:
-        store_data.append(['Storekeeper:', Paragraph(f"<b>{storekeeper_for_cover.get_full_name() or storekeeper_for_cover.username}</b>", normal_style)])
-        if storekeeper_for_cover.email:
-            store_data.append(['Email:', Paragraph(storekeeper_for_cover.email, normal_style)])
-    
-    if store_data:
-        store_table = Table(store_data, colWidths=[1.8*inch, 4.7*inch])
-        store_table.setStyle(TableStyle([
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#cccccc')),
-        ]))
-        cover_elements.append(store_table)
-    
-    cover_elements.append(Spacer(1, 0.2*inch))
-    
-    # Destination/Recipient Information
-    cover_elements.append(Paragraph("<b>Destination/Recipient Information</b>", ParagraphStyle(
-        'SectionHeading',
-        parent=styles['Heading2'],
-        fontSize=12,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=4,
-        spaceBefore=2,
-        fontName='Helvetica-Bold',
-    )))
-    
-    destination_data = []
-    if transport.recipient:
-        destination_data.append(['Recipient:', Paragraph(f"<b>{transport.recipient}</b>", normal_style)])
-    if transport.consultant:
-        destination_data.append(['Consultant:', Paragraph(transport.consultant, normal_style)])
-    if transport.region:
-        destination_data.append(['Region:', Paragraph(transport.region, normal_style)])
-    if transport.district:
-        destination_data.append(['District:', Paragraph(transport.district, normal_style)])
-    if transport.community:
-        destination_data.append(['Community:', Paragraph(f"<b>{transport.community}</b>", normal_style)])
-    if transport.destination_contact:
-        destination_data.append(['Destination Contact:', Paragraph(transport.destination_contact, normal_style)])
-    if transport.destination_phone:
-        destination_data.append(['Destination Phone:', Paragraph(transport.destination_phone, normal_style)])
-    if transport.package_number:
-        destination_data.append(['Package Number:', Paragraph(f"<b>{transport.package_number}</b>", normal_style)])
-    
-    if destination_data:
-        destination_table = Table(destination_data, colWidths=[1.8*inch, 4.7*inch])
-        destination_table.setStyle(TableStyle([
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#cccccc')),
-        ]))
-        cover_elements.append(destination_table)
-    
-    cover_elements.append(Spacer(1, 0.3*inch))
-    
-    # Signatures section - All parties
-    cover_elements.append(Paragraph("<b>Signatures & Endorsements</b>", ParagraphStyle(
-        'SectionHeading',
-        parent=styles['Heading2'],
-        fontSize=12,
-        textColor=colors.HexColor(_primary),
-        spaceAfter=6,
-        spaceBefore=2,
-        fontName='Helvetica-Bold',
-    )))
-    
-    # Get store officer info and stamp (with image embedding support)
-    # Priority: processed_by (who actually processed it) > assigned_to (who it was assigned to) > created_by
-    store_officer_name = ''
-    store_officer_stamp_image = None
-    store_officer_stamp_text = ''
-    store_officer_date = ''
-    store_officer = None
-    if transport.material_order:
-        # Use processed_by first (the person who actually processed the order)
-        store_officer = (transport.material_order.processed_by or 
-                      transport.material_order.assigned_to or 
-                      transport.material_order.created_by)
-    
-    if store_officer:
-        store_officer_name = store_officer.get_full_name() or store_officer.username
-        try:
-            from .models import Profile
-            profile = Profile.objects.filter(user=store_officer).first()
-            if profile:
-                # Look for PNG stamp in media/digital_signatures/ folder
-                stamp_filenames = [
-                    f"{store_officer.username}.png",
-                    f"{store_officer.id}.png",
-                    f"{store_officer.username}.jpg",
-                    f"{store_officer.id}.jpg",
-                ]
-                
-                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
-                if not os.path.exists(digital_signatures_dir):
-                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
-                
-                for filename in stamp_filenames:
-                    stamp_path = os.path.join(digital_signatures_dir, filename)
-                    if os.path.exists(stamp_path):
-                        try:
-                            store_officer_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                            break
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.warning(f"Could not load digital stamp image {stamp_path}: {str(e)}")
-                            continue
-                
-                if not store_officer_stamp_image and profile:
-                    try:
-                        if hasattr(profile, 'generate_digital_stamp_png'):
-                            stamp_path = profile.generate_digital_stamp_png()
-                            if stamp_path and os.path.exists(stamp_path):
-                                store_officer_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
-                
-                if not store_officer_stamp_image:
-                    stamp = profile.get_or_create_signature_stamp() if profile else None
-                    if stamp:
-                        try:
-                            stamp_data = profile.display_signature_stamp()
-                            if stamp_data:
-                                store_officer_stamp_text = f"{stamp_data.get('SIGNED_BY', store_officer_name)}\nID: {stamp_data.get('ID', '')}"
-                        except Exception:
-                            if '|' in stamp:
-                                parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_officer_name
-                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                store_officer_stamp_text = f"{signed_by}\nID: {stamp_id}"
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error getting store officer stamp: {str(e)}")
-        # Use processed_at date if available, otherwise assigned_at, otherwise date_dispatched
-        if transport.material_order and transport.material_order.processed_at:
-            store_officer_date = transport.material_order.processed_at.strftime('%d %B %Y')
-        elif transport.material_order and transport.material_order.assigned_at:
-            store_officer_date = transport.material_order.assigned_at.strftime('%d %B %Y')
-        else:
-            store_officer_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
-    
-    # Build signature cell - use image if available, otherwise text
-    store_officer_signature_cell = store_officer_stamp_image if store_officer_stamp_image else Paragraph(store_officer_stamp_text or '_________________', small_text)
-    
-    # Get store manager info and stamp
-    store_manager = None
-    store_manager_name = ''
-    store_manager_stamp_image = None
-    store_manager_stamp_text = ''
-    store_manager_date = ''
-    
-    # Try to get store manager from material_order.assigned_by or transport.created_by
-    if transport.material_order and transport.material_order.assigned_by:
-        store_manager = transport.material_order.assigned_by
-    elif transport.created_by:
-        store_manager = transport.created_by
-    
-    if store_manager:
-        store_manager_name = store_manager.get_full_name() or store_manager.username
-        try:
-            from .models import Profile
-            profile = Profile.objects.filter(user=store_manager).first()
-            if profile:
-                # Look for PNG stamp in media/digital_signatures/ folder
-                stamp_filenames = [
-                    f"{store_manager.username}.png",
-                    f"{store_manager.id}.png",
-                    f"{store_manager.id}.jpg",
-                    f"{store_manager.username}.jpg",
-                ]
-                
-                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
-                if not os.path.exists(digital_signatures_dir):
-                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
-                
-                for filename in stamp_filenames:
-                    stamp_path = os.path.join(digital_signatures_dir, filename)
-                    if os.path.exists(stamp_path):
-                        try:
-                            store_manager_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                            break
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.warning(f"Could not load store manager digital stamp image {stamp_path}: {str(e)}")
-                            continue
-                
-                if not store_manager_stamp_image and profile:
-                    try:
-                        if hasattr(profile, 'generate_digital_stamp_png'):
-                            stamp_path = profile.generate_digital_stamp_png()
-                            if stamp_path and os.path.exists(stamp_path):
-                                store_manager_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Could not generate store manager digital stamp PNG: {str(e)}")
-                
-                if not store_manager_stamp_image:
-                    stamp = profile.get_or_create_signature_stamp() if profile else None
-                    if stamp:
-                        try:
-                            stamp_data = profile.display_signature_stamp()
-                            if stamp_data:
-                                store_manager_stamp_text = f"{stamp_data.get('SIGNED_BY', store_manager_name)}\nID: {stamp_data.get('ID', '')}"
-                        except Exception:
-                            if '|' in stamp:
-                                parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_manager_name
-                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                store_manager_stamp_text = f"{signed_by}\nID: {stamp_id}"
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error getting store manager stamp: {str(e)}")
-        
-        # Get date from material_order.assigned_at or transport.date_dispatched
-        if transport.material_order and transport.material_order.assigned_at:
-            store_manager_date = transport.material_order.assigned_at.strftime('%d %B %Y')
-        elif transport.date_dispatched:
-            store_manager_date = transport.date_dispatched.strftime('%d %B %Y')
-    
-    # Build store manager signature cell
-    store_manager_signature_cell = store_manager_stamp_image if store_manager_stamp_image else Paragraph(store_manager_stamp_text or '_________________', small_text)
-    
-    # Signature table with all parties: Store Officer, Store Manager, Driver, Recipient
-    signature_cover_data = [
-        [
-            Paragraph('<b>Name</b>', small_text),
-            Paragraph('<b>Signature</b>', small_text),
-            Paragraph('<b>Date</b>', small_text)
-        ],
-        [
-            Paragraph('<b>Store Officer</b>', small_text),
-            store_officer_signature_cell,
-            Paragraph(store_officer_date or '_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Store Manager</b>', small_text),
-            store_manager_signature_cell,
-            Paragraph(store_manager_date or '_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Driver</b>', small_text),
-            Paragraph('_________________', small_text),
-            Paragraph('_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Recipient</b>', small_text),
-            Paragraph('_________________', small_text),
-            Paragraph('_________________', small_text)
-        ],
-    ]
-    
-    signature_cover_table = Table(signature_cover_data, colWidths=[1.8*inch, 3.0*inch, 1.7*inch])
-    signature_cover_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_primary)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
-    ]))
-    cover_elements.append(signature_cover_table)
-    
-    # Add cover page to elements
-    elements.extend(cover_elements)
-    elements.append(PageBreak())
-    
-    # ========== MAIN WAYBILL CONTENT ==========
-    # Header Banner with logo and gradient effect
-    header_cells = []
-    if logo_path and os.path.exists(logo_path):
-        try:
-            logo_img = Image(logo_path, width=1*inch, height=1*inch)
-            header_cells.append(logo_img)
-        except Exception:
-            header_cells.append('')
-    else:
-        header_cells.append('')
-    
-    header_cells.append(Paragraph("MATERIAL WAYBILL", title_style))
-    
-    header_data = [header_cells]
-    # Adjust column widths based on whether logo exists
-    if logo_path and os.path.exists(logo_path):
-        header_table = Table(header_data, colWidths=[1.2*inch, 5.8*inch])
-    else:
-        header_table = Table(header_data, colWidths=[7*inch])
-    header_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(_primary)),
-        ('ALIGN', (1, 0), (1, 0), 'CENTER'),  # Center the title
-        ('ALIGN', (0, 0), (0, 0), 'LEFT'),     # Left align logo
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 15),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LINEABOVE', (0, 0), (-1, 0), 3, colors.HexColor(_primary_dark)),
-        ('LINEBELOW', (0, -1), (-1, -1), 3, colors.HexColor(_primary_light)),
-    ]))
-    
-    elements.append(header_table)
-    
-    # Subtitle under banner
-    subtitle_data = [[
-        Paragraph("Ministry of Energy and Green Transition of Ghana - Inventory Management System", subtitle_style),
-    ]]
-    subtitle_table = Table(subtitle_data, colWidths=[7*inch])
-    subtitle_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(_primary_dark)),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
-    
-    elements.append(subtitle_table)
-    elements.append(Spacer(1, 0.25*inch))
-    
-    # Waybill Information Box with colored accent
-    elements.append(Paragraph("WAYBILL INFORMATION", heading_style))
-    
-    waybill_data = [
-        ['Waybill Number:', Paragraph(f"<b>{transport.waybill_number or 'N/A'}</b>", normal_style)],
-        ['Shipment Type:', Paragraph(f"<b>{'Bulk Shipment' if len(all_transports) > 1 else 'Single Shipment'}</b>", normal_style)],
-        ['Total Materials:', Paragraph(f"<b>{len(all_transports)}</b> item{'s' if len(all_transports) > 1 else ''}", normal_style)],
-        ['Date Assigned:', transport.date_dispatched.strftime('%d %B %Y, %H:%M') if transport.date_dispatched else 'N/A'],
-        ['Status:', Paragraph(f"<b><font color='#28a745'>{transport.get_status_display()}</font></b>", normal_style)],
-    ]
-    
-    waybill_table = Table(waybill_data, colWidths=[2*inch, 4.5*inch])
-    waybill_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f5e9')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_primary)),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 10),
-        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor(_primary)),
-    ]))
-    
-    elements.append(waybill_table)
-    elements.append(Spacer(1, 0.25*inch))
-    
-    # Material Information - Show ALL materials on this waybill
-    elements.append(Paragraph("MATERIALS ON THIS WAYBILL", heading_style))
-    
-    # Build table with all materials - Use Paragraph for text wrapping
-    material_data = [[
-        Paragraph('<b>#</b>', normal_style),
-        Paragraph('<b>Material Name</b>', normal_style),
-        Paragraph('<b>Code</b>', normal_style),
-        Paragraph('<b>Quantity</b>', normal_style),
-        Paragraph('<b>Request Code</b>', normal_style)
-    ]]
-    
-    for idx, t in enumerate(all_transports, 1):
-        # Use Paragraph to enable text wrapping
-        material_data.append([
-            Paragraph(f"<b>{idx}</b>", small_text),
-            Paragraph(t.material_name, small_text),  # Full name, will wrap
-            Paragraph(t.material_code or 'N/A', small_text),
-            Paragraph(f"<b>{t.quantity}</b> {t.unit or ''}", small_text),
-            Paragraph(t.material_order.request_code if t.material_order else 'N/A', small_text)
-        ])
-    
-    material_table = Table(material_data, colWidths=[0.35*inch, 2.5*inch, 0.9*inch, 1.1*inch, 1.15*inch])
-    material_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_primary)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Center # column
-        ('ALIGN', (1, 0), (-1, -1), 'LEFT'),   # Left align rest
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_primary)),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for wrapping
-        ('PADDING', (0, 0), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor(_primary_dark)),
-    ]))
-    
-    elements.append(material_table)
-    elements.append(Spacer(1, 0.25*inch))
-    
-    # Transporter Information
-    elements.append(Paragraph("TRANSPORTER INFORMATION", heading_style))
-    
-    transporter_data = [
-        ['Transporter:', Paragraph(f"<b>{transport.transporter.name if transport.transporter else 'N/A'}</b>", normal_style)],
-        ['Vehicle:', Paragraph(f"<b>{transport.vehicle.registration_number}</b> ({transport.vehicle.vehicle_type})" 
-                    if transport.vehicle else 'N/A', normal_style)],
-        ['Driver Name:', Paragraph(transport.driver_name or 'N/A', normal_style)],
-        ['Driver Phone:', Paragraph(f"<font color='{_primary}'>{transport.driver_phone or 'N/A'}</font>", normal_style)],
-    ]
-    
-    transporter_table = Table(transporter_data, colWidths=[1.8*inch, 4.7*inch])
-    transporter_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#fff3cd')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#ffc107')),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 10),
-        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#ffc107')),
-    ]))
-    
-    elements.append(transporter_table)
-    elements.append(Spacer(1, 0.25*inch))
-    
-    # Destination Information
-    elements.append(Paragraph("DESTINATION INFORMATION", heading_style))
-    
-    destination_data = [
-        ['Recipient:', Paragraph(f"<b>{transport.recipient or 'N/A'}</b>", normal_style)],
-        ['Consultant:', Paragraph(transport.consultant or 'N/A', normal_style)],
-        ['Region:', Paragraph(transport.region or 'N/A', normal_style)],
-        ['District:', Paragraph(transport.district or 'N/A', normal_style)],
-        ['Community:', Paragraph(f"<b>{transport.community or 'N/A'}</b>", normal_style)],
-        ['Package Number:', Paragraph(f"<font color='#dc3545'>{transport.package_number or 'N/A'}</font>", normal_style)],
-    ]
-    
-    destination_table = Table(destination_data, colWidths=[1.8*inch, 4.7*inch])
-    destination_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#d4edda')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#28a745')),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 10),
-        ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#28a745')),
-    ]))
-    
-    elements.append(destination_table)
-    elements.append(Spacer(1, 0.3*inch))
-    
-    # Signatures
-    elements.append(Paragraph("SIGNATURES & ENDORSEMENTS", heading_style))
-    elements.append(Spacer(1, 0.1*inch))
-    
-    # Get store officer info and stamp for main waybill (with image embedding support)
-    store_officer_name_main = ''
-    store_officer_stamp_image_main = None
-    store_officer_stamp_text_main = ''
-    store_officer_date_main = ''
-    # Try to get store officer from processed_by (who actually processed it), assigned_to, or created_by
-    store_officer_main = None
-    if transport.material_order:
-        store_officer_main = (transport.material_order.processed_by or 
-                          transport.material_order.assigned_to or 
-                          transport.material_order.created_by)
-    
-    if store_officer_main:
-        store_officer_name_main = store_officer_main.get_full_name() or store_officer_main.username
-        try:
-            from .models import Profile
-            profile = Profile.objects.filter(user=store_officer_main).first()
-            if profile:
-                # Look for PNG stamp in media/digital_signatures/ folder
-                # Try multiple possible filenames: username.png, user_id.png, etc.
-                stamp_filenames = [
-                    f"{store_officer_main.username}.png",
-                    f"{store_officer_main.id}.png",
-                    f"{store_officer_main.username}.jpg",
-                    f"{store_officer_main.id}.jpg",
-                ]
-                
-                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
-                if not os.path.exists(digital_signatures_dir):
-                    # Try with space in folder name
-                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
-                
-                for filename in stamp_filenames:
-                    stamp_path = os.path.join(digital_signatures_dir, filename)
-                    if os.path.exists(stamp_path):
-                        try:
-                            # Use PNG/JPG image for signature
-                            store_officer_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                            break  # Found the stamp, exit loop
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.warning(f"Could not load digital stamp image {stamp_path}: {str(e)}")
-                            continue
-                
-                # If no PNG found, try to generate one
-                if not store_officer_stamp_image_main and profile:
-                    try:
-                        # Generate PNG stamp if method exists
-                        if hasattr(profile, 'generate_digital_stamp_png'):
-                            stamp_path = profile.generate_digital_stamp_png()
-                            if stamp_path and os.path.exists(stamp_path):
-                                store_officer_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Could not generate digital stamp PNG: {str(e)}")
-                
-                # Fallback to text-based stamp only if PNG is not available
-                if not store_officer_stamp_image_main:
-                    stamp = profile.get_or_create_signature_stamp() if profile else None
-                    if stamp:
-                        try:
-                            stamp_data = profile.display_signature_stamp()
-                            if stamp_data:
-                                store_officer_stamp_text_main = f"{stamp_data.get('SIGNED_BY', store_officer_name_main)}\nID: {stamp_data.get('ID', '')}"
-                        except Exception:
-                            # If display_signature_stamp doesn't exist, parse the stamp string
-                            if '|' in stamp:
-                                parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_officer_name_main
-                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                store_officer_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error getting store officer stamp for main waybill: {str(e)}")
-        # Use processed_at date if available, otherwise assigned_at, otherwise date_dispatched
-        if transport.material_order and transport.material_order.processed_at:
-            store_officer_date_main = transport.material_order.processed_at.strftime('%d %B %Y')
-        elif transport.material_order and transport.material_order.assigned_at:
-            store_officer_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
-        else:
-            store_officer_date_main = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
-    
-    # Build signature cell for main waybill - use image if available, otherwise text
-    store_officer_signature_cell_main = store_officer_stamp_image_main if store_officer_stamp_image_main else Paragraph(store_officer_stamp_text_main or '_________________', small_text)
-    
-    # Get store manager info and stamp for main waybill (with image embedding support)
-    store_manager_main = None
-    store_manager_name_main = ''
-    store_manager_stamp_image_main = None
-    store_manager_stamp_text_main = ''
-    store_manager_date_main = ''
-    
-    # Try to get store manager from material_order.assigned_by or transport.created_by
-    if transport.material_order and transport.material_order.assigned_by:
-        store_manager_main = transport.material_order.assigned_by
-    elif transport.created_by:
-        store_manager_main = transport.created_by
-    
-    if store_manager_main:
-        store_manager_name_main = store_manager_main.get_full_name() or store_manager_main.username
-        try:
-            from .models import Profile
-            profile = Profile.objects.filter(user=store_manager_main).first()
-            if profile:
-                # Look for PNG stamp in media/digital_signatures/ folder
-                stamp_filenames = [
-                    f"{store_manager_main.username}.png",
-                    f"{store_manager_main.id}.png",
-                    f"{store_manager_main.username}.jpg",
-                    f"{store_manager_main.id}.jpg",
-                ]
-                
-                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
-                if not os.path.exists(digital_signatures_dir):
-                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
-                
-                for filename in stamp_filenames:
-                    stamp_path = os.path.join(digital_signatures_dir, filename)
-                    if os.path.exists(stamp_path):
-                        try:
-                            store_manager_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                            break
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.warning(f"Could not load store manager digital stamp image {stamp_path}: {str(e)}")
-                            continue
-                
-                # If no PNG found, try to generate one
-                if not store_manager_stamp_image_main and profile:
-                    try:
-                        if hasattr(profile, 'generate_digital_stamp_png'):
-                            stamp_path = profile.generate_digital_stamp_png()
-                            if stamp_path and os.path.exists(stamp_path):
-                                store_manager_stamp_image_main = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"Could not generate store manager digital stamp PNG: {str(e)}")
-                
-                # Fallback to text-based stamp only if PNG is not available
-                if not store_manager_stamp_image_main:
-                    stamp = profile.get_or_create_signature_stamp() if profile else None
-                    if stamp:
-                        try:
-                            stamp_data = profile.display_signature_stamp()
-                            if stamp_data:
-                                store_manager_stamp_text_main = f"{stamp_data.get('SIGNED_BY', store_manager_name_main)}\nID: {stamp_data.get('ID', '')}"
-                        except Exception:
-                            if '|' in stamp:
-                                parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else store_manager_name_main
-                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                store_manager_stamp_text_main = f"{signed_by}\nID: {stamp_id}"
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error getting store manager stamp for main waybill: {str(e)}")
-        
-        # Get date from material_order.assigned_at or transport.date_dispatched
-        if transport.material_order and transport.material_order.assigned_at:
-            store_manager_date_main = transport.material_order.assigned_at.strftime('%d %B %Y')
-        elif transport.date_dispatched:
-            store_manager_date_main = transport.date_dispatched.strftime('%d %B %Y')
-    
-    # Build store manager signature cell
-    store_manager_signature_cell_main = store_manager_stamp_image_main if store_manager_stamp_image_main else Paragraph(store_manager_stamp_text_main or '_________________', small_text)
-    
-    # Get driver stamp info (auto-generated from transport details)
-    driver_name = transport.driver_name or 'N/A'
-    driver_stamp_text = ''
-    driver_date = ''
-    
-    if transport.driver_name:
-        vehicle_info = transport.vehicle.registration_number if transport.vehicle else 'N/A'
-        pickup_time = transport.date_dispatched.strftime('%d %B %Y at %H:%M') if transport.date_dispatched else 'N/A'
-        driver_stamp_text = f"{driver_name}\nVehicle: {vehicle_info}\nPickup: {pickup_time}"
-        driver_date = transport.date_dispatched.strftime('%d %B %Y') if transport.date_dispatched else ''
-    
-    driver_signature_cell = Paragraph(driver_stamp_text or '_________________', small_text)
-    
-    # Get recipient/consultant stamp from SiteReceipt
-    recipient_name = transport.consultant or 'N/A'
-    recipient_stamp_image = None
-    recipient_stamp_text = ''
-    recipient_date = ''
-    
-    if hasattr(transport, 'site_receipt') and transport.site_receipt:
-        receipt = transport.site_receipt
-        recipient_user = receipt.received_by
-        recipient_name = recipient_user.get_full_name() or recipient_user.username
-        recipient_date = receipt.received_date.strftime('%d %B %Y') if receipt.received_date else ''
-        
-        # Try to get digital stamp for recipient
-        try:
-            from .models import Profile
-            profile = Profile.objects.filter(user=recipient_user).first()
-            if profile:
-                # Look for PNG stamp in media/digital_signatures/ folder
-                stamp_filenames = [
-                    f"{recipient_user.username}.png",
-                    f"{recipient_user.id}.png",
-                    f"{recipient_user.username}.jpg",
-                    f"{recipient_user.id}.jpg",
-                ]
-                
-                digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital_signatures')
-                if not os.path.exists(digital_signatures_dir):
-                    digital_signatures_dir = os.path.join(settings.MEDIA_ROOT, 'digital signatures')
-                
-                for filename in stamp_filenames:
-                    stamp_path = os.path.join(digital_signatures_dir, filename)
-                    if os.path.exists(stamp_path):
-                        try:
-                            recipient_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                            break
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.warning(f"Could not load recipient digital stamp image: {str(e)}")
-                            continue
-                
-                # Generate stamp if no PNG found
-                if not recipient_stamp_image and profile:
-                    try:
-                        if hasattr(profile, 'generate_digital_stamp_png'):
-                            stamp_path = profile.generate_digital_stamp_png()
-                            if stamp_path and os.path.exists(stamp_path):
-                                recipient_stamp_image = Image(stamp_path, width=1.0*inch, height=0.5*inch)
-                    except Exception:
-                        pass
-                
-                # Fallback to text-based stamp
-                if not recipient_stamp_image:
-                    stamp = profile.get_or_create_signature_stamp() if profile else None
-                    if stamp:
-                        try:
-                            stamp_data = profile.display_signature_stamp()
-                            if stamp_data:
-                                recipient_stamp_text = f"{stamp_data.get('SIGNED_BY', recipient_name)}\nID: {stamp_data.get('ID', '')}"
-                        except Exception:
-                            if '|' in stamp:
-                                parts = stamp.split('|')
-                                signed_by = parts[0].replace('SIGNED_BY:', '') if 'SIGNED_BY:' in parts[0] else recipient_name
-                                stamp_id = parts[2].replace('ID:', '') if len(parts) > 2 and 'ID:' in parts[2] else ''
-                                recipient_stamp_text = f"{signed_by}\nID: {stamp_id}"
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error getting recipient stamp: {str(e)}")
-    
-    recipient_signature_cell = recipient_stamp_image if recipient_stamp_image else Paragraph(recipient_stamp_text or '_________________', small_text)
-    
-    signature_data = [
-        [
-            Paragraph('<b>Role</b>', normal_style),
-            Paragraph('<b>Name</b>', normal_style),
-            Paragraph('<b>Signature</b>', normal_style),
-            Paragraph('<b>Date</b>', normal_style)
-        ],
-        [
-            Paragraph('<b>Issued By</b><br/>(Store Officer)', small_text),
-            Paragraph(store_officer_name_main or '_________________', small_text),
-            store_officer_signature_cell_main,
-            Paragraph(store_officer_date_main or '_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Approved By</b><br/>(Stores Manager)', small_text),
-            Paragraph(store_manager_name_main or '_________________', small_text),
-            store_manager_signature_cell_main,
-            Paragraph(store_manager_date_main or '_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Picked Up By</b><br/>(Driver)', small_text),
-            Paragraph(driver_name or '_________________', small_text),
-            driver_signature_cell,
-            Paragraph(driver_date or '_________________', small_text)
-        ],
-        [
-            Paragraph('<b>Received By</b><br/>(Consultant)', small_text),
-            Paragraph(recipient_name or '_________________', small_text),
-            recipient_signature_cell,
-            Paragraph(recipient_date or '_________________', small_text)
-        ],
-    ]
-    
-    signature_table = Table(signature_data, colWidths=[1.8*inch, 1.6*inch, 1.6*inch, 1.0*inch])
-    signature_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_accent)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor(_accent)),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 1), (-1, -1), 18),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 18),
-        ('PADDING', (0, 0), (-1, 0), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white]),
-        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor(_accent)),
-    ]))
-    
-    elements.append(signature_table)
-    elements.append(Spacer(1, 0.25*inch))
-    
-    # Important Note Box
-    note_style = ParagraphStyle(
-        'Note',
-        parent=normal_style,
-        fontSize=9,
-        textColor=colors.HexColor(_primary_dark),
-        alignment=TA_LEFT,
-        leftIndent=10
-    )
-    
-    note_text = """
-    <b>Important:</b> This waybill must accompany the materials during transport. 
-    All parties must verify quantities before signing. Any discrepancies should be reported immediately.
-    """
-    
-    note_data = [[Paragraph(note_text, note_style)]]
-    note_table = Table(note_data, colWidths=[6.5*inch])
-    note_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#e8f5e9')),
-        ('BOX', (0, 0), (-1, -1), 2, colors.HexColor(_primary)),
-        ('PADDING', (0, 0), (-1, -1), 12),
-    ]))
-    
-    elements.append(note_table)
-    elements.append(Spacer(1, 0.2*inch))
-    
-    # Footer
-    footer_text = f"""
-    <para align=center fontSize=8 textColor='#999999'>
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>
-    <b>Ministry of Energy and Green Transition of Ghana - Inventory Management System</b><br/>
-    This is a computer-generated waybill. For verification or queries, contact IMS Support.<br/>
-    <font color='#666666'>Document Generated: {timezone.now().strftime('%d %B %Y at %H:%M:%S')}</font>
-    </para>
-    """
-    elements.append(Paragraph(footer_text, normal_style))
-    
-    # Build PDF
-    doc.build(elements)
-    
-    # Get PDF data
-    pdf = buffer.getvalue()
+    # ── Generate PDF ───────────────────────────────────────────────────
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas as canvas_mod
+
+    buffer = io.BytesIO()
+    pdf = canvas_mod.Canvas(buffer, pagesize=A4)
+    page_w, page_h = A4
+
+    # Page 1: Acknowledgement Form
+    _draw_acknowledgement(pdf, page_w, page_h, transport, all_transports, copy_label)
+    pdf.showPage()
+
+    # Page 2: Material Waybill
+    _draw_waybill_page(pdf, page_w, page_h, transport, all_transports,
+                       copy_label, download_count)
+
+    pdf.save()
+    buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
     buffer.close()
-    
-    # Return PDF response
+
     response = HttpResponse(content_type='application/pdf')
-    filename = f"Waybill_{transport.waybill_number}_{copy_label.replace(' ', '_')}.pdf"
+    filename = f"Waybill_{transport.waybill_number or transport.id}_{copy_label.replace(' ', '_')}.pdf"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    response.write(pdf)
-    
+    response.write(pdf_bytes)
     return response
 
 
-@login_required
+# ---------------------------------------------------------------------------
+# Public QR verification endpoint
+# ---------------------------------------------------------------------------
 def verify_waybill_qr(request, waybill_identifier):
+    """Public waybill verification — no login required for read-only view.
+
+    Scans the QR code on the waybill and shows verification details.
+    Logged-in users also get their digital stamp recorded.
     """
-    QR code verification endpoint.
-    After login, identifies user role and auto-places digital stamp on waybill.
-    Users scan QR code, sign in, and their stamp is automatically recorded.
-    Redirects to the transport detail page after verification.
-    """
-    from django.contrib.auth.models import User
-    from .models import Profile
-    from django.db import transaction
-    
-    # Try to find transport by waybill number or ID
-    try:
-        if waybill_identifier.startswith('WB-'):
-            transport = MaterialTransport.objects.filter(waybill_number=waybill_identifier).first()
-        else:
-            transport = MaterialTransport.objects.filter(id=int(waybill_identifier)).first()
-    except (ValueError, MaterialTransport.DoesNotExist):
-        transport = None
-    
+    from ..models import Profile
+    from django.db import transaction as db_tx
+
+    # Find transport by waybill number or numeric ID
+    transport = None
+    if waybill_identifier.startswith('WB-'):
+        transport = MaterialTransport.objects.filter(
+            waybill_number=waybill_identifier
+        ).select_related('material_order', 'transporter', 'vehicle').first()
+    else:
+        try:
+            transport = MaterialTransport.objects.filter(
+                id=int(waybill_identifier)
+            ).select_related('material_order', 'transporter', 'vehicle').first()
+        except (ValueError, TypeError):
+            pass
+
     if not transport:
+        if request.headers.get('Accept') == 'application/json':
+            return JsonResponse({'error': 'Waybill not found'}, status=404)
         messages.error(request, "Waybill not found.")
         return redirect('transportation_status')
-    
-    # Get user profile
-    try:
-        profile = Profile.objects.get(user=request.user)
-    except Profile.DoesNotExist:
-        messages.error(request, "User profile not found.")
-        return redirect('transportation_status')
-    
-    # Ensure user has a signature stamp
-    stamp = profile.get_or_create_signature_stamp()
-    if not stamp:
-        messages.warning(request, "Could not generate signature stamp. Please contact administrator.")
-        return redirect('transportation_status')
-    
-    # Determine user role and record stamp accordingly
-    user_groups = request.user.groups.all()
-    group_names = [g.name for g in user_groups]
-    
-    # Check if user is store officer, transporter, or consultant
-    is_store_officer_user = is_store_officer(request.user)
-    is_transporter_user = 'Transporter' in group_names or 'transporter' in group_names
-    is_consultant_user = 'Consultant' in group_names or 'consultant' in group_names
-    
-    # Record the stamp based on role
-    with transaction.atomic():
-        stamp_recorded = False
-        
-        if is_store_officer_user:
+
+    # ── Logged-in: record stamp + auto-release ─────────────────────────
+    role = None
+    if request.user.is_authenticated:
+        group_names = [g.name for g in request.user.groups.all()]
+
+        if is_store_officer(request.user):
             role = "Store Officer (Issued By)"
-            stamp_recorded = True
-        elif is_transporter_user:
-            role = "Transporter/Driver (Received By)"
-            stamp_recorded = True
-        elif is_consultant_user:
-            role = "Consultant (Delivered To)"
-            stamp_recorded = True
+        elif 'Transporters' in group_names or 'Transporter' in group_names:
+            role = "Transporter/Driver (Picked Up By)"
+        elif 'Consultants' in group_names or 'Consultant' in group_names:
+            role = "Consultant (Received By)"
         else:
             role = "Authorized User"
-        
-        if stamp_recorded:
-            try:
-                MaterialOrderAudit.objects.create(
-                    material_order=transport.material_order if transport.material_order else None,
-                    user=request.user,
-                    action=f'Waybill verified via QR code - {role}',
-                    timestamp=timezone.now()
-                )
-            except Exception:
-                pass
-    
-    messages.success(
-        request, 
-        f"Waybill {transport.waybill_number or waybill_identifier} verified! "
-        f"Your stamp as {role} has been recorded."
-    )
-    
-    # Auto-mark the linked release letter as 'released' if all transports
-    # under its material orders have site receipts (physically confirmed).
-    try:
-        if transport.material_order and transport.material_order.release_letter:
-            rl = transport.material_order.release_letter
-            if rl.workflow_status == 'approved':
-                all_orders = rl.material_orders.all()
-                all_confirmed = all(
-                    MaterialTransport.objects.filter(
-                        material_order=order
-                    ).exclude(waybill_number__in=['', 'Unknown']).filter(
-                        site_receipt__isnull=False
-                    ).exists()
-                    for order in all_orders
-                )
-                if all_confirmed:
-                    rl.workflow_status = 'released'
-                    rl.save(update_fields=['workflow_status'])
-                    MaterialOrderAudit.objects.create(
-                        material_order=transport.material_order,
-                        user=request.user,
-                        action=f'Auto-released: all waybills verified for {rl.code}',
-                        timestamp=timezone.now()
+
+        try:
+            MaterialOrderAudit.objects.create(
+                material_order=transport.material_order,
+                user=request.user,
+                action=f'Waybill verified via QR code — {role}',
+                timestamp=timezone.now(),
+            )
+        except Exception:
+            pass
+
+        # Auto-mark release letter as 'released' if all transports received
+        try:
+            if transport.material_order and transport.material_order.release_letter:
+                rl = transport.material_order.release_letter
+                if rl.workflow_status == 'approved':
+                    all_orders = rl.material_orders.all()
+                    all_confirmed = all(
+                        MaterialTransport.objects.filter(
+                            material_order=order
+                        ).exclude(waybill_number__in=['', 'Unknown']).filter(
+                            site_receipt__isnull=False
+                        ).exists()
+                        for order in all_orders
                     )
-    except Exception:
-        pass  # Don't fail verification if auto-release logic errors
-    
-    # Redirect to the transport detail page
-    return redirect('transport_detail', pk=transport.pk)
+                    if all_confirmed:
+                        rl.workflow_status = 'released'
+                        rl.save(update_fields=['workflow_status'])
+                        MaterialOrderAudit.objects.create(
+                            material_order=transport.material_order,
+                            user=request.user,
+                            action=f'Auto-released: all waybills verified for {rl.code}',
+                            timestamp=timezone.now(),
+                        )
+        except Exception:
+            pass
+
+    # ── JSON response for AJAX ─────────────────────────────────────────
+    if request.headers.get('Accept') == 'application/json':
+        receipt = getattr(transport, 'site_receipt', None)
+        return JsonResponse({
+            'waybill_number': transport.waybill_number,
+            'material': transport.material_name,
+            'quantity': str(transport.quantity),
+            'unit': transport.unit or '',
+            'transporter': transport.transporter.name if transport.transporter else '',
+            'driver': transport.driver_name or '',
+            'vehicle': transport.vehicle.registration_number if transport.vehicle else '',
+            'date_dispatched': transport.date_dispatched.isoformat() if transport.date_dispatched else '',
+            'status': transport.status,
+            'received': receipt is not None,
+            'received_date': receipt.received_date.isoformat() if receipt and receipt.received_date else '',
+            'received_by': (receipt.received_by.get_full_name() or receipt.received_by.username) if receipt and receipt.received_by else '',
+            'verified_by': role,
+        })
+
+    # ── HTML verification page ─────────────────────────────────────────
+    receipt = getattr(transport, 'site_receipt', None)
+    context = {
+        'transport': transport,
+        'receipt': receipt,
+        'role': role,
+        'all_transports': MaterialTransport.objects.filter(
+            waybill_number=transport.waybill_number
+        ).select_related('material_order') if transport.waybill_number else [transport],
+    }
+    return render(request, 'Inventory/waybill_verify.html', context)

@@ -6,167 +6,208 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/datatables.min.css' %}">
 <style>
-    .card {
-        margin-bottom: 1.5rem;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    :root {
+        --rl-border: #e3e6ea;
+        --rl-bg-surface: #ffffff;
+        --rl-bg-subtle: #f7f8fa;
+        --rl-bg-tint: #f1f4f8;
+        --rl-text: #1f2933;
+        --rl-text-muted: #6c757d;
+        --rl-text-soft: #94a0ad;
+        --rl-radius: 10px;
+        --rl-radius-sm: 6px;
+        --rl-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+        --rl-accent: #0d6efd;
+        --rl-success: #198754;
+        --rl-warning: #ad7409;
+        --rl-danger: #b71c1c;
     }
-    .card-header {
-        background-color: #f8f9fa;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    .rl-wrap { color: var(--rl-text); }
+    .rl-card {
+        background: var(--rl-bg-surface);
+        border: 1px solid var(--rl-border);
+        border-radius: var(--rl-radius);
+        margin-bottom: 1rem;
+        overflow: hidden;
+        box-shadow: var(--rl-shadow);
     }
-    .badge {
-        font-size: 0.8rem;
-        font-weight: 500;
-        padding: 0.35em 0.65em;
+    .rl-card-header {
+        background: var(--rl-bg-subtle);
+        border-bottom: 1px solid var(--rl-border);
+        padding: 0.85rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
+    .rl-card-header h6 {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--rl-text);
+        margin: 0;
+    }
+    /* Stat cards */
+    .rl-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    .rl-stat {
+        background: var(--rl-bg-surface);
+        border: 1px solid var(--rl-border);
+        border-radius: var(--rl-radius);
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        box-shadow: var(--rl-shadow);
+    }
+    .rl-stat-icon {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .rl-stat-body { min-width: 0; }
+    .rl-stat-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--rl-text-muted);
+        white-space: nowrap;
+    }
+    .rl-stat-value {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--rl-text);
+        line-height: 1.2;
+    }
+    /* Filter bar */
+    .rl-filter-bar {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .rl-filter-bar .form-control,
+    .rl-filter-bar .form-select {
+        font-size: 0.82rem;
+        border-color: var(--rl-border);
+    }
+    /* Table */
     .table th {
         border-top: none;
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         text-transform: uppercase;
-        color: #6c757d;
+        letter-spacing: 0.04em;
+        color: var(--rl-text-muted);
+        background: var(--rl-bg-subtle);
     }
     .table td {
         vertical-align: middle;
-    }
-    .status-badge {
-        min-width: 100px;
-        text-align: center;
+        font-size: 0.85rem;
     }
     .action-buttons .btn {
         margin-right: 0.25rem;
         margin-bottom: 0.25rem;
     }
-    .search-form .form-group {
-        margin-bottom: 0;
+    @media (max-width: 960px) {
+        .rl-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 540px) {
+        .rl-stat-grid { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid rl-wrap">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Release Letters</h1>
+        <h1 class="h3 mb-0" style="color:var(--rl-text);font-weight:600;">
+            <i class="fas fa-file-alt me-1" style="color:var(--rl-accent);"></i> Release Letters
+        </h1>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}" style="color:var(--rl-accent);">Dashboard</a></li>
                 <li class="breadcrumb-item active" aria-current="page">Release Letters</li>
             </ol>
         </nav>
     </div>
 
     <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Total Release Letters</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_letters }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-file-alt fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
+    <div class="rl-stat-grid">
+        <div class="rl-stat">
+            <div class="rl-stat-icon" style="background:rgba(13,110,253,0.08);">
+                <i class="fas fa-file-alt" style="color:var(--rl-accent);"></i>
+            </div>
+            <div class="rl-stat-body">
+                <div class="rl-stat-label">Total Letters</div>
+                <div class="rl-stat-value">{{ total_letters }}</div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Pending Processing</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_letters }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-clock fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
+        <div class="rl-stat">
+            <div class="rl-stat-icon" style="background:rgba(173,116,9,0.08);">
+                <i class="fas fa-clock" style="color:var(--rl-warning);"></i>
+            </div>
+            <div class="rl-stat-body">
+                <div class="rl-stat-label">Pending Processing</div>
+                <div class="rl-stat-value">{{ pending_letters }}</div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Completed This Month</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ completed_this_month }}</div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
+        <div class="rl-stat">
+            <div class="rl-stat-icon" style="background:rgba(25,135,84,0.08);">
+                <i class="fas fa-check-circle" style="color:var(--rl-success);"></i>
+            </div>
+            <div class="rl-stat-body">
+                <div class="rl-stat-label">Completed This Month</div>
+                <div class="rl-stat-value">{{ completed_this_month }}</div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Avg. Processing Time</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                {% if avg_processing_time %}{{ avg_processing_time }} days{% else %}N/A{% endif %}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-calendar-alt fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
+        <div class="rl-stat">
+            <div class="rl-stat-icon" style="background:rgba(13,110,253,0.08);">
+                <i class="fas fa-calendar-alt" style="color:var(--rl-accent);"></i>
+            </div>
+            <div class="rl-stat-body">
+                <div class="rl-stat-label">Avg. Processing Time</div>
+                <div class="rl-stat-value">{% if avg_processing_time %}{{ avg_processing_time }}d{% else %}N/A{% endif %}</div>
             </div>
         </div>
     </div>
 
     <!-- Filter Card -->
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Filter Release Letters</h6>
-            <button class="btn btn-sm btn-link" type="button" data-toggle="collapse" data-target="#filterCollapse" 
-                    aria-expanded="true" aria-controls="filterCollapse">
-                <i class="fas fa-filter"></i> Toggle Filters
+    <div class="rl-card">
+        <div class="rl-card-header">
+            <h6><i class="fas fa-filter me-1" style="font-size:0.75rem;"></i> Filter</h6>
+            <button class="btn btn-sm btn-link text-decoration-none" type="button" data-toggle="collapse"
+                    data-target="#filterCollapse" aria-expanded="true" aria-controls="#filterCollapse"
+                    style="color:var(--rl-accent);font-size:0.82rem;">
+                Toggle <i class="fas fa-chevron-down ms-1" style="font-size:0.65rem;"></i>
             </button>
         </div>
         <div class="collapse show" id="filterCollapse">
-            <div class="card-body">
-                <form method="get" class="form-inline mb-3">
-                    <div class="form-group mr-3 mb-2">
-                        <label for="search" class="sr-only">Search</label>
-                        <input type="text" class="form-control" id="search" name="search" 
-                               placeholder="Search by title or request code" value="{{ request.GET.search }}">
-                    </div>
-                    <div class="form-group mr-3 mb-2">
-                        <label for="status" class="sr-only">Status</label>
-                        <select class="form-control" id="status" name="status">
-                            <option value="">All Statuses</option>
-                            <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
-                            <option value="processing" {% if request.GET.status == 'processing' %}selected{% endif %}>Processing</option>
-                            <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>Completed</option>
-                        </select>
-                    </div>
-                    <div class="form-group mr-3 mb-2">
-                        <label for="date_from" class="sr-only">From Date</label>
-                        <input type="date" class="form-control" id="date_from" name="date_from" 
-                               value="{{ request.GET.date_from }}" placeholder="From date">
-                    </div>
-                    <div class="form-group mr-3 mb-2">
-                        <label for="date_to" class="sr-only">To Date</label>
-                        <input type="date" class="form-control" id="date_to" name="date_to" 
-                               value="{{ request.GET.date_to }}" placeholder="To date">
-                    </div>
-                    <button type="submit" class="btn btn-primary mb-2">
-                        <i class="fas fa-search"></i> Search
+            <div class="card-body" style="padding:1rem 1.25rem;">
+                <form method="get" class="rl-filter-bar">
+                    <input type="text" class="form-control" style="max-width:220px;" name="search"
+                           placeholder="Search title or request code" value="{{ request.GET.search }}">
+                    <select class="form-select" style="max-width:160px;" name="status">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="processing" {% if request.GET.status == 'processing' %}selected{% endif %}>Processing</option>
+                        <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>Completed</option>
+                    </select>
+                    <input type="date" class="form-control" style="max-width:160px;" name="date_from"
+                           value="{{ request.GET.date_from }}">
+                    <input type="date" class="form-control" style="max-width:160px;" name="date_to"
+                           value="{{ request.GET.date_to }}">
+                    <button type="submit" class="btn btn-sm" style="background:var(--rl-accent);color:#fff;">
+                        <i class="fas fa-search me-1"></i>Search
                     </button>
-                    <a href="{% url 'release_letter_list' %}" class="btn btn-secondary mb-2 ml-2">
-                        <i class="fas fa-sync"></i> Reset
+                    <a href="{% url 'release_letter_list' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-sync"></i>
                     </a>
                 </form>
             </div>
@@ -174,22 +215,23 @@
     </div>
 
     <!-- Release Letters Table -->
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Release Letters</h6>
+    <div class="rl-card">
+        <div class="rl-card-header">
+            <h6><i class="fas fa-list me-1" style="font-size:0.75rem;"></i> Release Letters</h6>
             <div>
-                <a href="{% url 'release-letter-upload' %}" class="btn btn-sm btn-primary"
-                   title="Upload a QR-coded release letter (system-generated). For new releases, use the request-code button on the orders page.">
-                    <i class="fas fa-upload"></i> Upload (QR-gated)
+                <a href="{% url 'release-letter-upload' %}" class="btn btn-sm"
+                   style="background:var(--rl-accent);color:#fff;"
+                   title="Upload a QR-coded release letter (system-generated).">
+                    <i class="fas fa-upload me-1"></i>Upload (QR-gated)
                 </a>
-                <button class="btn btn-sm btn-success" id="exportBtn">
+                <button class="btn btn-sm btn-outline-secondary ms-1" id="exportBtn">
                     <i class="fas fa-file-export"></i> Export
                 </button>
             </div>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-bordered table-hover" id="releaseLettersTable" width="100%" cellspacing="0" data-no-enhanced>
+                <table class="table table-hover mb-0" id="releaseLettersTable" width="100%" cellspacing="0" data-no-enhanced>
                     <thead>
                         <tr>
                             <th>Request Code</th>
@@ -197,115 +239,130 @@
                             <th>Date Uploaded</th>
                             <th>Uploaded By</th>
                             <th>Status</th>
-                            <th># of Orders</th>
-                            <th>Actions</th>
+                            <th class="text-center"># Orders</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for letter in release_letters %}
                         <tr>
-                            <td>{{ letter.request_code|default:"N/A" }}</td>
-                            <td>{{ letter.title }}</td>
-                            <td>{{ letter.upload_time|date:"M d, Y H:i" }}</td>
-                            <td>{{ letter.uploaded_by.get_full_name|default:letter.uploaded_by.username }}</td>
+                            <td>
+                                {% if letter.request_code %}
+                                <span style="font-family:'SF Mono',monospace;font-size:0.8rem;font-weight:600;background:var(--rl-bg-tint);padding:0.15rem 0.45rem;border-radius:4px;color:var(--rl-text);">
+                                    {{ letter.request_code|default:"N/A" }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'release_letter_detail' letter.pk %}" class="text-decoration-none fw-semibold"
+                                   style="color:var(--rl-text);">
+                                    {{ letter.title|truncatewords:6 }}
+                                </a>
+                            </td>
+                            <td style="color:var(--rl-text-muted);font-size:0.82rem;">{{ letter.upload_time|date:"M d, Y H:i" }}</td>
+                            <td style="color:var(--rl-text-muted);font-size:0.82rem;">
+                                {{ letter.uploaded_by.get_full_name|default:letter.uploaded_by.username }}
+                            </td>
                             <td>
                                 {% if letter.workflow_status %}
                                     {% include "Inventory/includes/signature_stamp_badge.html" with workflow_status=letter.workflow_status %}
                                 {% else %}
                                     {% with status=letter.get_status_display %}
                                     <span class="badge
-                                        {% if status == 'Pending' %}badge-warning
-                                        {% elif status == 'Approved' %}badge-primary
-                                        {% elif status == 'Completed' %}badge-success
-                                        {% elif status == 'Rejected' %}badge-danger
-                                        {% else %}badge-secondary{% endif %}">
+                                        {% if status == 'Pending' %}bg-warning text-dark
+                                        {% elif status == 'Approved' %}bg-primary
+                                        {% elif status == 'Completed' %}bg-success
+                                        {% elif status == 'Rejected' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}"
+                                        style="font-size:0.75rem;font-weight:600;">
                                         {{ status }}
                                     </span>
                                     {% endwith %}
                                 {% endif %}
                             </td>
                             <td class="text-center">
-                                <span class="badge badge-info">
+                                <span class="badge bg-secondary" style="font-size:0.75rem;">
                                     {{ letter.material_orders.count }}
                                 </span>
                             </td>
-                            <td class="action-buttons">
+                            <td class="action-buttons text-center">
                                 <a href="{% url 'release_letter_detail' letter.pk %}"
-                                   class="btn btn-sm btn-info" title="View Details">
+                                   class="btn btn-sm btn-outline-primary" title="View Details" style="border-radius:6px;">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 {% if letter.pdf_file %}
                                 <a href="{{ letter.pdf_file.url }}"
-                                   class="btn btn-sm btn-primary" title="Download signed scan" download>
+                                   class="btn btn-sm btn-outline-success" title="Download signed scan" download style="border-radius:6px;">
                                     <i class="fas fa-download"></i>
                                 </a>
                                 {% elif letter.letter_pdf %}
                                 <a href="{{ letter.letter_pdf.url }}"
-                                   class="btn btn-sm btn-outline-success" title="Download unsigned letter" download>
+                                   class="btn btn-sm btn-outline-secondary" title="Download unsigned letter" download style="border-radius:6px;">
                                     <i class="fas fa-file-alt"></i>
                                 </a>
                                 {% endif %}
-                                
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="text-center">No release letters found.</td>
+                            <td colspan="7" class="text-center py-4" style="color:var(--rl-text-muted);">
+                                <i class="fas fa-inbox d-block mb-2" style="font-size:1.5rem;color:var(--rl-text-soft);"></i>
+                                No release letters found.
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Pagination -->
             {% if is_paginated %}
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div>
-                    <p class="mb-0">
-                        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} entries
-                    </p>
+            <div class="d-flex justify-content-between align-items-center" style="padding:0.85rem 1.25rem;">
+                <div style="font-size:0.82rem;color:var(--rl-text-muted);">
+                    Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
                 </div>
                 <nav aria-label="Page navigation">
                     <ul class="pagination pagination-sm mb-0">
                         {% if page_obj.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   aria-label="First">
+                                <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                   style="color:var(--rl-accent);">
                                     <span aria-hidden="true">&laquo;&laquo;</span>
                                 </a>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   aria-label="Previous">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                   style="color:var(--rl-accent);">
                                     <span aria-hidden="true">&laquo;</span>
                                 </a>
                             </li>
                         {% endif %}
-                        
                         {% for num in page_obj.paginator.page_range %}
                             {% if page_obj.number == num %}
                                 <li class="page-item active">
-                                    <span class="page-link">{{ num }}</span>
+                                    <span class="page-link" style="background:var(--rl-accent);border-color:var(--rl-accent);">{{ num }}</span>
                                 </li>
                             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                                    <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                       style="color:var(--rl-accent);">
                                         {{ num }}
                                     </a>
                                 </li>
                             {% endif %}
                         {% endfor %}
-                        
                         {% if page_obj.has_next %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   aria-label="Next">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                   style="color:var(--rl-accent);">
                                     <span aria-hidden="true">&raquo;</span>
                                 </a>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   aria-label="Last">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                                   style="color:var(--rl-accent);">
                                     <span aria-hidden="true">&raquo;&raquo;</span>
                                 </a>
                             </li>

@@ -117,9 +117,19 @@
                     <td>{{ order.date_requested|date:"M d, Y" }}</td>
                     <td>
                         {% if order.release_letter %}
-                            <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none">
-                                <i class="fas fa-file-pdf text-danger me-1"></i>{{ order.release_letter.title|default:"View PDF" }}
+                            <a href="{% url 'release_letter_detail' order.release_letter.pk %}" class="text-decoration-none fw-bold small">
+                                <i class="fas fa-external-link-alt me-1" style="font-size:0.7rem;"></i>{{ order.release_letter.reference_number|default:"RL-..." }}
                             </a>
+                            <div class="mt-1">
+                                {% if order.release_letter.pdf_file %}
+                                <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none small me-2">
+                                    <i class="fas fa-file-pdf text-danger me-1"></i>PDF
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'release_letter_detail' order.release_letter.pk %}" class="text-decoration-none small">
+                                    <i class="fas fa-arrow-right me-1" style="font-size:0.65rem;"></i>Workflow
+                                </a>
+                            </div>
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}

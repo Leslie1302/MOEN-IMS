@@ -1100,5 +1100,5 @@ class TransportArchiveView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
 # Waybill PDF + QR verification moved to services (Phase 6). Re-exported
 # here so urls.py keeps referencing transporter_views.*
 from .services.waybill_pdf import (  # noqa: E402
-    download_waybill_pdf, verify_waybill_qr, generate_qr_code, WaybillTemplate,
+    download_waybill_pdf, verify_waybill_qr,
 )
