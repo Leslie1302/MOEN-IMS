@@ -54,7 +54,7 @@ class SuperuserOnlyMixin(UserPassesTestMixin):
         # Hide existence of the page from non-superusers
         raise Http404()
 
-class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ReleaseLetterListView(LoginRequiredMixin, ListView):
     """
     View for store officers and superusers to see all release letters with their associated orders.
     """
@@ -62,8 +62,6 @@ class ReleaseLetterListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     template_name = 'Inventory/release_letter_list.html'
     context_object_name = 'release_letters'
     paginate_by = 20
-    
-    
     
     def get_queryset(self):
         queryset = ReleaseLetter.objects.select_related('uploaded_by').prefetch_related('material_orders').all()

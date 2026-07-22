@@ -361,6 +361,69 @@ class ReleaseLetter(auto_prefetch.Model):
         """
         return self.total_requested - self.total_released
 
+    def get_pipeline_step(self):
+        """
+        Compute the current pipeline step (1-11) by inspecting related data.
+        Steps 1-6 derived from workflow_status + document presence.
+        Steps 7-11 derived from MaterialTransport / SiteReceipt / MaterialOrder status.
+        Returns int 1-11.
+        """
+        has_memo = bool(self.memo_pdf)
+        has_letter = bool(self.letter_pdf)
+        has_scan = bool(self.pdf_file)
+        confirmed = bool(self.scan_confirmed_by)
+
+        # ── Steps 1-6: document workflow ──
+        # Use workflow_status as primary source; document presence for refinement.
+        if self.workflow_status in ('draft', 'pending'):
+            return 1
+        if self.workflow_status == 'memo_generated':
+            return 2
+        if self.workflow_status == 'awaiting_signature':
+            return 3
+        if self.workflow_status == 'awaiting_scan_upload':
+            # If scan is now filed + confirmed, we've moved past step 4
+            if has_scan and confirmed:
+                return 5  # Approved (scan confirmed)
+            if has_scan and not confirmed:
+                return 4  # Scan filed, awaiting confirmation
+            return 3  # Still awaiting scan upload
+        if self.workflow_status == 'approved':
+            return 5
+        if self.workflow_status == 'released':
+            # Check downstream steps 7-11 via related models
+            from Inventory.models.transport import MaterialTransport
+            orders = list(self.material_orders.all())
+            transports = list(MaterialTransport.objects.filter(
+                material_order__in=orders
+            ).select_related('site_receipt'))
+
+            if not transports:
+                return 6  # Released but no transports assigned yet
+
+            all_received = all(t.site_receipt is not None for t in transports)
+            all_delivered = all(t.status == 'Delivered' for t in transports)
+            all_boq = all(
+                t.site_receipt.boq_matched for t in transports if t.site_receipt
+            )
+            all_completed = all(
+                o.status == 'Completed' for o in orders
+            ) if orders else False
+
+            if all_completed:
+                return 11
+            if all_delivered and all_boq:
+                return 10
+            if all_delivered:
+                return 9
+            if all_received:
+                return 8
+            if any(t.status == 'In Transit' for t in transports):
+                return 7
+            return 6
+
+        return 1  # Fallback
+
     
 
 

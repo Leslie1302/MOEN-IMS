@@ -6,365 +6,421 @@
 
 {% block extra_css %}
 <style>
-    /* Design tokens */
     :root {
-        --rl-border: #e3e6ea;
+        --rl-border: #e2e2e2;
         --rl-border-soft: #eef0f3;
-        --rl-bg-surface: #ffffff;
+        --rl-bg: #ffffff;
         --rl-bg-subtle: #f7f8fa;
         --rl-bg-tint: #f1f4f8;
         --rl-text: #1f2933;
-        --rl-text-muted: #6c757d;
-        --rl-text-soft: #94a0ad;
-        --rl-radius: 10px;
+        --rl-muted: #6c757d;
+        --rl-soft: #94a0ad;
+        --rl-radius: 8px;
         --rl-radius-sm: 6px;
-        --rl-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
+        --rl-shadow: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+        --rl-green: #2e7d32;
+        --rl-green-soft: #e8f5e9;
+        --rl-navy: #1a2332;
         --rl-accent: #0d6efd;
-        --rl-success: #198754;
         --rl-warning: #ad7409;
         --rl-danger: #b71c1c;
     }
-    /* Project-type accent colors via data attribute on body wrapper. */
-    [data-project-type="SHEP"]   { --rl-accent: #198754; --rl-accent-soft: #e6f4ec; }
-    [data-project-type="COST"]   { --rl-accent: #087990; --rl-accent-soft: #e1f1f5; }
-    [data-project-type="STREET"] { --rl-accent: #b06d00; --rl-accent-soft: #fff3e0; }
+    [data-pt="SHEP"]   { --rl-accent: #2e7d32; --rl-accent-soft: #e8f5e9; }
+    [data-pt="COST"]   { --rl-accent: #087990; --rl-accent-soft: #e1f1f5; }
+    [data-pt="STREET"] { --rl-accent: #b06d00; --rl-accent-soft: #fff3e0; }
 
-    .rl-wrap { color: var(--rl-text); }
+    .rl-wrap { color: var(--rl-text); max-width: 1400px; }
 
-    /* Header / hero */
-    .rl-hero {
-        background: linear-gradient(180deg, var(--rl-bg-surface), var(--rl-bg-subtle));
-        border: 1px solid var(--rl-border);
-        border-radius: var(--rl-radius);
-        padding: 1.25rem 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: var(--rl-shadow-soft);
+    /* ── Breadcrumb ── */
+    .rl-breadcrumb {
+        font-size: 0.78rem; color: var(--rl-muted); margin-bottom: 0.25rem;
+        display: flex; align-items: center; gap: 0.3rem;
     }
-    .rl-hero .rl-back {
-        font-size: 0.78rem; color: var(--rl-text-muted); text-decoration: none;
-        letter-spacing: 0.02em;
+    .rl-breadcrumb a { color: var(--rl-muted); text-decoration: none; }
+    .rl-breadcrumb a:hover { color: var(--rl-accent); text-decoration: underline; }
+    .rl-breadcrumb .sep { color: var(--rl-soft); }
+
+    /* ── Title + badge ── */
+    .rl-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .rl-title-row h1 { font-size: 1.6rem; font-weight: 700; margin: 0; line-height: 1.3; flex: 1; min-width: 0; }
+    .rl-badge-status {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+        background: var(--rl-bg-tint); color: var(--rl-muted);
+        padding: 6px 14px; border-radius: 999px; border: 1px solid var(--rl-border);
+        white-space: nowrap;
     }
-    .rl-hero .rl-back:hover { color: var(--rl-accent); }
-    .rl-hero h1 {
-        font-size: 1.4rem; font-weight: 600; margin: 0.25rem 0 0; color: var(--rl-text);
-        display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
-    }
-    .rl-hero .meta { color: var(--rl-text-muted); font-size: 0.82rem; margin-top: 0.4rem; }
-    .rl-hero .meta code {
-        background: var(--rl-bg-tint); color: var(--rl-text);
-        padding: 0.05rem 0.4rem; border-radius: 4px; font-size: 0.78rem;
-    }
-    .rl-code-pill {
-        font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
-        font-size: 0.78rem; font-weight: 600;
-        background: var(--rl-text); color: #fff;
-        padding: 0.2rem 0.6rem; border-radius: 5px;
-        letter-spacing: 0.04em;
-    }
-    .rl-project-pill {
-        font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-        background: var(--rl-accent-soft); color: var(--rl-accent);
-        padding: 0.22rem 0.55rem; border-radius: 999px;
+    .rl-badge-status.is-success { background: var(--rl-green-soft); color: var(--rl-green); border-color: #c8e6c9; }
+    .rl-badge-status.is-warning { background: #fff3e0; color: var(--rl-warning); border-color: #ffe0b2; }
+    .rl-badge-status.is-danger  { background: #fdecea; color: var(--rl-danger); border-color: #f5c6cb; }
+    .rl-byline { font-size: 0.82rem; color: var(--rl-muted); margin-top: 0.35rem; }
+    .rl-byline code {
+        background: var(--rl-bg-tint); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.78rem;
     }
 
-    /* Workflow stepper */
-    .rl-stepper {
-        display: flex; align-items: stretch; gap: 0;
-        background: var(--rl-bg-surface);
-        border: 1px solid var(--rl-border);
-        border-radius: var(--rl-radius);
-        padding: 0.85rem 1rem;
-        margin-bottom: 1rem;
-        overflow-x: auto;
-        box-shadow: var(--rl-shadow-soft);
+    /* ── Pipeline stepper ── */
+    .rl-pipeline-card {
+        background: var(--rl-bg); border: 1px solid var(--rl-border); border-radius: var(--rl-radius);
+        padding: 20px; margin: 1rem 0; box-shadow: var(--rl-shadow);
     }
-    .rl-step {
-        display: flex; align-items: center; gap: 0.6rem;
-        font-size: 0.82rem; color: var(--rl-text-soft);
-        white-space: nowrap; flex-shrink: 0;
+    .rl-pipeline-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;
     }
-    .rl-step + .rl-step { padding-left: 0.8rem; }
-    .rl-step + .rl-step::before {
-        content: ""; display: inline-block; width: 24px; height: 1px;
-        background: var(--rl-border); margin-right: 0.8rem;
-        flex-shrink: 0;
+    .rl-pipeline-header h6 {
+        font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--rl-muted); margin: 0; display: flex; align-items: center; gap: 0.4rem;
     }
-    .rl-step-dot {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 22px; height: 22px; border-radius: 50%;
-        background: var(--rl-bg-tint); color: var(--rl-text-soft);
-        border: 1px solid var(--rl-border);
-        font-size: 0.7rem; font-weight: 600;
+    .rl-pipeline-current {
+        font-size: 0.8rem; font-weight: 700; color: var(--rl-green);
+        display: flex; align-items: center; gap: 0.3rem;
     }
-    .rl-step.is-done { color: var(--rl-success); }
-    .rl-step.is-done .rl-step-dot {
-        background: var(--rl-success); color: #fff; border-color: var(--rl-success);
+    .rl-pipeline {
+        display: flex; align-items: flex-start; justify-content: space-between; position: relative;
+        padding: 0 4px;
     }
-    .rl-step.is-current { color: var(--rl-text); font-weight: 600; }
-    .rl-step.is-current .rl-step-dot {
-        background: var(--rl-accent); color: #fff; border-color: var(--rl-accent);
-        box-shadow: 0 0 0 4px var(--rl-accent-soft);
+    /* connecting line */
+    .rl-pipeline::before {
+        content: ""; position: absolute; top: 14px; left: 24px; right: 24px; height: 2px;
+        background: var(--rl-border); z-index: 1;
     }
-    .rl-step.is-voided .rl-step-dot {
-        background: var(--rl-danger); color: #fff; border-color: var(--rl-danger);
+    .rl-pipeline .rl-pline-done {
+        position: absolute; top: 14px; left: 24px; height: 2px; background: var(--rl-green); z-index: 2;
     }
+    .rl-pnode {
+        display: flex; flex-direction: column; align-items: center; position: relative; z-index: 3;
+        min-width: 44px; flex: 1;
+    }
+    .rl-pnode-dot {
+        width: 28px; height: 28px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.65rem; font-weight: 700; color: var(--rl-soft);
+        background: var(--rl-bg); border: 2px solid var(--rl-border);
+        transition: all .2s;
+    }
+    .rl-pnode-label {
+        font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.04em;
+        color: var(--rl-soft); margin-top: 0.45rem; text-align: center;
+        white-space: nowrap; font-weight: 600;
+    }
+    /* completed */
+    .rl-pnode.is-done .rl-pnode-dot {
+        background: var(--rl-green); color: #fff; border-color: var(--rl-green);
+    }
+    .rl-pnode.is-done .rl-pnode-label { color: var(--rl-green); }
+    /* current */
+    .rl-pnode.is-current .rl-pnode-dot {
+        background: var(--rl-bg); color: var(--rl-green); border: 3px solid var(--rl-green);
+        width: 36px; height: 36px; box-shadow: 0 0 0 4px var(--rl-green-soft);
+    }
+    .rl-pnode.is-current .rl-pnode-label { color: var(--rl-text); font-weight: 700; }
 
-    /* Cards */
+    /* ── Grid layout ── */
+    .rl-grid { display: grid; grid-template-columns: 65% 35%; gap: 24px; }
+    @media (max-width: 991px) { .rl-grid { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
     .rl-card {
-        background: var(--rl-bg-surface);
-        border: 1px solid var(--rl-border);
-        border-radius: var(--rl-radius);
-        margin-bottom: 1rem;
-        overflow: hidden;
-        box-shadow: var(--rl-shadow-soft);
+        background: var(--rl-bg); border: 1px solid var(--rl-border); border-radius: var(--rl-radius);
+        margin-bottom: 1rem; overflow: hidden; box-shadow: var(--rl-shadow);
     }
-    .rl-card-header {
-        background: var(--rl-bg-subtle);
-        border-bottom: 1px solid var(--rl-border-soft);
-        padding: 0.7rem 1rem;
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: var(--rl-text-muted);
+    .rl-card-hdr {
         display: flex; justify-content: space-between; align-items: center;
+        padding: 0.65rem 1rem; background: var(--rl-bg-subtle);
+        border-bottom: 1px solid var(--rl-border-soft);
+    }
+    .rl-card-hdr h6 {
+        font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+        color: var(--rl-muted); margin: 0; display: flex; align-items: center; gap: 0.4rem;
     }
     .rl-card-body { padding: 1rem 1.1rem; }
 
-    /* Next-action card — colored treatment per state. */
-    .rl-next {
-        border-left: 4px solid var(--rl-accent);
-        background: linear-gradient(90deg, var(--rl-accent-soft) 0%, var(--rl-bg-surface) 40%);
-    }
-    .rl-next.is-success { border-left-color: var(--rl-success); background: linear-gradient(90deg, #e6f4ec 0%, var(--rl-bg-surface) 40%); }
-    .rl-next.is-warning { border-left-color: var(--rl-warning); background: linear-gradient(90deg, #fff8e6 0%, var(--rl-bg-surface) 40%); }
-    .rl-next.is-danger  { border-left-color: var(--rl-danger);  background: linear-gradient(90deg, #fdecea 0%, var(--rl-bg-surface) 40%); }
-    .rl-next .rl-next-title {
-        font-size: 1rem; font-weight: 600; margin-bottom: 0.3rem;
-    }
-    .rl-next .rl-next-help {
-        color: var(--rl-text-muted); font-size: 0.87rem; margin-bottom: 0.9rem;
-    }
+    /* ── Next step card ── */
+    .rl-next { border-left: 4px solid var(--rl-accent); }
+    .rl-next.is-success { border-left-color: var(--rl-green); }
+    .rl-next.is-warning { border-left-color: var(--rl-warning); }
+    .rl-next.is-danger  { border-left-color: var(--rl-danger); }
+    .rl-next-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .rl-next-help { color: var(--rl-muted); font-size: 0.85rem; margin-bottom: 0.8rem; }
 
-    /* Document preview tabs */
+    /* ── Document tabs — underlined active ── */
     .rl-doc-tabs {
-        display: flex; gap: 0; border-bottom: 1px solid var(--rl-border-soft);
-        padding: 0 0.5rem; background: var(--rl-bg-subtle);
+        display: flex; gap: 0; border-bottom: 2px solid var(--rl-border-soft);
     }
     .rl-doc-tab {
-        padding: 0.7rem 1rem; font-size: 0.85rem; font-weight: 500;
-        color: var(--rl-text-muted); background: transparent;
-        border: 0; border-bottom: 2px solid transparent;
-        cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.7rem 1.1rem; font-size: 0.78rem; font-weight: 600;
+        color: var(--rl-muted); background: transparent; border: 0;
+        border-bottom: 3px solid transparent; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        margin-bottom: -2px; transition: color .15s, border-color .15s;
     }
     .rl-doc-tab:hover:not([disabled]) { color: var(--rl-text); }
-    .rl-doc-tab.is-active { color: var(--rl-accent); border-bottom-color: var(--rl-accent); }
-    .rl-doc-tab[disabled] { opacity: 0.45; cursor: not-allowed; }
-    .rl-doc-tab .rl-tab-dot {
-        width: 6px; height: 6px; border-radius: 50%; background: var(--rl-text-soft);
-    }
-    .rl-doc-tab.has-file .rl-tab-dot { background: var(--rl-success); }
+    .rl-doc-tab.is-active { color: var(--rl-green); border-bottom-color: var(--rl-green); }
+    .rl-doc-tab[disabled] { opacity: 0.35; cursor: not-allowed; }
+    .rl-doc-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rl-soft); }
+    .rl-doc-tab.has-file .dot { background: var(--rl-green); }
     .rl-doc-pane { display: none; }
     .rl-doc-pane.is-active { display: block; }
-    .rl-preview-frame {
-        width: 100%; min-height: 580px; border: 0; background: var(--rl-bg-subtle);
-        display: block;
-    }
+    .rl-preview-frame { width: 100%; min-height: 560px; border: 0; background: var(--rl-bg-subtle); }
+    /* dashed empty state */
     .rl-empty-preview {
-        text-align: center; padding: 4rem 2rem; color: var(--rl-text-muted);
-        background: var(--rl-bg-subtle);
+        text-align: center; padding: 3.5rem 2rem; color: var(--rl-muted);
+        border: 2px dashed var(--rl-border); border-radius: var(--rl-radius);
+        margin: 1rem; background: var(--rl-bg-subtle);
     }
+    .rl-empty-preview i { font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.4; display: block; }
 
-    /* Detail rows / downloads */
-    .rl-row {
-        display: flex; justify-content: space-between; gap: 0.75rem;
-        padding: 0.5rem 0; font-size: 0.86rem;
+    /* ── Document preview action buttons ── */
+    .rl-doc-pane { position: relative; }
+    .rl-doc-actions {
+        position: absolute; bottom: 0.8rem; right: 0.8rem; z-index: 10;
+        display: flex; gap: 0.35rem;
+    }
+    .rl-doc-action {
+        width: 34px; height: 34px; border-radius: 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--rl-navy); color: #e2e8f0; font-size: 0.8rem;
+        text-decoration: none; border: 1px solid rgba(255,255,255,.1);
+        transition: background .15s;
+    }
+    .rl-doc-action:hover { background: #334155; color: #fff; }
+
+    /* ── Materials table ── */
+    .rl-mat { font-size: 0.82rem; }
+    .rl-mat thead th {
+        font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+        color: #fff; font-weight: 600; background: var(--rl-navy);
+        padding: 0.55rem 0.8rem; border: 0;
+    }
+    .rl-mat tbody td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--rl-border-soft); }
+    .rl-mat tbody tr:last-child td { border-bottom: 0; }
+    .rl-mat code { font-size: 0.75rem; background: var(--rl-bg-tint); padding: 0.05rem 0.35rem; border-radius: 4px; }
+
+    /* ── Detail rows — stacked label/value ── */
+    .rl-drow {
+        padding: 0.5rem 0; font-size: 0.82rem;
         border-bottom: 1px solid var(--rl-border-soft);
     }
-    .rl-row:last-child { border-bottom: 0; }
-    .rl-row .rl-row-label { color: var(--rl-text-muted); }
-    .rl-row .rl-row-value { font-weight: 500; text-align: right; word-break: break-word; }
-    .rl-row .rl-row-value code {
-        background: var(--rl-bg-tint); padding: 0.05rem 0.35rem; border-radius: 4px;
-        font-size: 0.78rem;
+    .rl-drow:last-child { border-bottom: 0; }
+    .rl-drow-l {
+        display: block; color: var(--rl-muted); font-size: 0.68rem;
+        text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+        margin-bottom: 0.15rem;
+    }
+    .rl-drow-v { font-weight: 700; color: var(--rl-text); word-break: break-word; }
+    .rl-drow-v code {
+        background: var(--rl-bg-tint); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.76rem;
     }
 
-    .rl-file-link {
+    /* ── File rows ── */
+    .rl-file {
         display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-        padding: 0.6rem 0.8rem; margin-bottom: 0.45rem;
+        padding: 0.6rem 0.75rem; margin-bottom: 0.4rem;
         background: var(--rl-bg-subtle); border: 1px solid var(--rl-border-soft);
-        border-radius: var(--rl-radius-sm);
-        text-decoration: none; color: var(--rl-text);
-        transition: border-color 0.15s, transform 0.15s;
+        border-radius: var(--rl-radius-sm); text-decoration: none; color: var(--rl-text);
+        transition: border-color .15s;
     }
-    .rl-file-link:last-child { margin-bottom: 0; }
-    .rl-file-link:hover { border-color: var(--rl-accent); color: var(--rl-text); }
-    .rl-file-link.is-disabled {
-        opacity: 0.55; cursor: not-allowed; pointer-events: none; background: var(--rl-bg-subtle);
-    }
-    .rl-file-link .rl-file-icon {
+    .rl-file:last-child { margin-bottom: 0; }
+    .rl-file:hover { border-color: var(--rl-accent); color: var(--rl-text); }
+    .rl-file.is-empty { opacity: 0.5; pointer-events: none; }
+    .rl-file.is-dashed { border-style: dashed; }
+    .rl-file-icon {
         display: inline-flex; align-items: center; justify-content: center;
-        width: 32px; height: 32px; border-radius: 6px;
-        background: var(--rl-bg-tint); color: var(--rl-text-muted);
-        font-size: 0.9rem;
+        width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0;
+        background: var(--rl-bg-tint); color: var(--rl-muted); font-size: 0.9rem;
     }
-    .rl-file-link.has-file .rl-file-icon { background: var(--rl-accent-soft); color: var(--rl-accent); }
-    .rl-file-link .rl-file-name { font-size: 0.86rem; font-weight: 500; line-height: 1.2; }
-    .rl-file-link .rl-file-meta { font-size: 0.74rem; color: var(--rl-text-muted); }
+    .rl-file.has-file .rl-file-icon { background: var(--rl-green-soft); color: var(--rl-green); }
+    .rl-file-name { font-size: 0.82rem; font-weight: 600; line-height: 1.2; }
+    .rl-file-meta { font-size: 0.7rem; color: var(--rl-muted); margin-top: 0.1rem; }
+    .rl-file-meta.is-warn { color: var(--rl-warning); font-weight: 600; }
 
-    /* Materials table */
-    .rl-materials { font-size: 0.85rem; }
-    .rl-materials thead th {
-        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
-        color: var(--rl-text-muted); font-weight: 600;
-        background: var(--rl-bg-subtle); border-bottom: 1px solid var(--rl-border-soft);
-        padding: 0.55rem 1rem;
+    /* ── Timeline card (dark) ── */
+    .rl-timeline {
+        background: var(--rl-navy); color: #e2e8f0; border-color: var(--rl-navy);
     }
-    .rl-materials tbody td { padding: 0.55rem 1rem; border-bottom: 1px solid var(--rl-border-soft); }
-    .rl-materials tbody tr:last-child td { border-bottom: 0; }
-    .rl-materials code {
-        font-size: 0.78rem; background: var(--rl-bg-tint); padding: 0.05rem 0.4rem; border-radius: 4px;
-    }
+    .rl-timeline .rl-card-hdr { background: rgba(255,255,255,.06); border-bottom-color: rgba(255,255,255,.08); }
+    .rl-timeline .rl-card-hdr h6 { color: #94a3b8; }
+    .rl-timeline .rl-drow { border-bottom-color: rgba(255,255,255,.08); }
+    .rl-timeline .rl-drow-l { color: #94a3b8; }
+    .rl-timeline .rl-drow-v { color: #e2e8f0; }
 
-    /* Misc utility */
-    .rl-muted { color: var(--rl-text-muted); }
-    .rl-soft { color: var(--rl-text-soft); }
+    /* ── Pill / misc ── */
     .rl-pill {
-        display: inline-block; font-size: 0.72rem; font-weight: 500;
-        padding: 0.2rem 0.55rem; border-radius: 999px;
-        background: var(--rl-bg-tint); color: var(--rl-text-muted);
+        display: inline-block; font-size: 0.7rem; font-weight: 500;
+        padding: 0.18rem 0.5rem; border-radius: 999px;
+        background: var(--rl-bg-tint); color: var(--rl-muted);
     }
-    .rl-pill.is-success { background: #e6f4ec; color: var(--rl-success); }
+    .rl-pill.is-success { background: var(--rl-green-soft); color: var(--rl-green); }
     .rl-pill.is-warning { background: #fff3e0; color: var(--rl-warning); }
-    .rl-pill.is-danger  { background: #fdecea; color: var(--rl-danger); }
+
+    .rl-muted { color: var(--rl-muted); }
+    .rl-soft { color: var(--rl-soft); }
+
+    /* ── Action buttons row ── */
+    .rl-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+    /* ── Footer ── */
+    .rl-footer {
+        text-align: center; padding: 1.5rem 0 0.5rem; margin-top: 1rem;
+        border-top: 1px solid var(--rl-border-soft); font-size: 0.72rem; color: var(--rl-soft);
+    }
+    .rl-footer a { color: var(--rl-muted); text-decoration: none; }
+    .rl-footer a:hover { color: var(--rl-accent); }
 
     @media (max-width: 768px) {
-        .rl-hero h1 { font-size: 1.2rem; }
-        .rl-stepper { font-size: 0.78rem; }
+        .rl-title-row h1 { font-size: 1.25rem; }
+        .rl-pnode { min-width: 36px; }
+        .rl-pnode-dot { width: 24px; height: 24px; font-size: 0.55rem; }
+        .rl-pnode.is-current .rl-pnode-dot { width: 30px; height: 30px; }
+        .rl-pnode-label { font-size: 0.5rem; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="rl-wrap container-fluid py-3" data-project-type="{{ release_letter.project_type|default:'' }}">
+{% with ws=release_letter.workflow_status|default:"draft" %}
+<div class="rl-wrap container-fluid py-3" data-pt="{{ release_letter.project_type|default:'' }}">
 
-    <div class="rl-hero">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-            <div class="flex-grow-1" style="min-width: 0;">
-                <a href="{% url 'release_letter_tracking_dashboard' %}" class="rl-back">
-                    <i class="fas fa-arrow-left"></i> Release letters
-                </a>
-                <h1>
-                    {% if release_letter.code %}
-                        <span class="rl-code-pill">{{ release_letter.code }}</span>
-                    {% endif %}
-                    <span>{{ release_letter.title|default:"Release event" }}</span>
-                </h1>
-                <div class="meta">
-                    {% if release_letter.uploaded_by %}
-                        Created by <strong>{{ release_letter.uploaded_by.get_full_name|default:release_letter.uploaded_by.username }}</strong>
-                    {% endif %}
-                    on {{ release_letter.upload_time|date:"d M Y, H:i" }}
-                    · Request <code>{{ release_letter.request_code }}</code>
-                </div>
-            </div>
-            <div class="text-end d-flex flex-column align-items-end gap-2">
-                {% if release_letter.project_type %}
-                    <span class="rl-project-pill">{{ release_letter.get_project_type_display }}</span>
+    {# ── Breadcrumb ── #}
+    <nav class="rl-breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'release_letter_list' %}">Release letters</a>
+        <span class="sep">›</span>
+        <span>{{ release_letter.code|default:release_letter.request_code|default:"—" }}</span>
+    </nav>
+
+    {# ── Title + Status badge ── #}
+    <div class="rl-title-row">
+        <div style="min-width:0;">
+            <h1>{{ release_letter.title|default:"Release event" }}</h1>
+            <div class="rl-byline">
+                {% if release_letter.uploaded_by %}
+                    Created by <strong>{{ release_letter.uploaded_by.get_full_name|default:release_letter.uploaded_by.username }}</strong>
                 {% endif %}
-                {% if release_letter.workflow_status %}
-                    {% include "Inventory/includes/signature_stamp_badge.html" with workflow_status=release_letter.workflow_status %}
-                {% endif %}
+                on {{ release_letter.upload_time|date:"d M Y, H:i" }}
+                · Request <code>{{ release_letter.request_code|default:"—" }}</code>
             </div>
+        </div>
+        <div class="d-flex flex-column align-items-end gap-2">
+            {% if release_letter.code %}
+                <span class="rl-badge-status">
+                    <i class="fas fa-file-alt"></i> {{ release_letter.code }}
+                </span>
+            {% endif %}
+            <span class="rl-badge-status
+                {% if ws == 'approved' or ws == 'released' %}is-success
+                {% elif ws == 'awaiting_signature' or ws == 'awaiting_scan_upload' %}is-warning
+                {% elif ws == 'voided' %}is-danger{% endif %}">
+                {% if ws == 'draft' %}Draft
+                {% elif ws == 'memo_generated' %}Memo Generated
+                {% elif ws == 'awaiting_signature' %}Awaiting Signature
+                {% elif ws == 'awaiting_scan_upload' %}Scan on File
+                {% elif ws == 'approved' %}Approved
+                {% elif ws == 'released' %}Released
+                {% elif ws == 'voided' %}Voided
+                {% else %}{{ ws }}{% endif %}
+            </span>
         </div>
     </div>
 
-    {% with ws=release_letter.workflow_status|default:"draft" %}
+    {# ── Pipeline Stepper ── #}
     {% if ws != 'voided' %}
-    <div class="rl-stepper" aria-label="Workflow progress">
-        
-        {% with order="draft memo_generated awaiting_signature awaiting_scan_upload approved released" %}
-        {% with order_list=order.split %}
-        {% for state in order_list %}
-            {% with is_current=False is_done=False %}{% endwith %}
-            <div class="rl-step
-                {% if state == ws %}is-current
-                {% else %}
-                    {% if state == 'draft' and ws != 'draft' %}is-done
-                    {% elif state == 'memo_generated' and ws in 'awaiting_signature,awaiting_scan_upload,approved,released' %}is-done
-                    {% elif state == 'awaiting_signature' and ws in 'awaiting_scan_upload,approved,released' %}is-done
-                    {% elif state == 'awaiting_scan_upload' and ws in 'approved,released' %}is-done
-                    {% elif state == 'approved' and ws == 'released' %}is-done
-                    {% endif %}
-                {% endif %}">
-                <span class="rl-step-dot">{{ forloop.counter }}</span>
-                <span>
-                    {% if state == 'draft' %}Draft
-                    {% elif state == 'memo_generated' %}Memo generated
-                    {% elif state == 'awaiting_signature' %}Awaiting signature
-                    {% elif state == 'awaiting_scan_upload' %}Scan on file
-                    {% elif state == 'approved' %}Approved
-                    {% elif state == 'released' %}Released
-                    {% endif %}
-                </span>
+    <div class="rl-pipeline-card">
+        <div class="rl-pipeline-header">
+            <h6><i class="fas fa-project-diagram me-1"></i> Pipeline Status</h6>
+            <div class="rl-pipeline-current">
+                {% if pipeline_step == 1 %}Step 1: Draft ✓
+                {% elif pipeline_step == 2 %}Step 2: Memo Generated ✓
+                {% elif pipeline_step == 3 %}Step 3: Awaiting Signature ✓
+                {% elif pipeline_step == 4 %}Step 4: Scan Filed ✓
+                {% elif pipeline_step == 5 %}Step 5: Approved ✓
+                {% elif pipeline_step == 6 %}Step 6: Released ✓
+                {% elif pipeline_step == 7 %}Step 7: In Transit ✓
+                {% elif pipeline_step == 8 %}Step 8: Store Receipt ✓
+                {% elif pipeline_step == 9 %}Step 9: Verified ✓
+                {% elif pipeline_step == 10 %}Step 10: Inventory ✓
+                {% elif pipeline_step == 11 %}Step 11: Completed ✓
+                {% endif %}
             </div>
-        {% endfor %}
-        {% endwith %}
-        {% endwith %}
+        </div>
+        <div class="rl-pipeline" id="rl-pipeline">
+            {# green line drawn by JS below #}
+            <div class="rl-pnode {% if pipeline_step > 1 %}is-done{% elif pipeline_step == 1 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 1 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}1{% endif %}</span>
+                <span class="rl-pnode-label">Draft</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 2 %}is-done{% elif pipeline_step == 2 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 2 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 2 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}2{% endif %}</span>
+                <span class="rl-pnode-label">Memo Gen</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 3 %}is-done{% elif pipeline_step == 3 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 3 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 3 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}3{% endif %}</span>
+                <span class="rl-pnode-label">Awaiting Sig</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 4 %}is-done{% elif pipeline_step == 4 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 4 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 4 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}4{% endif %}</span>
+                <span class="rl-pnode-label">Scan Filed</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 5 %}is-done{% elif pipeline_step == 5 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 5 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 5 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}5{% endif %}</span>
+                <span class="rl-pnode-label">Approved</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 6 %}is-done{% elif pipeline_step == 6 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 6 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 6 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}6{% endif %}</span>
+                <span class="rl-pnode-label">Released</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 7 %}is-done{% elif pipeline_step == 7 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 7 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 7 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}7{% endif %}</span>
+                <span class="rl-pnode-label">Transit</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 8 %}is-done{% elif pipeline_step == 8 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 8 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 8 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}8{% endif %}</span>
+                <span class="rl-pnode-label">Store Rec</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 9 %}is-done{% elif pipeline_step == 9 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 9 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 9 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}9{% endif %}</span>
+                <span class="rl-pnode-label">Verified</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 10 %}is-done{% elif pipeline_step == 10 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 10 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 10 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}10{% endif %}</span>
+                <span class="rl-pnode-label">Inventory</span>
+            </div>
+            <div class="rl-pnode {% if pipeline_step > 11 %}is-done{% elif pipeline_step == 11 %}is-current{% endif %}">
+                <span class="rl-pnode-dot">{% if pipeline_step > 11 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% elif pipeline_step == 11 %}<i class="fas fa-check" style="font-size:0.6rem;"></i>{% else %}11{% endif %}</span>
+                <span class="rl-pnode-label">Completed</span>
+            </div>
+        </div>
     </div>
     {% else %}
-    <div class="rl-stepper" aria-label="Workflow progress">
-        <div class="rl-step is-voided">
-            <span class="rl-step-dot"><i class="fas fa-ban"></i></span>
-            <span><strong>Voided</strong> — release event cancelled</span>
+    <div class="rl-pipeline-card">
+        <div class="rl-pipeline-header">
+            <h6><i class="fas fa-project-diagram me-1"></i> Pipeline Status</h6>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;">
+            <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--rl-danger);color:#fff;font-size:0.7rem;flex-shrink:0;">
+                <i class="fas fa-ban"></i>
+            </span>
+            <span style="font-weight:600;color:var(--rl-danger);">Voided — release event cancelled</span>
         </div>
     </div>
     {% endif %}
-    {% endwith %}
 
-    
+    {# ── Two-column grid ── #}
     {% with first_order=release_letter.material_orders.first %}
     {% with first_transport=first_order.transports.first %}
-    <div class="d-flex flex-wrap gap-2 mb-3 small">
-        {% if release_letter.request_code %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-paper-plane me-1"></i> Request <code>{{ release_letter.request_code }}</code>
-        </span>
-        {% endif %}
-        {% if release_letter.code %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-file-signature me-1"></i> Release <code>{{ release_letter.code }}</code>
-        </span>
-        {% endif %}
-        {% if first_transport and first_transport.waybill_number %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-truck me-1"></i> Waybill <code>{{ first_transport.waybill_number }}</code>
-        </span>
-        {% endif %}
-        {% if first_transport.site_receipt %}
-        <span class="badge bg-light text-dark border">
-            <i class="fas fa-receipt me-1"></i> Receipt <code>{{ first_transport.site_receipt.receipt_number|default:first_transport.site_receipt.id }}</code>
-        </span>
-        {% endif %}
-    </div>
-    {% endwith %}
-    {% endwith %}
+    <div class="rl-grid">
 
-    <div class="row g-3">
+        {# ── LEFT COLUMN (65%) ── #}
+        <div>
 
-        <div class="col-lg-8">
-
+            {# ── Next Step card ── #}
             <div class="rl-card rl-next
-                {% if release_letter.workflow_status == 'approved' or release_letter.workflow_status == 'released' %}is-success
-                {% elif release_letter.workflow_status == 'voided' %}is-danger
-                {% elif release_letter.workflow_status == 'awaiting_signature' or release_letter.workflow_status == 'awaiting_scan_upload' %}is-warning
-                {% endif %}">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-tasks me-1"></i> Next step</span>
+                {% if ws == 'approved' or ws == 'released' %}is-success
+                {% elif ws == 'voided' %}is-danger
+                {% elif ws == 'awaiting_signature' or ws == 'awaiting_scan_upload' %}is-warning{% endif %}">
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-tasks"></i> Next Step</h6>
                 </div>
                 <div class="rl-card-body">
-
-                    {% if release_letter.workflow_status == 'draft' %}
+                    {% if ws == 'draft' %}
                         <div class="rl-next-title">Generate the approval memo and release letter</div>
                         <div class="rl-next-help">
                             The system produces both PDFs with a unique
@@ -380,13 +436,12 @@
                         </form>
                         {% endif %}
 
-                    {% elif release_letter.workflow_status == 'memo_generated' or release_letter.workflow_status == 'awaiting_signature' %}
-                        <div class="rl-next-title">Print, get signature, upload signed scan</div>
+                    {% elif ws == 'memo_generated' or ws == 'awaiting_signature' %}
+                        <div class="rl-next-title">Print, sign, and upload the scanned copy</div>
                         <div class="rl-next-help">
                             Download the unsigned letter, print it, obtain the Chief Director's
                             wet signature, then upload the signed scan below. The system verifies the
-                            scan's verification code matches <code>{{ release_letter.code }}</code>
-                            before accepting.
+                            scan's verification code matches <code>{{ release_letter.code }}</code>.
                         </div>
                         {% if can_generate_documents %}
                         <form method="post" action="{% url 'release_letter_upload_scan' release_letter.pk %}" enctype="multipart/form-data">
@@ -395,10 +450,10 @@
                                 <div class="col-md-8">
                                     <label class="form-label small fw-semibold mb-1">Signed scan</label>
                                     <input type="file" name="signed_scan" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg" required>
-                                    <div class="form-text small">PDF or image. QR / printed code verified before upload is accepted.</div>
+                                    <div class="form-text small">PDF or image. QR code verified before upload is accepted.</div>
                                 </div>
                                 <div class="col-md-4">
-                                    <button type="submit" class="btn btn-primary w-100">
+                                    <button type="submit" class="btn btn-success w-100">
                                         <i class="fas fa-upload me-1"></i> Upload scan
                                     </button>
                                 </div>
@@ -413,27 +468,18 @@
                             </div>
                             {% endif %}
                         </form>
-                        <div class="mt-3">
-                            <form method="post" action="{% url 'generate_release_documents' release_letter.pk %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-secondary btn-sm">
-                                    <i class="fas fa-redo me-1"></i> Regenerate documents
-                                </button>
-                            </form>
-                        </div>
                         {% endif %}
 
-                    {% elif release_letter.workflow_status == 'awaiting_scan_upload' %}
+                    {% elif ws == 'awaiting_scan_upload' %}
                         <div class="rl-next-title">Awaiting second-person confirmation</div>
                         <div class="rl-next-help">
                             Scan uploaded by
                             <strong>{{ release_letter.uploaded_by.get_full_name|default:release_letter.uploaded_by.username }}</strong>
-                            on {{ release_letter.scan_uploaded_at|date:"d M Y, H:i" }}. A different user must
-                            confirm the scan to advance the release to <strong>Approved</strong>.
+                            on {{ release_letter.scan_uploaded_at|date:"d M Y, H:i" }}. A different user must confirm.
                         </div>
                         {% if can_generate_documents %}
                             {% if request.user.is_superuser or release_letter.uploaded_by_id != request.user.id %}
-                            <form method="post" action="{% url 'release_letter_confirm_scan' release_letter.pk %}" class="d-inline">
+                            <form method="post" action="{% url 'release_letter_confirm_scan' release_letter.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-success">
                                     <i class="fas fa-check-double me-1"></i> Confirm scan → Approved
@@ -445,53 +491,31 @@
                                 You uploaded this scan — a different user must confirm it.
                             </div>
                             {% endif %}
-                            <details class="mt-3">
-                                <summary class="small rl-muted" style="cursor: pointer;">Replace scan</summary>
-                                <form method="post" action="{% url 'release_letter_upload_scan' release_letter.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">
-                                    {% csrf_token %}
-                                    <div class="col-md-8">
-                                        <input type="file" name="signed_scan" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-                                            <i class="fas fa-redo me-1"></i> Re-upload
-                                        </button>
-                                    </div>
-                                    {% if request.user.is_superuser %}
-                                    <div class="col-12">
-                                        <div class="form-check small">
-                                            <input type="checkbox" name="force_accept" id="force_accept_re" class="form-check-input">
-                                            <label for="force_accept_re" class="form-check-label text-warning">
-                                                Force accept (superuser)
-                                            </label>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                </form>
-                            </details>
                         {% endif %}
 
-                    {% elif release_letter.workflow_status == 'approved' %}
+                    {% elif ws == 'approved' %}
                         <div class="rl-next-title text-success">
                             <i class="fas fa-check-circle"></i> Approved
                         </div>
+                        {% if release_letter.scan_confirmed_by %}
                         <div class="rl-next-help">
                             Confirmed by
                             <strong>{{ release_letter.scan_confirmed_by.get_full_name|default:release_letter.scan_confirmed_by.username }}</strong>
-                            on {{ release_letter.scan_confirmed_at|date:"d M Y, H:i" }}.
+                            {% if release_letter.scan_confirmed_at %}on {{ release_letter.scan_confirmed_at|date:"d M Y, H:i" }}.{% endif %}
                         </div>
-                        <div class="rl-next-help mt-2" style="background:#e8f5e9;border-radius:8px;padding:0.65rem 0.85rem;border:1px solid #c8e6c9;">
-                            <i class="fas fa-info-circle me-1" style="color:#2e7d32;"></i>
-                            <strong style="color:#1b5e20;">Physical release</strong> is confirmed automatically when the waybill QR code is scanned by the consignee. No manual action is needed here.
+                        {% endif %}
+                        <div class="rl-next-help mt-2" style="background:var(--rl-green-soft);border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #c8e6c9;">
+                            <i class="fas fa-info-circle me-1" style="color:var(--rl-green);"></i>
+                            <strong style="color:#1b5e20;">Physical release</strong> is confirmed automatically when the waybill QR is scanned by the consignee.
                         </div>
 
-                    {% elif release_letter.workflow_status == 'released' %}
+                    {% elif ws == 'released' %}
                         <div class="rl-next-title text-success">
                             <i class="fas fa-truck"></i> Materials released
                         </div>
                         <div class="rl-next-help">Release event closed.</div>
 
-                    {% elif release_letter.workflow_status == 'voided' %}
+                    {% elif ws == 'voided' %}
                         <div class="rl-next-title text-danger">
                             <i class="fas fa-ban"></i> Voided
                         </div>
@@ -503,64 +527,75 @@
                 </div>
             </div>
 
+            {# ── Document viewer (tabbed) ── #}
             <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-file-pdf me-1"></i> Documents</span>
-                </div>
                 <div class="rl-doc-tabs" role="tablist">
                     <button type="button"
-                            class="rl-doc-tab {% if release_letter.memo_pdf %}has-file{% endif %} {% if release_letter.pdf_file %}is-active{% else %}{% if release_letter.memo_pdf %}is-active{% endif %}{% endif %}"
+                            class="rl-doc-tab {% if release_letter.memo_pdf %}has-file{% endif %} {% if not release_letter.pdf_file and release_letter.memo_pdf %}is-active{% elif not release_letter.letter_pdf and not release_letter.pdf_file and release_letter.memo_pdf %}is-active{% endif %}"
                             data-pane="memo"
                             {% if not release_letter.memo_pdf %}disabled{% endif %}>
-                        <span class="rl-tab-dot"></span> Approval memo
+                        <span class="dot"></span> Approval Memo
                     </button>
                     <button type="button"
                             class="rl-doc-tab {% if release_letter.letter_pdf %}has-file{% endif %}"
                             data-pane="letter"
                             {% if not release_letter.letter_pdf %}disabled{% endif %}>
-                        <span class="rl-tab-dot"></span> Release letter
+                        <span class="dot"></span> Release Letter
                     </button>
                     <button type="button"
                             class="rl-doc-tab {% if release_letter.pdf_file %}has-file is-active{% endif %}"
                             data-pane="scan"
                             {% if not release_letter.pdf_file %}disabled{% endif %}>
-                        <span class="rl-tab-dot"></span> Signed scan
+                        <span class="dot"></span> Signed Scan
                     </button>
                 </div>
                 {% if release_letter.memo_pdf or release_letter.letter_pdf or release_letter.pdf_file %}
-                    
                     {% if release_letter.memo_pdf %}
-                    <div class="rl-doc-pane {% if not release_letter.pdf_file %}is-active{% endif %}" data-pane="memo">
+                    <div class="rl-doc-pane {% if not release_letter.pdf_file and not release_letter.letter_pdf %}is-active{% endif %}" data-pane="memo">
+                        <div class="rl-doc-actions">
+                            <a href="{{ release_letter.memo_pdf.url }}" target="_blank" title="Zoom" class="rl-doc-action"><i class="fas fa-search-plus"></i></a>
+                            <a href="{{ release_letter.memo_pdf.url }}" onclick="window.print();return false;" title="Print" class="rl-doc-action"><i class="fas fa-print"></i></a>
+                            <a href="{{ release_letter.memo_pdf.url }}" download title="Download" class="rl-doc-action"><i class="fas fa-download"></i></a>
+                        </div>
                         <iframe class="rl-preview-frame" src="{{ release_letter.memo_pdf.url }}" title="Approval memo"></iframe>
                     </div>
                     {% endif %}
                     {% if release_letter.letter_pdf %}
                     <div class="rl-doc-pane" data-pane="letter">
+                        <div class="rl-doc-actions">
+                            <a href="{{ release_letter.letter_pdf.url }}" target="_blank" title="Zoom" class="rl-doc-action"><i class="fas fa-search-plus"></i></a>
+                            <a href="{{ release_letter.letter_pdf.url }}" onclick="window.print();return false;" title="Print" class="rl-doc-action"><i class="fas fa-print"></i></a>
+                            <a href="{{ release_letter.letter_pdf.url }}" download title="Download" class="rl-doc-action"><i class="fas fa-download"></i></a>
+                        </div>
                         <iframe class="rl-preview-frame" src="{{ release_letter.letter_pdf.url }}" title="Release letter"></iframe>
                     </div>
                     {% endif %}
                     {% if release_letter.pdf_file %}
                     <div class="rl-doc-pane is-active" data-pane="scan">
+                        <div class="rl-doc-actions">
+                            <a href="{{ release_letter.pdf_file.url }}" target="_blank" title="Zoom" class="rl-doc-action"><i class="fas fa-search-plus"></i></a>
+                            <a href="{{ release_letter.pdf_file.url }}" onclick="window.print();return false;" title="Print" class="rl-doc-action"><i class="fas fa-print"></i></a>
+                            <a href="{{ release_letter.pdf_file.url }}" download title="Download" class="rl-doc-action"><i class="fas fa-download"></i></a>
+                        </div>
                         <iframe class="rl-preview-frame" src="{{ release_letter.pdf_file.url }}" title="Signed scan"></iframe>
                     </div>
                     {% endif %}
                 {% else %}
                     <div class="rl-empty-preview">
-                        <i class="fas fa-file-alt fa-3x mb-3 opacity-50"></i>
-                        <h6 class="rl-muted">No documents generated yet</h6>
+                        <i class="fas fa-file-alt"></i>
+                        <h6 class="rl-muted mb-1">No documents generated yet</h6>
                         <p class="small rl-muted mb-0">Use <strong>Generate memo &amp; letter</strong> above to produce the PDFs.</p>
                     </div>
                 {% endif %}
             </div>
 
+            {# ── Materials table ── #}
             <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-boxes me-1"></i> Materials
-                        <span class="rl-soft">({{ release_letter.material_orders.count }})</span>
-                    </span>
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-boxes"></i> Materials <span class="rl-soft">({{ release_letter.material_orders.count }})</span></h6>
                 </div>
                 {% if release_letter.material_orders.all %}
-                <table class="table mb-0 rl-materials">
+                <table class="table mb-0 rl-mat">
                     <thead>
                         <tr>
                             <th>Request</th>
@@ -583,67 +618,108 @@
                     </tbody>
                 </table>
                 {% else %}
-                <div class="p-3 text-center rl-muted small">No material orders linked to this release event.</div>
+                <div class="p-3 text-center rl-muted small">No material orders linked.</div>
                 {% endif %}
             </div>
+
+            {# ── Action buttons ── #}
+            <div class="rl-actions">
+                {% if can_generate_documents %}
+                <form method="post" action="{% url 'generate_release_documents' release_letter.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-redo me-1"></i> Regenerate documents
+                    </button>
+                </form>
+                {% endif %}
+                <a href="{% url 'release_letter_tracking_dashboard' %}" class="btn btn-dark btn-sm">
+                    <i class="fas fa-clipboard-list me-1"></i> View Audit Log
+                </a>
+            </div>
+
         </div>
 
-        <div class="col-lg-4">
+        {# ── RIGHT COLUMN (35%) ── #}
+        <div>
 
-            {% with first_order=release_letter.material_orders.first %}
-            {% if first_order %}
+            {# ── Release Details card ── #}
             <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-user-tie me-1"></i> Consignee</span>
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-info-circle"></i> Release Details</h6>
                 </div>
                 <div class="rl-card-body">
-                    <div class="rl-soft small mb-1">
-                        {% if release_letter.project_type == 'SHEP' %}Consultant
-                        {% elif release_letter.project_type == 'COST' or release_letter.project_type == 'STREET' %}Hon. Member of Parliament
-                        {% else %}Recipient{% endif %}
-                    </div>
-                    <div class="fw-semibold" style="font-size: 0.95rem;">
-                        {% if release_letter.project_type == 'SHEP' %}
-                            {{ first_order.consultant|default:"—" }}
-                        {% elif release_letter.project_type == 'COST' or release_letter.project_type == 'STREET' %}
-                            {{ first_order.contractor|default:"—" }}
-                        {% else %}
-                            {{ first_order.consultant|default:first_order.contractor|default:"—" }}
-                        {% endif %}
+                    {% if first_order %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">
+                            {% if release_letter.project_type == 'SHEP' %}Consignee
+                            {% elif release_letter.project_type == 'COST' or release_letter.project_type == 'STREET' %}Hon. MP
+                            {% else %}Consignee{% endif %}
+                        </span>
+                        <span class="rl-drow-v">
+                            {% if release_letter.project_type == 'SHEP' %}
+                                {{ first_order.consultant|default:"—" }}
+                            {% elif release_letter.project_type == 'COST' or release_letter.project_type == 'STREET' %}
+                                {{ first_order.contractor|default:"—" }}
+                            {% else %}
+                                {{ first_order.consultant|default:first_order.contractor|default:"—" }}
+                            {% endif %}
+                        </span>
                     </div>
                     {% if first_order.region or first_order.district %}
-                    <div class="small rl-muted mt-2">
-                        <i class="fas fa-map-marker-alt me-1"></i>
-                        {{ first_order.region|default:'' }}{% if first_order.district %} · {{ first_order.district }}{% endif %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Destination</span>
+                        <span class="rl-drow-v">{{ first_order.region|default:'' }}{% if first_order.district %} · {{ first_order.district }}{% endif %}</span>
                     </div>
                     {% endif %}
+                    {% endif %}
+                    {% if release_letter.code %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Release Code</span>
+                        <span class="rl-drow-v"><code>{{ release_letter.code }}</code></span>
+                    </div>
+                    {% endif %}
+                    {% if release_letter.total_quantity %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Total Quantity</span>
+                        <span class="rl-drow-v">{{ release_letter.total_quantity|floatformat:0|intcomma }}</span>
+                    </div>
+                    {% endif %}
+                    {% if release_letter.material_type %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Material Type</span>
+                        <span class="rl-drow-v">{{ release_letter.get_material_type_display }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Request Code</span>
+                        <span class="rl-drow-v"><code>{{ release_letter.request_code|default:"—" }}</code></span>
+                    </div>
                 </div>
             </div>
-            {% endif %}
-            {% endwith %}
 
+            {# ── Generated Files card ── #}
             <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-download me-1"></i> Files</span>
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-folder-open"></i> Generated Files</h6>
                 </div>
                 <div class="rl-card-body">
                     {% if release_letter.memo_pdf %}
-                    <a href="{{ release_letter.memo_pdf.url }}" class="rl-file-link has-file" download>
+                    <a href="{{ release_letter.memo_pdf.url }}" class="rl-file has-file" download>
                         <span class="d-flex align-items-center gap-2">
-                            <span class="rl-file-icon"><i class="fas fa-file-alt"></i></span>
+                            <span class="rl-file-icon"><i class="fas fa-file-pdf" style="color:var(--rl-green);"></i></span>
                             <span>
-                                <div class="rl-file-name">Approval memo</div>
-                                <div class="rl-file-meta">{{ release_letter.memo_pdf.size|filesizeformat }}</div>
+                                <div class="rl-file-name">Approval Memo</div>
+                                <div class="rl-file-meta">{{ release_letter.memo_pdf.size|filesizeformat }} · Generated {{ release_letter.documents_generated_at|date:"d M Y" }}</div>
                             </span>
                         </span>
                         <i class="fas fa-download rl-soft"></i>
                     </a>
                     {% else %}
-                    <div class="rl-file-link is-disabled">
+                    <div class="rl-file is-empty">
                         <span class="d-flex align-items-center gap-2">
-                            <span class="rl-file-icon"><i class="fas fa-file-alt"></i></span>
+                            <span class="rl-file-icon"><i class="fas fa-file-pdf"></i></span>
                             <span>
-                                <div class="rl-file-name">Approval memo</div>
+                                <div class="rl-file-name">Approval Memo</div>
                                 <div class="rl-file-meta">Not generated</div>
                             </span>
                         </span>
@@ -651,22 +727,22 @@
                     {% endif %}
 
                     {% if release_letter.letter_pdf %}
-                    <a href="{{ release_letter.letter_pdf.url }}" class="rl-file-link has-file" download>
+                    <a href="{{ release_letter.letter_pdf.url }}" class="rl-file has-file" download>
                         <span class="d-flex align-items-center gap-2">
-                            <span class="rl-file-icon"><i class="fas fa-file-alt"></i></span>
+                            <span class="rl-file-icon"><i class="fas fa-file-pdf" style="color:var(--rl-green);"></i></span>
                             <span>
-                                <div class="rl-file-name">Release letter (unsigned)</div>
-                                <div class="rl-file-meta">{{ release_letter.letter_pdf.size|filesizeformat }}</div>
+                                <div class="rl-file-name">Release Letter</div>
+                                <div class="rl-file-meta">{{ release_letter.letter_pdf.size|filesizeformat }} · Generated {{ release_letter.documents_generated_at|date:"d M Y" }}</div>
                             </span>
                         </span>
                         <i class="fas fa-download rl-soft"></i>
                     </a>
                     {% else %}
-                    <div class="rl-file-link is-disabled">
+                    <div class="rl-file is-empty">
                         <span class="d-flex align-items-center gap-2">
-                            <span class="rl-file-icon"><i class="fas fa-file-alt"></i></span>
+                            <span class="rl-file-icon"><i class="fas fa-file-pdf"></i></span>
                             <span>
-                                <div class="rl-file-name">Release letter (unsigned)</div>
+                                <div class="rl-file-name">Release Letter</div>
                                 <div class="rl-file-meta">Not generated</div>
                             </span>
                         </span>
@@ -674,23 +750,23 @@
                     {% endif %}
 
                     {% if release_letter.pdf_file %}
-                    <a href="{{ release_letter.pdf_file.url }}" class="rl-file-link has-file" download>
+                    <a href="{{ release_letter.pdf_file.url }}" class="rl-file has-file" download>
                         <span class="d-flex align-items-center gap-2">
-                            <span class="rl-file-icon"><i class="fas fa-file-signature"></i></span>
+                            <span class="rl-file-icon"><i class="fas fa-file-signature" style="color:var(--rl-green);"></i></span>
                             <span>
-                                <div class="rl-file-name">Signed scan</div>
-                                <div class="rl-file-meta">{{ release_letter.pdf_file.size|filesizeformat }}</div>
+                                <div class="rl-file-name">Signed Scan</div>
+                                <div class="rl-file-meta">{{ release_letter.pdf_file.size|filesizeformat }} · Uploaded {{ release_letter.scan_uploaded_at|date:"d M Y" }}</div>
                             </span>
                         </span>
                         <i class="fas fa-download rl-soft"></i>
                     </a>
                     {% else %}
-                    <div class="rl-file-link is-disabled">
+                    <div class="rl-file is-empty is-dashed">
                         <span class="d-flex align-items-center gap-2">
                             <span class="rl-file-icon"><i class="fas fa-file-signature"></i></span>
                             <span>
-                                <div class="rl-file-name">Signed scan</div>
-                                <div class="rl-file-meta">Not uploaded</div>
+                                <div class="rl-file-name">Signed Scan</div>
+                                <div class="rl-file-meta is-warn">NOT UPLOADED</div>
                             </span>
                         </span>
                     </div>
@@ -698,73 +774,40 @@
                 </div>
             </div>
 
-            <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-info-circle me-1"></i> Details</span>
+            {# ── System Timeline card (dark) ── #}
+            <div class="rl-card rl-timeline">
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-clock"></i> System Timeline</h6>
                 </div>
                 <div class="rl-card-body">
-                    {% if release_letter.code %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Release code</span>
-                        <span class="rl-row-value"><code>{{ release_letter.code }}</code></span>
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Created</span>
+                        <span class="rl-drow-v">{{ release_letter.upload_time|date:"d M Y, H:i" }}</span>
                     </div>
-                    {% endif %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Request code</span>
-                        <span class="rl-row-value"><code>{{ release_letter.request_code }}</code></span>
-                    </div>
-                    <div class="rl-row">
-                        <span class="rl-row-label">Created</span>
-                        <span class="rl-row-value">{{ release_letter.upload_time|date:"d M Y, H:i" }}</span>
-                    </div>
-                    {% if release_letter.uploaded_by %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Created by</span>
-                        <span class="rl-row-value">{{ release_letter.uploaded_by.get_full_name|default:release_letter.uploaded_by.username }}</span>
-                    </div>
-                    {% endif %}
                     {% if release_letter.documents_generated_at %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Documents generated</span>
-                        <span class="rl-row-value">{{ release_letter.documents_generated_at|date:"d M Y, H:i" }}</span>
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Documents Gen</span>
+                        <span class="rl-drow-v">{{ release_letter.documents_generated_at|date:"d M Y, H:i" }}</span>
                     </div>
                     {% endif %}
-                    {% if release_letter.scan_uploaded_at %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Scan uploaded</span>
-                        <span class="rl-row-value">{{ release_letter.scan_uploaded_at|date:"d M Y, H:i" }}</span>
+                    {% if release_letter.uploaded_by %}
+                    <div class="rl-drow">
+                        <span class="rl-drow-l">Current Handler</span>
+                        <span class="rl-drow-v">{{ release_letter.uploaded_by.get_full_name|default:release_letter.uploaded_by.username }}</span>
                     </div>
                     {% endif %}
-                    {% if release_letter.scan_confirmed_at %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Scan confirmed</span>
-                        <span class="rl-row-value">
-                            {{ release_letter.scan_confirmed_at|date:"d M Y, H:i" }}
-                            {% if release_letter.scan_confirmed_by %}
-                            <br><span class="rl-soft small">by {{ release_letter.scan_confirmed_by.get_full_name|default:release_letter.scan_confirmed_by.username }}</span>
-                            {% endif %}
-                        </span>
-                    </div>
-                    {% endif %}
-                    {% if release_letter.total_quantity %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Total quantity</span>
-                        <span class="rl-row-value">{{ release_letter.total_quantity|floatformat:0|intcomma }}</span>
-                    </div>
-                    {% endif %}
-                    {% if release_letter.material_type %}
-                    <div class="rl-row">
-                        <span class="rl-row-label">Material type</span>
-                        <span class="rl-row-value">{{ release_letter.get_material_type_display }}</span>
-                    </div>
-                    {% endif %}
+                </div>
+                <div class="px-3 pb-3">
+                    <a href="#" class="btn btn-success btn-sm w-100" style="background:var(--rl-green);border-color:var(--rl-green);">
+                        <i class="fas fa-bell me-1"></i> Notify Chief Director
+                    </a>
                 </div>
             </div>
 
             {% if release_letter.notes %}
             <div class="rl-card">
-                <div class="rl-card-header">
-                    <span><i class="fas fa-sticky-note me-1"></i> Notes</span>
+                <div class="rl-card-hdr">
+                    <h6><i class="fas fa-sticky-note"></i> Notes</h6>
                 </div>
                 <div class="rl-card-body">
                     <p class="small mb-0">{{ release_letter.notes|linebreaksbr }}</p>
@@ -774,11 +817,40 @@
 
         </div>
     </div>
+    {% endwith %}{% endwith %}
+
+    {# ── Footer ── #}
+    <div class="rl-footer">
+        <div>&copy; 2026 MOEGT Integrated Energy Project System (IEPS) | All Rights Reserved | <a href="#">About the System</a></div>
+        <div class="mt-1">
+            <a href="#">Privacy Policy</a> · <a href="#">Support Desk</a> · <a href="#">Ministry Guidelines</a>
+        </div>
+    </div>
+
 </div>
+{% endwith %}
 
 <script>
 (function () {
-    // Tab switching for the document preview card.
+    /* ── Draw green connecting line on pipeline ── */
+    var pipeline = document.getElementById('rl-pipeline');
+    if (pipeline) {
+        var currentNode = pipeline.querySelector('.is-current');
+        if (currentNode) {
+            var pipelineRect = pipeline.getBoundingClientRect();
+            var nodeRect = currentNode.getBoundingClientRect();
+            var lineEl = document.createElement('div');
+            lineEl.className = 'rl-pline-done';
+            /* line from start to center of current node */
+            var leftPx = 24; /* starts at first node center */
+            var rightPx = nodeRect.left - pipelineRect.left + (nodeRect.width / 2);
+            lineEl.style.left = leftPx + 'px';
+            lineEl.style.width = Math.max(0, rightPx - leftPx) + 'px';
+            pipeline.appendChild(lineEl);
+        }
+    }
+
+    /* ── Document tab switching ── */
     var tabs = document.querySelectorAll('.rl-doc-tab[data-pane]');
     var panes = document.querySelectorAll('.rl-doc-pane[data-pane]');
     tabs.forEach(function (tab) {
@@ -788,8 +860,8 @@
             tabs.forEach(function (t) { t.classList.remove('is-active'); });
             panes.forEach(function (p) { p.classList.remove('is-active'); });
             tab.classList.add('is-active');
-            var matching = document.querySelector('.rl-doc-pane[data-pane="' + target + '"]');
-            if (matching) matching.classList.add('is-active');
+            var match = document.querySelector('.rl-doc-pane[data-pane="' + target + '"]');
+            if (match) match.classList.add('is-active');
         });
     });
 })();

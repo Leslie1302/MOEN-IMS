@@ -137,6 +137,8 @@ elif not TOKEN_ENCRYPTION_KEY:
         "Set TOKEN_ENCRYPTION_KEY in your environment for stable tokens."
     )
 
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow same-origin iframes (PDF previews)
+
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

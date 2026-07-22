@@ -422,16 +422,9 @@
             $('#deleteModal').modal('show');
         });
         
-        // Export button functionality
+        // Export button functionality (placeholder — endpoint not yet implemented)
         $('#exportBtn').on('click', function() {
-            // Get current filters
-            var params = new URLSearchParams(window.location.search);
-            
-            // Add format parameter for export
-            params.set('format', 'xlsx');
-            
-            // Redirect to export URL
-            window.location.href = '{% url "release_letter_export" %}' + '?' + params.toString();
+            alert('Export functionality coming soon.');
         });
         
         // Initialize tooltips

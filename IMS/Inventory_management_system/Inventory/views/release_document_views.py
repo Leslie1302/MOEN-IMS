@@ -53,13 +53,13 @@ class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        # Surface workflow status display for the template.
         rl = self.object
         ctx['workflow_status_display'] = rl.get_workflow_status_display() if rl.workflow_status else ''
         ctx['can_generate_documents'] = (
             self.request.user.is_superuser
             or self.request.user.groups.filter(name__in=['Schedule Officers', 'Management']).exists()
         )
+        ctx['pipeline_step'] = rl.get_pipeline_step()
         return ctx
 
 

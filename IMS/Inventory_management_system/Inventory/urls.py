@@ -70,6 +70,7 @@ from .transporter_views import (
     TransportVehicleListView, TransportVehicleDetailView, TransportVehicleCreateView, TransportVehicleUpdateView, TransportVehicleDeleteView,
     TransporterAssignmentView, TransporterLegendView, import_transporters, export_transporters_template, ajax_load_vehicles,
     TransportationStatusView, update_transport_status,
+    ReleaseLetterListView,
 )
 
 # Import help view
@@ -330,6 +331,7 @@ urlpatterns = [
     
     # Release letter upload and tracking
     path('release-letter/upload/', ReleaseLetterUploadView.as_view(), name='release-letter-upload'),
+    path('release-letters/', ReleaseLetterListView.as_view(), name='release_letter_list'),
     path('release-letters/tracking/', release_letter_tracking_dashboard, name='release_letter_tracking_dashboard'),
     path('release-letters/<int:pk>/adjust-quantity/', AdjustReleaseLetterQuantityView.as_view(), name='adjust_release_letter_quantity'),
 
