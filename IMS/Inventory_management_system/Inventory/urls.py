@@ -101,6 +101,7 @@ from .notification_views import (
 
 # Import BoQ overissuance views
 from .boq_overissuance_views import (
+    PackageReconciliationView,
     BoQOverissuanceSummaryView, BoQOverissuanceJustificationCreateView,
     BoQOverissuanceJustificationListView, BoQOverissuanceJustificationDetailView,
     review_overissuance_justification, boq_overissuance_stats
@@ -359,6 +360,7 @@ urlpatterns = [
     path('notifications/preferences/', notification_preferences, name='notification_preferences'),
     
     # BoQ Overissuance Management
+    path('boq/reconciliation/', PackageReconciliationView.as_view(), name='package_reconciliation'),
     path('boq/overissuance/summary/', BoQOverissuanceSummaryView.as_view(), name='boq_overissuance_summary'),
     path('boq/overissuance/<int:boq_id>/justify/', BoQOverissuanceJustificationCreateView.as_view(), name='boq_overissuance_justification_create'),
     path('boq/overissuance/justifications/', BoQOverissuanceJustificationListView.as_view(), name='boq_overissuance_justification_list'),

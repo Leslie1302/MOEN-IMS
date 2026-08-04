@@ -647,44 +647,6 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         return qs
 
-    def get_context_data(self, **kwargs):
-        """Add a package-level reconciliation rollup.
-
-        Contracts are tracked per package, so this is the unit that reconciles:
-        per package, total contracted vs total received, with an over/under/
-        on-track flag. Respects the active filters and spans all pages.
-        """
-        context = super().get_context_data(**kwargs)
-        rows = (self.get_queryset()
-                .exclude(Q(package_number__isnull=True) | Q(package_number=''))
-                .values('package_number')
-                .annotate(contract=Coalesce(Sum('contract_quantity'), 0.0),
-                          received=Coalesce(Sum('quantity_received'), 0.0),
-                          lines=Count('id'))
-                .order_by('package_number'))
-        recon, tot_c, tot_r = [], 0.0, 0.0
-        for r in rows:
-            c, rcv = float(r['contract'] or 0), float(r['received'] or 0)
-            tot_c += c
-            tot_r += rcv
-            bal = c - rcv
-            status = ('Over-issued' if bal < 0
-                      else 'Complete' if c > 0 and bal == 0
-                      else 'On track')
-            recon.append({
-                'package_number': r['package_number'], 'lines': r['lines'],
-                'contract': c, 'received': rcv, 'balance': bal,
-                'pct': round(rcv / c * 100, 1) if c > 0 else 0,
-                'status': status,
-            })
-        context['package_reconciliation'] = recon
-        context['recon_totals'] = {
-            'contract': tot_c, 'received': tot_r, 'balance': tot_c - tot_r,
-            'over_count': sum(1 for p in recon if p['status'] == 'Over-issued'),
-            'package_count': len(recon),
-        }
-        return context
-
 
 def _resolve_boq_project_type(row):
     """Pick a project_type for a BoQ upload row.

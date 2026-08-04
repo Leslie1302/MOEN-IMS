@@ -4,7 +4,7 @@ Views for managing Bill of Quantity overissuances
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import ListView, CreateView, DetailView, UpdateView
+from django.views.generic import ListView, CreateView, DetailView, UpdateView, TemplateView
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.db.models import Q, Sum, Count, F
@@ -24,6 +24,64 @@ class BoQOverissuanceAccessMixin(UserPassesTestMixin):
     def test_func(self):
         user = self.request.user
         return is_store_officer(user) or is_management(user) or is_superuser(user)
+
+
+class PackageReconciliationView(LoginRequiredMixin, BoQOverissuanceAccessMixin, TemplateView):
+    """Per-package reconciliation: contracted vs received, with over/under flags.
+
+    Contracts are tracked per package (not per community), so the package is
+    the unit that reconciles. Styled to mirror the overissuance summary.
+    """
+    template_name = 'Inventory/package_reconciliation.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        qs = (BillOfQuantity.objects
+              .exclude(Q(package_number__isnull=True) | Q(package_number=''))
+              .order_by('package_number', 'material_description'))
+
+        pkgs = defaultdict(lambda: {
+            'package_number': '', 'contractor': '', 'consultant': '',
+            'region': '', 'district': '', 'lines': [],
+            'contract': 0.0, 'received': 0.0,
+        })
+        for item in qs:
+            p = pkgs[item.package_number]
+            p['package_number'] = item.package_number
+            p['contractor'] = item.contractor or p['contractor']
+            p['consultant'] = item.consultant or p['consultant']
+            p['region'] = item.region or p['region']
+            p['district'] = item.district or p['district']
+            c = float(item.contract_quantity or 0)
+            r = float(item.quantity_received or 0)
+            p['lines'].append({
+                'material': item.material_description, 'community': item.community,
+                'contract': c, 'received': r, 'balance': c - r, 'over': r > c,
+            })
+            p['contract'] += c
+            p['received'] += r
+
+        packages, tot_c, tot_r, over = [], 0.0, 0.0, 0
+        for p in sorted(pkgs.values(), key=lambda x: x['package_number']):
+            bal = p['contract'] - p['received']
+            p['balance'] = bal
+            p['pct'] = round(p['received'] / p['contract'] * 100, 1) if p['contract'] > 0 else 0
+            p['status'] = ('Over-issued' if bal < 0
+                           else 'Complete' if p['contract'] > 0 and bal == 0
+                           else 'On track')
+            if p['status'] == 'Over-issued':
+                over += 1
+            tot_c += p['contract']
+            tot_r += p['received']
+            packages.append(p)
+
+        context['packages'] = packages
+        context['totals'] = {
+            'contract': tot_c, 'received': tot_r, 'balance': tot_c - tot_r,
+            'package_count': len(packages), 'over_count': over,
+        }
+        return context
 
 
 class BoQOverissuanceSummaryView(LoginRequiredMixin, BoQOverissuanceAccessMixin, ListView):

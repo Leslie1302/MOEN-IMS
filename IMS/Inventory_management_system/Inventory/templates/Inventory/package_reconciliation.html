@@ -1,0 +1,136 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Package Reconciliation{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h2><i class="bi bi-clipboard-check text-primary"></i> Package Reconciliation</h2>
+                <div>
+                    <a href="{% url 'boq_overissuance_summary' %}" class="btn btn-outline-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Overissuance Summary
+                    </a>
+                    <a href="{% url 'bill_of_quantity' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to BoQ
+                    </a>
+                </div>
+            </div>
+            <p class="text-muted mb-0">
+                Contracts are tracked per package. Each card reconciles total
+                contracted against total received for that package.
+            </p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-muted mb-1"><i class="bi bi-box2"></i> Packages</div>
+                    <h2 class="mb-0 fw-bold text-primary">{{ totals.package_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-muted mb-1"><i class="bi bi-file-earmark-text"></i> Contracted</div>
+                    <h2 class="mb-0 fw-bold text-dark">{{ totals.contract|floatformat:0|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-muted mb-1"><i class="bi bi-truck"></i> Received</div>
+                    <h2 class="mb-0 fw-bold text-success">{{ totals.received|floatformat:0|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-muted mb-1"><i class="bi bi-exclamation-triangle"></i> Over-issued</div>
+                    <h2 class="mb-0 fw-bold {% if totals.over_count %}text-danger{% else %}text-muted{% endif %}">{{ totals.over_count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if packages %}
+        {% for p in packages %}
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header" style="background: var(--moen-header, #1e293b); color: #fff;">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h5 class="mb-0">
+                            <i class="bi bi-folder-fill"></i>
+                            Package: <strong>{{ p.package_number }}</strong>
+                        </h5>
+                        <small>
+                            <i class="bi bi-geo-alt"></i> {{ p.region|default:"—" }}{% if p.district %} · {{ p.district }}{% endif %} |
+                            <i class="bi bi-building"></i> {{ p.contractor|default:"—" }} |
+                            <i class="bi bi-person-badge"></i> {{ p.consultant|default:"—" }}
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        {% if p.status == 'Over-issued' %}
+                        <span class="badge" style="background: var(--bs-danger); color:#fff;">Over-issued</span>
+                        {% elif p.status == 'Complete' %}
+                        <span class="badge bg-success">Complete</span>
+                        {% else %}
+                        <span class="badge bg-secondary">On track</span>
+                        {% endif %}
+                        <span class="badge bg-light text-dark">{{ p.pct }}% received</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Material</th>
+                                <th>Community</th>
+                                <th class="text-end">Contracted</th>
+                                <th class="text-end">Received</th>
+                                <th class="text-end">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in p.lines %}
+                            <tr {% if line.over %}class="table-danger"{% endif %}>
+                                <td>{{ line.material }}</td>
+                                <td>{{ line.community|default:"—" }}</td>
+                                <td class="text-end">{{ line.contract|floatformat:0|intcomma }}</td>
+                                <td class="text-end">{{ line.received|floatformat:0|intcomma }}</td>
+                                <td class="text-end {% if line.balance < 0 %}text-danger fw-bold{% endif %}">{{ line.balance|floatformat:0|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td colspan="2">Package total</td>
+                                <td class="text-end">{{ p.contract|floatformat:0|intcomma }}</td>
+                                <td class="text-end">{{ p.received|floatformat:0|intcomma }}</td>
+                                <td class="text-end {% if p.balance < 0 %}text-danger{% endif %}">{{ p.balance|floatformat:0|intcomma }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle-fill"></i> No packaged BoQ lines yet. Upload a
+            Bill of Quantity with package numbers to see reconciliation here.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
