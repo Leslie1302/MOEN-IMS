@@ -32,33 +32,37 @@ class Command(BaseCommand):
         def blank(field):
             return Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__exact": ""})
 
+        # Contracts are per-package: package_number and region are what matter
+        # (reconciliation key + map). community is optional, reported for info.
         counts = {
             f: BillOfQuantity.objects.filter(blank(f)).count()
-            for f in ('region', 'district', 'community')
+            for f in ('package_number', 'region', 'district', 'community')
         }
         any_blank = BillOfQuantity.objects.filter(
-            blank('region') | blank('district') | blank('community')).count()
+            blank('package_number') | blank('region')).count()
 
         distinct_regions = (BillOfQuantity.objects
                             .exclude(blank('region'))
                             .values_list('region', flat=True).distinct().count())
 
         self.stdout.write(f"Total BoQ rows: {total:,}")
-        self.stdout.write(f"  blank region:    {counts['region']:,} "
-                          f"({counts['region'] / total:.0%})")
-        self.stdout.write(f"  blank district:  {counts['district']:,} "
+        self.stdout.write(f"  blank package_number: {counts['package_number']:,} "
+                          f"({counts['package_number'] / total:.0%})   <- can't reconcile")
+        self.stdout.write(f"  blank region:         {counts['region']:,} "
+                          f"({counts['region'] / total:.0%})   <- won't map / filter")
+        self.stdout.write(f"  blank district:       {counts['district']:,} "
                           f"({counts['district'] / total:.0%})")
-        self.stdout.write(f"  blank community: {counts['community']:,} "
-                          f"({counts['community'] / total:.0%})")
-        self.stdout.write(f"  rows missing at least one: {any_blank:,}")
+        self.stdout.write(f"  blank community:      {counts['community']:,} "
+                          f"({counts['community'] / total:.0%})   (optional — package-level, informational)")
+        self.stdout.write(f"  rows missing package_number or region: {any_blank:,}")
         self.stdout.write(f"  distinct non-blank regions (what the filter can show): "
                           f"{distinct_regions}")
 
         if any_blank:
-            self.stdout.write("\nSample of incomplete rows:")
+            self.stdout.write("\nSample of rows missing package_number or region:")
             fields = ('id', 'package_number', 'item_code', 'region', 'district', 'community')
             for r in (BillOfQuantity.objects
-                      .filter(blank('region') | blank('district') | blank('community'))
+                      .filter(blank('package_number') | blank('region'))
                       .values(*fields)[:opts['sample']]):
                 self.stdout.write(
                     f"  #{r['id']}  pkg={r['package_number'] or '—'}  "
@@ -66,8 +70,9 @@ class Command(BaseCommand):
                     f"region={r['region'] or '∅'}  district={r['district'] or '∅'}  "
                     f"community={r['community'] or '∅'}")
             self.stdout.write(self.style.WARNING(
-                "\nThese rows won't appear under region/community filters and can't "
-                "reconcile. Re-upload them with the missing columns filled, or fix "
-                "in BoQ bulk-edit."))
+                "\nMissing package_number blocks package reconciliation; missing "
+                "region hides the row from the map/filters. Re-upload with those "
+                "filled, or fix in BoQ bulk-edit. (community may stay blank.)"))
         else:
-            self.stdout.write(self.style.SUCCESS("\nNo incomplete BoQ rows — data is clean."))
+            self.stdout.write(self.style.SUCCESS(
+                "\nEvery BoQ row has a package_number and region — reconciliation-ready."))

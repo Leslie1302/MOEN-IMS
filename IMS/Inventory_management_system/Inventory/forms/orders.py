@@ -429,10 +429,11 @@ class ReportSubmissionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Community must be captured — a report submission feeds a BoQ line,
-        # and a BoQ with no community can't be filtered, matched to the
-        # registry, or reconciled.
-        self.fields['community'].required = True
+        # Community is OPTIONAL: contracts are tracked per package, not per
+        # community. Captured when known (it enriches the map / distribution
+        # view), but reconciliation happens at the package level, so a blank
+        # community must not block a submission.
+        self.fields['community'].required = False
 
 
 class ReleaseLetterUploadForm(forms.ModelForm):

@@ -9,7 +9,8 @@ from io import BytesIO
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
+from django.db.models.functions import Coalesce
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
@@ -228,21 +229,22 @@ class DownloadBoQTemplateView(LoginRequiredMixin, View):
         df = pd.DataFrame(sample_rows, columns=columns)
 
         instructions = pd.DataFrame([
-            ('region',               'Required', 'Use one of the 16 Ghana regions, e.g. "Greater Accra", "Ashanti".'),
+            ('region',               'Required', 'Use one of the 16 Ghana regions, e.g. "Greater Accra", "Ashanti". Needed for the map and filters.'),
             ('district',             'Required', 'District name as it appears on the contract.'),
-            ('community',            'Required', 'Community name. BoQ→site sync keys off this — keep spelling consistent.'),
+            ('community',            'Optional', 'Contracts are tracked PER PACKAGE, so community may be left blank — a package can span several communities. Fill it in when a line is genuinely community-specific; keep spelling consistent with the registry when you do.'),
             ('project_type',         'Optional', 'One of "SHEP", "Cost Sharing", "Streetlights", "Turnkey", "China Water". If blank, inferred from phase, then package_number prefix; falls back to SHEP.'),
             ('phase',                'Optional', 'Phase label, e.g. "SHEP-4", "Phase 2".'),
             ('consultant',           'Required', 'Consultant name. Auto-resolves the SHEP consignee.'),
             ('contractor',           'Required', 'Contractor name.'),
-            ('package_number',       'Required', 'Unique package identifier. Prefix can also drive project_type (SHEP-/CS-/SL-/TK-/CW-).'),
+            ('package_number',       'Required', 'Unique package identifier and the RECONCILIATION KEY — released vs contract is summed per package. Prefix can also drive project_type (SHEP-/CS-/SL-/TK-/CW-).'),
             ('material_description', 'Required', 'Must match an existing InventoryItem name exactly. Unmatched rows are rejected on upload.'),
             ('contract_quantity',    'Required', 'Whole or decimal number. Total contracted quantity for this line.'),
             ('quantity_received',    'Optional', 'Defaults to 0. Site receipts update this automatically afterwards; set a non-zero value only when seeding from existing paper records.'),
         ], columns=['Column', 'Status', 'Notes'])
 
         notes_block = pd.DataFrame([
-            ('Uniqueness',  'Rows are upserted on (item_code, package_number, community).'),
+            ('Reconciliation', 'Contracts are tracked per PACKAGE. The BoQ page shows a per-package rollup: total contracted vs received, with over/under flags.'),
+            ('Uniqueness',  'Rows are upserted on (item_code, package_number, community). community may be blank.'),
             ('Inference',   'project_type is auto-set from phase keywords (SHEP, Cost, Street, Turnkey, China) or package_number prefix when the column is empty.'),
             ('Sites sync',  'Saving a BoQ row now flips the matching ProjectSite status (Planned → Active → Completed) — Ghana map updates automatically.'),
             ('Backfill',    'After first import, run: python manage.py sync_sites_from_boq'),
@@ -642,8 +644,47 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                     for v in values:
                         q_objects |= Q(**{f"{field_name}__iexact": v})
                     qs = qs.filter(q_objects)
-        
+
         return qs
+
+    def get_context_data(self, **kwargs):
+        """Add a package-level reconciliation rollup.
+
+        Contracts are tracked per package, so this is the unit that reconciles:
+        per package, total contracted vs total received, with an over/under/
+        on-track flag. Respects the active filters and spans all pages.
+        """
+        context = super().get_context_data(**kwargs)
+        rows = (self.get_queryset()
+                .exclude(Q(package_number__isnull=True) | Q(package_number=''))
+                .values('package_number')
+                .annotate(contract=Coalesce(Sum('contract_quantity'), 0.0),
+                          received=Coalesce(Sum('quantity_received'), 0.0),
+                          lines=Count('id'))
+                .order_by('package_number'))
+        recon, tot_c, tot_r = [], 0.0, 0.0
+        for r in rows:
+            c, rcv = float(r['contract'] or 0), float(r['received'] or 0)
+            tot_c += c
+            tot_r += rcv
+            bal = c - rcv
+            status = ('Over-issued' if bal < 0
+                      else 'Complete' if c > 0 and bal == 0
+                      else 'On track')
+            recon.append({
+                'package_number': r['package_number'], 'lines': r['lines'],
+                'contract': c, 'received': rcv, 'balance': bal,
+                'pct': round(rcv / c * 100, 1) if c > 0 else 0,
+                'status': status,
+            })
+        context['package_reconciliation'] = recon
+        context['recon_totals'] = {
+            'contract': tot_c, 'received': tot_r, 'balance': tot_c - tot_r,
+            'over_count': sum(1 for p in recon if p['status'] == 'Over-issued'),
+            'package_count': len(recon),
+        }
+        return context
+
 
 def _resolve_boq_project_type(row):
     """Pick a project_type for a BoQ upload row.
@@ -709,10 +750,13 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
             did_bulk = False
             try:
                 df = pd.read_excel(file, engine='openpyxl')
-                # material_description must exactly match existing InventoryItem names
+                # Contracts are tracked PER PACKAGE. `community` is optional
+                # (captured when known, but a package spans communities), so it
+                # is not a required column. `package_number` is the reconciliation
+                # key and is required.
                 required_columns = [
-                    'region', 'district', 'community', 'consultant', 'contractor', 
-                    'package_number', 'material_description', 
+                    'region', 'district', 'consultant', 'contractor',
+                    'package_number', 'material_description',
                     'contract_quantity', 'quantity_received'
                 ]
                 if not all(col in df.columns for col in required_columns):
@@ -734,10 +778,12 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         return ''
                     return str(value).strip()
 
-                # All required columns - empty values will cause row rejection
+                # Empty values in these cause row rejection. community is NOT
+                # here — it's optional (package-level contracts). package_number
+                # stays required as the reconciliation key.
                 REQUIRED_FIELDS = [
-                    'region', 'district', 'community', 'consultant', 'contractor',
-                    'package_number', 'material_description', 
+                    'region', 'district', 'consultant', 'contractor',
+                    'package_number', 'material_description',
                     'contract_quantity', 'quantity_received'
                 ]
 

@@ -337,14 +337,40 @@ def compute_site_completion(site, community=None):
     }
 
 
-def recalc_site_progress_percent(site, community=None, save=False):
-    """Set ``site.progress_percent`` from the derived completion.
+# Coarse stage → percent used when a community has no frozen per-community
+# targets (contracts are per-package, so there is no quantity denominator to
+# compute a precise 5-stage completion). Driven purely by the consultant's
+# works_status, so progress still shows without contract quantities.
+WORKS_STATUS_PERCENT = {
+    'Planned': 0,
+    'In Progress': 50,
+    'Energised': 90,
+    'Commissioned': 100,
+}
 
-    The column is retained so the Ghana map keeps reading one number; this
-    keeps it in sync whenever site works change. Returns the new percent.
+
+def stage_percent(works_status):
+    """Percent from the works_status lifecycle (no targets needed)."""
+    return WORKS_STATUS_PERCENT.get(works_status or '', 0)
+
+
+def recalc_site_progress_percent(site, community=None, save=False):
+    """Set ``site.progress_percent`` from the best available signal.
+
+    * If the community has frozen per-community targets, use the precise
+      5-stage works completion.
+    * Otherwise (package-level contracts — no per-community quantities),
+      fall back to the works_status stage percent so consultant progress
+      still registers instead of being forced to 0.
+
+    The column is retained so the Ghana map keeps reading one number.
+    Returns the completion result dict.
     """
     result = compute_site_completion(site, community=community)
-    site.progress_percent = int(round(result['percent']))
+    if result['has_targets']:
+        site.progress_percent = int(round(result['percent']))
+    else:
+        site.progress_percent = stage_percent(getattr(site, 'works_status', '') or '')
     if save:
         site.save(update_fields=['progress_percent'])
     return result
