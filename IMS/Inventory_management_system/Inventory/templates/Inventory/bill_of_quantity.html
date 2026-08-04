@@ -13,9 +13,41 @@
         z-index: 1030;
     }
 
-    /* Ensure dropdown menus work */
+    /* Clickable filter headers + caret (previously supplied by table-utils) */
+    thead th[data-column] {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+    }
+    .filter-arrow::after {
+        content: '▾';
+        margin-left: 6px;
+        font-size: 0.75em;
+        opacity: 0.7;
+    }
+    /* Filter dropdown panel */
     .dropdown-menu {
         z-index: 1040;
+        min-width: 220px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 0.25rem;
+        text-align: left;
+    }
+    .dropdown-menu .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        white-space: normal;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.5rem;
+        cursor: pointer;
+    }
+    .dropdown-menu .dropdown-item input { flex-shrink: 0; }
+    .dropdown-menu button.dropdown-item {
+        justify-content: center;
+        margin-top: 0.35rem;
+        color: #fff;
     }
 
     /* Ensure table is responsive */
@@ -245,7 +277,11 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         const table = document.getElementById('boq-table');
-        const headers = table.querySelectorAll('.filter-arrow');
+        // Must select the <th> (which carries data-column), not the arrow span.
+        // The old '.filter-arrow' selector meant data-column was always null,
+        // so this whole custom filter silently threw — table-utils' page-scoped
+        // filter was doing the work. That's now removed, so this must work.
+        const headers = table.querySelectorAll('thead th[data-column]');
         const filters = {};
 
         // Map column index to filter option key (moved to outer scope for applyFilters access)
