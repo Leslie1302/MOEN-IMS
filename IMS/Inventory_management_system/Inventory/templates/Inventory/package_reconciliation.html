@@ -5,6 +5,12 @@
 {% block title %}Package Reconciliation{% endblock %}
 
 {% block content %}
+<style>
+    /* The global h1–h6 colour rule would otherwise darken the card title on
+       the slate header — force all header text/icons white. */
+    .recon-head, .recon-head h5, .recon-head small,
+    .recon-head strong, .recon-head i { color: #fff !important; }
+</style>
 <div class="container-fluid mt-4">
     <div class="row mb-4">
         <div class="col-12">
@@ -65,7 +71,7 @@
     {% if packages %}
         {% for p in packages %}
         <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header" style="background: var(--moen-header, #1e293b); color: #fff;">
+            <div class="card-header recon-head" style="background: var(--moen-header, #1e293b);">
                 <div class="row align-items-center">
                     <div class="col-md-8">
                         <h5 class="mb-0">
