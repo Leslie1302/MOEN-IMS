@@ -297,6 +297,16 @@
             {% endif %}
         };
 
+        // The options endpoint (get_boq_data) keys are plural; the view's
+        // get_queryset expects SINGULAR GET params. Translate before building
+        // the URL, or the filter is silently ignored.
+        const optionKeyToParam = {
+            regions: 'region', districts: 'district', communities: 'community',
+            project_type: 'project_type', consultants: 'consultant',
+            contractors: 'contractor', package_numbers: 'package_number',
+            materials: 'material_description', item_codes: 'item_code'
+        };
+
         // Handle checkbox selection for bulk edit
         {% if user.is_superuser %}
         const selectAllCheckbox = document.getElementById('select-all');
@@ -366,9 +376,9 @@
                 const key = columnKeyMap[colIndex];
                 const values = filterOptions[key] || [];
 
-                // Get current selections from URL params
+                // Get current selections from URL params (singular param name)
                 const urlParams = new URLSearchParams(window.location.search);
-                const currentSelections = urlParams.getAll(key);
+                const currentSelections = urlParams.getAll(optionKeyToParam[key] || key);
 
                 dropdown.innerHTML = '';
                 const selectAll = document.createElement('div');
@@ -410,10 +420,11 @@
                 const colIndex = parseInt(header.getAttribute('data-column'));
                 const dropdown = document.getElementById(`filter-${colIndex}`);
                 const key = columnKeyMap[colIndex];
+                const param = optionKeyToParam[key] || key;
                 const selected = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-                
+
                 if (selected.length > 0) {
-                    selected.forEach(v => urlParams.append(key, v));
+                    selected.forEach(v => urlParams.append(param, v));
                 }
             });
 
