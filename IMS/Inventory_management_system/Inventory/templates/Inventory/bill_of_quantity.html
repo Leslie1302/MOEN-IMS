@@ -245,6 +245,19 @@
         const headers = table.querySelectorAll('.filter-arrow');
         const filters = {};
 
+        // Map column index to filter option key (moved to outer scope for applyFilters access)
+        const columnKeyMap = {
+            {% if user.is_superuser %}
+            3: 'regions', 4: 'districts', 5: 'communities', 6: 'project_type',
+            7: 'consultants', 8: 'contractors', 9: 'package_numbers',
+            10: 'materials', 11: 'item_codes'
+            {% else %}
+            2: 'regions', 3: 'districts', 4: 'communities', 5: 'project_type',
+            6: 'consultants', 7: 'contractors', 8: 'package_numbers',
+            9: 'materials', 10: 'item_codes'
+            {% endif %}
+        };
+
         // Handle checkbox selection for bulk edit
         {% if user.is_superuser %}
         const selectAllCheckbox = document.getElementById('select-all');
@@ -307,19 +320,6 @@
         }
 
         function populateDropdowns(filterOptions) {
-            // Map column index to filter option key
-            const columnKeyMap = {
-                {% if user.is_superuser %}
-                3: 'regions', 4: 'districts', 5: 'communities', 6: 'project_type',
-                7: 'consultants', 8: 'contractors', 9: 'package_numbers',
-                10: 'materials', 11: 'item_codes'
-                {% else %}
-                2: 'regions', 3: 'districts', 4: 'communities', 5: 'project_type',
-                6: 'consultants', 7: 'contractors', 8: 'package_numbers',
-                9: 'materials', 10: 'item_codes'
-                {% endif %}
-            };
-
             headers.forEach(header => {
                 const colIndex = parseInt(header.getAttribute('data-column'));
                 const dropdown = document.getElementById(`filter-${colIndex}`);
