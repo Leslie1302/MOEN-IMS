@@ -62,7 +62,10 @@
     {% endif %}
 
     <div class="table-responsive">
-        <table class="table table-hover table-striped enhanced-table" id="boq-table">
+        <!-- No enhanced-table: this page uses server-side filtering (header
+             dropdowns → GET params) + Django pagination. table-utils' client
+             filter would only see the current page. -->
+        <table class="table table-hover table-striped" id="boq-table" data-no-enhanced>
             <thead>
                 <tr>
                     {% if user.is_superuser %}

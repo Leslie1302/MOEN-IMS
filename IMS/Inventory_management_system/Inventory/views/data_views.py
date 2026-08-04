@@ -722,7 +722,8 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
 
                 success_count = 0
                 error_count = 0
-                
+                skips = []  # (excel_row, reason, detail) — summarised at the end
+
                 def _cell(value):
                     """Coerce a pandas cell to a clean string. Blank/NaN -> ''.
 
@@ -761,7 +762,7 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         if missing_fields:
                             error_count += 1
                             logger.warning(f"Row {index + 2}: Missing required fields: {', '.join(missing_fields)}, skipping")
-                            messages.error(request, f"Row {index + 2}: Missing required fields: {', '.join(missing_fields)}")
+                            skips.append((index + 2, 'missing required field(s)', ', '.join(missing_fields)))
                             continue
                         
                         # Handle NaN or empty values
@@ -771,7 +772,7 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         
                         if not material_description:
                             logger.warning(f"Row {index + 2}: Missing material_description, skipping")
-                            messages.warning(request, f"Row {index + 2}: Missing material description, skipped")
+                            skips.append((index + 2, 'missing material description', ''))
                             error_count += 1
                             continue
                         
@@ -782,11 +783,7 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                             # No match found - reject this row to maintain uniformity
                             error_count += 1
                             logger.error(f"Row {index + 2}: Material '{material_description}' not found in inventory system")
-                            messages.error(
-                                request, 
-                                f"Row {index + 2}: Material '{material_description}' does not match any existing inventory item. "
-                                f"Please ensure material descriptions exactly match items in your inventory."
-                            )
+                            skips.append((index + 2, 'material not in inventory', material_description))
                             continue
                         
                         # Use the matched inventory item's code
@@ -840,13 +837,31 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                     except Exception as e:
                         error_count += 1
                         logger.error(f"Error processing row {index + 2}: {str(e)}", exc_info=True)
-                        messages.error(request, f"Error at row {index + 2}: {str(e)}")
+                        skips.append((index + 2, 'row error', str(e)[:120]))
                         continue  # Skip problematic rows but continue processing others
 
-                if success_count > 0:
-                    messages.success(request, f"Bill of Quantity updated successfully! {success_count} items processed.")
-                if error_count > 0:
-                    messages.warning(request, f"{error_count} rows had errors and were skipped.")
+                # ── Loud, consolidated summary instead of a wall of per-row errors ──
+                total_rows = success_count + error_count
+                if success_count:
+                    messages.success(
+                        request,
+                        f"Imported {success_count} of {total_rows} BoQ rows.")
+                if skips:
+                    from collections import defaultdict as _dd
+                    by_reason = _dd(list)
+                    for excel_row, reason, detail in skips:
+                        by_reason[reason].append((excel_row, detail))
+                    parts = []
+                    for reason, items in by_reason.items():
+                        rows_preview = ", ".join(f"row {r}" + (f" ({d})" if d else "")
+                                                 for r, d in items[:5])
+                        more = f" +{len(items) - 5} more" if len(items) > 5 else ""
+                        parts.append(f"{len(items)} × {reason} — {rows_preview}{more}")
+                    # error (red) if nothing imported, warning (amber) if partial
+                    level = messages.error if success_count == 0 else messages.warning
+                    level(request,
+                          f"{len(skips)} of {total_rows} rows were skipped and NOT imported. "
+                          + " | ".join(parts))
                     
             except Exception as e:
                 logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
