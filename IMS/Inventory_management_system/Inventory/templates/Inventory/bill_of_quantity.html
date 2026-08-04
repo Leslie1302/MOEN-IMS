@@ -66,22 +66,49 @@
             <thead>
                 <tr>
                     {% if user.is_superuser %}
-                    <th scope="col" class="text-center">
+                    <th scope="col" class="text-center" data-no-filter>
                         <input type="checkbox" id="select-all" title="Select All">
                     </th>
                     {% endif %}
-                    <th scope="col" data-sort>Region</th>
-                    <th scope="col" data-sort>District</th>
-                    <th scope="col" data-sort>Community</th>
-                    <th scope="col" data-sort>Project Type</th>
-                    <th scope="col" data-sort>Consultant</th>
-                    <th scope="col" data-sort>Contractor</th>
-                    <th scope="col" data-sort>Pkg #</th>
-                    <th scope="col" data-sort>Material</th>
-                    <th scope="col" data-sort>Item Code</th>
-                    <th scope="col" data-sort data-type="number">Contr. Qty</th>
-                    <th scope="col" data-sort data-type="number">Qty Rcvd</th>
-                    <th scope="col" data-sort data-type="number">Balance</th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}3{% else %}2{% endif %}">
+                        Region <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}3{% else %}2{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}4{% else %}3{% endif %}">
+                        District <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}4{% else %}3{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}5{% else %}4{% endif %}">
+                        Community <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}5{% else %}4{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}6{% else %}5{% endif %}">
+                        Project Type <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}6{% else %}5{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}7{% else %}6{% endif %}">
+                        Consultant <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}7{% else %}6{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}8{% else %}7{% endif %}">
+                        Contractor <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}8{% else %}7{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}9{% else %}8{% endif %}">
+                        Pkg # <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}9{% else %}8{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}10{% else %}9{% endif %}">
+                        Material <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}10{% else %}9{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-column="{% if user.is_superuser %}11{% else %}10{% endif %}">
+                        Item Code <span class="filter-arrow"></span>
+                        <div class="dropdown-menu" id="filter-{% if user.is_superuser %}11{% else %}10{% endif %}" style="display: none;"></div>
+                    </th>
+                    <th scope="col" data-sort data-type="number" data-no-filter>Contr. Qty</th>
+                    <th scope="col" data-sort data-type="number" data-no-filter>Qty Rcvd</th>
+                    <th scope="col" data-sort data-type="number" data-no-filter>Balance</th>
                     {% if user.is_superuser %}
                     <th scope="col" class="text-center" data-no-filter>Actions</th>
                     {% endif %}
@@ -217,7 +244,6 @@
         const table = document.getElementById('boq-table');
         const headers = table.querySelectorAll('.filter-arrow');
         const filters = {};
-        const allRows = Array.from(table.querySelector('tbody').getElementsByTagName('tr'));
 
         // Handle checkbox selection for bulk edit
         {% if user.is_superuser %}
@@ -268,35 +294,54 @@
         updateBulkEditButton();
         {% endif %}
 
-        function populateDropdowns() {
+        // Fetch filter options from server (full dataset, not just current page)
+        async function fetchFilterOptions() {
+            try {
+                const response = await fetch('{% url "get_boq_data" %}');
+                if (!response.ok) throw new Error('Failed to fetch filter options');
+                return await response.json();
+            } catch (e) {
+                console.error('Error fetching filter options:', e);
+                return {};
+            }
+        }
+
+        function populateDropdowns(filterOptions) {
+            // Map column index to filter option key
+            const columnKeyMap = {
+                {% if user.is_superuser %}
+                3: 'regions', 4: 'districts', 5: 'communities', 6: 'project_type',
+                7: 'consultants', 8: 'contractors', 9: 'package_numbers',
+                10: 'materials', 11: 'item_codes'
+                {% else %}
+                2: 'regions', 3: 'districts', 4: 'communities', 5: 'project_type',
+                6: 'consultants', 7: 'contractors', 8: 'package_numbers',
+                9: 'materials', 10: 'item_codes'
+                {% endif %}
+            };
+
             headers.forEach(header => {
                 const colIndex = parseInt(header.getAttribute('data-column'));
                 const dropdown = document.getElementById(`filter-${colIndex}`);
-                const values = new Set();
-                const rows = table.querySelector('tbody').getElementsByTagName('tr');
+                const key = columnKeyMap[colIndex];
+                const values = filterOptions[key] || [];
 
-                for (let row of rows) {
-                    if (row.style.display !== 'none') {
-                        const cells = row.getElementsByTagName('td');
-                        if (cells[colIndex]) {
-                            values.add(cells[colIndex].textContent.trim() || 'N/A');
-                        }
-                    }
-                }
-                console.log(`Column ${colIndex} available values:`, Array.from(values));
+                // Get current selections from URL params
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentSelections = urlParams.getAll(key);
 
-                const currentSelections = filters[colIndex] || [];
                 dropdown.innerHTML = '';
                 const selectAll = document.createElement('div');
                 selectAll.className = 'dropdown-item';
-                selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.size === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
+                selectAll.innerHTML = `<input type="checkbox" id="select-all-${colIndex}" ${values.length === currentSelections.length && currentSelections.length > 0 ? 'checked' : ''}> Select/Deselect All`;
                 dropdown.appendChild(selectAll);
 
                 values.forEach(value => {
                     const item = document.createElement('div');
                     item.className = 'dropdown-item';
-                    const isChecked = currentSelections.includes(value) || (!filters[colIndex] && values.size > 0);
-                    item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${value}`;
+                    const displayValue = value || 'N/A';
+                    const isChecked = currentSelections.includes(value);
+                    item.innerHTML = `<input type="checkbox" value="${value}" class="filter-option" data-column="${colIndex}" ${isChecked ? 'checked' : ''}> ${displayValue}`;
                     dropdown.appendChild(item);
                 });
 
@@ -305,10 +350,7 @@
                 confirmBtn.textContent = 'Confirm';
                 confirmBtn.addEventListener('click', function (e) {
                     e.stopPropagation();
-                    console.log(`Confirm clicked for column ${colIndex}`);
-                    updateFilters(colIndex);
-                    filterTable();
-                    populateDropdowns();
+                    applyFilters();
                     dropdown.style.display = 'none';
                 });
                 dropdown.appendChild(confirmBtn);
@@ -317,11 +359,39 @@
                     e.stopPropagation();
                     const isChecked = this.checked;
                     dropdown.querySelectorAll('.filter-option').forEach(cb => cb.checked = isChecked);
-                    console.log(`Select All toggled for column ${colIndex}: ${isChecked}`);
                 });
             });
         }
 
+        function applyFilters() {
+            const urlParams = new URLSearchParams();
+            
+            headers.forEach(header => {
+                const colIndex = parseInt(header.getAttribute('data-column'));
+                const dropdown = document.getElementById(`filter-${colIndex}`);
+                const key = columnKeyMap[colIndex];
+                const selected = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
+                
+                if (selected.length > 0) {
+                    selected.forEach(v => urlParams.append(key, v));
+                }
+            });
+
+            // Preserve current page if valid, otherwise reset to page 1
+            const currentPage = new URLSearchParams(window.location.search).get('page');
+            if (currentPage) {
+                urlParams.set('page', '1'); // Reset to first page on new filter
+            }
+
+            const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`;
+            window.location.href = newUrl;
+        }
+
+        function undoFilters() {
+            window.location.href = window.location.pathname;
+        }
+
+        // Initialize filter dropdowns
         headers.forEach(header => {
             const colIndex = parseInt(header.getAttribute('data-column'));
             const dropdown = document.getElementById(`filter-${colIndex}`);
@@ -349,48 +419,12 @@
             }
         });
 
-        function updateFilters(colIndex) {
-            const dropdown = document.getElementById(`filter-${colIndex}`);
-            filters[colIndex] = Array.from(dropdown.querySelectorAll('.filter-option:checked')).map(cb => cb.value);
-            console.log(`Filters for column ${colIndex}:`, filters[colIndex]);
-        }
-
-        function filterTable() {
-            const rows = table.querySelector('tbody').getElementsByTagName('tr');
-            console.log(`Filtering ${rows.length} rows`);
-            for (let row of rows) {
-                let show = true;
-                const cells = row.getElementsByTagName('td');
-                for (let col in filters) {
-                    const colIdx = parseInt(col);
-                    const cellValue = cells[colIdx] ? cells[colIdx].textContent.trim() || 'N/A' : 'N/A';
-                    if (filters[col].length > 0 && !filters[col].includes(cellValue)) {
-                        show = false;
-                        break;
-                    }
-                }
-                console.log(`Row: ${row.cells[0].textContent} - ${row.cells[1].textContent}, Show: ${show}`);
-                row.style.display = show ? '' : 'none';
-            }
-            console.log('Filter applied');
-        }
-
-        function undoFilters() {
-            console.log('Undo filters triggered');
-            for (let col in filters) {
-                delete filters[col];
-            }
-            allRows.forEach(row => row.style.display = '');
-            populateDropdowns();
-        }
-
         document.getElementById('undo-filter-btn').addEventListener('click', function () {
             undoFilters();
         });
 
-        populateDropdowns();
-        headers.forEach(header => updateFilters(parseInt(header.getAttribute('data-column'))));
-        filterTable();
+        // Fetch filter options and populate dropdowns
+        fetchFilterOptions().then(populateDropdowns);
     });
 </script>
 {% endblock full_width_content %}

@@ -153,7 +153,8 @@ def list_units(request):
 def get_boq_data(request):
     """
     Return BOQ data as JSON for populating cascading dropdowns.
-    Returns all unique values for region, district, community, consultant, contractor, and package_number.
+    Returns all unique values for region, district, community, consultant, contractor, package_number,
+    project_type, material_description, and item_code.
     """
     try:
         boq_data = {
@@ -163,9 +164,12 @@ def get_boq_data(request):
             'consultants': list(BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')),
             'contractors': list(BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')),
             'package_numbers': list(BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')),
+            'project_type': list(BillOfQuantity.objects.values_list('project_type', flat=True).distinct().order_by('project_type')),
+            'materials': list(BillOfQuantity.objects.values_list('material_description', flat=True).distinct().order_by('material_description')),
+            'item_codes': list(BillOfQuantity.objects.values_list('item_code', flat=True).distinct().order_by('item_code')),
         }
         
-        # Filter out None values
+        # Filter out None/empty values
         for key in boq_data:
             boq_data[key] = [item for item in boq_data[key] if item]
         
@@ -604,10 +608,42 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         """
-        Return all BOQ items.
-        Accessible to schedule officers and superusers.
+        Return all BOQ items with optional server-side filtering.
+        Supports multi-select filters via GET params: ?region=X&region=Y&district=Z...
         """
-        return BillOfQuantity.objects.all().order_by('package_number', 'material_description')
+        qs = BillOfQuantity.objects.all().order_by('package_number', 'material_description')
+        
+        # Map filter param names to model field lookups
+        filter_map = {
+            'region': 'region__iexact',
+            'district': 'district__iexact',
+            'community': 'community__iexact',
+            'project_type': 'project_type__iexact',
+            'consultant': 'consultant__iexact',
+            'contractor': 'contractor__iexact',
+            'package_number': 'package_number__iexact',
+            'material_description': 'material_description__icontains',
+            'item_code': 'item_code__icontains',
+        }
+        
+        for param, lookup in filter_map.items():
+            values = self.request.GET.getlist(param)
+            if values:
+                if lookup.endswith('__in') or len(values) == 1:
+                    # Single value - use iexact/icontains
+                    qs = qs.filter(**{lookup: values[0]})
+                else:
+                    # Multiple values - use __in with case-insensitive matching
+                    field_name = lookup.split('__')[0]
+                    # For __in with case-insensitive, we need to filter differently
+                    # Use Q objects for OR conditions with iexact
+                    from django.db.models import Q
+                    q_objects = Q()
+                    for v in values:
+                        q_objects |= Q(**{f"{field_name}__iexact": v})
+                    qs = qs.filter(q_objects)
+        
+        return qs
 
 def _resolve_boq_project_type(row):
     """Pick a project_type for a BoQ upload row.
@@ -697,12 +733,37 @@ class UploadBillOfQuantityView(LoginRequiredMixin, SuperuserOnlyMixin, View):
                         return ''
                     return str(value).strip()
 
+                # All required columns - empty values will cause row rejection
+                REQUIRED_FIELDS = [
+                    'region', 'district', 'community', 'consultant', 'contractor',
+                    'package_number', 'material_description', 
+                    'contract_quantity', 'quantity_received'
+                ]
+
                 # Bulk mode: suppress per-row BoQ signals for the whole loop,
                 # then sync sites once in `finally`. Prevents the O(N^2) hang.
                 _boq_bulk.on = True
                 did_bulk = True
                 for index, row in df.iterrows():
                     try:
+                        # Validate all required fields are present and non-empty
+                        missing_fields = []
+                        for field in REQUIRED_FIELDS:
+                            val = _cell(row.get(field))
+                            if field == 'quantity_received':
+                                # 0 is valid, but empty/NaN is not
+                                raw = row.get(field)
+                                if not pd.notna(raw) or str(raw).strip() == '':
+                                    missing_fields.append(field)
+                            elif not val:
+                                missing_fields.append(field)
+                        
+                        if missing_fields:
+                            error_count += 1
+                            logger.warning(f"Row {index + 2}: Missing required fields: {', '.join(missing_fields)}, skipping")
+                            messages.error(request, f"Row {index + 2}: Missing required fields: {', '.join(missing_fields)}")
+                            continue
+                        
                         # Handle NaN or empty values
                         contract_qty = int(float(row['contract_quantity'])) if pd.notna(row['contract_quantity']) else 0
                         qty_received = int(float(row['quantity_received'])) if pd.notna(row['quantity_received']) else 0
