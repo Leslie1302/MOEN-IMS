@@ -417,7 +417,7 @@ class ReportSubmissionForm(forms.ModelForm):
     class Meta:
         model = ReportSubmission
         fields = [
-            'region', 'district', 'consultant', 'contractor',
+            'region', 'district', 'community', 'consultant', 'contractor',
             'package_number', 'material_description', 'item_code',
             'contract_quantity', 'quantity_received',
             'executive_summary', 'monthly_report',
@@ -429,6 +429,10 @@ class ReportSubmissionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Community must be captured — a report submission feeds a BoQ line,
+        # and a BoQ with no community can't be filtered, matched to the
+        # registry, or reconciled.
+        self.fields['community'].required = True
 
 
 class ReleaseLetterUploadForm(forms.ModelForm):

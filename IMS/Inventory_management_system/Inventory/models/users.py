@@ -461,9 +461,12 @@ class ReportSubmission(auto_prefetch.Model):
         from .projects import BillOfQuantity
         
         if self.status == 'Approved':
+            # Key on community too, so the same package/item at different
+            # communities stays distinct (matches the Excel-upload key).
             boq, created = BillOfQuantity.objects.get_or_create(
                 package_number=self.package_number,
                 item_code=self.item_code,
+                community=self.community or None,
                 defaults={
                     'region': self.region,
                     'district': self.district,
@@ -477,6 +480,13 @@ class ReportSubmission(auto_prefetch.Model):
                     'group': self.group
                 }
             )
+            # Carry region/district/community onto an existing row too, so a
+            # report submission never leaves a BoQ line blank.
+            if not created:
+                boq.region = self.region or boq.region
+                boq.district = self.district or boq.district
+                boq.community = self.community or boq.community
+                boq.save(update_fields=['region', 'district', 'community'])
             self.related_boq = boq
             self.save()
 
