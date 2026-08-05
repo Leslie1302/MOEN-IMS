@@ -111,14 +111,22 @@ def _resolve_consultant(project_type, community, project) -> ResolvedConsignee:
                 contact_phone=explicit.contact_phone,
             )
 
-    # Priorities 2 + 3: lookup by community location.
+    # Priority 2: area match — the consultant whose Area contains this
+    # community's region (the primary binding). Legacy region/district on the
+    # consultant row are only used when no area covers the region.
     if community is not None:
         region = getattr(community, 'region', None) or ''
         district = getattr(community, 'district', None) or ''
 
         queryset = ProjectConsultant.objects.filter(active=True)
         candidate = None
-        if district:
+        if region:
+            from Inventory.models import Area
+            area = Area.objects.filter(regions__region__iexact=region).first()
+            if area is not None:
+                candidate = queryset.filter(area=area).first()
+        # Legacy fallbacks.
+        if candidate is None and district:
             candidate = queryset.filter(district__iexact=district).first()
         if candidate is None and region:
             candidate = queryset.filter(region__iexact=region).first()

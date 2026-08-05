@@ -29,7 +29,7 @@ from django.utils import timezone
 
 from ..forms.site_progress import SiteProgressForm
 from ..models import Community, MeterInstallation, Project, ProjectSite
-from ..utils import is_consultant, is_management
+from ..utils import is_consultant, is_management, scope_qs_by_area
 
 
 def _sync_meter_installations(site, prev_1ph, prev_3ph, user):
@@ -106,6 +106,7 @@ def site_progress_list(request):
         .select_related('project')
         .order_by('region', 'district', 'community')
     )
+    qs = scope_qs_by_area(qs, request.user)  # area scoping
 
     region   = request.GET.get('region', '').strip()
     district = request.GET.get('district', '').strip()

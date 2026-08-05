@@ -15,6 +15,7 @@ from .project_type import ProjectType
 from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
+from .areas import Area, AreaRegion  # Operational areas (region scoping)
 from .access_rate import MeterInstallation, AccessRateConfig, RegionPopulation  # Track B (access rate map)
 from .performance import (  # Rebuilt KPI / appraisal system
     RolePerformanceTarget, PerformanceConfig, PerformanceSnapshot,
@@ -30,6 +31,7 @@ from ..transporter_models import Transporter, TransportVehicle
 
 # Export everything to make them available via 'from Inventory.models import ...'
 __all__ = [
+    'Area', 'AreaRegion',  # Operational areas
     'Category', 'Unit', 'Warehouse', 'InventoryItem', 'ObsoleteMaterial',
     'Supplier', 'SupplierPriceCatalog', 'SupplyContract',
     'SupplyContractItem', 'SupplierInvoice', 'SupplierInvoiceItem',

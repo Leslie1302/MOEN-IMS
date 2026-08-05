@@ -260,14 +260,21 @@ class ProfileAdmin(admin.ModelAdmin):
     """
     Custom admin for Profile model with signature stamp management.
     """
-    list_display = ('user', 'get_username', 'get_email', 'has_signature_stamp', 'profile_picture')
-    list_filter = ('user__is_active', 'user__is_staff')
+    list_display = ('user', 'get_username', 'get_email', 'area', 'has_signature_stamp', 'profile_picture')
+    list_filter = ('area', 'user__is_active', 'user__is_staff')
+    list_editable = ('area',)
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'signature_stamp')
     readonly_fields = ('signature_stamp', 'get_stamp_details')
-    
+
     fieldsets = (
         ('User Information', {
             'fields': ('user',)
+        }),
+        ('Area assignment', {
+            'fields': ('area',),
+            'description': "Scoped roles (consultants, schedule officers) only "
+                           "see data for this area's regions. Leave blank for "
+                           "management / superusers.",
         }),
         ('Profile Picture', {
             'fields': ('profile_picture',)
@@ -611,17 +618,18 @@ class SignatoryAdmin(admin.ModelAdmin):
 
 @admin.register(ProjectConsultant)
 class ProjectConsultantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'firm', 'region', 'district', 'user', 'contact_email', 'active')
-    list_filter = ('active', 'region')
-    search_fields = ('name', 'firm', 'region', 'district', 'contact_email', 'user__username', 'user__email')
+    list_display = ('name', 'firm', 'area', 'region', 'district', 'user', 'contact_email', 'active')
+    list_filter = ('active', 'area', 'region')
+    list_editable = ('area',)
+    search_fields = ('name', 'firm', 'area__name', 'region', 'district', 'contact_email', 'user__username', 'user__email')
     readonly_fields = ('created_at', 'updated_at')
-    ordering = ('region', 'name')
+    ordering = ('name',)
     autocomplete_fields = ('user',)
     fieldsets = (
         (None, {'fields': ('name', 'firm')}),
         ('Coverage', {
-            'fields': ('region', 'district'),
-            'description': 'Region drives the SHEP consignee auto-resolution. District is optional and narrows binding to specific districts within the region.',
+            'fields': ('area', 'region', 'district'),
+            'description': 'Area is the primary binding — it drives SHEP consignee auto-resolution for every region in the area. Region/District are legacy single-region fallbacks used only when no area covers the community.',
         }),
         ('Domain account', {
             'fields': ('user',),
@@ -1348,3 +1356,26 @@ class RegionPopulationAdmin(admin.ModelAdmin):
                     'effective_from', 'updated_at')
     list_editable = ('total_population', 'baseline_population_access', 'effective_from')
     search_fields = ('region',)
+
+
+from .models import Area, AreaRegion  # noqa: E402
+
+
+class AreaRegionInline(admin.TabularInline):
+    model = AreaRegion
+    extra = 1
+
+
+@admin.register(Area)
+class AreaAdmin(admin.ModelAdmin):
+    list_display = ('name', 'region_list', 'member_count')
+    search_fields = ('name', 'regions__region')
+    inlines = [AreaRegionInline]
+
+    def region_list(self, obj):
+        return ", ".join(obj.region_names) or "—"
+    region_list.short_description = 'Regions'
+
+    def member_count(self, obj):
+        return obj.members.count()
+    member_count.short_description = 'Users'

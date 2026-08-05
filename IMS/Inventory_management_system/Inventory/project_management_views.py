@@ -8,7 +8,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.http import urlencode
 from .models import BillOfQuantity, Project, ProjectSite, Community
-from .utils import is_superuser, is_store_officer, is_management
+from .utils import is_superuser, is_store_officer, is_management, scope_qs_by_area
 from collections import defaultdict
 from datetime import datetime, timedelta
 import json
@@ -709,7 +709,8 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
             q = (self.request.GET.get('q') or '').strip()
             region_f = (self.request.GET.get('region') or '').strip()
 
-            comms = Community.objects.filter(is_active=True)
+            comms = scope_qs_by_area(
+                Community.objects.filter(is_active=True), self.request.user)
             if q:
                 comms = comms.filter(
                     Q(community__icontains=q) | Q(district__icontains=q)

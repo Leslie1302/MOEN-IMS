@@ -11,6 +11,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db import transaction
 from django.db.models import Q, Sum, Count
 from django.db.models.functions import Coalesce
+from Inventory.utils import scope_qs_by_area
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
@@ -158,16 +159,19 @@ def get_boq_data(request):
     project_type, material_description, and item_code.
     """
     try:
+        # Scope the option source to the user's area so dropdowns only offer
+        # regions/values they're allowed to filter on.
+        base = scope_qs_by_area(BillOfQuantity.objects.all(), request.user)
         boq_data = {
-            'regions': list(BillOfQuantity.objects.values_list('region', flat=True).distinct().order_by('region')),
-            'districts': list(BillOfQuantity.objects.values_list('district', flat=True).distinct().order_by('district')),
-            'communities': list(BillOfQuantity.objects.values_list('community', flat=True).distinct().order_by('community')),
-            'consultants': list(BillOfQuantity.objects.values_list('consultant', flat=True).distinct().order_by('consultant')),
-            'contractors': list(BillOfQuantity.objects.values_list('contractor', flat=True).distinct().order_by('contractor')),
-            'package_numbers': list(BillOfQuantity.objects.values_list('package_number', flat=True).distinct().order_by('package_number')),
-            'project_type': list(BillOfQuantity.objects.values_list('project_type', flat=True).distinct().order_by('project_type')),
-            'materials': list(BillOfQuantity.objects.values_list('material_description', flat=True).distinct().order_by('material_description')),
-            'item_codes': list(BillOfQuantity.objects.values_list('item_code', flat=True).distinct().order_by('item_code')),
+            'regions': list(base.values_list('region', flat=True).distinct().order_by('region')),
+            'districts': list(base.values_list('district', flat=True).distinct().order_by('district')),
+            'communities': list(base.values_list('community', flat=True).distinct().order_by('community')),
+            'consultants': list(base.values_list('consultant', flat=True).distinct().order_by('consultant')),
+            'contractors': list(base.values_list('contractor', flat=True).distinct().order_by('contractor')),
+            'package_numbers': list(base.values_list('package_number', flat=True).distinct().order_by('package_number')),
+            'project_type': list(base.values_list('project_type', flat=True).distinct().order_by('project_type')),
+            'materials': list(base.values_list('material_description', flat=True).distinct().order_by('material_description')),
+            'item_codes': list(base.values_list('item_code', flat=True).distinct().order_by('item_code')),
         }
         
         # Filter out None/empty values
@@ -645,7 +649,9 @@ class BillOfQuantityView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                         q_objects |= Q(**{f"{field_name}__iexact": v})
                     qs = qs.filter(q_objects)
 
-        return qs
+        # Area scoping: consultants / schedule officers only see their area's
+        # regions; management + superusers unaffected.
+        return scope_qs_by_area(qs, self.request.user)
 
 
 def _resolve_boq_project_type(row):

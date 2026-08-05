@@ -53,18 +53,19 @@ class MemberOfParliament(auto_prefetch.Model):
 
 class ProjectConsultant(auto_prefetch.Model):
     """
-    A consultant firm or individual assigned to a region (and optionally
-    one or more districts within it). For SHEP releases the consignee is
-    the consultant whose region matches the community being served.
+    A consultant firm or individual assigned to an operational Area (a group
+    of regions that share this consultant + officer team). For SHEP releases
+    the consignee is the consultant whose area contains the community's region.
 
     Resolution priority on a release:
       1. Community.project_consultant FK (explicit override)
-      2. ProjectConsultant where region == community.region
-      3. ProjectConsultant where district == community.district
-      4. Unresolved (with clear reason)
+      2. ProjectConsultant whose Area contains community.region  (primary)
+      3. Legacy: ProjectConsultant where district == community.district
+      4. Legacy: ProjectConsultant where region == community.region
+      5. Unresolved (with clear reason)
 
-    Mirrors the MemberOfParliament pattern so SHEP and Cost Sharing /
-    Streetlights resolution paths feel symmetrical.
+    ``region`` / ``district`` are retained for back-compat and single-region
+    consultants, but ``area`` is now the primary binding.
     """
 
     name = models.CharField(max_length=200, db_index=True)
@@ -73,18 +74,28 @@ class ProjectConsultant(auto_prefetch.Model):
         blank=True,
         help_text="Engineering firm or consultancy, if applicable.",
     )
+    area = auto_prefetch.ForeignKey(
+        'Inventory.Area',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='consultants',
+        help_text="Operational area this consultant covers. The consignee "
+                  "resolver binds a community to this consultant when the "
+                  "community's region is in this area. Primary binding.",
+    )
     region = models.CharField(
         max_length=100,
         blank=True,
         db_index=True,
-        help_text="Region this consultant covers. Used by the consignee resolver "
-                  "to auto-bind SHEP communities in this region to the consultant.",
+        help_text="Legacy / single-region fallback. Prefer setting an Area. "
+                  "Only used when no area covers the community's region.",
     )
     district = models.CharField(
         max_length=100,
         blank=True,
         db_index=True,
-        help_text="Optional. Narrows binding to specific districts within the region.",
+        help_text="Optional legacy fallback. Narrows binding to specific "
+                  "districts when no area match is found.",
     )
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
@@ -126,3 +137,10 @@ class ProjectConsultant(auto_prefetch.Model):
     @property
     def display_name(self):
         return self.firm or self.name
+
+    @property
+    def covered_regions(self):
+        """Regions this consultant covers — from the area, else the legacy region."""
+        if self.area_id:
+            return self.area.region_names
+        return [self.region] if self.region else []

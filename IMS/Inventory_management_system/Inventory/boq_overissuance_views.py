@@ -15,7 +15,7 @@ from collections import defaultdict
 
 from .models import BillOfQuantity, BoQOverissuanceJustification, SiteReceipt
 from .forms import BoQOverissuanceJustificationForm
-from .utils import is_store_officer, is_management, is_superuser
+from .utils import is_store_officer, is_management, is_superuser, scope_qs_by_area
 
 
 class BoQOverissuanceAccessMixin(UserPassesTestMixin):
@@ -40,6 +40,7 @@ class PackageReconciliationView(LoginRequiredMixin, BoQOverissuanceAccessMixin, 
         qs = (BillOfQuantity.objects
               .exclude(Q(package_number__isnull=True) | Q(package_number=''))
               .order_by('package_number', 'material_description'))
+        qs = scope_qs_by_area(qs, self.request.user)  # area scoping
 
         pkgs = defaultdict(lambda: {
             'package_number': '', 'contractor': '', 'consultant': '',
@@ -94,9 +95,10 @@ class BoQOverissuanceSummaryView(LoginRequiredMixin, BoQOverissuanceAccessMixin,
     def get_queryset(self):
         """Get all BoQ items with overissuances"""
         # Get all BoQ items where quantity_received > contract_quantity
-        return BillOfQuantity.objects.filter(
+        qs = BillOfQuantity.objects.filter(
             quantity_received__gt=F('contract_quantity')
         ).select_related('warehouse', 'user', 'group').order_by('package_number', 'material_description')
+        return scope_qs_by_area(qs, self.request.user)  # area scoping
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

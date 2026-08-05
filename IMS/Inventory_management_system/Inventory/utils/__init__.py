@@ -97,6 +97,45 @@ def is_transport_officer(user):
     return user.groups.filter(name=Roles.TRANSPORT_OFFICER).exists() or user.is_superuser
 
 
+# ── Area / region scoping ──────────────────────────────────────────────────
+
+def accessible_region_names(user):
+    """Region names a user may see, or ``None`` for unrestricted access.
+
+    * Superusers and Management → ``None`` (see everything).
+    * Consultants / Schedule officers → their assigned Area's regions.
+      Returns ``[]`` (nothing) when such a user has no area — fail closed so
+      an unassigned scoped user can't accidentally see the whole country.
+    * Everyone else → ``None`` (not area-scoped).
+    """
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    if user.is_superuser or is_management(user):
+        return None
+    if not (is_consultant(user) or is_schedule_officer(user)):
+        return None
+    from Inventory.models import Profile
+    prof = Profile.objects.filter(user=user).select_related('area').first()
+    area = prof.area if prof else None
+    if area is None:
+        return []
+    return list(area.regions.values_list('region', flat=True))
+
+
+def scope_qs_by_area(qs, user, field='region'):
+    """Filter ``qs`` to the user's area regions (no-op for full-access users)."""
+    names = accessible_region_names(user)
+    if names is None:
+        return qs
+    if not names:
+        return qs.none()
+    from django.db.models import Q
+    q = Q()
+    for name in names:
+        q |= Q(**{f'{field}__iexact': name})
+    return qs.filter(q)
+
+
 __all__ = [
     'Roles',
     'is_store_officer',

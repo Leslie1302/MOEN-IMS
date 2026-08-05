@@ -24,10 +24,19 @@ class Profile(auto_prefetch.Model):
     user = auto_prefetch.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
     signature_stamp = models.CharField(
-        max_length=500, 
-        blank=True, 
+        max_length=500,
+        blank=True,
         null=True,
         help_text="Unique digital signature stamp for this user"
+    )
+    area = auto_prefetch.ForeignKey(
+        'Inventory.Area',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='members',
+        help_text="Operational area. Scoped roles (consultants, schedule "
+                  "officers) only see data for this area's regions. Leave "
+                  "blank for management/superusers.",
     )
 
     def __str__(self):
