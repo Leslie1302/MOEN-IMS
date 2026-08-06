@@ -1,7 +1,9 @@
 import logging
+from django.db import transaction
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.utils import timezone
 from django.views.generic import ListView, CreateView
 from django.urls import reverse_lazy
 
@@ -27,11 +29,16 @@ class ConsultantDeliveriesView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def get_queryset(self):
-        # Show transports that are in transit or delivered but not yet logged as received
+        """Transports awaiting the consultant's confirmation.
+
+        'Issue' is included so a flagged delivery is visible to the person at
+        site rather than silently disappearing from their list — they are the
+        one who can say what actually arrived.
+        """
         return MaterialTransport.objects.filter(
-            status__in=['In Transit', 'Delivered']
+            status__in=['In Transit', 'Delivered', 'Issue']
         ).exclude(
-            site_receipt__isnull=False  # Exclude those already logged
+            site_receipt__isnull=False  # already confirmed
         ).select_related('material_order', 'transporter').order_by('-date_dispatched')
 
 
@@ -58,16 +65,44 @@ class SiteReceiptCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
         return kwargs
     
     def form_valid(self, form):
+        """Logging the receipt is what marks the transport delivered.
+
+        Delivery is attested by the receiver, not the deliverer — the same
+        principle as the two-person rule on signed scans. A transporter saying
+        "delivered" is a claim; a consultant confirming receipt at site is
+        evidence, and it is the consultant who can actually see the materials.
+
+        This also closes a deadlock: 'Delivered' is in STATUS_CHOICES but is
+        deliberately absent from the transporter's status dropdown, so nothing
+        could reach that state, and the receipt form was gated behind it. The
+        release pipeline could never advance past dispatch.
+        """
         transport_id = self.kwargs.get('transport_id')
         try:
             transport = MaterialTransport.objects.get(id=transport_id)
-            form.instance.material_transport = transport
-            form.instance.received_by = self.request.user
-            messages.success(self.request, 'Site receipt logged successfully!')
-            return super().form_valid(form)
         except MaterialTransport.DoesNotExist:
             messages.error(self.request, 'Transport not found.')
             return redirect('consultant_deliveries')
+
+        form.instance.material_transport = transport
+        form.instance.received_by = self.request.user
+
+        with transaction.atomic():
+            response = super().form_valid(form)
+
+            if transport.status != 'Delivered':
+                transport.status = 'Delivered'
+                if not transport.date_delivered:
+                    transport.date_delivered = timezone.now()
+                transport.save(update_fields=['status', 'date_delivered'])
+                logger.info(
+                    "Transport %s marked Delivered by receipt confirmation from %s.",
+                    transport.pk, self.request.user)
+
+        messages.success(
+            self.request,
+            'Receipt confirmed. This delivery is now marked as delivered.')
+        return response
     
     def get_success_url(self):
         return reverse_lazy('consultant_deliveries')

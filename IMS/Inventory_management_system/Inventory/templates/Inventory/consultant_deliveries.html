@@ -148,14 +148,26 @@
                         </div>
 
                         <div class="card-footer bg-light border-0">
-                            {% if transport.status == 'Delivered' %}
-                            <a href="{% url 'site_receipt_create' transport.id %}" class="btn btn-success w-100">
-                                <i class="fas fa-check-circle me-2"></i>Log Site Receipt
-                            </a>
-                            {% else %}
-                            <button class="btn btn-outline-secondary w-100" disabled>
-                                <i class="fas fa-clock me-2"></i>Awaiting Delivery
+                            {% comment %}
+                              The consultant confirming receipt is what marks the transport
+                              delivered — delivery is attested by the receiver, not the
+                              deliverer. Gating this button on status == 'Delivered' was a
+                              deadlock: the transporter's dropdown has no 'Delivered' option,
+                              so the state was unreachable and no receipt could ever be logged.
+                            {% endcomment %}
+                            {% if transport.status == 'Issue' %}
+                            <button class="btn btn-outline-danger w-100" disabled>
+                                <i class="fas fa-triangle-exclamation me-2"></i>Issue reported — resolve first
                             </button>
+                            {% else %}
+                            <a href="{% url 'site_receipt_create' transport.id %}" class="btn btn-success w-100">
+                                <i class="fas fa-clipboard-check me-2"></i>Confirm receipt at site
+                            </a>
+                            <div class="text-center mt-2">
+                                <small class="text-muted">
+                                    Confirming marks this delivery as <b>delivered</b>.
+                                </small>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
