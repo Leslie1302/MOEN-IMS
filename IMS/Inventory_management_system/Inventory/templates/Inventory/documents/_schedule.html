@@ -1,0 +1,17 @@
+<h2>Schedule of Materials</h2>
+<table class="sched">
+  <thead>
+    <tr><th>Material</th><th class="amt">Qty</th><th>Unit</th><th>Community</th></tr>
+  </thead>
+  <tbody>
+    {% for r in schedule %}
+    <tr>
+      <td>{{ r.material }}</td>
+      <td class="amt">{{ r.qty }}</td>
+      <td>{{ r.unit }}</td>
+      <td>{{ r.community }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="sched-total">{{ schedule|length }} line item{{ schedule|length|pluralize }}.</div>

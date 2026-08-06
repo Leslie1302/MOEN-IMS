@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from django.urls import path
+from django.urls import path, reverse
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import HttpResponse
@@ -14,7 +14,7 @@ from .models import (
     SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
     SHEPCommunity, Community, ProjectSite, Project,
     ProjectType, MemberOfParliament, ProjectConsultant,
-    Signatory, ReleaseLetter,
+    Signatory, ReleaseLetter, Letterhead,
 )
 from .transporter_models import Transporter, TransportVehicle
 from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
@@ -614,6 +614,76 @@ class SignatoryAdmin(admin.ModelAdmin):
         ('Notes', {'fields': ('notes',)}),
         ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
+
+
+@admin.register(Letterhead)
+class LetterheadAdmin(admin.ModelAdmin):
+    """Manage the Ministry letterhead applied to generated memos/letters."""
+    list_display = ('name', 'active', 'pre_printed', 'has_file', 'file_kind',
+                    'insets_display', 'updated_at')
+    list_filter = ('active', 'pre_printed')
+    readonly_fields = ('created_at', 'updated_at', 'letterhead_preview', 'calibrate_link')
+    fieldsets = (
+        (None, {'fields': ('name', 'active', 'pre_printed')}),
+        ('Letterhead file', {
+            'fields': ('file', 'letterhead_preview'),
+            'description': "Upload a scan of the printed letterhead — full A4 page, PDF, PNG or JPEG. "
+                           "A PDF is stamped as vector, so it stays crisp and keeps documents small. "
+                           "Leave blank (and tick 'pre_printed') when printing on pre-printed paper.",
+        }),
+        ('Release letter — printable area', {
+            'fields': ('calibrate_link', 'inset_top', 'inset_right', 'inset_bottom', 'inset_left',
+                       'cont_inset_top'),
+            'description': "Insets in points (1pt = 1/72\"; A4 is 595 × 842pt), measured inside "
+                           "the letterhead. Prefer the visual editor linked above — drag the "
+                           "guides over the letterhead instead of guessing numbers. "
+                           "The letterhead is stamped on PAGE 1 ONLY; continuation pages print "
+                           "on plain paper and use cont_inset_top.",
+        }),
+        ('Approval memo — margins', {
+            'fields': ('memo_inset_top', 'memo_inset_right', 'memo_inset_bottom', 'memo_inset_left'),
+            'description': "The memo is internal and prints on a PLAIN sheet — no letterhead, "
+                           "no seal — so it has its own margins. 62pt ≈ 22mm.",
+        }),
+        ('Text header fallback', {
+            'fields': ('org_name', 'org_address', 'org_contact'),
+            'classes': ('collapse',),
+            'description': "Used only when no file is uploaded and this is not pre-printed paper.",
+        }),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+    @admin.display(boolean=True, description='File')
+    def has_file(self, obj):
+        return bool(obj.file)
+
+    @admin.display(description='Type')
+    def file_kind(self, obj):
+        if not obj.file:
+            return '—'
+        return 'PDF (vector)' if obj.is_pdf else 'Image'
+
+    @admin.display(description='Insets T/R/B/L (pt)')
+    def insets_display(self, obj):
+        return f"{obj.inset_top}/{obj.inset_right}/{obj.inset_bottom}/{obj.inset_left}"
+
+    @admin.display(description='Preview')
+    def letterhead_preview(self, obj):
+        if obj.preview_image:
+            return format_html('<img src="{}" style="max-width:520px;border:1px solid #ccc">',
+                               obj.preview_image.url)
+        if obj.file:
+            return format_html('<a href="{}" target="_blank">{}</a> (preview not generated yet — '
+                               're-save to build it)', obj.file.url, obj.file.name)
+        return '(nothing uploaded)'
+
+    @admin.display(description='Visual editor')
+    def calibrate_link(self, obj):
+        if not obj.pk:
+            return 'Save first, then calibrate.'
+        return format_html(
+            '<a class="button" href="{}" style="padding:6px 12px">Open the drag-to-calibrate editor</a>',
+            reverse('letterhead_settings'))
 
 
 @admin.register(ProjectConsultant)

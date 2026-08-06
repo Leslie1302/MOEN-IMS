@@ -212,6 +212,15 @@ def generate_release_memo(release_letter):
     Generate the approval memo PDF for a release. Returns a ContentFile
     suitable for assignment to ReleaseLetter.memo_pdf.
     """
+    from . import document_render
+    return document_render.render_memo(release_letter)
+
+
+def _legacy_canvas_release_memo(release_letter):
+    """Retired reportlab-canvas memo layout. Kept for reference; not called.
+
+    ponytail: dead once the HTML path ships; delete after a release cycle.
+    """
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
@@ -319,6 +328,15 @@ def generate_release_letter(release_letter):
 
     Includes a QR code in the top-right corner encoding the release code
     so uploaded scans can be matched back to this release event.
+    """
+    from . import document_render
+    return document_render.render_letter(release_letter)
+
+
+def _legacy_canvas_release_letter(release_letter):
+    """Retired reportlab-canvas release-letter layout. Kept for reference; not called.
+
+    ponytail: dead once the HTML path ships; delete after a release cycle.
     """
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4

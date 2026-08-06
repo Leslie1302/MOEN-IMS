@@ -20,14 +20,19 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
-from django.http import Http404
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView
 
-from Inventory.models import ReleaseLetter, MaterialOrder
+from Inventory.models import ReleaseLetter, MaterialOrder, Signatory
 from Inventory.services.pdf_generator import generate_release_memo, generate_release_letter
+from Inventory.services.document_render import (
+    render_document_html, context_fingerprint, weasyprint_status, RendererUnavailable,
+)
+from Inventory.services.html_sanitize import sanitize_document_html
 from Inventory.services.release_code import next_release_code
 from Inventory.services.audit import audit
 from Inventory.services.scan_validation import (
@@ -60,7 +65,153 @@ class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
             or self.request.user.groups.filter(name__in=['Schedule Officers', 'Management']).exists()
         )
         ctx['pipeline_step'] = rl.get_pipeline_step()
+        ctx['signatories'] = Signatory.objects.filter(active=True).order_by('name')
+        # WYSIWYG state: is each document hand-edited, and has the underlying
+        # data moved since that edit (in which case the stored wording is stale)?
+        ctx['memo_edited'] = bool(rl.memo_html)
+        ctx['letter_edited'] = bool(rl.letter_html)
+        ctx['memo_drift'] = rl.document_drift('memo')
+        ctx['letter_drift'] = rl.document_drift('letter')
+        # Surface a missing PDF renderer up front. Without this the only clue
+        # is a flash message after clicking Generate, and the stale PDFs below
+        # look like the new template failing to apply.
+        ctx['renderer_ok'], ctx['renderer_detail'] = weasyprint_status()
         return ctx
+
+
+def _can_generate(user):
+    return (user.is_superuser
+            or user.groups.filter(name__in=['Schedule Officers', 'Management']).exists())
+
+
+class AdjustReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Save the officer's document adjustments (TO/FROM/signatory/notes) before
+    generating. Fields mirror HTMS's referenceNo/addressee/notes overrides."""
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk):
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+        rl.memo_to_override = (request.POST.get('memo_to_override') or '').strip()
+        rl.memo_from_override = (request.POST.get('memo_from_override') or '').strip()
+        rl.memo_notes = (request.POST.get('memo_notes') or '').strip()
+        rl.letter_notes = (request.POST.get('letter_notes') or '').strip()
+        rl.memo_signatory_override = _signatory_or_none(request.POST.get('memo_signatory_override'))
+        rl.letter_signatory_override = _signatory_or_none(request.POST.get('letter_signatory_override'))
+        rl.save(update_fields=[
+            'memo_to_override', 'memo_from_override', 'memo_notes', 'letter_notes',
+            'memo_signatory_override', 'letter_signatory_override',
+        ])
+        messages.success(request, "Document adjustments saved. Preview updated.")
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#adjust")
+
+
+def _signatory_or_none(raw):
+    if not raw:
+        return None
+    return Signatory.objects.filter(pk=raw).first()
+
+
+class _DocumentPreviewBase(LoginRequiredMixin, View):
+    """Live HTML preview — the exact template the PDF is rendered from.
+
+    Query params:
+      ?edit=1      make #doc-body contenteditable and load the editor bridge.
+                   Only honoured for users who may generate documents.
+      ?original=1  ignore a stored hand-edit and show the data-driven template
+                   (used by the "revert" confirm step).
+    """
+    kind = None
+
+    def get(self, request, pk):
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+        edit = request.GET.get('edit') == '1' and _can_generate(request.user)
+        use_stored = request.GET.get('original') != '1'
+        html = render_document_html(rl, self.kind, edit_mode=edit, use_stored=use_stored)
+        resp = HttpResponse(html)
+        # The preview is user-authored HTML in a same-origin frame; keep it out
+        # of caches and refuse to let it be framed by anything but this site.
+        resp['Cache-Control'] = 'no-store'
+        resp['X-Frame-Options'] = 'SAMEORIGIN'
+        return resp
+
+
+class MemoPreviewView(_DocumentPreviewBase):
+    kind = 'memo'
+
+
+class LetterPreviewView(_DocumentPreviewBase):
+    kind = 'letter'
+
+
+class SaveDocumentHtmlView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Store the officer's hand-edited document body.
+
+    The posted HTML comes from a `contenteditable` region, so it is passed
+    through the allowlist sanitiser before it touches the database — it will be
+    re-rendered in a same-origin iframe, where a surviving `<script>` would run.
+
+    A fingerprint of the underlying release data is recorded alongside it, so
+    the detail page can tell the officer when the materials or signatory moved
+    after they wrote their version.
+    """
+    http_method_names = ['post']
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk, kind):
+        if kind not in ('memo', 'letter'):
+            raise Http404("Unknown document type.")
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        cleaned = sanitize_document_html(request.POST.get('html', ''))
+        if not cleaned:
+            return JsonResponse(
+                {'ok': False, 'error': "Nothing to save — the document body came through empty."},
+                status=400)
+
+        setattr(rl, f'{kind}_html', cleaned)
+        setattr(rl, f'{kind}_html_edited_at', timezone.now())
+        setattr(rl, f'{kind}_html_edited_by', request.user)
+        setattr(rl, f'{kind}_html_fingerprint', context_fingerprint(rl, kind))
+        rl.save(update_fields=[
+            f'{kind}_html', f'{kind}_html_edited_at',
+            f'{kind}_html_edited_by', f'{kind}_html_fingerprint',
+        ])
+
+        audit(request.user, rl, 'release.document_edited',
+              f"{kind.title()} body hand-edited for {rl.code or rl.request_code}")
+        logger.info("ReleaseLetter pk=%s %s_html edited by %s", pk, kind, request.user)
+        return JsonResponse({'ok': True, 'kind': kind,
+                             'message': f"{kind.title()} saved. Re-generate to mint the PDF."})
+
+
+class RevertDocumentHtmlView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Discard a hand-edit and go back to the data-driven template."""
+    http_method_names = ['post']
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk, kind):
+        if kind not in ('memo', 'letter'):
+            raise Http404("Unknown document type.")
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        setattr(rl, f'{kind}_html', '')
+        setattr(rl, f'{kind}_html_edited_at', None)
+        setattr(rl, f'{kind}_html_edited_by', None)
+        setattr(rl, f'{kind}_html_fingerprint', '')
+        rl.save(update_fields=[
+            f'{kind}_html', f'{kind}_html_edited_at',
+            f'{kind}_html_edited_by', f'{kind}_html_fingerprint',
+        ])
+
+        audit(request.user, rl, 'release.document_reverted',
+              f"{kind.title()} reverted to the generated template for {rl.code or rl.request_code}")
+        messages.success(request, f"{kind.title()} reverted to the generated version.")
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#adjust")
 
 
 class UploadSignedScanView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -466,8 +617,23 @@ class GenerateReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View
                 "Print the letter, get it signed by the Chief Director, then upload the signed scan.",
             )
 
+        except RendererUnavailable as exc:
+            # Distinct from a data error: nothing is wrong with this release,
+            # the host simply cannot render PDFs. Say so plainly, and say that
+            # the documents still on the record are the OLD ones — otherwise
+            # the officer re-reads a stale PDF and concludes the template
+            # never changed.
+            logger.error("Renderer unavailable generating ReleaseLetter pk=%s: %s", pk, exc)
+            messages.error(
+                request,
+                f"{exc} The documents shown below are the previously generated ones "
+                "and have not been updated.")
+
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to generate release documents for ReleaseLetter pk=%s", pk)
-            messages.error(request, f"Document generation failed: {exc}")
+            messages.error(
+                request,
+                f"Document generation failed: {exc} The previously generated documents "
+                "are unchanged.")
 
         return redirect('release_letter_detail', pk=release_letter.pk)

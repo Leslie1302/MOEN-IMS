@@ -234,6 +234,51 @@ class ReleaseLetter(auto_prefetch.Model):
         related_name='letter_overrides',
         help_text="Pick a specific signatory for the release letter to MMU. Leave blank to use the default.",
     )
+    # Free-text paragraph appended to the body at generation time (the HTMS
+    # `notes` equivalent). Editable on the Adjust & preview panel.
+    memo_notes = models.TextField(
+        blank=True, help_text="Optional extra paragraph added to the approval memo body.")
+    letter_notes = models.TextField(
+        blank=True, help_text="Optional extra paragraph added to the release letter body.")
+
+    # ── WYSIWYG document editing ────────────────────────────────────────────
+    # When an officer hand-edits a document in the live preview we store the
+    # sanitised body HTML here and it becomes the source of truth: both the
+    # preview and the minted PDF render from it instead of the template.
+    # Clearing the field reverts to the data-driven template.
+    #
+    # The letterhead band, QR code and page CSS are NOT stored here — they stay
+    # template-driven so a letterhead swap or inset change still applies, and
+    # so the QR can never be edited away from the release code it must encode.
+    memo_html = models.TextField(
+        blank=True,
+        help_text="Hand-edited approval-memo body (sanitised HTML). Blank = generated from the template.")
+    letter_html = models.TextField(
+        blank=True,
+        help_text="Hand-edited release-letter body (sanitised HTML). Blank = generated from the template.")
+    memo_html_edited_at = models.DateTimeField(null=True, blank=True)
+    letter_html_edited_at = models.DateTimeField(null=True, blank=True)
+    memo_html_edited_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='memo_html_edits')
+    letter_html_edited_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='letter_html_edits')
+    # Fingerprint of the underlying release data at the moment of the edit. If
+    # the live data no longer hashes to this, the materials/signatory/subject
+    # changed after the edit and the stored HTML is stale — the detail page
+    # raises a banner rather than silently overwriting the officer's wording.
+    memo_html_fingerprint = models.CharField(max_length=64, blank=True)
+    letter_html_fingerprint = models.CharField(max_length=64, blank=True)
+
+    def document_drift(self, kind):
+        """'memo'|'letter' → True when the data changed after a hand-edit."""
+        stored = getattr(self, f'{kind}_html', '')
+        if not stored:
+            return False
+        from Inventory.services.document_render import context_fingerprint
+        recorded = getattr(self, f'{kind}_html_fingerprint', '')
+        return bool(recorded) and recorded != context_fingerprint(self, kind)
 
     # BOQ linkage for guardrail validation
     boq_item = auto_prefetch.ForeignKey(

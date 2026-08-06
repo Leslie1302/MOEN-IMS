@@ -14,6 +14,7 @@ from .transport import MaterialTransport
 from .project_type import ProjectType
 from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
+from .letterhead import Letterhead  # Ministry letterhead for generated documents
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
 from .areas import Area, AreaRegion  # Operational areas (region scoping)
 from .access_rate import MeterInstallation, AccessRateConfig, RegionPopulation  # Track B (access rate map)
@@ -45,6 +46,7 @@ __all__ = [
     'ProjectType',
     'MemberOfParliament', 'ProjectConsultant',
     'Signatory',
+    'Letterhead',
     'Region', 'District', 'Package',  # Geospatial models
     'MeterInstallation', 'AccessRateConfig', 'RegionPopulation',  # Access rate models
     'RolePerformanceTarget', 'PerformanceConfig', 'PerformanceSnapshot',  # KPI system

@@ -161,6 +161,28 @@
     .rl-doc-pane { display: none; }
     .rl-doc-pane.is-active { display: block; }
     .rl-preview-frame { width: 100%; min-height: 560px; border: 0; background: var(--rl-bg-subtle); }
+
+    /* ── WYSIWYG document editor ── */
+    .rl-editor-bar {
+        display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+        padding: .5rem .65rem; margin-bottom: .5rem;
+        background: var(--rl-bg-subtle); border: 1px solid var(--rl-border);
+        border-radius: .5rem; position: sticky; top: 0; z-index: 5;
+    }
+    .rl-editor-sep { width: 1px; height: 20px; background: var(--rl-border); }
+    .rl-fmt { display: flex; align-items: center; gap: .15rem; }
+    .rl-fmt button {
+        min-width: 30px; height: 30px; padding: 0 .4rem;
+        border: 1px solid var(--rl-border); background: #fff; border-radius: .3rem;
+        font-size: .82rem; line-height: 1; color: #333;
+    }
+    .rl-fmt button:hover { background: #e8f5e9; border-color: #1b5e20; color: #1b5e20; }
+    .rl-fmt button:active { background: #c8e6c9; }
+    .rl-editor-status { font-size: .8rem; color: var(--rl-muted); }
+    .rl-editor .rl-preview-frame {
+        border: 1px solid var(--rl-border); border-radius: .5rem;
+        min-height: 640px; background: #fff;
+    }
     /* dashed empty state */
     .rl-empty-preview {
         text-align: center; padding: 3.5rem 2rem; color: var(--rl-muted);
@@ -526,6 +548,297 @@
                     {% endif %}
                 </div>
             </div>
+
+            {# ── PDF renderer missing: the single most confusing failure mode, #}
+            {# because the stale PDFs below still render fine.                 #}
+            {% if can_generate_documents and not renderer_ok %}
+            <div class="alert alert-danger d-flex align-items-start gap-2 mb-3">
+                <i class="fas fa-triangle-exclamation mt-1"></i>
+                <div>
+                    <b>PDF generation is unavailable on this server.</b>
+                    Any documents shown below are previously generated files — clicking
+                    <em>Generate documents</em> will not update them until this is fixed.
+                    <div class="small text-muted mt-1">{{ renderer_detail }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {# ── Adjust & preview (edit fields → live preview → generate) ── #}
+            {# Available until the release is closed out — a document can still #}
+            {# need correcting after the scan stage, and re-generating is safe.  #}
+            {% if can_generate_documents %}{% if ws != 'voided' and ws != 'released' %}
+            <div class="rl-card" id="adjust">
+                <div class="rl-card-hdr d-flex align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-sliders-h"></i> Adjust &amp; preview</h6>
+                    <a href="{% url 'letterhead_settings' %}" class="btn btn-sm btn-outline-secondary ms-auto">
+                        <i class="fas fa-file-lines me-1"></i> Letterhead settings
+                    </a>
+                </div>
+                <div class="rl-card-body">
+                    <p class="rl-next-help">
+                        Fine-tune the memo and letter, preview exactly what will print, then
+                        {% if ws == 'draft' %}generate the PDFs{% else %}re-generate to apply changes{% endif %}.
+                    </p>
+                    <form method="post" action="{% url 'adjust_release_documents' release_letter.pk %}">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Memo TO</label>
+                                <input type="text" name="memo_to_override" class="form-control form-control-sm"
+                                       value="{{ release_letter.memo_to_override }}" placeholder="CHIEF DIRECTOR">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Memo FROM</label>
+                                <input type="text" name="memo_from_override" class="form-control form-control-sm"
+                                       value="{{ release_letter.memo_from_override }}" placeholder="Defaults to the memo signatory's title">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Memo signatory</label>
+                                <select name="memo_signatory_override" class="form-select form-select-sm">
+                                    <option value="">— default —</option>
+                                    {% for s in signatories %}
+                                    <option value="{{ s.pk }}" {% if release_letter.memo_signatory_override_id == s.pk %}selected{% endif %}>{{ s.name }} — {{ s.title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Letter signatory</label>
+                                <select name="letter_signatory_override" class="form-select form-select-sm">
+                                    <option value="">— default —</option>
+                                    {% for s in signatories %}
+                                    <option value="{{ s.pk }}" {% if release_letter.letter_signatory_override_id == s.pk %}selected{% endif %}>{{ s.name }} — {{ s.title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Memo — extra note</label>
+                                <textarea name="memo_notes" rows="2" class="form-control form-control-sm" placeholder="Optional paragraph added to the memo body">{{ release_letter.memo_notes }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold mb-1">Letter — extra note</label>
+                                <textarea name="letter_notes" rows="2" class="form-control form-control-sm" placeholder="Optional paragraph added to the letter body">{{ release_letter.letter_notes }}</textarea>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-outline-success btn-sm mt-3">
+                            <i class="fas fa-save me-1"></i> Save adjustments
+                        </button>
+                    </form>
+
+                    <hr class="my-4">
+
+                    {# ── Live preview / WYSIWYG editor ── #}
+                    <div class="rl-editor" id="rl-editor">
+                        <div class="rl-editor-bar">
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Document">
+                                <button type="button" class="btn btn-outline-secondary active" data-doc="memo">Memo</button>
+                                <button type="button" class="btn btn-outline-secondary" data-doc="letter">Letter</button>
+                            </div>
+
+                            <span class="rl-editor-sep"></span>
+
+                            <button type="button" class="btn btn-sm btn-outline-success" id="rl-edit-toggle">
+                                <i class="fas fa-pen-to-square me-1"></i> Edit document
+                            </button>
+
+                            <div class="rl-fmt d-none" id="rl-fmt" role="toolbar" aria-label="Formatting">
+                                <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+                                <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+                                <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="justifyLeft" title="Align left"><i class="fas fa-align-left"></i></button>
+                                <button type="button" data-cmd="justifyFull" title="Justify"><i class="fas fa-align-justify"></i></button>
+                                <button type="button" data-cmd="justifyCenter" title="Centre"><i class="fas fa-align-center"></i></button>
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="insertUnorderedList" title="Bullets"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" data-cmd="insertOrderedList" title="Numbered"><i class="fas fa-list-ol"></i></button>
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="undo" title="Undo"><i class="fas fa-rotate-left"></i></button>
+                                <button type="button" data-cmd="redo" title="Redo"><i class="fas fa-rotate-right"></i></button>
+                            </div>
+
+                            <div class="ms-auto d-flex align-items-center gap-2">
+                                <span class="rl-editor-status" id="rl-status"></span>
+                                <button type="button" class="btn btn-sm btn-success d-none" id="rl-save">
+                                    <i class="fas fa-floppy-disk me-1"></i> Save edits
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rl-print">
+                                    <i class="fas fa-print me-1"></i> Print
+                                </button>
+                            </div>
+                        </div>
+
+                        {# Per-document state: edited badge, drift warning, revert. #}
+                        <div class="rl-editor-note" id="rl-note-memo">
+                            {% if memo_edited %}
+                            <div class="alert {% if memo_drift %}alert-warning{% else %}alert-light{% endif %} py-2 px-3 mb-2 small d-flex align-items-center gap-2">
+                                <i class="fas {% if memo_drift %}fa-triangle-exclamation{% else %}fa-pen{% endif %}"></i>
+                                <span>
+                                    {% if memo_drift %}
+                                        <b>The release data changed after this memo was hand-edited.</b>
+                                        Your wording is being kept, but it may no longer match the materials or signatory.
+                                    {% else %}
+                                        Hand-edited{% if release_letter.memo_html_edited_by %} by {{ release_letter.memo_html_edited_by.get_full_name|default:release_letter.memo_html_edited_by.username }}{% endif %}
+                                        {% if release_letter.memo_html_edited_at %}on {{ release_letter.memo_html_edited_at|date:"d M Y, H:i" }}{% endif %}.
+                                        This version is what prints.
+                                    {% endif %}
+                                </span>
+                                <form method="post" action="{% url 'revert_document_html' release_letter.pk 'memo' %}" class="ms-auto"
+                                      onsubmit="return confirm('Discard the hand-edited memo and go back to the generated version?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Revert to generated</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="rl-editor-note d-none" id="rl-note-letter">
+                            {% if letter_edited %}
+                            <div class="alert {% if letter_drift %}alert-warning{% else %}alert-light{% endif %} py-2 px-3 mb-2 small d-flex align-items-center gap-2">
+                                <i class="fas {% if letter_drift %}fa-triangle-exclamation{% else %}fa-pen{% endif %}"></i>
+                                <span>
+                                    {% if letter_drift %}
+                                        <b>The release data changed after this letter was hand-edited.</b>
+                                        Your wording is being kept, but it may no longer match the materials or signatory.
+                                    {% else %}
+                                        Hand-edited{% if release_letter.letter_html_edited_by %} by {{ release_letter.letter_html_edited_by.get_full_name|default:release_letter.letter_html_edited_by.username }}{% endif %}
+                                        {% if release_letter.letter_html_edited_at %}on {{ release_letter.letter_html_edited_at|date:"d M Y, H:i" }}{% endif %}.
+                                        This version is what prints.
+                                    {% endif %}
+                                </span>
+                                <form method="post" action="{% url 'revert_document_html' release_letter.pk 'letter' %}" class="ms-auto"
+                                      onsubmit="return confirm('Discard the hand-edited letter and go back to the generated version?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Revert to generated</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <iframe class="rl-preview-frame" id="rl-preview"
+                                src="{% url 'release_memo_preview' release_letter.pk %}"
+                                title="Document preview"></iframe>
+
+                        <p class="small text-muted mt-2 mb-0">
+                            Click <b>Edit document</b> to type directly into the page — headings, paragraphs,
+                            the schedule table and the signature block are all editable. The letterhead band and
+                            QR code stay locked so the scan-matching audit keeps working.
+                            Saved edits become what prints; <b>Generate documents</b> mints the PDF from them.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function () {
+                var urls = {
+                    memo:   { preview: "{% url 'release_memo_preview' release_letter.pk %}",
+                              save:    "{% url 'save_document_html' release_letter.pk 'memo' %}" },
+                    letter: { preview: "{% url 'release_letter_preview' release_letter.pk %}",
+                              save:    "{% url 'save_document_html' release_letter.pk 'letter' %}" }
+                };
+                var frame  = document.getElementById('rl-preview');
+                if (!frame) return;
+                var fmt    = document.getElementById('rl-fmt');
+                var toggle = document.getElementById('rl-edit-toggle');
+                var saveBtn= document.getElementById('rl-save');
+                var printBtn = document.getElementById('rl-print');
+                var status = document.getElementById('rl-status');
+                var csrf   = document.querySelector('#adjust input[name=csrfmiddlewaretoken]').value;
+
+                var kind = 'memo';
+                var editing = false;
+                var dirty = false;
+
+                function setStatus(text, cls) {
+                    status.textContent = text || '';
+                    status.className = 'rl-editor-status ' + (cls || '');
+                }
+
+                function load() {
+                    frame.src = urls[kind].preview + (editing ? '?edit=1' : '');
+                    dirty = false;
+                }
+
+                function setEditing(on) {
+                    editing = on;
+                    fmt.classList.toggle('d-none', !on);
+                    saveBtn.classList.toggle('d-none', !on);
+                    toggle.classList.toggle('btn-success', on);
+                    toggle.classList.toggle('btn-outline-success', !on);
+                    toggle.innerHTML = on
+                        ? '<i class="fas fa-eye me-1"></i> Done editing'
+                        : '<i class="fas fa-pen-to-square me-1"></i> Edit document';
+                    setStatus(on ? 'Editing — click into the document and type.' : '');
+                    load();
+                }
+
+                // Document switcher
+                document.querySelectorAll('#rl-editor [data-doc]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        if (dirty && !confirm('You have unsaved edits. Switch documents and lose them?')) return;
+                        document.querySelectorAll('#rl-editor [data-doc]').forEach(function (b) {
+                            b.classList.toggle('active', b === btn);
+                        });
+                        kind = btn.dataset.doc;
+                        document.getElementById('rl-note-memo').classList.toggle('d-none', kind !== 'memo');
+                        document.getElementById('rl-note-letter').classList.toggle('d-none', kind !== 'letter');
+                        load();
+                    });
+                });
+
+                toggle.addEventListener('click', function () {
+                    if (editing && dirty && !confirm('You have unsaved edits. Leave edit mode and lose them?')) return;
+                    setEditing(!editing);
+                });
+
+                // Formatting commands are executed inside the frame's document.
+                fmt.addEventListener('click', function (e) {
+                    var btn = e.target.closest('[data-cmd]');
+                    if (!btn) return;
+                    frame.contentWindow.postMessage({ moenDoc: 'exec', command: btn.dataset.cmd }, '*');
+                });
+
+                printBtn.addEventListener('click', function () {
+                    frame.contentWindow.postMessage({ moenDoc: 'print' }, '*');
+                });
+
+                saveBtn.addEventListener('click', function () {
+                    setStatus('Saving…');
+                    frame.contentWindow.postMessage({ moenDoc: 'collect' }, '*');
+                });
+
+                // Messages back from the document frame.
+                window.addEventListener('message', function (e) {
+                    var d = e.data || {};
+                    if (d.moenDoc === 'dirty') {
+                        dirty = true;
+                        setStatus('Unsaved changes', 'text-warning');
+                    } else if (d.moenDoc === 'content') {
+                        var body = new URLSearchParams();
+                        body.append('html', d.html);
+                        body.append('csrfmiddlewaretoken', csrf);
+                        fetch(urls[d.kind].save, {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRFToken': csrf,
+                                       'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: body.toString()
+                        }).then(function (r) { return r.json(); }).then(function (j) {
+                            if (j.ok) {
+                                dirty = false;
+                                setStatus('Saved — re-generate to mint the PDF.', 'text-success');
+                                setTimeout(function () { window.location.reload(); }, 900);
+                            } else {
+                                setStatus(j.error || 'Save failed.', 'text-danger');
+                            }
+                        }).catch(function () { setStatus('Save failed — check your connection.', 'text-danger'); });
+                    }
+                });
+
+                window.addEventListener('beforeunload', function (e) {
+                    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+                });
+            })();
+            </script>
+            {% endif %}
+            {% endif %}
 
             {# ── Document viewer (tabbed) ── #}
             <div class="rl-card">

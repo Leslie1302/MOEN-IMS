@@ -153,7 +153,10 @@ from .views.release_document_views import (
     ReleaseLetterDetailView, GenerateReleaseDocumentsView,
     CreateReleaseLetterFromRequestView,
     UploadSignedScanView, ConfirmSignedScanView, MarkReleasedView,
+    AdjustReleaseDocumentsView, MemoPreviewView, LetterPreviewView,
+    SaveDocumentHtmlView, RevertDocumentHtmlView,
 )
+from .views.letterhead_views import LetterheadSettingsView
 
 # Error handlers
 handler403 = custom_403_view
@@ -339,6 +342,15 @@ urlpatterns = [
     # Phase F.1: release-letter detail page + document generation.
     path('release-letters/<int:pk>/', ReleaseLetterDetailView.as_view(), name='release_letter_detail'),
     path('release-letters/<int:pk>/generate-documents/', GenerateReleaseDocumentsView.as_view(), name='generate_release_documents'),
+    path('release-letters/<int:pk>/adjust-documents/', AdjustReleaseDocumentsView.as_view(), name='adjust_release_documents'),
+    path('release-letters/<int:pk>/preview/memo/', MemoPreviewView.as_view(), name='release_memo_preview'),
+    path('release-letters/<int:pk>/preview/letter/', LetterPreviewView.as_view(), name='release_letter_preview'),
+    # WYSIWYG: store / discard a hand-edited document body. <kind> is memo|letter.
+    path('release-letters/<int:pk>/document/<str:kind>/save/', SaveDocumentHtmlView.as_view(), name='save_document_html'),
+    path('release-letters/<int:pk>/document/<str:kind>/revert/', RevertDocumentHtmlView.as_view(), name='revert_document_html'),
+
+    # Letterhead upload + drag-to-calibrate printable area.
+    path('settings/letterhead/', LetterheadSettingsView.as_view(), name='letterhead_settings'),
 
     # Phase F.1: one-click 'Create RL' that replaces the buggy legacy upload page.
     # Takes ?request_code=X, creates the ReleaseLetter, redirects to the detail page.

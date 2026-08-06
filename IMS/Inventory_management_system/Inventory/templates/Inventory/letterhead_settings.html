@@ -1,0 +1,338 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+{% block title %}Letterhead & printable area{% endblock %}
+
+{% block content %}
+<style>
+    .lh-wrap { max-width: 1080px; margin: 0 auto; }
+    .lh-card {
+        background: #fff; border: 1px solid #dfe3e8; border-radius: .75rem;
+        padding: 1.5rem 1.75rem; margin-bottom: 1.25rem;
+    }
+    .lh-card h5 { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: #1b3a2a; }
+    .lh-card .lead-sm { color: #5a6672; font-size: .93rem; margin-bottom: 1.25rem; }
+
+    .lh-thumb {
+        width: 150px; height: 210px; border: 1px solid #dfe3e8; border-radius: .4rem;
+        background: #f4f6f8 center/contain no-repeat; flex: 0 0 auto;
+    }
+
+    /* ── Calibration stage ── */
+    .lh-stage {
+        position: relative; margin: 0 auto; user-select: none; touch-action: none;
+        background: #cfd4d8 center/100% 100% no-repeat;
+        border: 1px solid #b9c0c6; box-shadow: 0 1px 6px rgba(0,0,0,.12);
+    }
+    .lh-stage.no-image { background: repeating-linear-gradient(45deg,#eef1f3,#eef1f3 10px,#e4e8eb 10px,#e4e8eb 20px); }
+    .lh-guide { position: absolute; background: #1b5e20; z-index: 3; }
+    .lh-guide.h { left: 0; right: 0; height: 3px; cursor: ns-resize; }
+    .lh-guide.v { top: 0; bottom: 0; width: 3px; cursor: ew-resize; }
+    .lh-guide::after {           /* fat invisible hit area — 3px is unclickable */
+        content: ''; position: absolute; inset: -7px;
+    }
+    .lh-badge {
+        position: absolute; background: #1b5e20; color: #fff; font-size: .7rem; font-weight: 700;
+        padding: 1px 6px; border-radius: 3px; white-space: nowrap; z-index: 4; pointer-events: none;
+    }
+    .lh-guide.h .lh-badge { right: 6px; top: -9px; }
+    .lh-guide.v .lh-badge { bottom: 6px; left: -12px; }
+    /* The printable region, so the officer sees exactly where text will land. */
+    .lh-area {
+        position: absolute; z-index: 2; pointer-events: none;
+        border: 1px dashed rgba(27,94,32,.55); background: rgba(27,94,32,.07);
+    }
+    .lh-fields { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; }
+    .lh-fields label { font-weight: 600; font-size: .85rem; color: #37474f; display: block; margin-bottom: .2rem; }
+    .lh-fields input[type=number] { width: 110px; }
+    .lh-hint { font-size: .85rem; color: #5a6672; }
+</style>
+
+<div class="lh-wrap py-4">
+
+    <h3 class="mb-3" style="font-weight:700;color:#1b3a2a">
+        <i class="fas fa-file-lines me-2"></i>Letterhead &amp; printable area
+    </h3>
+
+    {% if messages %}
+        {% for m in messages %}
+        <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {# ── Upload ── #}
+    <div class="lh-card">
+        <h5><i class="fas fa-file-arrow-up"></i> Ministry letterhead</h5>
+        <p class="lead-sm">
+            Upload a scan of the printed letterhead — full A4 page, PDF, PNG or JPEG.
+            Release memos and letters are produced on it. Without one, a plain header with
+            the Ministry's registered details is used.
+            <br><b>A PDF is stamped as vector</b>, so it stays sharp at any zoom and keeps
+            generated documents small.
+        </p>
+
+        <div class="d-flex align-items-center gap-4 flex-wrap">
+            {% if letterhead and letterhead.preview_image %}
+                <div class="lh-thumb" style="background-image:url('{{ letterhead.preview_image.url }}')"></div>
+            {% else %}
+                <div class="lh-thumb d-flex align-items-center justify-content-center text-muted small">
+                    No letterhead
+                </div>
+            {% endif %}
+
+            <div>
+                <div class="fw-semibold mb-1">
+                    {% if letterhead and letterhead.file %}
+                        Letterhead on file
+                        <span class="badge bg-secondary ms-1">{% if letterhead.is_pdf %}PDF · vector{% else %}Image{% endif %}</span>
+                    {% else %}
+                        Nothing uploaded yet
+                    {% endif %}
+                </div>
+
+                <form method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2 mt-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="upload">
+                    <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" class="form-control form-control-sm" style="max-width:320px" required>
+                    <button class="btn btn-success btn-sm">
+                        <i class="fas fa-upload me-1"></i>{% if letterhead and letterhead.file %}Replace{% else %}Upload{% endif %}
+                    </button>
+                </form>
+
+                {% if letterhead and letterhead.file %}
+                <form method="post" class="mt-2"
+                      onsubmit="return confirm('Remove the letterhead? Documents will fall back to the plain text header.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="clear">
+                    <button class="btn btn-outline-danger btn-sm">Remove letterhead</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Calibration ── #}
+    <form method="post" id="lh-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="insets">
+
+        <div class="lh-card">
+            <h5><i class="fas fa-ruler-combined"></i> Release letter &mdash; printable area</h5>
+            <p class="lead-sm">
+                Drag the green lines to mark where your header ends and your footer begins.
+                Text will only appear inside the shaded box. Measurements are in points
+                (1pt = 1/72"; A4 is {{ page_w_pt }} &times; {{ page_h_pt }}pt).
+            </p>
+
+            <div class="lh-stage {% if not letterhead or not letterhead.preview_image %}no-image{% endif %}"
+                 data-stage="letter"
+                 {% if letterhead and letterhead.preview_image %}style="background-image:url('{{ letterhead.preview_image.url }}')"{% endif %}
+                 data-page-w="{{ page_w_pt }}" data-page-h="{{ page_h_pt }}">
+                <div class="lh-area"></div>
+                <div class="lh-guide h" data-edge="top"><span class="lh-badge"></span></div>
+                <div class="lh-guide h" data-edge="bottom"><span class="lh-badge"></span></div>
+                <div class="lh-guide v" data-edge="left"><span class="lh-badge"></span></div>
+                <div class="lh-guide v" data-edge="right"><span class="lh-badge"></span></div>
+            </div>
+
+            {% if not letterhead or not letterhead.preview_image %}
+            <p class="text-center text-muted small mt-2 mb-0">
+                Upload a letterhead above to calibrate against it. You can still set the
+                insets numerically &mdash; they apply to pre-printed paper too.
+            </p>
+            {% endif %}
+
+            <div class="lh-fields">
+                <div>
+                    <label for="i-top">Top</label>
+                    <input type="number" min="0" max="{{ page_h_pt }}" class="form-control form-control-sm"
+                           id="i-top" data-input="letter-top" name="inset_top" value="{{ letterhead.inset_top|default:184 }}">
+                </div>
+                <div>
+                    <label for="i-bottom">Bottom</label>
+                    <input type="number" min="0" max="{{ page_h_pt }}" class="form-control form-control-sm"
+                           id="i-bottom" data-input="letter-bottom" name="inset_bottom" value="{{ letterhead.inset_bottom|default:106 }}">
+                </div>
+                <div>
+                    <label for="i-left">Left</label>
+                    <input type="number" min="0" max="{{ page_w_pt }}" class="form-control form-control-sm"
+                           id="i-left" data-input="letter-left" name="inset_left" value="{{ letterhead.inset_left|default:73 }}">
+                </div>
+                <div>
+                    <label for="i-right">Right</label>
+                    <input type="number" min="0" max="{{ page_w_pt }}" class="form-control form-control-sm"
+                           id="i-right" data-input="letter-right" name="inset_right" value="{{ letterhead.inset_right|default:62 }}">
+                </div>
+
+                <div class="form-check ms-2 mb-2">
+                    <input class="form-check-input" type="checkbox" id="i-pre" name="pre_printed"
+                           {% if letterhead.pre_printed %}checked{% endif %}>
+                    <label class="form-check-label small" for="i-pre">
+                        Pre-printed paper<br>
+                        <span class="text-muted" style="font-size:.78rem">Reserve the space, print nothing</span>
+                    </label>
+                </div>
+            </div>
+
+            <hr class="my-3">
+            <div class="d-flex align-items-end gap-3 flex-wrap">
+                <div>
+                    <label for="i-cont-top" style="font-weight:600;font-size:.85rem;color:#37474f;display:block;margin-bottom:.2rem">
+                        Continuation-page top margin
+                    </label>
+                    <input type="number" min="0" max="{{ page_h_pt }}" class="form-control form-control-sm"
+                           style="width:110px" id="i-cont-top" name="cont_inset_top"
+                           value="{{ letterhead.cont_inset_top|default:62 }}">
+                </div>
+                <p class="lh-hint mb-2" style="max-width:560px">
+                    The letterhead is stamped on <b>page 1 only</b> — continuation pages print on
+                    plain paper, so they need a normal top margin instead of the large inset that
+                    clears the letterhead artwork. Left, right and bottom stay as calibrated above,
+                    so the text block lines up across pages.
+                </p>
+            </div>
+        </div>
+
+        {# ── Memo: plain sheet, its own margins ── #}
+        <div class="lh-card">
+            <h5><i class="fas fa-file-lines"></i> Approval memo &mdash; margins</h5>
+            <p class="lead-sm">
+                The approval memo is internal and prints on a <b>plain sheet</b> &mdash; no
+                letterhead, no seal, just an underlined <b>MEMORANDUM</b> heading. It therefore
+                has its own margins rather than the letterhead's insets, which are sized to
+                clear artwork that isn't on this page.
+            </p>
+
+            <div class="lh-stage no-image" data-stage="memo"
+                 data-page-w="{{ page_w_pt }}" data-page-h="{{ page_h_pt }}">
+                <div class="lh-area"></div>
+                <div class="lh-guide h" data-edge="top"><span class="lh-badge"></span></div>
+                <div class="lh-guide h" data-edge="bottom"><span class="lh-badge"></span></div>
+                <div class="lh-guide v" data-edge="left"><span class="lh-badge"></span></div>
+                <div class="lh-guide v" data-edge="right"><span class="lh-badge"></span></div>
+            </div>
+
+            <div class="lh-fields">
+                <div>
+                    <label for="m-top">Top</label>
+                    <input type="number" min="0" max="{{ page_h_pt }}" class="form-control form-control-sm"
+                           id="m-top" data-input="memo-top" name="memo_inset_top" value="{{ letterhead.memo_inset_top|default:62 }}">
+                </div>
+                <div>
+                    <label for="m-bottom">Bottom</label>
+                    <input type="number" min="0" max="{{ page_h_pt }}" class="form-control form-control-sm"
+                           id="m-bottom" data-input="memo-bottom" name="memo_inset_bottom" value="{{ letterhead.memo_inset_bottom|default:62 }}">
+                </div>
+                <div>
+                    <label for="m-left">Left</label>
+                    <input type="number" min="0" max="{{ page_w_pt }}" class="form-control form-control-sm"
+                           id="m-left" data-input="memo-left" name="memo_inset_left" value="{{ letterhead.memo_inset_left|default:62 }}">
+                </div>
+                <div>
+                    <label for="m-right">Right</label>
+                    <input type="number" min="0" max="{{ page_w_pt }}" class="form-control form-control-sm"
+                           id="m-right" data-input="memo-right" name="memo_inset_right" value="{{ letterhead.memo_inset_right|default:62 }}">
+                </div>
+
+                <button type="submit" class="btn btn-success mb-2 ms-auto">
+                    <i class="fas fa-floppy-disk me-1"></i> Save both
+                </button>
+            </div>
+
+            <p class="lh-hint mt-2 mb-0">
+                Saved settings apply to the <b>next</b> document generated &mdash; re-generate any
+                release whose documents you want re-laid out.
+            </p>
+        </div>
+    </form>
+</div>
+
+<script>
+// One calibrator drives both stages (letterhead + plain memo sheet); they differ
+// only in which inputs they write to and whether they have a background image.
+(function () {
+
+    var AXIS = { top: 'y', bottom: 'y', left: 'x', right: 'x' };
+    var OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+    var INVERTED = { bottom: true, right: true };   // measured from the far edge
+    var MIN_PRINTABLE_PT = 30;                      // never let guides cross
+
+    function calibrator(stage) {
+        var key = stage.dataset.stage;
+        var PAGE_W = parseFloat(stage.dataset.pageW);
+        var PAGE_H = parseFloat(stage.dataset.pageH);
+        var area = stage.querySelector('.lh-area');
+
+        var guides = {}, inputs = {};
+        ['top', 'bottom', 'left', 'right'].forEach(function (edge) {
+            guides[edge] = stage.querySelector('.lh-guide[data-edge="' + edge + '"]');
+            inputs[edge] = document.querySelector('[data-input="' + key + '-' + edge + '"]');
+        });
+
+        function page(axis) { return axis === 'y' ? PAGE_H : PAGE_W; }
+        function span(axis) { return axis === 'y' ? stage.clientHeight : stage.clientWidth; }
+
+        // pt <-> on-screen px. All geometry goes through these two, so the number
+        // in the box and the line on screen can never disagree.
+        function toPx(pt, axis) { return pt * span(axis) / page(axis); }
+        function toPt(px, axis) { return Math.round(px * page(axis) / span(axis)); }
+
+        function val(edge) {
+            var n = parseInt(inputs[edge].value, 10);
+            return isNaN(n) ? 0 : Math.max(0, n);
+        }
+
+        function render() {
+            ['top', 'bottom', 'left', 'right'].forEach(function (edge) {
+                var axis = AXIS[edge], v = val(edge), px = toPx(v, axis);
+                var prop = axis === 'y' ? 'top' : 'left';
+                guides[edge].style[prop] = (INVERTED[edge] ? span(axis) - px : px) + 'px';
+                guides[edge].querySelector('.lh-badge').textContent = v + ' pt';
+                area.style[edge] = px + 'px';
+            });
+        }
+
+        function startDrag(edge) {
+            return function (ev) {
+                ev.preventDefault();
+                var axis = AXIS[edge];
+                var rect = stage.getBoundingClientRect();
+
+                function move(e) {
+                    var pos = axis === 'y' ? (e.clientY - rect.top) : (e.clientX - rect.left);
+                    pos = Math.max(0, Math.min(span(axis), pos));
+                    var pt = toPt(INVERTED[edge] ? span(axis) - pos : pos, axis);
+                    // Opposing guides must not cross: a negative printable area
+                    // renders as a silently blank page.
+                    var max = page(axis) - val(OPPOSITE[edge]) - MIN_PRINTABLE_PT;
+                    inputs[edge].value = Math.max(0, Math.min(pt, Math.round(max)));
+                    render();
+                }
+                function up() {
+                    window.removeEventListener('pointermove', move);
+                    window.removeEventListener('pointerup', up);
+                }
+                window.addEventListener('pointermove', move);
+                window.addEventListener('pointerup', up);
+            };
+        }
+
+        function size() {
+            var w = Math.min(stage.parentElement.clientWidth, 520);
+            stage.style.width = w + 'px';
+            stage.style.height = (w * PAGE_H / PAGE_W) + 'px';
+            render();
+        }
+
+        ['top', 'bottom', 'left', 'right'].forEach(function (edge) {
+            guides[edge].addEventListener('pointerdown', startDrag(edge));
+            inputs[edge].addEventListener('input', render);
+        });
+
+        window.addEventListener('resize', size);
+        size();
+    }
+
+    document.querySelectorAll('.lh-stage[data-stage]').forEach(calibrator);
+})();
+</script>
+{% endblock %}
