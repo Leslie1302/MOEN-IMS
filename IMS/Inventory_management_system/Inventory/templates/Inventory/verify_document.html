@@ -1,0 +1,224 @@
+{% load static %}<!doctype html>
+{% comment %}
+  Standalone page — deliberately NOT extending base.html. This is reached by
+  scanning a QR on paper, usually on a phone, often by someone with no account:
+  the app navigation, notification bell and dashboards would be noise at best
+  and an invitation to poke around at worst.
+{% endcomment %}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Verify {{ reference }} — MOEGT IEPS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background: #f4f6f8; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+         color: #1f2937; padding: 1.5rem 1rem 3rem; }
+  .v-wrap { max-width: 560px; margin: 0 auto; }
+  .v-brand { text-align: center; margin-bottom: 1.25rem; }
+  .v-brand .org { font-size: .95rem; font-weight: 700; color: #1b3a2a; letter-spacing: -.01em; }
+  .v-brand .sub { font-size: .78rem; color: #64748b; }
+  .v-card { background: #fff; border-radius: 16px; overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 12px 28px -6px rgba(15,23,42,.16); }
+  .v-rule { height: 4px; background: linear-gradient(90deg,#2e7d32 0%,#006b3f 55%,#fcd116 100%); }
+  .v-status { padding: 1.4rem 1.5rem; text-align: center; border-bottom: 1px solid #eef1f5; }
+  .v-status .icon { font-size: 2.4rem; line-height: 1; }
+  .v-status .headline { font-size: 1.05rem; font-weight: 650; margin-top: .5rem; color: #0f172a; }
+  .v-status .detail { font-size: .87rem; color: #64748b; margin-top: .2rem; }
+  .v-ok .icon { color: #2e7d32; } .v-warn .icon { color: #b45309; } .v-bad .icon { color: #ba1a1a; }
+  .v-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 1.05rem; font-weight: 600; letter-spacing: .04em; color: #0f172a; }
+  .v-body { padding: 1.25rem 1.5rem; }
+  .v-row { display: flex; justify-content: space-between; gap: 1rem; padding: .6rem 0;
+           border-bottom: 1px solid #f1f5f9; font-size: .9rem; }
+  .v-row:last-child { border-bottom: 0; }
+  .v-row .k { color: #64748b; }
+  .v-row .v { color: #0f172a; font-weight: 550; text-align: right; }
+  .v-sec { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+           color: #2e7d32; margin: 1.25rem 0 .5rem; padding-bottom: .35rem; border-bottom: 1px solid #eef1f5; }
+  .v-sig { padding: .7rem 0; border-bottom: 1px solid #f1f5f9; font-size: .88rem; }
+  .v-sig:last-child { border-bottom: 0; }
+  .v-sig .nm { font-weight: 650; color: #0f172a; }
+  .v-sig .ti { color: #475569; }
+  .v-sig .sub { color: #64748b; font-size: .82rem; }
+  .v-sig .tok { font-family: ui-monospace, monospace; font-size: .78rem; color: #94a3b8; }
+  .v-sig.is-match { background: #f0f9f1; border-radius: 10px; padding: .7rem .8rem; border-bottom: 0; }
+  .v-foot { padding: 1rem 1.5rem 1.25rem; background: #f8fafc; border-top: 1px solid #eef1f5;
+            font-size: .78rem; color: #64748b; text-align: center; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div class="v-wrap">
+
+  <div class="v-brand">
+    <div class="org">Ministry of Energy and Green Transition</div>
+    <div class="sub">Integrated Energy Project System — document verification</div>
+  </div>
+
+  <div class="v-card">
+    <div class="v-rule"></div>
+
+    {% if not found %}
+      <div class="v-status v-bad">
+        <div class="icon">&#10007;</div>
+        <div class="headline">No document found</div>
+        <div class="detail">
+          Nothing in MOEN-IMS matches <span class="v-code">{{ reference }}</span>.
+        </div>
+      </div>
+      <div class="v-body">
+        <p class="mb-2" style="font-size:.88rem">This could mean:</p>
+        <ul style="font-size:.87rem; color:#475569; padding-left:1.1rem; margin:0">
+          <li>the reference was mistyped or the code misread;</li>
+          <li>the document was never issued by this system;</li>
+          <li><b>the document is not genuine.</b></li>
+        </ul>
+        <p class="mt-3 mb-0" style="font-size:.85rem;color:#64748b">
+          If you were given this document as official Ministry paperwork, verify it with
+          the issuing office before acting on it.
+        </p>
+      </div>
+
+    {% elif archived %}
+      {% comment %}
+        A pre-IMS paper record. It is genuine history, but the system did not
+        issue it and cannot vouch for the paper — so no green tick, and the
+        wording says archived rather than verified.
+      {% endcomment %}
+      <div class="v-status v-warn">
+        <div class="icon">&#128188;</div>
+        <div class="headline">Archived historical record</div>
+        <div class="detail">This reference predates MOEN-IMS.</div>
+      </div>
+      <div class="v-body">
+        <div class="v-row">
+          <span class="k">Reference</span>
+          <span class="v v-code">{{ archived.reference }}</span>
+        </div>
+        <div class="v-row">
+          <span class="k">Document date</span>
+          <span class="v">{{ archived.document_date|date:"d M Y"|default:"Undated" }}</span>
+        </div>
+        <div class="v-row">
+          <span class="k">Type</span>
+          <span class="v">{{ archived.request_type }}</span>
+        </div>
+        <div style="margin-top:1.1rem;padding:.85rem 1rem;background:#fff8e6;
+                    border:1px solid #f5d98a;border-radius:11px;font-size:.86rem;color:#6b4d09">
+          This document was <b>archived from paper</b> for the record. It was not
+          issued or processed by MOEN-IMS, so the system cannot confirm the copy
+          you are holding is genuine. Refer to the Ministry registry file.
+        </div>
+      </div>
+
+    {% else %}
+      {% if release_letter.workflow_status == 'voided' %}
+        <div class="v-status v-bad">
+          <div class="icon">&#10007;</div>
+          <div class="headline">This document has been voided</div>
+          <div class="detail">Do not act on it. Contact the issuing office.</div>
+        </div>
+      {% elif verified and has_superseded %}
+        <div class="v-status v-warn">
+          <div class="icon">&#9888;</div>
+          <div class="headline">Superseded version exists</div>
+          <div class="detail">This release was reissued. Check you are holding the current copy.</div>
+        </div>
+      {% elif verified %}
+        <div class="v-status v-ok">
+          <div class="icon">&#10003;</div>
+          <div class="headline">Verified genuine document</div>
+          <div class="detail">{{ status_label }}</div>
+        </div>
+      {% else %}
+        {% comment %}
+          Reached by typing a code rather than scanning. Codes are sequential
+          and guessable, so this confirms the REFERENCE exists — it does not
+          confirm the paper in the reader's hand is genuine. Saying otherwise
+          would make the page useful to a forger.
+        {% endcomment %}
+        <div class="v-status v-warn">
+          <div class="icon">&#8505;</div>
+          <div class="headline">Reference found — document not verified</div>
+          <div class="detail">Scan the QR code on the document for full verification.</div>
+        </div>
+      {% endif %}
+
+      <div class="v-body">
+        <div class="v-row">
+          <span class="k">Reference</span>
+          <span class="v v-code">{{ release_letter.code|default:release_letter.request_code }}</span>
+        </div>
+        <div class="v-row">
+          <span class="k">Status</span>
+          <span class="v">{{ status_label }}</span>
+        </div>
+        <div class="v-row">
+          <span class="k">Issued</span>
+          <span class="v">{{ release_letter.documents_generated_at|date:"d M Y"|default:"—" }}</span>
+        </div>
+        {% if verified and release_letter.letter_version %}
+        <div class="v-row">
+          <span class="k">Letter version</span>
+          <span class="v">v{{ release_letter.letter_version }}</span>
+        </div>
+        {% endif %}
+
+        {% if not verified %}
+        <div style="margin-top:1.1rem;padding:.85rem 1rem;background:#fff8e6;
+                    border:1px solid #f5d98a;border-radius:11px;font-size:.86rem;color:#6b4d09">
+          <b>This is a reference lookup, not a document check.</b>
+          It confirms the reference exists in MOEN-IMS and its current status.
+          It does <b>not</b> confirm that the document you are holding is genuine —
+          reference numbers are sequential and can be guessed.
+          <div style="margin-top:.5rem">
+            To verify the document itself, scan the QR code printed on it.
+          </div>
+        </div>
+        {% endif %}
+
+        {% if verified %}{% if signatures %}
+        <div class="v-sec">Signatures on record</div>
+        {% for s in signatures %}
+        <div class="v-sig{% if matched_signature and matched_signature.pk == s.pk %} is-match{% endif %}">
+          <div class="nm">{{ s.signatory_name }}</div>
+          <div class="ti">{{ s.signatory_title }}</div>
+          {% if s.signatory_designation and s.signatory_designation != s.signatory_title %}
+          <div class="sub">Substantive post: {{ s.signatory_designation }}</div>
+          {% endif %}
+          <div class="sub">
+            Signed the {{ s.get_document_kind_display|lower }} on
+            {{ s.signed_at|date:"d M Y, H:i" }} · v{{ s.document_version }}
+          </div>
+          <div class="tok">{{ s.verification_token }}</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="v-sec">Signatures on record</div>
+        <p style="font-size:.87rem;color:#64748b;margin:0">
+          No in-system signature. This document may have been signed on paper —
+          the wet-signed, registered copy is the authoritative record.
+        </p>
+        {% endif %}{% endif %}
+      </div>
+    {% endif %}
+
+    <div class="v-foot">
+      {% comment %}
+        States the limit of what this page proves. It confirms a document was
+        issued by the system and its current status — it is not itself the
+        authority to release materials, which remains the registered copy.
+      {% endcomment %}
+      This page confirms whether a document was issued by MOEN-IMS and its
+      current status. It does not disclose the contents of the document, and it
+      is not authority to release materials.
+    </div>
+  </div>
+
+  <p style="text-align:center;font-size:.72rem;color:#94a3b8;margin-top:1rem">
+    &copy; Ministry of Energy and Green Transition
+  </p>
+</div>
+</body>
+</html>

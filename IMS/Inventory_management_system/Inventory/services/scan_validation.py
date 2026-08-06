@@ -235,6 +235,54 @@ def extract_payloads(file_bytes: bytes, filename: Optional[str]) -> Tuple[List[s
     return [], ''
 
 
+def payload_matches_code(payload: str, expected: str) -> bool:
+    """Does a decoded QR payload identify `expected`?
+
+    Two payload generations are in circulation and both must validate:
+
+      * **bare code** — `RE-2026-0001`. Every document minted before the QR
+        became a link. These are printed, signed and sitting in files; they
+        cannot be reissued and must keep verifying forever.
+      * **verify URL** — `https://host/verify/RE-2026-0001/`. What the QR
+        encodes now, so that scanning a physical copy with a phone actually
+        resolves the document instead of offering a web search.
+
+    Matching is deliberately anchored rather than a loose substring test: the
+    code must be the whole payload, or a complete path segment / query value
+    within it. `RE-2026-0001` must never match `RE-2026-00012`, which would let
+    one release validate another's scan.
+    """
+    payload = (payload or '').strip()
+    expected = (expected or '').strip()
+    if not payload or not expected:
+        return False
+
+    if payload.casefold() == expected.casefold():
+        return True
+
+    # Only treat it as a URL if it looks like one — a bare code should not be
+    # split on '/' and matched piecewise.
+    if '://' not in payload and not payload.startswith('/'):
+        return False
+
+    from urllib.parse import urlparse, parse_qs
+
+    try:
+        parsed = urlparse(payload)
+    except ValueError:
+        return False
+
+    segments = [s for s in parsed.path.split('/') if s]
+    if any(s.casefold() == expected.casefold() for s in segments):
+        return True
+
+    for values in parse_qs(parsed.query).values():
+        if any(v.strip().casefold() == expected.casefold() for v in values):
+            return True
+
+    return False
+
+
 def decode_qr_outcome(file_bytes: bytes, filename: Optional[str], expected_code: str) -> str:
     expected = (expected_code or '').strip()
     if not expected:
@@ -244,7 +292,7 @@ def decode_qr_outcome(file_bytes: bytes, filename: Optional[str], expected_code:
         payloads, source = extract_payloads(file_bytes, filename)
         if not payloads:
             return 'not_found'
-        if expected in payloads:
+        if any(payload_matches_code(p, expected) for p in payloads):
             logger.info("Scan validated via %s: %s matched", source, expected)
             return 'match'
         logger.warning("Scan mismatch via %s: expected %s, got %s",

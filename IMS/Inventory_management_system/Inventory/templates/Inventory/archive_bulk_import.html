@@ -1,0 +1,95 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Bulk import archive — MOEGT IEPS{% endblock %}
+
+{% block content %}
+<div class="py-3" style="max-width:860px">
+
+  <a href="{% url 'archive_list' %}" class="btn btn-link btn-sm px-0 mb-2">
+    <i class="fas fa-arrow-left me-1"></i> Back to the register
+  </a>
+
+  <h3 class="mb-1" style="font-weight:700;color:#1b3a2a">Bulk import historical requisitions</h3>
+  <p class="text-muted" style="font-size:.92rem">
+    One spreadsheet listing the requisitions, plus the scan files. Each row names
+    its own scan, so the two are matched by filename.
+  </p>
+
+  {% if messages %}{% for m in messages %}
+  <div class="alert alert-{{ m.tags|default:'info' }} py-2 d-flex align-items-center gap-2">
+    <span>{{ m }}</span>
+    {% if 'need attention' in m.message %}
+    <a href="{% url 'archive_import_errors' %}" class="btn btn-sm btn-outline-dark ms-auto">
+      <i class="fas fa-download me-1"></i> Download the error list
+    </a>
+    {% endif %}
+  </div>
+  {% endfor %}{% endif %}
+
+  <div class="card mb-3">
+    <div class="card-header"><b>1. Prepare the spreadsheet</b></div>
+    <div class="card-body">
+      <p class="small mb-2">
+        Two columns are required: <code>reference</code> and <code>description</code>.
+        Everything else is optional but makes the record easier to find later.
+      </p>
+      <p class="small mb-2">
+        <code>scan_filename</code> must match the uploaded file exactly
+        &mdash; <code>req-2023-0142.pdf</code>, not <code>Req 2023 0142</code>.
+      </p>
+      <div class="d-flex flex-wrap gap-1 mb-3">
+        {% for c in all_columns %}
+        <span class="badge {% if c in required_columns %}bg-success{% else %}bg-light text-dark border{% endif %}">{{ c }}</span>
+        {% endfor %}
+      </div>
+      <a href="{% url 'archive_template' %}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-download me-1"></i> Download the template
+      </a>
+    </div>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    {% csrf_token %}
+    <div class="card-header"><b>2. Upload</b></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold mb-1" for="spreadsheet">Spreadsheet <span class="text-danger">*</span></label>
+        <input type="file" class="form-control" id="spreadsheet" name="spreadsheet"
+               accept=".xlsx,.xlsm,.csv" required>
+        <div class="form-text">.xlsx or .csv</div>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label small fw-semibold mb-1" for="scans">Scan files</label>
+        <input type="file" class="form-control" id="scans" name="scans" multiple
+               accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff">
+        <div class="form-text">
+          Select all the scans at once. Up to 25 MB each. Rows without a
+          <code>scan_filename</code> import as index-only records.
+        </div>
+      </div>
+
+      {% comment %}
+        All-or-nothing is the important behaviour to state up front: a partly
+        loaded backlog is worse than none, because nobody can tell which half
+        is missing.
+      {% endcomment %}
+      <div class="alert alert-light border small mt-3 mb-0 d-flex align-items-start gap-2">
+        <i class="fas fa-circle-info mt-1 text-success"></i>
+        <div>
+          The whole file is checked before anything is saved. If any row has a
+          problem, <b>nothing is imported</b> and you get a list of every issue to
+          fix in one pass. Duplicate references are rejected, so re-running a
+          corrected file is safe.
+        </div>
+      </div>
+    </div>
+    <div class="card-footer d-flex gap-2">
+      <button type="submit" class="btn btn-success">
+        <i class="fas fa-file-import me-1"></i> Import
+      </button>
+      <a href="{% url 'archive_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

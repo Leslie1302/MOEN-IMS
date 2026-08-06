@@ -297,6 +297,31 @@ class ReleaseLetter(auto_prefetch.Model):
         related_name='urgent_releases')
     urgent_declared_at = models.DateTimeField(null=True, blank=True)
 
+    # Unguessable per-document secret carried in the QR link. Release codes are
+    # sequential and therefore enumerable, so a code alone proves only that a
+    # reference exists — a forger could print a real code on a fake letter and
+    # have it "verify". Possession of this token proves possession of the
+    # actual document, which is what verification is supposed to establish.
+    # Never printed in human-readable form; the QR is machine-read.
+    verify_token = models.CharField(max_length=32, blank=True, db_index=True)
+
+    def ensure_verify_token(self):
+        """Mint the token on first use. Idempotent; never rotates.
+
+        Rotating would invalidate the QR on every copy already printed and
+        filed, so once issued it is permanent for the life of the document.
+        """
+        if not self.verify_token:
+            import secrets
+            for _ in range(5):
+                candidate = secrets.token_urlsafe(12)[:16]
+                if not ReleaseLetter.objects.filter(verify_token=candidate).exists():
+                    self.verify_token = candidate
+                    if self.pk:
+                        ReleaseLetter.objects.filter(pk=self.pk).update(verify_token=candidate)
+                    break
+        return self.verify_token
+
     def signatures_for(self, kind):
         return self.signatures.filter(document_kind=kind, superseded=False).order_by('signed_at')
 

@@ -46,6 +46,45 @@ def _css_string(text):
             .replace('\n', ' '))
 
 
+def qr_payload(code, verify_token=None):
+    """What the QR on a document actually encodes.
+
+    Historically this was the bare release code, which meant scanning a printed
+    document with a phone produced the string `RE-2026-0001` and an offer to
+    web-search it — useless to the person holding the paper. It now encodes a
+    link to the public verify page.
+
+    The link carries `verify_token` because **release codes are enumerable**:
+    they run RE-2026-0001, 0002, 0003. Verifying by code alone proves only that
+    a reference exists, so a forger could enumerate to find a real approved code,
+    print it on a fake letter, and have the page answer "issued by MOEN-IMS".
+    The token is unguessable, so its presence proves the scanner held the actual
+    document — which is the question verification exists to answer.
+
+    Falls back to the bare code when `PUBLIC_BASE_URL` is unset: a QR pointing at
+    `http://localhost:8000` on a printed Ministry letter would be worse than no
+    link at all, and scan matching works either way (see
+    `scan_validation.payload_matches_code`).
+    """
+    from django.conf import settings
+    from django.urls import reverse, NoReverseMatch
+
+    base = (getattr(settings, 'PUBLIC_BASE_URL', '') or '').strip().rstrip('/')
+    if not base or not code:
+        return code
+
+    try:
+        path = reverse('verify_document', args=[code])
+    except NoReverseMatch:      # verify page not wired up in this deployment
+        return code
+
+    url = f"{base}{path}"
+    if verify_token:
+        from urllib.parse import urlencode
+        url = f"{url}?{urlencode({'t': verify_token})}"
+    return url
+
+
 def _qr_data_uri(payload):
     """Release code as a QR PNG data-URI for inline <img>. None if qrcode absent."""
     try:
@@ -334,7 +373,7 @@ def render_document_html(release_letter, kind, edit_mode=False, use_stored=True,
     stored = (getattr(release_letter, spec['stored'], '') or '').strip() if use_stored else ''
     return render_to_string(spec['template'], {
         'lh': _letterhead_ctx(kind, for_pdf=for_pdf),
-        'qr': _qr_data_uri(ctx['code']),
+        'qr': _qr_data_uri(qr_payload(ctx['code'], release_letter.ensure_verify_token())),
         'ctx': ctx,
         'paragraphs': paragraphs,
         'schedule': schedule,

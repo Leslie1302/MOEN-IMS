@@ -56,6 +56,7 @@ class UserRoleMiddleware(MiddlewareMixin):
             '/help/',
             '/profile/',
             '/awaiting-authorization/',
+            '/verify/',  # public document verification (QR on printed documents)
             '/.well-known/',  # Allow CA validation endpoints without auth
             '/password-reset/',  # Password reset request form
             '/password-reset/done/',  # Password reset email sent confirmation

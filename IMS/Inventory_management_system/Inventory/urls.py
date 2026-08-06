@@ -158,6 +158,11 @@ from .views.release_document_views import (
     SignDocumentView, RebuildSignedDocumentView,
 )
 from .views.letterhead_views import LetterheadSettingsView
+from .views.verify_views import VerifyDocumentView
+from .views.archive_views import (
+    ArchiveListView, ArchiveDetailView, ArchiveCreateView,
+    ArchiveBulkImportView, ArchiveTemplateView, ArchiveImportErrorsView,
+)
 
 # Error handlers
 handler403 = custom_403_view
@@ -357,6 +362,19 @@ urlpatterns = [
 
     # Email the memo/letter to chosen users or typed addresses (Microsoft Graph).
     path('release-letters/<int:pk>/send/', SendReleaseDocumentsView.as_view(), name='send_release_documents'),
+
+    # Historical paper requisitions — records only, no stock or workflow effect.
+    path('archive/', ArchiveListView.as_view(), name='archive_list'),
+    path('archive/new/', ArchiveCreateView.as_view(), name='archive_create'),
+    path('archive/import/', ArchiveBulkImportView.as_view(), name='archive_bulk_import'),
+    path('archive/import/template/', ArchiveTemplateView.as_view(), name='archive_template'),
+    path('archive/import/errors/', ArchiveImportErrorsView.as_view(), name='archive_import_errors'),
+    path('archive/<int:pk>/', ArchiveDetailView.as_view(), name='archive_detail'),
+
+    # Public document verification — reached by scanning the QR on a printed
+    # document. No login: the reader may have no account at all. Must also be
+    # allowlisted in UserRoleMiddleware, or anonymous scans redirect to signin.
+    path('verify/<str:reference>/', VerifyDocumentView.as_view(), name='verify_document'),
 
     # Letterhead upload + drag-to-calibrate printable area.
     path('settings/letterhead/', LetterheadSettingsView.as_view(), name='letterhead_settings'),

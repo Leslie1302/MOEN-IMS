@@ -1,0 +1,176 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Archive a requisition — MOEGT IEPS{% endblock %}
+
+{% block content %}
+<div class="py-3" style="max-width:900px;margin:0 auto">
+
+  <a href="{% url 'archive_list' %}" class="btn btn-link btn-sm px-0 mb-2">
+    <i class="fas fa-arrow-left me-1"></i> Back to the register
+  </a>
+
+  <h3 class="mb-1" style="font-weight:700;color:#1b3a2a">Archive a requisition</h3>
+  <p class="text-muted mb-4" style="font-size:.92rem;max-width:62ch">
+    For a historical paper requisition and the release letter issued against it.
+    The scans are the record — the fields below exist so they can be found again,
+    not to reproduce their contents.
+  </p>
+
+  {% if messages %}{% for m in messages %}
+  <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+  {% endfor %}{% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {# ── The requisition ── #}
+    <div class="card mb-3">
+      <div class="card-header"><b>The requisition</b></div>
+      <div class="card-body">
+
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label" for="reference">Reference <span class="req">*</span></label>
+            <input type="text" class="form-control" id="reference" name="reference"
+                   value="{{ posted.reference|default:'' }}" required
+                   placeholder="MOEN/REQ/2023/0142">
+            <div class="form-text">Exactly as printed. Never reuse a live RE- code.</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="document_date">Date on the document</label>
+            <input type="date" class="form-control" id="document_date" name="document_date"
+                   value="{{ posted.document_date|default:'' }}">
+            <div class="form-text">Leave blank if illegible.</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="request_type">Type</label>
+            <select class="form-select" id="request_type" name="request_type">
+              <option value="Release">Release</option>
+              <option value="Receipt">Receipt</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="description">Description <span class="req">*</span></label>
+            <textarea class="form-control" id="description" name="description" rows="2" required
+                      placeholder="Release of 2,000 sets stay equipment c/w accessories">{{ posted.description|default:'' }}</textarea>
+            <div class="form-text">This is what makes the record findable. Write it as you would search for it.</div>
+          </div>
+
+          <div class="col-md-5">
+            <label class="form-label" for="quantity_summary">Quantity summary</label>
+            <input type="text" class="form-control" id="quantity_summary" name="quantity_summary"
+                   value="{{ posted.quantity_summary|default:'' }}" placeholder="2,000 sets">
+            <div class="form-text">Free text. Never used in any calculation.</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="project_type">Project type</label>
+            <input type="text" class="form-control" id="project_type" name="project_type"
+                   value="{{ posted.project_type|default:'' }}" placeholder="SHEP">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="package_number">Package number</label>
+            <input type="text" class="form-control" id="package_number" name="package_number"
+                   value="{{ posted.package_number|default:'' }}" placeholder="SP-BAR-TND-…">
+          </div>
+        </div>
+
+        <span class="form-section">
+          Signatories
+          <span class="form-section-note">Names as written on the paper — not linked to system accounts.</span>
+        </span>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="requested_by_name">Requested by</label>
+            <input type="text" class="form-control" id="requested_by_name" name="requested_by_name"
+                   value="{{ posted.requested_by_name|default:'' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="approved_by_name">Approved by</label>
+            <input type="text" class="form-control" id="approved_by_name" name="approved_by_name"
+                   value="{{ posted.approved_by_name|default:'' }}">
+          </div>
+        </div>
+
+        <span class="form-section">Location</span>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="community">Community</label>
+            <input type="text" class="form-control" id="community" name="community"
+                   value="{{ posted.community|default:'' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="district">District</label>
+            <input type="text" class="form-control" id="district" name="district"
+                   value="{{ posted.district|default:'' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="region">Region</label>
+            <input type="text" class="form-control" id="region" name="region"
+                   value="{{ posted.region|default:'' }}">
+          </div>
+        </div>
+
+        <span class="form-section">Scan of the requisition</span>
+        <input type="file" class="form-control" name="scan"
+               accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff">
+        <div class="form-text">PDF or image, up to 25 MB. Without it, only the typed fields survive.</div>
+
+      </div>
+    </div>
+
+    {# ── The release letter ── #}
+    <div class="card mb-3">
+      <div class="card-header"><b>The release letter</b></div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.87rem;max-width:62ch">
+          The letter issued against this requisition. It carries the authorising
+          signature, so it is usually the document an auditor asks for. Leave
+          blank if the requisition was never actioned or the letter is missing.
+        </p>
+
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label" for="release_letter_reference">Letter reference</label>
+            <input type="text" class="form-control" id="release_letter_reference"
+                   name="release_letter_reference"
+                   value="{{ posted.release_letter_reference|default:'' }}"
+                   placeholder="MOEN/RL/2023/0088">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="release_letter_date">Letter date</label>
+            <input type="date" class="form-control" id="release_letter_date"
+                   name="release_letter_date" value="{{ posted.release_letter_date|default:'' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="release_letter_scan">Scan of the signed letter</label>
+            <input type="file" class="form-control" id="release_letter_scan"
+                   name="release_letter_scan" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff">
+            <div class="form-text">The signed copy, if it is on file.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Notes ── #}
+    <div class="card mb-3">
+      <div class="card-header"><b>Notes</b></div>
+      <div class="card-body">
+        <textarea class="form-control" id="notes" name="notes" rows="3"
+                  placeholder="Where it was found, condition of the original, anything unclear">{{ posted.notes|default:'' }}</textarea>
+        <div class="form-text">
+          Anything the next person retrieving this record should know.
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 mb-4">
+      <button type="submit" class="btn btn-success">
+        <i class="fas fa-box-archive me-1"></i> Archive this requisition
+      </button>
+      <a href="{% url 'archive_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

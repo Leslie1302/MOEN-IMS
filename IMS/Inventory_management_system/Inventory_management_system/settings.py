@@ -166,6 +166,16 @@ _default_csrf = [
 ]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', ','.join(_default_csrf)).split(',') if o.strip()]
 
+# Public origin used to build absolute links printed ON documents — currently
+# the QR code, which resolves to the public verify page so anyone holding a
+# physical copy can check the document's status without an account.
+#
+# Deliberately NOT derived from the request: a document generated from an
+# internal hostname would carry a QR nobody outside can resolve, and the PDF is
+# permanent. Left blank, the QR falls back to the bare release code, which the
+# scan matcher still validates — so an unset value degrades rather than breaks.
+PUBLIC_BASE_URL = os.getenv('PUBLIC_BASE_URL', '').strip().rstrip('/')
+
 # Ensure request.is_secure() works behind proxies (DO App Platform / Heroku)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 

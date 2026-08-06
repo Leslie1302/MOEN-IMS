@@ -720,6 +720,58 @@ code {
 .dropdown-item { padding: .55rem 1.1rem; font-size: .875rem; }
 .dropdown-item:active { background-color: var(--moen-primary); }
 
+/* ============================================================
+   Forms outside dialogs
+   ------------------------------------------------------------
+   `.modal-section` only styles headings inside `.modal-body`, so
+   reusing it on a normal page produced unstyled h6s jammed against
+   the previous field's help text. `.form-section` is the page-level
+   equivalent, and carries its own top margin so sections breathe.
+   ============================================================ */
+.form-section {
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--moen-primary);
+    margin: 2rem 0 1rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid #eef1f5;
+}
+.form-section:first-child { margin-top: 0; }
+.form-section .form-section-note {
+    display: block;
+    margin-top: .35rem;
+    font-size: .78rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #64748b;
+}
+
+/* Help text was colliding with the next control. Give it room and a
+   consistent colour so the eye can skip it when scanning the form. */
+.form-text {
+    font-size: .79rem;
+    color: #64748b;
+    margin-top: .3rem;
+    line-height: 1.45;
+}
+.form-label { font-weight: 600; font-size: .85rem; color: #334155; margin-bottom: .3rem; }
+.form-control, .form-select {
+    border-radius: 9px;
+    border-color: #dbe2ea;
+    padding: .5rem .7rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--moen-primary);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .15);
+}
+.form-control::placeholder { color: #aab4c0; }
+/* Required marker shouldn't shout. */
+.form-label .req { color: var(--bs-danger); font-weight: 400; }
+
 /* Pagination inside table cards. */
 .pagination .page-link { border-radius: 8px; margin: 0 2px; border-color: #e6eaef; color: #334155; }
 .pagination .page-item.active .page-link { background: var(--moen-primary); border-color: var(--moen-primary); }

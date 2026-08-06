@@ -1,0 +1,167 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Historical requisitions — MOEGT IEPS{% endblock %}
+
+{% block content %}
+<div class="py-3">
+
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-1">
+    <div>
+      <h3 class="mb-1" style="font-weight:700;color:#1b3a2a">
+        <i class="fas fa-box-archive me-2"></i>Historical requisitions
+      </h3>
+      <p class="text-muted mb-0" style="font-size:.92rem">
+        Paper requisitions from before MOEN-IMS, captured for the record.
+        {% if total_archived %}<b>{{ total_archived }}</b> archived.{% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'archive_bulk_import' %}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-import me-1"></i> Bulk import
+      </a>
+      <a href="{% url 'archive_create' %}" class="btn btn-success btn-sm">
+        <i class="fas fa-plus me-1"></i> Archive a requisition
+      </a>
+    </div>
+  </div>
+
+  {% comment %}
+    States the boundary up front. Someone landing here from a dashboard needs to
+    know these are inert records, not live requests they can act on.
+  {% endcomment %}
+  <div class="alert alert-light border small d-flex align-items-start gap-2 mt-3">
+    <i class="fas fa-circle-info mt-1 text-success"></i>
+    <div>
+      These are <b>records only</b>. They do not affect stock levels, do not appear
+      in dashboards or KPIs, and cannot be processed — the materials moved years ago.
+    </div>
+  </div>
+
+  {% if messages %}{% for m in messages %}
+  <div class="alert alert-{{ m.tags|default:'info' }} py-2">{{ m }}</div>
+  {% endfor %}{% endif %}
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold mb-1" for="q">Search</label>
+          <input type="text" class="form-control form-control-sm" id="q" name="q" value="{{ q }}"
+                 placeholder="Reference, description, community, package…">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1" for="type">Type</label>
+          <select class="form-select form-select-sm" id="type" name="type">
+            <option value="">All</option>
+            <option value="Release" {% if sel_type == 'Release' %}selected{% endif %}>Release</option>
+            <option value="Receipt" {% if sel_type == 'Receipt' %}selected{% endif %}>Receipt</option>
+            <option value="Unknown" {% if sel_type == 'Unknown' %}selected{% endif %}>Unknown</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1" for="region">Region</label>
+          <select class="form-select form-select-sm" id="region" name="region">
+            <option value="">All</option>
+            {% for r in regions %}
+            <option value="{{ r }}" {% if sel_region == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1" for="from">From</label>
+          <input type="date" class="form-control form-control-sm" id="from" name="from" value="{{ date_from }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1" for="to">To</label>
+          <input type="date" class="form-control form-control-sm" id="to" name="to" value="{{ date_to }}">
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-success btn-sm"><i class="fas fa-magnifying-glass me-1"></i> Search</button>
+          <a href="{% url 'archive_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if records %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Location</th>
+          <th>Documents</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr onclick="window.location='{% url 'archive_detail' r.pk %}'" style="cursor:pointer">
+          <td class="fw-semibold">{{ r.reference }}</td>
+          <td>{{ r.document_date|date:"d M Y"|default:"—" }}</td>
+          <td><span class="badge bg-secondary">{{ r.request_type }}</span></td>
+          <td>{{ r.description|truncatewords:12 }}</td>
+          <td>{{ r.display_location|default:"—" }}</td>
+          <td class="text-nowrap">
+            {% if r.has_scan %}
+              <span class="badge bg-light text-dark border" title="Requisition scan on file">
+                <i class="fas fa-file-lines me-1"></i>Req
+              </span>
+            {% endif %}
+            {% if r.release_letter_scan %}
+              <span class="badge bg-light text-dark border" title="Signed release letter on file">
+                <i class="fas fa-file-signature me-1"></i>Letter
+              </span>
+            {% endif %}
+            {% if not r.has_scan and not r.release_letter_scan %}
+              <span class="text-muted small">Index only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+      {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div class="card">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-box-archive text-muted" style="font-size:2.5rem;opacity:.4"></i>
+      <h5 class="text-muted mt-3 mb-1">
+        {% if q or sel_type or sel_region or date_from or date_to %}
+          Nothing matches that search
+        {% else %}
+          No historical requisitions archived yet
+        {% endif %}
+      </h5>
+      <p class="text-muted small mb-3">
+        {% if q or sel_type or sel_region or date_from or date_to %}
+          Try a broader search, or clear the filters.
+        {% else %}
+          Start with a bulk import of the registry backlog, or archive one at a time.
+        {% endif %}
+      </p>
+      <a href="{% url 'archive_bulk_import' %}" class="btn btn-success btn-sm">
+        <i class="fas fa-file-import me-1"></i> Bulk import
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

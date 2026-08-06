@@ -1,0 +1,115 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}{{ record.reference }} — Archive{% endblock %}
+
+{% block content %}
+<div class="py-3" style="max-width:960px">
+
+  <a href="{% url 'archive_list' %}" class="btn btn-link btn-sm px-0 mb-2">
+    <i class="fas fa-arrow-left me-1"></i> Back to the register
+  </a>
+
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h3 class="mb-1" style="font-weight:700;color:#1b3a2a">{{ record.reference }}</h3>
+      <p class="text-muted mb-0" style="font-size:.92rem">
+        {{ record.document_date|date:"d F Y"|default:"Undated" }} ·
+        {{ record.request_type }} · historical record
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if record.has_scan %}
+      <a href="{{ record.scan.url }}" target="_blank" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-arrow-down me-1"></i> Requisition
+      </a>
+      {% endif %}
+      {% if record.release_letter_scan %}
+      <a href="{{ record.release_letter_scan.url }}" target="_blank" class="btn btn-success btn-sm">
+        <i class="fas fa-file-signature me-1"></i> Release letter
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="alert alert-light border small d-flex align-items-start gap-2">
+    <i class="fas fa-circle-info mt-1 text-success"></i>
+    <div>
+      Archived from paper for the record. This requisition was not processed by
+      MOEN-IMS &mdash; it does not affect stock and has no live workflow.
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header"><b>Details</b></div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr><th>Reference</th><td>{{ record.reference }}</td></tr>
+            <tr><th>Date</th><td>{{ record.document_date|date:"d M Y"|default:"—" }}</td></tr>
+            <tr><th>Type</th><td>{{ record.request_type }}</td></tr>
+            <tr><th>Quantity</th><td>{{ record.quantity_summary|default:"—" }}</td></tr>
+            <tr><th>Requested by</th><td>{{ record.requested_by_name|default:"—" }}</td></tr>
+            <tr><th>Approved by</th><td>{{ record.approved_by_name|default:"—" }}</td></tr>
+            <tr><th>Community</th><td>{{ record.community|default:"—" }}</td></tr>
+            <tr><th>District</th><td>{{ record.district|default:"—" }}</td></tr>
+            <tr><th>Region</th><td>{{ record.region|default:"—" }}</td></tr>
+            <tr><th>Package</th><td>{{ record.package_number|default:"—" }}</td></tr>
+            <tr><th>Project type</th><td>{{ record.project_type|default:"—" }}</td></tr>
+          </table>
+
+          <span class="form-section">Release letter</span>
+          {% if record.has_release_letter %}
+          <table class="table table-sm mb-0">
+            <tr><th>Reference</th><td>{{ record.release_letter_reference|default:"—" }}</td></tr>
+            <tr><th>Date</th><td>{{ record.release_letter_date|date:"d M Y"|default:"—" }}</td></tr>
+            <tr><th>Signed copy</th>
+                <td>{% if record.release_letter_scan %}On file{% else %}Not on file{% endif %}</td></tr>
+          </table>
+          {% else %}
+          <p class="small text-muted mb-0">
+            No release letter recorded. The requisition may never have been actioned,
+            or the letter is missing from the file.
+          </p>
+          {% endif %}
+
+          <span class="form-section">Description</span>
+          <p class="small mb-0">{{ record.description|linebreaksbr }}</p>
+
+          {% if record.notes %}
+          <span class="form-section">Notes</span>
+          <p class="small mb-0">{{ record.notes|linebreaksbr }}</p>
+          {% endif %}
+
+          <span class="form-section">Provenance</span>
+          <p class="small text-muted mb-0">
+            Archived {{ record.archived_at|date:"d M Y, H:i" }}
+            {% if record.archived_by %}by {{ record.archived_by.get_full_name|default:record.archived_by.username }}{% endif %}.
+            {% if record.import_batch %}<br>Import batch <code>{{ record.import_batch }}</code>.{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header"><b>The original</b></div>
+        <div class="card-body p-0">
+          {% if record.has_scan %}
+            <iframe src="{{ record.scan.url }}" title="Scanned requisition"
+                    style="width:100%;height:620px;border:0;background:#eceff1"></iframe>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-file-circle-question text-muted" style="font-size:2.5rem;opacity:.4"></i>
+              <h6 class="text-muted mt-3 mb-1">No scan on file</h6>
+              <p class="text-muted small mb-0">
+                Only the typed index fields survive for this record.
+              </p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
