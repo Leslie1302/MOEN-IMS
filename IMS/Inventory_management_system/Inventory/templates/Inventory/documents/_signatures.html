@@ -1,0 +1,20 @@
+{% comment %}
+  Applied signatures: the drawn mark plus its authority stamp.
+
+  The stamp is what carries evidential weight — who signed, in what office, on
+  what substantive authority, over which document version, when, and a token a
+  third party can check at /verify/. The drawing alone proves little; that is
+  why it is never rendered without the stamp beside it.
+{% endcomment %}
+{% for s in signatures %}
+<div class="esign">
+  {% if s.img %}
+  <div class="esign-mark"><img src="{{ s.img }}" alt="Signature"></div>
+  {% endif %}
+  <div class="esign-stamp">
+    {% for line in s.lines %}
+      <div{% if forloop.first %} class="n"{% elif forloop.last %} class="v"{% endif %}>{{ line }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}

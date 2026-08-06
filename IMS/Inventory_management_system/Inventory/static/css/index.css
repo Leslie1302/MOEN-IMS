@@ -308,33 +308,427 @@ code {
 /* ============================================================
    Tables — dark slate header
    ============================================================ */
-.table-responsive {
-    border-radius: 0.5rem;
-    border: 1px solid #e5e7eb;
+/* The wrapper owns the frame: rounded, clipped, full system width. Tables
+   themselves stay square so their corners can't poke through the radius. */
+.table-responsive,
+.table-card {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 14px;
+    border: 1px solid #e6eaef;
     margin-bottom: 1.5rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px -10px rgba(15, 23, 42, .12);
 }
-.table { margin-bottom: 0; }
+.table { margin-bottom: 0; width: 100%; }
+
 .table thead th {
     background-color: var(--moen-header);
     color: #ffffff;
-    font-weight: 700;
+    font-weight: 650;
     text-transform: uppercase;
     font-size: 0.7rem;
-    letter-spacing: 0.05em;
-    padding: 0.75rem 1rem;
+    letter-spacing: 0.06em;
+    padding: 0.8rem 1rem;
     border-bottom: none;
     white-space: nowrap;
+    position: relative;
 }
+/* Round the header's outer corners so the dark band follows the card edge.
+   Only the first and last cells, and only when the table is the first child —
+   otherwise a toolbar above it would leave a visible notch. */
+.table-responsive > .table:first-child > thead > tr:first-child > th:first-child,
+.table-card > .table:first-child > thead > tr:first-child > th:first-child { border-top-left-radius: 13px; }
+.table-responsive > .table:first-child > thead > tr:first-child > th:last-child,
+.table-card > .table:first-child > thead > tr:first-child > th:last-child { border-top-right-radius: 13px; }
+
 .table tbody td {
-    padding: 0.75rem 1rem;
-    color: #374151;
+    padding: 0.8rem 1rem;
+    color: #253044;
     vertical-align: middle;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid #f1f5f9;
 }
 .table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:last-child td:first-child { border-bottom-left-radius: 13px; }
+.table tbody tr:last-child td:last-child { border-bottom-right-radius: 13px; }
+.table-hover tbody tr { transition: background-color .12s ease; }
 .table-hover tbody tr:hover { background-color: var(--moen-primary-tint); }
+.table tbody tr:nth-child(even) > td { background-color: #fcfdfe; }
+.table-hover tbody tr:nth-child(even):hover > td { background-color: var(--moen-primary-tint); }
+
+/* Numeric columns read better right-aligned and tabular. */
+.table .num, .table td.text-end, .table th.text-end {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Wide tables overflow their card and the dark header stops short of the row
+   content, which is what makes a scrolled table look broken. Forcing the table
+   to at least fill the wrapper keeps the header band flush with the body at
+   every scroll position. */
+.table-responsive > .table { min-width: 100%; }
+
+/* Keep the action column pinned so buttons stay reachable without scrolling
+   back, and give it a background so rows don't slide underneath it. */
+.table-responsive .col-actions,
+.table-responsive th.col-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: -8px 0 12px -8px rgba(15, 23, 42, .15);
+}
+.table-responsive thead th.col-actions {
+    background: var(--moen-header);
+    z-index: 3;
+}
+.table-hover tbody tr:hover > .col-actions { background: var(--moen-primary-tint); }
+.table tbody tr:nth-child(even) > .col-actions { background: #fcfdfe; }
+
+/* Tables that are already inside a card must not draw a second frame. */
+.card > .table-responsive,
+.card-body > .table-responsive,
+.rl-card .table-responsive {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 0;
+}
+
+/* ============================================================
+   Notifications — same language as dialogs
+   ============================================================ */
+.notif-bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    color: #334155 !important;
+    font-size: 1.15rem;
+    line-height: 1;
+    transition: background-color .15s ease, color .15s ease;
+}
+.notif-bell:hover { background-color: rgba(46, 125, 50, .1); color: var(--moen-primary) !important; }
+.notif-bell[aria-expanded="true"] { background-color: rgba(46, 125, 50, .14); color: var(--moen-primary) !important; }
+.notif-bell:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(46, 125, 50, .3); }
+
+.notif-count {
+    position: absolute;
+    top: 4px; right: 3px;
+    min-width: 17px; height: 17px;
+    padding: 0 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--moen-red);
+    color: #fff;
+    font-size: .64rem; font-weight: 700; line-height: 1;
+    border-radius: 999px;
+    border: 2px solid #fff;      /* separates the pill from the bell glyph */
+}
+
+.notif-menu {
+    width: 380px;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0;
+    border: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, .06),
+        0 12px 28px -6px rgba(15, 23, 42, .18),
+        0 32px 64px -24px rgba(15, 23, 42, .26);
+}
+.notif-menu::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--moen-primary) 0%, var(--moen-green) 55%, var(--moen-gold) 100%);
+}
+
+.notif-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .85rem 1.1rem .7rem;
+    border-bottom: 1px solid #eef1f5;
+}
+.notif-head-title { font-size: .95rem; font-weight: 650; color: #0f172a; letter-spacing: -.01em; }
+.notif-head-count {
+    font-size: .72rem; font-weight: 600; color: var(--moen-primary);
+    background: var(--moen-primary-tint);
+    padding: .15rem .5rem; border-radius: 999px;
+}
+
+.notif-list { max-height: 340px; overflow-y: auto; }
+.notif-item {
+    display: flex; gap: .65rem; align-items: flex-start;
+    padding: .8rem 1.1rem;
+    text-decoration: none;
+    border-bottom: 1px solid #f4f6f8;
+    transition: background-color .12s ease;
+}
+.notif-item:last-child { border-bottom: 0; }
+.notif-item:hover { background-color: #f8fafc; }
+
+/* Unread is marked by a dot, not a wash of pale blue — the wash made the text
+   harder to read and fought the rest of the palette. */
+.notif-dot {
+    flex: 0 0 auto;
+    width: 7px; height: 7px; margin-top: .42rem;
+    border-radius: 50%;
+    background: transparent;
+}
+.notif-item.is-unread .notif-dot { background: var(--moen-primary); }
+.notif-item.is-unread .notif-title { font-weight: 650; color: #0f172a; }
+
+.notif-body { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+.notif-title { font-size: .855rem; font-weight: 550; color: #1e293b; line-height: 1.35; }
+.notif-msg { font-size: .8rem; color: #64748b; line-height: 1.45; }
+.notif-time { font-size: .72rem; color: #94a3b8; margin-top: .15rem; }
+
+.notif-empty {
+    display: flex; flex-direction: column; align-items: center; gap: .45rem;
+    padding: 2.1rem 1rem;
+    color: #94a3b8; font-size: .85rem;
+}
+.notif-empty i { font-size: 1.5rem; opacity: .55; }
+
+.notif-foot {
+    display: flex; align-items: stretch;
+    border-top: 1px solid #eef1f5;
+    background: #f8fafc;
+}
+.notif-foot a {
+    flex: 1;
+    padding: .7rem .5rem;
+    text-align: center;
+    font-size: .8rem; font-weight: 600;
+    color: var(--moen-primary-dark);
+    text-decoration: none;
+    transition: background-color .12s ease;
+}
+.notif-foot a:hover { background-color: #eef2f6; }
+.notif-foot a + a { border-left: 1px solid #eef1f5; }
+.notif-foot-mark { color: #475569 !important; }
+
+/* Notifications page — the full list uses Bootstrap list-group, so give it the
+   same rounded card treatment and the same dot-based unread cue as the
+   dropdown rather than a pale-grey row with a heavy 4px blue edge. */
+.list-group-flush > .list-group-item {
+    padding: .95rem 1.15rem;
+    border-color: #f1f5f9;
+    transition: background-color .12s ease;
+}
+.list-group-item-action:hover { background-color: #f8fafc; }
+.list-group-flush > .list-group-item.bg-light {
+    background-color: #fff !important;
+    border-left: 3px solid var(--moen-primary) !important;
+    border-top-color: #f1f5f9 !important;
+    border-right-color: #f1f5f9 !important;
+    border-bottom-color: #f1f5f9 !important;
+    padding-left: calc(1.15rem - 3px);
+}
+
+/* Cards inherit the dialog radius so the whole app reads consistently. */
+.card {
+    border: 1px solid #e6eaef;
+    border-radius: 14px;
+}
+.card > .card-body:first-child { border-radius: 14px; }
+.card.shadow-sm,
+.card.shadow {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px -10px rgba(15, 23, 42, .12) !important;
+}
+.card-header {
+    background: #fff;
+    border-bottom: 1px solid #eef1f5;
+    padding: 1rem 1.15rem;
+    border-radius: 14px 14px 0 0;
+    font-weight: 600;
+}
+
+/* ============================================================
+   ONE header language
+   ------------------------------------------------------------
+   Panels were stacking a solid green card header directly on top
+   of a dark slate table header — two competing bars, neither
+   winning, and a lot of saturated colour carrying no information.
+   Card headers become quiet (white, dark text, green icon); the
+   table header stays slate. One bar per panel.
+   ============================================================ */
+.card > .card-header.bg-success,
+.card > .card-header.bg-primary,
+.card > .card-header.bg-dark,
+.card > .card-header.bg-info {
+    background: #fff !important;
+    color: #0f172a !important;
+    border-bottom: 1px solid #eef1f5;
+}
+.card > .card-header.bg-success h1, .card > .card-header.bg-success h2,
+.card > .card-header.bg-success h3, .card > .card-header.bg-success h4,
+.card > .card-header.bg-success h5, .card > .card-header.bg-success h6,
+.card > .card-header.bg-primary h4, .card > .card-header.bg-primary h5,
+.card > .card-header.bg-primary h6,
+.card > .card-header.bg-info h4, .card > .card-header.bg-info h5, .card > .card-header.bg-info h6 {
+    color: #0f172a !important;
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    margin: 0;
+}
+/* The icon keeps the colour the bar used to carry. */
+.card > .card-header.bg-success i,
+.card > .card-header.bg-primary i,
+.card > .card-header.bg-info i { color: var(--moen-primary); }
+/* Anything that was white-on-green needs to stop being white. */
+.card > .card-header.bg-success .text-white,
+.card > .card-header.bg-success small,
+.card > .card-header.bg-primary .text-white,
+.card > .card-header.bg-info .text-white { color: #64748b !important; }
+.card > .card-header.bg-success .btn-light,
+.card > .card-header.bg-primary .btn-light {
+    background: #fff; border: 1px solid #dbe2ea; color: #334155;
+}
+
+/* A table sitting directly under a card header shouldn't redraw its own
+   frame, and its slate header shouldn't repeat the corner radius. */
+.card > .card-body.p-0 > .table-responsive > .table:first-child > thead > tr:first-child > th:first-child,
+.card > .card-body.p-0 > .table-responsive > .table:first-child > thead > tr:first-child > th:last-child,
+.card > .table-responsive > .table:first-child > thead > tr:first-child > th { border-radius: 0; }
+
+/* ============================================================
+   KPI / stat tiles
+   ------------------------------------------------------------
+   Solid saturated blocks make every metric shout equally, so
+   none of them reads first. White tile, coloured accent rail and
+   icon chip: the number leads, colour classifies.
+   ============================================================ */
+.card.bg-success.text-white,
+.card.bg-warning.text-white,
+.card.bg-danger.text-white,
+.card.bg-primary.text-white,
+.card.stats-card {
+    background: #fff !important;
+    color: #0f172a !important;
+    border: 1px solid #e6eaef;
+    border-left: 4px solid var(--moen-primary);
+    border-radius: 14px;
+}
+.card.bg-warning.text-white { border-left-color: #d97706; }
+.card.bg-danger.text-white  { border-left-color: var(--bs-danger); }
+.card.bg-primary.text-white { border-left-color: #2563eb; }
+
+.card.bg-success.text-white .card-title,
+.card.bg-warning.text-white .card-title,
+.card.bg-danger.text-white .card-title,
+.card.bg-primary.text-white .card-title,
+.card.stats-card .card-title {
+    font-size: .8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b !important;
+    margin-bottom: .35rem;
+}
+.card.bg-success.text-white .display-6,
+.card.bg-warning.text-white .display-6,
+.card.bg-danger.text-white .display-6,
+.card.bg-primary.text-white .display-6,
+.card.stats-card .display-6,
+.card.stats-card h2 {
+    color: #0f172a !important;
+    font-weight: 650;
+    font-size: 2.1rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.card.bg-success.text-white small,
+.card.bg-warning.text-white small,
+.card.bg-danger.text-white small,
+.card.bg-primary.text-white small,
+.card.stats-card small {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+    font-size: .78rem;
+}
+/* The oversized ghost icon becomes a contained tinted chip. */
+.card.bg-success.text-white > .card-body i,
+.card.bg-warning.text-white > .card-body i,
+.card.bg-danger.text-white > .card-body i,
+.card.bg-primary.text-white > .card-body i,
+.card.stats-card > .card-body i {
+    font-size: 1.35rem !important;
+    opacity: 1 !important;
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    background: var(--moen-primary-tint);
+    color: var(--moen-primary);
+}
+.card.bg-warning.text-white > .card-body i { background: #fef3c7; color: #b45309; }
+.card.bg-danger.text-white  > .card-body i { background: #fee2e2; color: var(--bs-danger); }
+.card.bg-primary.text-white > .card-body i { background: #dbeafe; color: #1d4ed8; }
+
+/* ============================================================
+   In-table filter row — was a full row of heavy "All" selects
+   competing with the header for attention.
+   ============================================================ */
+.table thead tr:nth-child(2) th,
+.table .filter-row th,
+.table .filter-row td {
+    background: #f8fafc;
+    padding: .45rem .6rem;
+    border-bottom: 1px solid #e6eaef;
+}
+.table thead tr:nth-child(2) select,
+.table thead tr:nth-child(2) input,
+.table .filter-row select,
+.table .filter-row input {
+    height: 30px;
+    font-size: .78rem;
+    padding: 0 .45rem;
+    border: 1px solid #dbe2ea;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #475569;
+    max-width: 100%;
+}
+.table thead tr:nth-child(2) select:focus,
+.table .filter-row select:focus {
+    border-color: var(--moen-primary);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .14);
+    outline: none;
+}
+
+/* Dashboard notification panel — the in-page dropdown, distinct from the
+   navbar bell, so it needs the same treatment applied separately. */
+.dropdown-menu .dropdown-header {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--moen-primary);
+    padding: .8rem 1.1rem .5rem;
+}
+.dropdown-menu {
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 12px 28px -6px rgba(15, 23, 42, .18);
+    padding: .35rem 0;
+}
+.dropdown-item { padding: .55rem 1.1rem; font-size: .875rem; }
+.dropdown-item:active { background-color: var(--moen-primary); }
+
+/* Pagination inside table cards. */
+.pagination .page-link { border-radius: 8px; margin: 0 2px; border-color: #e6eaef; color: #334155; }
+.pagination .page-item.active .page-link { background: var(--moen-primary); border-color: var(--moen-primary); }
+/* A list-group flush inside a card must clip to the card's corners. */
+.card > .card-body.p-0 > .list-group-flush > .list-group-item:first-child { border-top: 0; }
+.card > .card-body.p-0 > .list-group-flush > .list-group-item:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 13px 13px;
+}
 
 /* Status chips (pill radius per DESIGN.md) */
 .badge {
@@ -355,10 +749,158 @@ footer {
     font-size: 0.875rem;
 }
 
-/* Modal Z-index Fixes */
+/* ============================================================
+   Modals / dialogs
+   ------------------------------------------------------------
+   The global --bs-border-radius is 0.25rem, which reads as hard-
+   edged at dialog scale. Dialogs get their own softer radius,
+   a layered shadow instead of a hairline border, and more
+   generous type so label/value pairs are legible at a glance.
+   ============================================================ */
 .modal-backdrop { z-index: 1040 !important; }
 .modal { z-index: 1055 !important; }
 body.modal-open { overflow: hidden !important; }
+
+.modal-backdrop.show {
+    background: #0b1220;
+    opacity: .55;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+}
+
+.modal-content {
+    border: 0;
+    border-radius: 16px;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, .06),
+        0 12px 28px -6px rgba(15, 23, 42, .18),
+        0 32px 64px -24px rgba(15, 23, 42, .28);
+    overflow: hidden;               /* keeps children inside the rounded corners */
+    background: #fff;
+}
+
+/* A slim brand rule across the top instead of a heavy coloured header bar. */
+.modal-header {
+    position: relative;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1.15rem 1.5rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid #eef1f5;
+}
+.modal-header::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--moen-primary) 0%, var(--moen-green) 55%, var(--moen-gold) 100%);
+}
+.modal-title {
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    color: #0f172a;
+    line-height: 1.35;
+}
+.modal-header .btn-close {
+    margin: 0;
+    padding: .5rem;
+    border-radius: 8px;
+    opacity: .45;
+    transition: opacity .15s ease, background-color .15s ease;
+}
+.modal-header .btn-close:hover { opacity: .9; background-color: #f1f5f9; }
+.modal-header .btn-close:focus { box-shadow: 0 0 0 3px rgba(46, 125, 50, .25); opacity: .9; }
+
+.modal-body {
+    padding: 1.35rem 1.5rem;
+    font-size: .925rem;
+    color: #253044;
+    line-height: 1.6;
+}
+
+.modal-footer {
+    padding: .95rem 1.5rem 1.15rem;
+    background: #f8fafc;
+    border-top: 1px solid #eef1f5;
+    gap: .5rem;
+}
+.modal-footer > * { margin: 0; }
+
+/* Section headings inside a dialog. */
+.modal-body h6,
+.modal-body .modal-section {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--moen-primary);
+    margin: 1.5rem 0 .6rem;
+    padding-bottom: .35rem;
+    border-bottom: 1px solid #eef1f5;
+}
+.modal-body h6:first-child,
+.modal-body .modal-section:first-child { margin-top: 0; }
+
+/* Label/value tables — the readability problem. Labels were the same weight
+   and near the same colour as their values, so the eye had nothing to anchor
+   on. Labels now recede; values lead. */
+.modal-body .table { margin-bottom: 0; }
+.modal-body .table > :not(caption) > * > * {
+    padding: .5rem .75rem .5rem 0;
+    background: transparent;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+.modal-body .table tr:last-child > * { border-bottom: 0; }
+.modal-body .table th {
+    font-weight: 500;
+    font-size: .82rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+.modal-body .table td {
+    font-weight: 550;
+    color: #0f172a;
+    word-break: break-word;
+}
+.modal-body .table-hover > tbody > tr:hover > * { background-color: #f8fafc; }
+
+/* Inputs sit slightly softer than the global control radius. */
+.modal-body .form-control,
+.modal-body .form-select {
+    border-radius: 9px;
+    border-color: #dbe2ea;
+    padding: .5rem .7rem;
+}
+.modal-body .form-control:focus,
+.modal-body .form-select:focus {
+    border-color: var(--moen-primary);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .15);
+}
+.modal-body .form-label { font-weight: 600; color: #334155; margin-bottom: .3rem; }
+.modal-footer .btn,
+.modal-body .btn { border-radius: 9px; }
+.modal-body .alert { border-radius: 11px; border-width: 1px; }
+
+/* Entrance: a short rise rather than Bootstrap's drop, which reads as
+   snappier at this size. Respects reduced-motion. */
+.modal.fade .modal-dialog {
+    transform: translateY(14px) scale(.985);
+    transition: transform .22s cubic-bezier(.2, .8, .3, 1), opacity .22s ease;
+    opacity: 0;
+}
+.modal.show .modal-dialog { transform: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .modal.fade .modal-dialog { transition: none; transform: none; opacity: 1; }
+    .modal-backdrop.show { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+@media (max-width: 576px) {
+    .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
+    .modal-footer { padding-left: 1.1rem; padding-right: 1.1rem; }
+    .modal-content { border-radius: 14px; }
+}
 
 /* ============================================================
    Table Utilities & Filtering (unchanged behaviour)

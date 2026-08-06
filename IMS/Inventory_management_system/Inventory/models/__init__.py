@@ -15,6 +15,9 @@ from .project_type import ProjectType
 from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
 from .letterhead import Letterhead  # Ministry letterhead for generated documents
+from .document_dispatch import DocumentDispatch  # audit of emailed release documents
+from .release_sequence import ReleaseCodeSequence  # registry-grade code allocator
+from .signing import SigningStep, DocumentSignature  # in-app approval chain
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
 from .areas import Area, AreaRegion  # Operational areas (region scoping)
 from .access_rate import MeterInstallation, AccessRateConfig, RegionPopulation  # Track B (access rate map)
@@ -47,6 +50,7 @@ __all__ = [
     'MemberOfParliament', 'ProjectConsultant',
     'Signatory',
     'Letterhead',
+    'DocumentDispatch',
     'Region', 'District', 'Package',  # Geospatial models
     'MeterInstallation', 'AccessRateConfig', 'RegionPopulation',  # Access rate models
     'RolePerformanceTarget', 'PerformanceConfig', 'PerformanceSnapshot',  # KPI system

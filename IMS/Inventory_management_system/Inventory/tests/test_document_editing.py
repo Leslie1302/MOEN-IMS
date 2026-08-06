@@ -73,6 +73,77 @@ class SanitizerTests(TestCase):
         self.assertEqual(sanitize_document_html(None), '')
 
 
+class RichFormattingRoundTripTests(TestCase):
+    """Everything the Word-style ribbon emits must survive the sanitiser.
+
+    The editor runs with `styleWithCSS` on, so formatting arrives as inline CSS
+    on <span>/<p> rather than legacy <font>/<strike> tags. If a declaration is
+    missing from the allowlist the officer's formatting silently vanishes on
+    save — which looks like the editor is broken. One case per control.
+    """
+
+    CONTROLS = {
+        'bold':          '<span style="font-weight: bold;">x</span>',
+        'italic':        '<span style="font-style: italic;">x</span>',
+        'underline':     '<span style="text-decoration: underline;">x</span>',
+        'strikethrough': '<span style="text-decoration: line-through;">x</span>',
+        'font size':     '<span style="font-size: 14pt;">x</span>',
+        'font family':   '<span style="font-family: Georgia, serif;">x</span>',
+        'text colour':   '<span style="color: rgb(27, 94, 32);">x</span>',
+        'highlight':     '<span style="background-color: rgb(255, 255, 0);">x</span>',
+        'justify':       '<p style="text-align: justify;">x</p>',
+        'centre':        '<p style="text-align: center;">x</p>',
+        'indent':        '<blockquote style="margin-left: 40px;">x</blockquote>',
+        'line spacing':  '<p style="line-height: 1.5;">x</p>',
+        'page break':    '<div style="page-break-before: always;"></div>',
+    }
+
+    def test_every_control_survives(self):
+        for label, html in self.CONTROLS.items():
+            with self.subTest(control=label):
+                prop = html.split('style="')[1].split(':')[0]
+                self.assertIn(prop, sanitize_document_html(html),
+                              f"{label} formatting was stripped on save")
+
+    def test_superscript_and_subscript_survive(self):
+        self.assertIn('<sup>2</sup>', sanitize_document_html('E = mc<sup>2</sup>'))
+        self.assertIn('<sub>2</sub>', sanitize_document_html('H<sub>2</sub>O'))
+
+    def test_headings_and_lists_survive(self):
+        out = sanitize_document_html('<h2>Heading</h2><ol start="3"><li>a</li></ol>')
+        self.assertIn('<h2>Heading</h2>', out)
+        self.assertIn('start="3"', out)
+
+    def test_inserted_table_survives(self):
+        out = sanitize_document_html(
+            '<table style="border-collapse: collapse;">'
+            '<tr><th style="background-color: #e8f5e9;">H</th><td>c</td></tr></table>')
+        self.assertIn('border-collapse', out)
+        self.assertIn('background-color', out)
+        self.assertIn('<th', out)
+
+    def test_link_survives_but_javascript_does_not(self):
+        self.assertIn('href="https://moen.gov.gh"',
+                      sanitize_document_html('<a href="https://moen.gov.gh">x</a>'))
+        self.assertNotIn('javascript',
+                         sanitize_document_html('<a href="javascript:evil()">x</a>'))
+
+    def test_formatting_does_not_smuggle_script_through(self):
+        """A styled span is allowed; a script inside it still is not."""
+        out = sanitize_document_html(
+            '<span style="font-weight: bold;"><script>evil()</script>x</span>')
+        self.assertIn('font-weight', out)
+        self.assertNotIn('evil', out)
+
+    def test_css_url_and_expression_are_still_stripped(self):
+        out = sanitize_document_html(
+            '<p style="page-break-before: always; background: url(//evil)">x</p>')
+        self.assertIn('page-break-before', out)
+        self.assertNotIn('evil', out)
+        self.assertNotIn('expression',
+                         sanitize_document_html('<p style="width: expression(evil())">x</p>'))
+
+
 class StoredHtmlRenderTests(TestCase):
     @classmethod
     def setUpTestData(cls):

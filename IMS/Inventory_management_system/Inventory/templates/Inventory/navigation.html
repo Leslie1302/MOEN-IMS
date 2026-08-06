@@ -135,53 +135,60 @@
                 {% if user.is_authenticated %}
                 <!-- Notifications -->
                 <li class="nav-item">
-                    <a class="nav-link text-dark fw-semibold position-relative" href="#" id="notificationsDropdown"
-                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                                {% if unread_notifications_count > 0 %}
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                            style="font-size: 0.6em;">
+                    <a class="nav-link notif-bell" href="#" id="notificationsDropdown"
+                        role="button" data-bs-toggle="dropdown" aria-expanded="false"
+                        aria-label="Notifications">
+                        <i class="bi bi-bell" aria-hidden="true"></i>
+                        {% if unread_notifications_count > 0 %}
+                        <span class="notif-count">
                             {{ unread_notifications_count }}
                             <span class="visually-hidden">unread notifications</span>
                         </span>
                         {% endif %}
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown"
-                        style="width: 350px; max-height: 400px; overflow-y: auto;">
-                        <li>
-                            <h6 class="dropdown-header">Recent Notifications</h6>
-                        </li>
-                        {% if recent_notifications %}
-                        {% for notification in recent_notifications %}
-                        <li>
-                            <a class="dropdown-item small py-2" href="{% url 'notification_detail' notification.id %}"
-                                style="white-space: normal; {% if not notification.is_read %}background-color: #f0f8ff;{% endif %}">
-                                <strong>{{ notification.title }}</strong><br>
-                                <span class="text-muted" style="font-size: 0.85em;">
-                                    {{ notification.message|truncatewords:15 }}
-                                </span><br>
-                                <span class="text-muted" style="font-size: 0.75em;">
-                                    <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
-                                </span>
+                    <div class="dropdown-menu dropdown-menu-end notif-menu" aria-labelledby="notificationsDropdown">
+                        <div class="notif-head">
+                            <span class="notif-head-title">Notifications</span>
+                            {% if unread_notifications_count > 0 %}
+                            <span class="notif-head-count">{{ unread_notifications_count }} unread</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="notif-list">
+                            {% if recent_notifications %}
+                                {% for notification in recent_notifications %}
+                                <a class="notif-item{% if not notification.is_read %} is-unread{% endif %}"
+                                   href="{% url 'notification_detail' notification.id %}">
+                                    <span class="notif-dot" aria-hidden="true"></span>
+                                    <span class="notif-body">
+                                        <span class="notif-title">{{ notification.title }}</span>
+                                        <span class="notif-msg">{{ notification.message|truncatewords:15 }}</span>
+                                        <span class="notif-time">
+                                            <i class="bi bi-clock" aria-hidden="true"></i>
+                                            {{ notification.created_at|timesince }} ago
+                                        </span>
+                                    </span>
+                                </a>
+                                {% endfor %}
+                            {% else %}
+                                <div class="notif-empty">
+                                    <i class="bi bi-bell-slash" aria-hidden="true"></i>
+                                    <span>You're all caught up</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="notif-foot">
+                            <a href="{% url 'notifications' %}">
+                                <i class="bi bi-list-ul" aria-hidden="true"></i> View all
                             </a>
-                        </li>
-                        {% endfor %}
-                        {% else %}
-                        <li><span class="dropdown-item small text-muted">No new notifications</span></li>
-                        {% endif %}
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item text-center text-primary fw-semibold"
-                                href="{% url 'notifications' %}">
-                                <i class="bi bi-list-ul"></i> View All Notifications
-                            </a></li>
-                        {% if unread_notifications_count > 0 %}
-                        <li><a class="dropdown-item text-center text-success fw-semibold" href="#"
-                                onclick="markAllRead(event)">
-                                <i class="bi bi-check-all"></i> Mark All as Read
-                            </a></li>
-                        {% endif %}
-                    </ul>
+                            {% if unread_notifications_count > 0 %}
+                            <a href="#" onclick="markAllRead(event)" class="notif-foot-mark">
+                                <i class="bi bi-check2-all" aria-hidden="true"></i> Mark all read
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
                 </li>
 
                 <!-- Show "Awaiting Authorization" ONLY for users with no groups and not superuser -->

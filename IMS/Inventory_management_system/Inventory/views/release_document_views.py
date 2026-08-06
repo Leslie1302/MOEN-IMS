@@ -27,7 +27,13 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView
 
+from django.contrib.auth.models import User
+
 from Inventory.models import ReleaseLetter, MaterialOrder, Signatory
+from Inventory.services.document_dispatch import send_release_documents, DispatchError
+from Inventory.services.signing import (
+    apply_signature, can_sign, rebuild_signed_pdf, signed_pdf_is_stale, SigningError,
+)
 from Inventory.services.pdf_generator import generate_release_memo, generate_release_letter
 from Inventory.services.document_render import (
     render_document_html, context_fingerprint, weasyprint_status, RendererUnavailable,
@@ -76,6 +82,34 @@ class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
         # is a flash message after clicking Generate, and the stale PDFs below
         # look like the new template failing to apply.
         ctx['renderer_ok'], ctx['renderer_detail'] = weasyprint_status()
+        # Recipient picker + history for the "Send documents" panel.
+        ctx['dispatch_users'] = (User.objects.filter(is_active=True)
+                                 .exclude(email='').order_by('first_name', 'username'))
+        ctx['dispatches'] = rl.dispatches.all()[:8]
+
+        # Signing state, per document. `can_sign` returns the reason a user may
+        # not sign, which the panel shows rather than simply hiding the button —
+        # "awaiting the Ag. Director" is more useful than a missing control.
+        signing = {}
+        for kind in ('memo', 'letter'):
+            allowed, step, reason = can_sign(self.request.user, rl, kind)
+            signing[kind] = {
+                'allowed': allowed, 'step': step, 'reason': reason,
+                'complete': rl.signing_complete(kind),
+                'locked': getattr(rl, f'{kind}_locked', False),
+                'signatures': rl.signatures_for(kind),
+                'next': rl.next_signing_step(kind),
+                # Signed while the renderer was down: the record says signed,
+                # but the stored PDF still shows a blank signature line.
+                'stale_pdf': signed_pdf_is_stale(rl, kind),
+            }
+        ctx['signing'] = signing
+        ctx['can_sign_any'] = any(s['allowed'] for s in signing.values())
+        # Any lock at all means Generate must not be offered — regenerating
+        # would put an existing signature over new content.
+        ctx['any_locked'] = rl.memo_locked or rl.letter_locked
+        ctx['locked_kinds'] = [k for k in ('memo', 'letter')
+                               if getattr(rl, f'{k}_locked', False)]
         return ctx
 
 
@@ -125,7 +159,12 @@ class _DocumentPreviewBase(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         rl = get_object_or_404(ReleaseLetter, pk=pk)
-        edit = request.GET.get('edit') == '1' and _can_generate(request.user)
+        # A locked document is frozen: editing it would put the officer's
+        # changes under a signature that was given for different content.
+        locked = getattr(rl, f'{self.kind}_locked', False)
+        edit = (request.GET.get('edit') == '1'
+                and _can_generate(request.user)
+                and not locked)
         use_stored = request.GET.get('original') != '1'
         html = render_document_html(rl, self.kind, edit_mode=edit, use_stored=use_stored)
         resp = HttpResponse(html)
@@ -164,6 +203,13 @@ class SaveDocumentHtmlView(LoginRequiredMixin, UserPassesTestMixin, View):
         if kind not in ('memo', 'letter'):
             raise Http404("Unknown document type.")
         rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        if getattr(rl, f'{kind}_locked', False):
+            return JsonResponse(
+                {'ok': False,
+                 'error': f"This {kind} has been signed and is locked. Void and reissue "
+                          "the release if it must change."},
+                status=409)
 
         cleaned = sanitize_document_html(request.POST.get('html', ''))
         if not cleaned:
@@ -212,6 +258,138 @@ class RevertDocumentHtmlView(LoginRequiredMixin, UserPassesTestMixin, View):
               f"{kind.title()} reverted to the generated template for {rl.code or rl.request_code}")
         messages.success(request, f"{kind.title()} reverted to the generated version.")
         return redirect(f"{reverse('release_letter_detail', args=[pk])}#adjust")
+
+
+class SignDocumentView(LoginRequiredMixin, View):
+    """Apply a drawn signature to the memo or letter.
+
+    Permission is not group-based: the only person who may sign is the one named
+    on the next outstanding `SigningStep`. That is checked inside the service,
+    which also enforces chain order and the lock on signed documents.
+    """
+    http_method_names = ['post']
+
+    def post(self, request, pk, kind):
+        if kind not in ('memo', 'letter'):
+            raise Http404("Unknown document type.")
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        try:
+            signature = apply_signature(
+                rl, request.user, kind,
+                request.POST.get('signature', ''),
+                ip_address=_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
+        except SigningError as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+        audit(request.user, rl, 'release.document_signed',
+              f"{kind} signed by {signature.signatory_name} "
+              f"({signature.signatory_title}) token {signature.verification_token}")
+
+        if rl.signing_complete(kind):
+            messages.success(
+                request,
+                f"{kind.title()} signed and complete. It is now locked — "
+                "void and reissue if it must change.")
+        else:
+            nxt = rl.next_signing_step(kind)
+            who = nxt.signatory.title if nxt and nxt.signatory else 'the next signatory'
+            messages.success(request, f"{kind.title()} signed. It now goes to {who}.")
+
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+
+class RebuildSignedDocumentView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Re-render a signed document's PDF so it shows its signatures.
+
+    Repair path for a document signed while the PDF renderer was unavailable:
+    the signature was recorded and the document locked, but the stored PDF still
+    shows a blank signature line, and the lock rightly blocks Generate.
+
+    This is safe on a locked document because it is not a regeneration from
+    changed data — it re-renders the same content and adds the signature block
+    that should already have been there. The lock protects content, and content
+    does not change here.
+    """
+    http_method_names = ['post']
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk, kind):
+        if kind not in ('memo', 'letter'):
+            raise Http404("Unknown document type.")
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        if not rl.signatures_for(kind).exists():
+            messages.error(request, f"The {kind} has no signatures to rebuild.")
+            return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+        try:
+            rebuild_signed_pdf(rl, kind)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Rebuild failed for ReleaseLetter %s (%s)", pk, kind)
+            messages.error(request, f"The {kind} could not be rebuilt: {exc}")
+            return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+        audit(request.user, rl, 'release.document_rebuilt',
+              f"{kind} PDF re-minted with its signatures")
+        messages.success(request, f"The {kind} has been rebuilt and now shows its signatures.")
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+
+def _client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        # App Service sits behind a proxy; the client is the first entry.
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+class SendReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Email the memo and/or letter to chosen users and/or typed addresses.
+
+    Graph sends on behalf of the signed-in officer, so the message leaves their
+    own mailbox and the recipient can just reply. Every attempt is recorded as a
+    DocumentDispatch — including failures, so a release that was never sent is
+    distinguishable from one where the send was rejected.
+    """
+    http_method_names = ['post']
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk):
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+
+        user_ids = request.POST.getlist('recipient_users')
+        users = list(User.objects.filter(pk__in=user_ids, is_active=True)) if user_ids else []
+        # The free-text field accepts several addresses separated by comma,
+        # semicolon or newline — officers paste from Outlook.
+        raw = (request.POST.get('recipient_emails') or '').replace(';', ',').replace('\n', ',')
+        extra = [part.strip() for part in raw.split(',') if part.strip()]
+
+        try:
+            dispatch = send_release_documents(
+                rl, sender=request.user, users=users, extra_emails=extra,
+                include_memo=request.POST.get('include_memo') == 'on',
+                include_letter=request.POST.get('include_letter') == 'on',
+                subject=request.POST.get('subject'),
+                message=request.POST.get('message', ''),
+            )
+        except DispatchError as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{reverse('release_letter_detail', args=[pk])}#send")
+
+        audit(request.user, rl, 'release.documents_sent',
+              f"{dispatch.documents_label} emailed to {dispatch.recipients}")
+        messages.success(
+            request,
+            f"Sent the {dispatch.documents_label} to {dispatch.recipients}.")
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#send")
 
 
 class UploadSignedScanView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -583,6 +761,19 @@ class GenerateReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View
     def post(self, request, pk):
         release_letter = get_object_or_404(ReleaseLetter, pk=pk)
 
+        # A signed document is frozen. Regenerating it would reproduce the
+        # signature over content the signatory never saw — so refuse rather than
+        # silently re-sign. Changing a signed document means void and reissue.
+        locked = [kind for kind in ('memo', 'letter')
+                  if getattr(release_letter, f'{kind}_locked', False)]
+        if locked:
+            messages.error(
+                request,
+                f"The {' and '.join(locked)} has been signed and is locked. "
+                "Void and reissue this release if the document must change — "
+                "regenerating would place an existing signature over new content.")
+            return redirect('release_letter_detail', pk=pk)
+
         try:
             with transaction.atomic():
                 # Allocate the code on first generation. Idempotent.
@@ -597,6 +788,11 @@ class GenerateReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View
                 # write to MEDIA_ROOT.
                 release_letter.memo_pdf.save(memo_file.name, memo_file, save=False)
                 release_letter.letter_pdf.save(letter_file.name, letter_file, save=False)
+
+                # Version every generation so a dispatch can record precisely
+                # which document a recipient received.
+                release_letter.memo_version = (release_letter.memo_version or 0) + 1
+                release_letter.letter_version = (release_letter.letter_version or 0) + 1
 
                 release_letter.documents_generated_at = timezone.now()
                 release_letter.documents_generated_by = request.user

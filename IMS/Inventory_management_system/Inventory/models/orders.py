@@ -271,6 +271,49 @@ class ReleaseLetter(auto_prefetch.Model):
     memo_html_fingerprint = models.CharField(max_length=64, blank=True)
     letter_html_fingerprint = models.CharField(max_length=64, blank=True)
 
+    # ── Versioning + signing locks ──────────────────────────────────────────
+    # The version increments on every generation. A DocumentDispatch records the
+    # version it sent, so the history can never imply that the document on file
+    # today is what a recipient actually received.
+    memo_version = models.PositiveIntegerField(default=0)
+    letter_version = models.PositiveIntegerField(default=0)
+    # Set once a document carries a signature. Regenerating a signed document
+    # would reproduce a signature over changed content — forgery-adjacent — so
+    # generation is refused and the editor goes read-only. Changing a signed
+    # document means void and reissue.
+    memo_locked = models.BooleanField(default=False)
+    letter_locked = models.BooleanField(default=False)
+
+    # Management directive: clears MMU to release on the digital signature
+    # alone, ahead of the wet-signed scan. Restricted to users on an active
+    # SigningStep — the officer raising the release cannot declare it, which is
+    # the difference between a directive and a self-serve waiver.
+    is_urgent = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Management directive to fast-track. MMU may release before the signed scan.")
+    urgent_reason = models.TextField(blank=True)
+    urgent_declared_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='urgent_releases')
+    urgent_declared_at = models.DateTimeField(null=True, blank=True)
+
+    def signatures_for(self, kind):
+        return self.signatures.filter(document_kind=kind, superseded=False).order_by('signed_at')
+
+    def next_signing_step(self, kind):
+        """The next unsigned required step for `kind`, or None when complete."""
+        from Inventory.models import SigningStep
+        signed_step_ids = set(self.signatures_for(kind).values_list('step_id', flat=True))
+        for step in SigningStep.chain_for(kind):
+            if step.required and step.pk not in signed_step_ids:
+                return step
+        return None
+
+    def signing_complete(self, kind):
+        from Inventory.models import SigningStep
+        chain = [s for s in SigningStep.chain_for(kind) if s.required]
+        return bool(chain) and self.next_signing_step(kind) is None
+
     def document_drift(self, kind):
         """'memo'|'letter' → True when the data changed after a hand-edit."""
         stored = getattr(self, f'{kind}_html', '')

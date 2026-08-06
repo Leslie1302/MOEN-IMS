@@ -14,8 +14,12 @@
 
 {% if schedule %}{% include 'Inventory/documents/_schedule.html' %}{% endif %}
 
+{% if signatures %}
+  {% include 'Inventory/documents/_signatures.html' %}
+{% else %}
 <div class="sign-block">
   <div class="sign-name">{{ ctx.memo_signatory_name|upper }}</div>
   {% if ctx.memo_signatory_title %}<div>{{ ctx.memo_signatory_title|upper }}</div>{% endif %}
 </div>
+{% endif %}
 {% endblock %}

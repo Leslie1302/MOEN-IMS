@@ -15,6 +15,7 @@ from .models import (
     SHEPCommunity, Community, ProjectSite, Project,
     ProjectType, MemberOfParliament, ProjectConsultant,
     Signatory, ReleaseLetter, Letterhead,
+    SigningStep, DocumentSignature, ReleaseCodeSequence,
 )
 from .transporter_models import Transporter, TransportVehicle
 from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
@@ -598,7 +599,12 @@ class SignatoryAdmin(admin.ModelAdmin):
     search_fields = ('name', 'title')
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
-        (None, {'fields': ('name', 'title', 'active')}),
+        (None, {
+            'fields': ('name', 'title', 'user', 'active'),
+            'description': "`title` is the office being signed in — set it to 'Ag. Chief Director' "
+                           "when someone acts. `user` is the login that may sign as this "
+                           "signatory in-app; leave blank for a print-only signatory.",
+        }),
         ('Document defaults', {
             'fields': (
                 'is_default_for_release_memo',
@@ -614,6 +620,75 @@ class SignatoryAdmin(admin.ModelAdmin):
         ('Notes', {'fields': ('notes',)}),
         ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
+
+
+@admin.register(SigningStep)
+class SigningStepAdmin(admin.ModelAdmin):
+    """The approval chain, kept in data so acting appointments need no deploy.
+
+    Typical setup: memo -> Ag. Director, Power (order 1);
+                   letter -> Chief Director (order 1).
+    """
+    list_display = ('document_kind', 'order', 'signatory', 'signing_user', 'required', 'active')
+    list_filter = ('document_kind', 'active', 'required')
+    list_editable = ('order', 'required', 'active')
+    autocomplete_fields = ('user',)
+    fieldsets = (
+        (None, {
+            'fields': ('document_kind', 'order', 'signatory', 'user', 'required', 'active'),
+            'description': "Order is enforced: a step cannot be signed until every lower-numbered "
+                           "required step is done. When someone ACTS in an office, change this "
+                           "step's user and the signatory's title — no code change needed.",
+        }),
+    )
+
+    @admin.display(description='Signs as')
+    def signing_user(self, obj):
+        if obj.user:
+            return obj.user.get_full_name() or obj.user.username
+        return '— print only —'
+
+
+@admin.register(DocumentSignature)
+class DocumentSignatureAdmin(admin.ModelAdmin):
+    """Read-only audit of applied signatures.
+
+    Nothing here is editable: a signature record that can be altered after the
+    fact is not evidence. The signature image is deliberately NOT shown in the
+    list view — it is a picture of a real signature and belongs only inside the
+    signed document.
+    """
+    list_display = ('release_letter', 'document_kind', 'signatory_name', 'signatory_title',
+                    'document_version', 'signed_at', 'verification_token', 'superseded')
+    list_filter = ('document_kind', 'superseded', 'signed_at')
+    search_fields = ('verification_token', 'signatory_name', 'release_letter__code')
+    date_hierarchy = 'signed_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+
+@admin.register(ReleaseCodeSequence)
+class ReleaseCodeSequenceAdmin(admin.ModelAdmin):
+    """The registry sequence. Visible for reassurance, not for editing.
+
+    Lowering the counter would reissue a reference that has already been used on
+    a document — so the field is read-only here and only the allocator advances it.
+    """
+    list_display = ('year', 'last_sequence', 'updated_at')
+    readonly_fields = ('year', 'last_sequence', 'updated_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Letterhead)

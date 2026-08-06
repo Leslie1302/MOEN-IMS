@@ -29,6 +29,17 @@ class Profile(auto_prefetch.Model):
         null=True,
         help_text="Unique digital signature stamp for this user"
     )
+    # Substantive post, distinct from the office someone may be *acting* in.
+    # A signature stamp shows both — "Ag. Chief Director (substantive: Director,
+    # Finance)" — because a record that cannot say who acted under what
+    # authority is exactly what draws audit findings.
+    designation = models.CharField(
+        max_length=200, blank=True,
+        help_text="Substantive post, e.g. 'Director, Finance'. Printed in signature stamps.")
+    office = models.CharField(
+        max_length=200, blank=True,
+        help_text="Directorate or unit, e.g. 'Power Directorate'.")
+
     area = auto_prefetch.ForeignKey(
         'Inventory.Area',
         on_delete=models.SET_NULL,

@@ -170,14 +170,42 @@
         border-radius: .5rem; position: sticky; top: 0; z-index: 5;
     }
     .rl-editor-sep { width: 1px; height: 20px; background: var(--rl-border); }
-    .rl-fmt { display: flex; align-items: center; gap: .15rem; }
-    .rl-fmt button {
-        min-width: 30px; height: 30px; padding: 0 .4rem;
-        border: 1px solid var(--rl-border); background: #fff; border-radius: .3rem;
+
+    /* Formatting ribbon */
+    .rl-ribbon {
+        border: 1px solid var(--rl-border); border-radius: .5rem;
+        background: #fbfcfd; padding: .35rem .5rem; margin-bottom: .6rem;
+    }
+    .rl-ribbon-row {
+        display: flex; align-items: center; gap: .15rem; flex-wrap: wrap;
+        padding: .15rem 0;
+    }
+    .rl-ribbon-row + .rl-ribbon-row { border-top: 1px solid #eceff1; margin-top: .2rem; }
+    .rl-ribbon button {
+        min-width: 30px; height: 28px; padding: 0 .45rem;
+        border: 1px solid transparent; background: transparent; border-radius: .3rem;
         font-size: .82rem; line-height: 1; color: #333;
     }
-    .rl-fmt button:hover { background: #e8f5e9; border-color: #1b5e20; color: #1b5e20; }
-    .rl-fmt button:active { background: #c8e6c9; }
+    .rl-ribbon button:hover { background: #e8f5e9; border-color: #a5d6a7; color: #1b5e20; }
+    .rl-ribbon button:active { background: #c8e6c9; }
+    .rl-ribbon button.is-active { background: #c8e6c9; border-color: #1b5e20; color: #1b5e20; }
+    .rl-sel {
+        height: 28px; border: 1px solid var(--rl-border); border-radius: .3rem;
+        background: #fff; font-size: .8rem; padding: 0 .3rem; color: #333;
+    }
+    /* Colour pickers styled as toolbar buttons with a swatch underneath. */
+    .rl-colour {
+        position: relative; display: inline-flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        min-width: 30px; height: 28px; border-radius: .3rem; cursor: pointer;
+        border: 1px solid transparent; font-size: .8rem; color: #333;
+    }
+    .rl-colour:hover { background: #e8f5e9; border-color: #a5d6a7; color: #1b5e20; }
+    .rl-colour input[type=color] {
+        position: absolute; bottom: 1px; left: 4px; right: 4px;
+        width: calc(100% - 8px); height: 5px; padding: 0; border: 0;
+        background: none; cursor: pointer;
+    }
     .rl-editor-status { font-size: .8rem; color: var(--rl-muted); }
     .rl-editor .rl-preview-frame {
         border: 1px solid var(--rl-border); border-radius: .5rem;
@@ -450,12 +478,21 @@
                             code and embeds a verification QR.
                         </div>
                         {% if can_generate_documents %}
+                        {% if any_locked %}
+                        <div class="alert alert-dark small mb-0">
+                            <i class="fas fa-lock me-1"></i>
+                            The {{ locked_kinds|join:" and " }} has been signed and is locked.
+                            Regenerating would place an existing signature over new content —
+                            void and reissue this release if the document must change.
+                        </div>
+                        {% else %}
                         <form method="post" action="{% url 'generate_release_documents' release_letter.pk %}">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-cogs me-1"></i> Generate memo &amp; letter
                             </button>
                         </form>
+                        {% endif %}
                         {% endif %}
 
                     {% elif ws == 'memo_generated' or ws == 'awaiting_signature' %}
@@ -575,12 +612,29 @@
                     </a>
                 </div>
                 <div class="rl-card-body">
+                    {% if any_locked %}
+                    <div class="alert alert-dark d-flex align-items-start gap-2">
+                        <i class="fas fa-lock mt-1"></i>
+                        <div>
+                            <b>The {{ locked_kinds|join:" and " }} has been signed and is frozen.</b>
+                            Editing it now would place the officer's changes under a signature
+                            given for different content. Void and reissue the release if it must
+                            change — the signature is kept on record either way.
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <p class="rl-next-help">
                         Fine-tune the memo and letter, preview exactly what will print, then
                         {% if ws == 'draft' %}generate the PDFs{% else %}re-generate to apply changes{% endif %}.
                     </p>
                     <form method="post" action="{% url 'adjust_release_documents' release_letter.pk %}">
                         {% csrf_token %}
+                        {% comment %}
+                          A disabled fieldset freezes every control inside it and stops the form
+                          submitting values at all, so the server-side guard is never even reached.
+                        {% endcomment %}
+                        <fieldset {% if any_locked %}disabled{% endif %}>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold mb-1">Memo TO</label>
@@ -622,6 +676,7 @@
                         <button type="submit" class="btn btn-outline-success btn-sm mt-3">
                             <i class="fas fa-save me-1"></i> Save adjustments
                         </button>
+                        </fieldset>
                     </form>
 
                     <hr class="my-4">
@@ -636,25 +691,16 @@
 
                             <span class="rl-editor-sep"></span>
 
+                            {% if any_locked %}
+                            <span class="btn btn-sm btn-outline-secondary disabled" aria-disabled="true"
+                                  title="Signed and frozen — void and reissue to change it.">
+                                <i class="fas fa-lock me-1"></i> Editing frozen
+                            </span>
+                            {% else %}
                             <button type="button" class="btn btn-sm btn-outline-success" id="rl-edit-toggle">
                                 <i class="fas fa-pen-to-square me-1"></i> Edit document
                             </button>
-
-                            <div class="rl-fmt d-none" id="rl-fmt" role="toolbar" aria-label="Formatting">
-                                <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
-                                <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
-                                <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
-                                <span class="rl-editor-sep"></span>
-                                <button type="button" data-cmd="justifyLeft" title="Align left"><i class="fas fa-align-left"></i></button>
-                                <button type="button" data-cmd="justifyFull" title="Justify"><i class="fas fa-align-justify"></i></button>
-                                <button type="button" data-cmd="justifyCenter" title="Centre"><i class="fas fa-align-center"></i></button>
-                                <span class="rl-editor-sep"></span>
-                                <button type="button" data-cmd="insertUnorderedList" title="Bullets"><i class="fas fa-list-ul"></i></button>
-                                <button type="button" data-cmd="insertOrderedList" title="Numbered"><i class="fas fa-list-ol"></i></button>
-                                <span class="rl-editor-sep"></span>
-                                <button type="button" data-cmd="undo" title="Undo"><i class="fas fa-rotate-left"></i></button>
-                                <button type="button" data-cmd="redo" title="Redo"><i class="fas fa-rotate-right"></i></button>
-                            </div>
+                            {% endif %}
 
                             <div class="ms-auto d-flex align-items-center gap-2">
                                 <span class="rl-editor-status" id="rl-status"></span>
@@ -664,6 +710,93 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="rl-print">
                                     <i class="fas fa-print me-1"></i> Print
                                 </button>
+                            </div>
+                        </div>
+
+                        {# ── Formatting ribbon (visible in edit mode only) ── #}
+                        <div class="rl-ribbon d-none" id="rl-fmt" role="toolbar" aria-label="Formatting">
+                            <div class="rl-ribbon-row">
+                                <button type="button" data-cmd="undo" title="Undo (Ctrl+Z)"><i class="fas fa-rotate-left"></i></button>
+                                <button type="button" data-cmd="redo" title="Redo (Ctrl+Y)"><i class="fas fa-rotate-right"></i></button>
+                                <span class="rl-editor-sep"></span>
+
+                                <select class="rl-sel" id="rl-font" title="Font"
+                                        style="width:150px">
+                                    <option value="">Default (Tahoma)</option>
+                                    <option value="'DejaVu Serif', Georgia, 'Times New Roman', serif">Serif</option>
+                                    <option value="'DejaVu Sans', Arial, Helvetica, sans-serif">Sans-serif</option>
+                                    <option value="'DejaVu Sans Mono', 'Courier New', monospace">Monospace</option>
+                                </select>
+
+                                <select class="rl-sel" id="rl-size" title="Font size" style="width:76px">
+                                    <option value="">Size</option>
+                                    <option value="8pt">8</option>
+                                    <option value="9pt">9</option>
+                                    <option value="10pt">10</option>
+                                    <option value="11pt">11</option>
+                                    <option value="12pt">12</option>
+                                    <option value="14pt">14</option>
+                                    <option value="16pt">16</option>
+                                    <option value="18pt">18</option>
+                                    <option value="24pt">24</option>
+                                </select>
+
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                                <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                                <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+                                <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+                                <button type="button" data-cmd="subscript" title="Subscript">X<sub>2</sub></button>
+                                <button type="button" data-cmd="superscript" title="Superscript">X<sup>2</sup></button>
+
+                                <span class="rl-editor-sep"></span>
+                                <label class="rl-colour" title="Text colour">
+                                    <i class="fas fa-a"></i>
+                                    <input type="color" id="rl-fore" value="#111111">
+                                </label>
+                                <label class="rl-colour" title="Highlight">
+                                    <i class="fas fa-highlighter"></i>
+                                    <input type="color" id="rl-back" value="#ffff00">
+                                </label>
+                                <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="fas fa-eraser"></i></button>
+                            </div>
+
+                            <div class="rl-ribbon-row">
+                                <select class="rl-sel" id="rl-block" title="Style" style="width:132px">
+                                    <option value="p">Normal</option>
+                                    <option value="h1">Heading 1</option>
+                                    <option value="h2">Heading 2</option>
+                                    <option value="h3">Heading 3</option>
+                                    <option value="blockquote">Quote</option>
+                                    <option value="pre">Preformatted</option>
+                                </select>
+
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="insertUnorderedList" title="Bullets"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" data-cmd="insertOrderedList" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" data-cmd="outdent" title="Decrease indent"><i class="fas fa-outdent"></i></button>
+                                <button type="button" data-cmd="indent" title="Increase indent"><i class="fas fa-indent"></i></button>
+
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" data-cmd="justifyLeft" title="Align left"><i class="fas fa-align-left"></i></button>
+                                <button type="button" data-cmd="justifyCenter" title="Centre"><i class="fas fa-align-center"></i></button>
+                                <button type="button" data-cmd="justifyRight" title="Align right"><i class="fas fa-align-right"></i></button>
+                                <button type="button" data-cmd="justifyFull" title="Justify"><i class="fas fa-align-justify"></i></button>
+
+                                <select class="rl-sel" id="rl-lh" title="Line spacing" style="width:104px">
+                                    <option value="">Spacing</option>
+                                    <option value="1">Single</option>
+                                    <option value="1.15">1.15</option>
+                                    <option value="1.5">1.5</option>
+                                    <option value="2">Double</option>
+                                </select>
+
+                                <span class="rl-editor-sep"></span>
+                                <button type="button" id="rl-table" title="Insert table"><i class="fas fa-table"></i></button>
+                                <button type="button" id="rl-link" title="Insert link"><i class="fas fa-link"></i></button>
+                                <button type="button" data-cmd="unlink" title="Remove link"><i class="fas fa-link-slash"></i></button>
+                                <button type="button" data-cmd="insertHorizontalRule" title="Horizontal rule"><i class="fas fa-minus"></i></button>
+                                <button type="button" id="rl-pagebreak" title="Page break"><i class="fas fa-scissors"></i></button>
                             </div>
                         </div>
 
@@ -737,11 +870,14 @@
                 var frame  = document.getElementById('rl-preview');
                 if (!frame) return;
                 var fmt    = document.getElementById('rl-fmt');
+                // Absent when the document is signed and frozen — the preview and
+                // print controls still work, editing simply is not offered.
                 var toggle = document.getElementById('rl-edit-toggle');
                 var saveBtn= document.getElementById('rl-save');
                 var printBtn = document.getElementById('rl-print');
                 var status = document.getElementById('rl-status');
-                var csrf   = document.querySelector('#adjust input[name=csrfmiddlewaretoken]').value;
+                var csrfInput = document.querySelector('#adjust input[name=csrfmiddlewaretoken]');
+                var csrf   = csrfInput ? csrfInput.value : '';
 
                 var kind = 'memo';
                 var editing = false;
@@ -758,6 +894,7 @@
                 }
 
                 function setEditing(on) {
+                    if (!toggle) return;          // frozen: editing is not offered
                     editing = on;
                     fmt.classList.toggle('d-none', !on);
                     saveBtn.classList.toggle('d-none', !on);
@@ -784,16 +921,67 @@
                     });
                 });
 
-                toggle.addEventListener('click', function () {
-                    if (editing && dirty && !confirm('You have unsaved edits. Leave edit mode and lose them?')) return;
-                    setEditing(!editing);
+                if (toggle) {
+                    toggle.addEventListener('click', function () {
+                        if (editing && dirty && !confirm('You have unsaved edits. Leave edit mode and lose them?')) return;
+                        setEditing(!editing);
+                    });
+                }
+
+                // ── Formatting ribbon ──
+                // Every command is executed inside the frame's document, so the
+                // toolbar never touches the parent page's own selection.
+                function send(msg) { frame.contentWindow.postMessage(msg, '*'); }
+                function exec(command, value) { send({ moenDoc: 'exec', command: command, value: value }); }
+
+                // Buttons must not steal focus — the caret has to stay in the
+                // document or execCommand has no selection to act on.
+                fmt.addEventListener('mousedown', function (e) {
+                    if (e.target.closest('button')) e.preventDefault();
                 });
 
-                // Formatting commands are executed inside the frame's document.
                 fmt.addEventListener('click', function (e) {
                     var btn = e.target.closest('[data-cmd]');
-                    if (!btn) return;
-                    frame.contentWindow.postMessage({ moenDoc: 'exec', command: btn.dataset.cmd }, '*');
+                    if (btn) { exec(btn.dataset.cmd); return; }
+
+                    if (e.target.closest('#rl-table')) {
+                        var spec = prompt('Table size as rows x columns', '3 x 3');
+                        if (!spec) return;
+                        var m = spec.match(/(\d+)\s*[x×,\s]\s*(\d+)/i);
+                        if (!m) { alert('Enter it like 3 x 4.'); return; }
+                        send({ moenDoc: 'table',
+                               rows: Math.min(50, Math.max(1, parseInt(m[1], 10))),
+                               cols: Math.min(12, Math.max(1, parseInt(m[2], 10))) });
+                    } else if (e.target.closest('#rl-link')) {
+                        var url = prompt('Link address (https://…)');
+                        if (url) send({ moenDoc: 'link', url: url });
+                    } else if (e.target.closest('#rl-pagebreak')) {
+                        send({ moenDoc: 'pageBreak' });
+                    }
+                });
+
+                // Font family and size go through the bridge's styleSelection —
+                // execCommand('fontSize') only understands the legacy 1–7 scale.
+                document.getElementById('rl-font').addEventListener('change', function () {
+                    if (this.value) send({ moenDoc: 'style', prop: 'fontFamily', value: this.value });
+                    this.selectedIndex = 0;
+                });
+                document.getElementById('rl-size').addEventListener('change', function () {
+                    if (this.value) send({ moenDoc: 'style', prop: 'fontSize', value: this.value });
+                    this.selectedIndex = 0;
+                });
+                document.getElementById('rl-block').addEventListener('change', function () {
+                    exec('formatBlock', this.value);
+                });
+                document.getElementById('rl-lh').addEventListener('change', function () {
+                    if (this.value) send({ moenDoc: 'lineHeight', value: this.value });
+                    this.selectedIndex = 0;
+                });
+                document.getElementById('rl-fore').addEventListener('input', function () {
+                    exec('foreColor', this.value);
+                });
+                document.getElementById('rl-back').addEventListener('input', function () {
+                    exec('hiliteColor', this.value);
                 });
 
                 printBtn.addEventListener('click', function () {
@@ -808,7 +996,20 @@
                 // Messages back from the document frame.
                 window.addEventListener('message', function (e) {
                     var d = e.data || {};
-                    if (d.moenDoc === 'dirty') {
+                    if (d.moenDoc === 'state') {
+                        // Light up whichever formats are active at the caret.
+                        Object.keys(d.state || {}).forEach(function (cmd) {
+                            var btn = fmt.querySelector('[data-cmd="' + cmd + '"]');
+                            if (btn) btn.classList.toggle('is-active', !!d.state[cmd]);
+                        });
+                        var block = (d.state && d.state.block || '').toLowerCase();
+                        var sel = document.getElementById('rl-block');
+                        if (block) {
+                            for (var i = 0; i < sel.options.length; i++) {
+                                if (sel.options[i].value === block) { sel.selectedIndex = i; break; }
+                            }
+                        }
+                    } else if (d.moenDoc === 'dirty') {
                         dirty = true;
                         setStatus('Unsaved changes', 'text-warning');
                     } else if (d.moenDoc === 'content') {
@@ -937,13 +1138,18 @@
 
             {# ── Action buttons ── #}
             <div class="rl-actions">
-                {% if can_generate_documents %}
+                {% if can_generate_documents and not any_locked %}
                 <form method="post" action="{% url 'generate_release_documents' release_letter.pk %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-redo me-1"></i> Regenerate documents
                     </button>
                 </form>
+                {% elif can_generate_documents %}
+                <span class="btn btn-outline-secondary btn-sm disabled" aria-disabled="true"
+                      title="Signed and locked — void and reissue to change it.">
+                    <i class="fas fa-lock me-1"></i> Regenerate (locked)
+                </span>
                 {% endif %}
                 <a href="{% url 'release_letter_tracking_dashboard' %}" class="btn btn-dark btn-sm">
                     <i class="fas fa-clipboard-list me-1"></i> View Audit Log
@@ -1110,12 +1316,102 @@
                     </div>
                     {% endif %}
                 </div>
+                {% if can_generate_documents %}
                 <div class="px-3 pb-3">
-                    <a href="#" class="btn btn-success btn-sm w-100" style="background:var(--rl-green);border-color:var(--rl-green);">
-                        <i class="fas fa-bell me-1"></i> Notify Chief Director
-                    </a>
+                    <button type="button" class="btn btn-success btn-sm w-100"
+                            style="background:var(--rl-green);border-color:var(--rl-green);"
+                            data-bs-toggle="modal" data-bs-target="#rl-send-modal">
+                        <i class="fas fa-paper-plane me-1"></i> Send documents…
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            {# ── Signing ── #}
+            <div class="rl-card" id="sign">
+                <div class="rl-card-hdr">
+                    <h6 class="mb-0"><i class="fas fa-file-signature"></i> Signatures</h6>
+                </div>
+                <div class="rl-card-body">
+                    {% for kind, s in signing.items %}
+                    <div class="{% if not forloop.last %}mb-3 pb-3 border-bottom{% endif %}">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <b class="small text-uppercase">{{ kind }}</b>
+                            {% if s.complete %}
+                                <span class="badge bg-success">Signed</span>
+                            {% elif s.signatures %}
+                                <span class="badge bg-warning text-dark">Partly signed</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Unsigned</span>
+                            {% endif %}
+                            {% if s.locked %}<span class="badge bg-dark"><i class="fas fa-lock me-1"></i>Locked</span>{% endif %}
+                        </div>
+
+                        {% for sig in s.signatures %}
+                        <div class="small text-muted">
+                            <i class="fas fa-check text-success me-1"></i>
+                            {{ sig.signatory_name }} — {{ sig.signatory_title }}
+                            · {{ sig.signed_at|date:"d M Y, H:i" }}
+                            · <span class="font-monospace">{{ sig.verification_token }}</span>
+                        </div>
+                        {% endfor %}
+
+                        {% if s.stale_pdf and can_generate_documents %}
+                        <div class="alert alert-warning small mt-2 mb-2 py-2 px-3">
+                            <i class="fas fa-triangle-exclamation me-1"></i>
+                            This {{ kind }} is signed, but the stored PDF was produced before the
+                            signature was applied — so it still shows a blank signature line.
+                            Rebuilding re-renders the same content with the signature on it;
+                            nothing in the document changes.
+                            <form method="post" action="{% url 'rebuild_signed_document' release_letter.pk kind %}" class="mt-2">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-rotate me-1"></i> Rebuild the signed {{ kind }}
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+
+                        {% if s.allowed %}
+                        <button type="button" class="btn btn-success btn-sm mt-2"
+                                data-bs-toggle="modal" data-bs-target="#rl-sign-modal"
+                                data-kind="{{ kind }}">
+                            <i class="fas fa-pen-nib me-1"></i> Sign the {{ kind }}
+                        </button>
+                        {% elif s.reason %}
+                        <div class="small text-muted mt-1"><i class="fas fa-circle-info me-1"></i>{{ s.reason }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
+
+            {# ── Sent history ── #}
+            {% if dispatches %}
+            <div class="rl-card" id="send">
+                <div class="rl-card-hdr">
+                    <h6 class="mb-0"><i class="fas fa-paper-plane"></i> Sent</h6>
+                </div>
+                <div class="rl-card-body">
+                    {% for d in dispatches %}
+                    <div class="d-flex align-items-start gap-2 {% if not forloop.last %}mb-2 pb-2 border-bottom{% endif %}">
+                        <i class="fas {% if d.status == 'sent' %}fa-circle-check text-success{% else %}fa-circle-exclamation text-danger{% endif %} mt-1"></i>
+                        <div class="small flex-grow-1">
+                            <div><b>{{ d.recipients }}</b></div>
+                            <div class="text-muted">
+                                {{ d.documents_label }} ·
+                                {{ d.sent_at|date:"d M Y, H:i" }}
+                                {% if d.sent_by %}· by {{ d.sent_by.get_full_name|default:d.sent_by.username }}{% endif %}
+                            </div>
+                            {% if d.status == 'failed' %}
+                            <div class="text-danger">Failed: {{ d.error|truncatechars:160 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             {% if release_letter.notes %}
             <div class="rl-card">
@@ -1142,6 +1438,258 @@
 
 </div>
 {% endwith %}
+
+{% if can_sign_any %}
+{# ── Draw-to-sign ── #}
+<div class="modal fade" id="rl-sign-modal" tabindex="-1" aria-labelledby="rl-sign-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" id="rl-sign-form">
+        {% csrf_token %}
+        <input type="hidden" name="signature" id="rl-sign-data">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rl-sign-title">
+            <i class="fas fa-pen-nib me-2 text-success"></i>Sign this document
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="small text-muted mb-2">
+            Draw your signature in the box below using a mouse, trackpad, stylus or finger.
+            It is captured for this document only &mdash; nothing is stored on your profile
+            and it cannot be reused elsewhere.
+          </p>
+
+          <div style="border:1px solid var(--rl-border);border-radius:.5rem;background:#fff;position:relative">
+            <canvas id="rl-sign-canvas" style="width:100%;height:200px;display:block;touch-action:none;cursor:crosshair"></canvas>
+            <div id="rl-sign-hint"
+                 style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aab;pointer-events:none;font-size:.9rem">
+              Sign here
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rl-sign-clear">
+              <i class="fas fa-eraser me-1"></i> Clear
+            </button>
+            <span class="small text-muted ms-auto" id="rl-sign-status"></span>
+          </div>
+
+          <div class="alert alert-light border small mt-3 mb-0">
+            <i class="fas fa-circle-info me-1"></i>
+            Your name, the office you are signing in, your substantive designation, the
+            document version and a verification code are printed alongside the signature.
+            <b>Once signed, this document is locked</b> &mdash; changing it afterwards
+            requires voiding and reissuing the release.
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success" id="rl-sign-submit" disabled>
+            <i class="fas fa-check me-1"></i> Confirm signature
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('rl-sign-modal');
+    if (!modal) return;
+    var canvas = document.getElementById('rl-sign-canvas');
+    var hint = document.getElementById('rl-sign-hint');
+    var clearBtn = document.getElementById('rl-sign-clear');
+    var submit = document.getElementById('rl-sign-submit');
+    var form = document.getElementById('rl-sign-form');
+    var field = document.getElementById('rl-sign-data');
+    var status = document.getElementById('rl-sign-status');
+    var ctx, drawn = false, drawing = false, last = null;
+
+    var urls = {
+        memo: "{% url 'sign_document' release_letter.pk 'memo' %}",
+        letter: "{% url 'sign_document' release_letter.pk 'letter' %}"
+    };
+
+    /* Size the backing store to the device pixel ratio, or the signature comes
+       out soft on a HiDPI screen and softer again in the PDF. */
+    function resize() {
+        var ratio = window.devicePixelRatio || 1;
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        ctx = canvas.getContext('2d');
+        ctx.scale(ratio, ratio);
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#111';
+    }
+
+    function pos(e) {
+        var r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    function start(e) {
+        e.preventDefault();
+        drawing = true;
+        last = pos(e);
+        hint.style.display = 'none';
+    }
+    function move(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = pos(e);
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        last = p;
+        if (!drawn) { drawn = true; submit.disabled = false; status.textContent = ''; }
+    }
+    function end() { drawing = false; }
+
+    canvas.addEventListener('pointerdown', start);
+    canvas.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+
+    function clear() {
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawn = false;
+        submit.disabled = true;
+        hint.style.display = 'flex';
+        status.textContent = '';
+    }
+    clearBtn.addEventListener('click', clear);
+
+    /* The button that opened the modal tells us which document is being signed. */
+    modal.addEventListener('show.bs.modal', function (event) {
+        var kind = event.relatedTarget && event.relatedTarget.dataset.kind;
+        if (kind && urls[kind]) {
+            form.action = urls[kind];
+            document.getElementById('rl-sign-title').innerHTML =
+                '<i class="fas fa-pen-nib me-2 text-success"></i>Sign the ' + kind;
+        }
+    });
+    modal.addEventListener('shown.bs.modal', function () { resize(); clear(); });
+    window.addEventListener('resize', function () {
+        if (modal.classList.contains('show')) { resize(); clear(); }
+    });
+
+    form.addEventListener('submit', function (e) {
+        if (!drawn) {
+            e.preventDefault();
+            status.textContent = 'Draw your signature first.';
+            return;
+        }
+        field.value = canvas.toDataURL('image/png');
+        submit.disabled = true;
+        status.textContent = 'Signing…';
+    });
+})();
+</script>
+{% endif %}
+
+{% if can_generate_documents %}
+{# ── Send documents by email (Microsoft Graph, from the officer's mailbox) ── #}
+<div class="modal fade" id="rl-send-modal" tabindex="-1" aria-labelledby="rl-send-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post" action="{% url 'send_release_documents' release_letter.pk %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="rl-send-title">
+            <i class="fas fa-paper-plane me-2 text-success"></i>Send release documents
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="small text-muted">
+            Sent from <b>your own Ministry mailbox</b> via Microsoft 365, so the recipient
+            can reply to you directly. You must have signed in with Microsoft at least once.
+          </p>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1" for="rl-send-users">Recipients</label>
+            <select name="recipient_users" id="rl-send-users" class="form-select" multiple size="7">
+              {% for u in dispatch_users %}
+              <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} — {{ u.email }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Ctrl/Cmd-click to select several. Only users with an email address are listed.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1" for="rl-send-emails">Or type addresses</label>
+            <input type="text" name="recipient_emails" id="rl-send-emails" class="form-control"
+                   placeholder="name@energymin.gov.gh, another@example.com">
+            <div class="form-text">Separate with commas or semicolons. Use for people without a system account.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1">Attach</label>
+            <div class="d-flex gap-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="include_memo" id="rl-send-memo"
+                       {% if release_letter.memo_pdf %}checked{% else %}disabled{% endif %}>
+                <label class="form-check-label" for="rl-send-memo">
+                  Approval memo
+                  {% if not release_letter.memo_pdf %}<span class="text-muted small">(not generated)</span>{% endif %}
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="include_letter" id="rl-send-letter"
+                       {% if release_letter.letter_pdf %}checked{% else %}disabled{% endif %}>
+                <label class="form-check-label" for="rl-send-letter">
+                  Release letter
+                  {% if not release_letter.letter_pdf %}<span class="text-muted small">(not generated)</span>{% endif %}
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1" for="rl-send-subject">Subject</label>
+            <input type="text" name="subject" id="rl-send-subject" class="form-control"
+                   value="Release documents — {{ release_letter.code|default:release_letter.request_code }}">
+          </div>
+
+          <div class="mb-1">
+            <label class="form-label small fw-semibold mb-1" for="rl-send-message">Covering note <span class="text-muted fw-normal">(optional)</span></label>
+            <textarea name="message" id="rl-send-message" rows="3" class="form-control"
+                      placeholder="Anything the recipient should know before signing."></textarea>
+          </div>
+
+          {% comment %}
+            The `ws` variable belongs to the with-block further up the page,
+            which has already closed by this point, so read the field directly
+            or this hint would silently never render.
+          {% endcomment %}
+          {% if release_letter.workflow_status == 'draft' or release_letter.workflow_status == 'memo_generated' %}
+          <div class="alert alert-light border small mt-3 mb-0">
+            <i class="fas fa-circle-info me-1"></i>
+            Sending the release letter marks this release <b>awaiting signature</b>.
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success"
+                  {% if not release_letter.memo_pdf and not release_letter.letter_pdf %}disabled{% endif %}>
+            <i class="fas fa-paper-plane me-1"></i> Send
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script>
 (function () {

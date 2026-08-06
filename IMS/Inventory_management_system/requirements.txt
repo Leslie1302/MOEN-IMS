@@ -14,8 +14,12 @@ matplotlib==3.10.8
 pandas==2.2.3
 reportlab==4.4.9
 # HTML->PDF for release memo/letter (Ministry letterhead + styled templates).
-# Needs system libs: libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0
-# libcairo2 libffi-dev — installed by start.sh on boot (see start.sh).
+# Needs system libs, installed by start.sh at boot (App Service wipes the
+# filesystem on restart, so they cannot be baked in without a custom image):
+#   libglib2.0-0 libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+#   libgdk-pixbuf-2.0-0 libffi8
+# WeasyPrint >= 53 does NOT need cairo; libglib2.0-0 provides libgobject-2.0,
+# the library named in the error when the set is incomplete.
 weasyprint==69.0
 seaborn==0.13.2
 xlsxwriter

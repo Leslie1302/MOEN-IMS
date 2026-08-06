@@ -63,9 +63,17 @@
   table.sched td.amt, table.sched th.amt { text-align: right; white-space: nowrap; }
   .sched-total { font-weight: bold; margin-top: 4px; }
 
-  /* Signature — blank gap above the name for the wet signature. */
+  /* Signature — blank gap above the name for a wet signature. When a document
+     has been signed in-app the gap is replaced by the drawn signature plus its
+     authority stamp; both routes remain available. */
   .sign-block { margin-top: 24mm; }
   .sign-block .sign-name { font-weight: bold; }
+  .esign { margin-top: 14mm; page-break-inside: avoid; }
+  .esign-mark { border-bottom: 1px solid #333; display: inline-block; padding: 0 6mm 1mm; }
+  .esign-mark img { height: 18mm; display: block; }
+  .esign-stamp { font-size: 8.5pt; line-height: 1.35; color: #1b3a2a; margin-top: 2mm; }
+  .esign-stamp .n { font-weight: bold; font-size: 10pt; color: #111; letter-spacing: .3px; }
+  .esign-stamp .v { font-family: "DejaVu Sans Mono", monospace; letter-spacing: .5px; }
   .cc { margin-top: 10mm; font-size: 10pt; }
   .cc .cc-item { margin-left: 6mm; }
 {% if screen %}
@@ -131,6 +139,14 @@
 (function () {
   var body = document.getElementById('doc-body');
   if (!body) return;
+  var KIND = '{{ doc_kind }}';
+
+  // Emit inline CSS (<span style="font-weight:bold">) rather than legacy tags
+  // (<b>, <font face>). The sanitiser allowlists style properties, and <font>
+  // has no CSS equivalent WeasyPrint honours — so this single line is what
+  // makes most of the toolbar survive the round trip to the PDF.
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+
   // Keep pasted content plain — a paste from Word otherwise drags in a font
   // stack and class soup that the sanitiser would strip anyway, leaving the
   // officer wondering why their formatting vanished on save.
@@ -139,26 +155,129 @@
     var text = (e.clipboardData || window.clipboardData).getData('text/plain');
     document.execCommand('insertText', false, text);
   });
-  // Tell the parent page there are unsaved changes.
+
   var dirty = false;
-  body.addEventListener('input', function () {
+  function markDirty() {
     if (dirty) return;
     dirty = true;
-    parent.postMessage({ moenDoc: 'dirty', kind: '{{ doc_kind }}' }, '*');
-  });
-  // The parent asks for the current HTML when Save is pressed.
+    parent.postMessage({ moenDoc: 'dirty', kind: KIND }, '*');
+  }
+  body.addEventListener('input', markDirty);
+
+  // ── Commands execCommand does not provide ────────────────────────────────
+  function insertHTML(html) {
+    document.execCommand('insertHTML', false, html);
+    markDirty();
+  }
+
+  function insertTable(rows, cols) {
+    var cells = '';
+    for (var r = 0; r < rows; r++) {
+      var row = '';
+      for (var c = 0; c < cols; c++) {
+        row += (r === 0)
+          ? '<th style="border: 1px solid #999; padding: 6px 8px; background-color: #e8f5e9;">&nbsp;</th>'
+          : '<td style="border: 1px solid #999; padding: 6px 8px;">&nbsp;</td>';
+      }
+      cells += '<tr>' + row + '</tr>';
+    }
+    insertHTML('<table style="width: 100%; border-collapse: collapse; margin: 8px 0;">'
+               + cells + '</table><p><br></p>');
+  }
+
+  // execCommand('fontSize') only accepts the legacy 1-7 scale, so point sizes
+  // and font stacks are applied by wrapping the selection ourselves.
+  function styleSelection(prop, value) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    var range = sel.getRangeAt(0);
+    var span = document.createElement('span');
+    span.style[prop] = value;
+    try {
+      range.surroundContents(span);
+    } catch (err) {
+      // surroundContents throws when the range partially selects a node
+      // (e.g. half of a bolded run); extract/insert handles crossing boundaries.
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    markDirty();
+  }
+
+  // Line spacing applies to whole blocks, so walk up from the selection to the
+  // nearest block element rather than wrapping the inline selection.
+  function setLineHeight(value) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    var node = sel.getRangeAt(0).commonAncestorContainer;
+    if (node.nodeType === 3) node = node.parentNode;
+    var BLOCKS = ['P', 'DIV', 'LI', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE'];
+    while (node && node !== body && BLOCKS.indexOf(node.nodeName) === -1) node = node.parentNode;
+    if (!node || node === body) return;
+    node.style.lineHeight = value;
+    markDirty();
+  }
+
+  function insertPageBreak() {
+    // WeasyPrint honours page-break-before on a block element.
+    insertHTML('<div style="page-break-before: always;"></div><p><br></p>');
+  }
+
   window.addEventListener('message', function (e) {
     var d = e.data || {};
-    if (d.moenDoc === 'collect') {
-      parent.postMessage({ moenDoc: 'content', kind: '{{ doc_kind }}',
-                           html: body.innerHTML }, '*');
-    } else if (d.moenDoc === 'exec') {
-      document.execCommand(d.command, false, d.value || null);
-      body.focus();
-    } else if (d.moenDoc === 'print') {
-      window.print();
+    switch (d.moenDoc) {
+      case 'collect':
+        parent.postMessage({ moenDoc: 'content', kind: KIND, html: body.innerHTML }, '*');
+        break;
+      case 'exec':
+        document.execCommand(d.command, false, d.value === undefined ? null : d.value);
+        body.focus();
+        markDirty();
+        break;
+      case 'style':
+        body.focus();
+        styleSelection(d.prop, d.value);
+        break;
+      case 'table':
+        body.focus();
+        insertTable(d.rows || 3, d.cols || 3);
+        break;
+      case 'lineHeight':
+        body.focus();
+        setLineHeight(d.value);
+        break;
+      case 'pageBreak':
+        body.focus();
+        insertPageBreak();
+        break;
+      case 'link':
+        body.focus();
+        if (d.url) document.execCommand('createLink', false, d.url);
+        else document.execCommand('unlink', false, null);
+        markDirty();
+        break;
+      case 'print':
+        window.print();
+        break;
     }
   });
+
+  // Report the formatting state at the caret so the parent can light up the
+  // active buttons, the way a real word processor does.
+  function reportState() {
+    var state = {};
+    ['bold', 'italic', 'underline', 'strikeThrough', 'subscript', 'superscript',
+     'justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull',
+     'insertUnorderedList', 'insertOrderedList'].forEach(function (cmd) {
+      try { state[cmd] = document.queryCommandState(cmd); } catch (e) { state[cmd] = false; }
+    });
+    try { state.block = document.queryCommandValue('formatBlock'); } catch (e) {}
+    parent.postMessage({ moenDoc: 'state', kind: KIND, state: state }, '*');
+  }
+  document.addEventListener('selectionchange', reportState);
+  body.addEventListener('keyup', reportState);
+  body.addEventListener('mouseup', reportState);
 })();
 </script>
 {% endif %}

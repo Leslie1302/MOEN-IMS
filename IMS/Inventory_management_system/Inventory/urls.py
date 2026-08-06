@@ -154,7 +154,8 @@ from .views.release_document_views import (
     CreateReleaseLetterFromRequestView,
     UploadSignedScanView, ConfirmSignedScanView, MarkReleasedView,
     AdjustReleaseDocumentsView, MemoPreviewView, LetterPreviewView,
-    SaveDocumentHtmlView, RevertDocumentHtmlView,
+    SaveDocumentHtmlView, RevertDocumentHtmlView, SendReleaseDocumentsView,
+    SignDocumentView, RebuildSignedDocumentView,
 )
 from .views.letterhead_views import LetterheadSettingsView
 
@@ -348,6 +349,14 @@ urlpatterns = [
     # WYSIWYG: store / discard a hand-edited document body. <kind> is memo|letter.
     path('release-letters/<int:pk>/document/<str:kind>/save/', SaveDocumentHtmlView.as_view(), name='save_document_html'),
     path('release-letters/<int:pk>/document/<str:kind>/revert/', RevertDocumentHtmlView.as_view(), name='revert_document_html'),
+
+    # Apply a drawn signature. Permission is the signing chain, not a group.
+    path('release-letters/<int:pk>/sign/<str:kind>/', SignDocumentView.as_view(), name='sign_document'),
+    # Repair: re-render a signed document whose PDF was minted without its signatures.
+    path('release-letters/<int:pk>/rebuild/<str:kind>/', RebuildSignedDocumentView.as_view(), name='rebuild_signed_document'),
+
+    # Email the memo/letter to chosen users or typed addresses (Microsoft Graph).
+    path('release-letters/<int:pk>/send/', SendReleaseDocumentsView.as_view(), name='send_release_documents'),
 
     # Letterhead upload + drag-to-calibrate printable area.
     path('settings/letterhead/', LetterheadSettingsView.as_view(), name='letterhead_settings'),

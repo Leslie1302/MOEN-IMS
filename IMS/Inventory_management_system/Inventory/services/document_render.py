@@ -255,6 +255,31 @@ _SPEC = {
 }
 
 
+def _signature_blocks(release_letter, kind):
+    """Applied signatures, ready for the template.
+
+    Each block is the drawn signature as a data-URI plus the authority stamp
+    lines. Inlining the image keeps the PDF self-contained and means the file is
+    never fetched from storage at render time — the signature image has no
+    public URL by design.
+    """
+    blocks = []
+    try:
+        signatures = release_letter.signatures_for(kind)
+    except Exception:  # noqa: BLE001 — a release with no signing configured
+        return blocks
+
+    for signature in signatures:
+        img = None
+        if signature.signature_image:
+            data = _read_file(signature.signature_image)
+            if data:
+                img = _data_uri(data, 'image/png')
+        blocks.append({'img': img, 'lines': signature.stamp_lines,
+                       'token': signature.verification_token})
+    return blocks
+
+
 def _build(release_letter, kind):
     """→ (spec, ctx, paragraphs, schedule) for 'memo' or 'letter'."""
     from . import pdf_generator
@@ -317,6 +342,7 @@ def render_document_html(release_letter, kind, edit_mode=False, use_stored=True,
         'edit_mode': edit_mode,
         'screen': not for_pdf,
         'doc_kind': kind,
+        'signatures': _signature_blocks(release_letter, kind),
         'footer_text': _css_string(spec['footer'](ctx)),
     })
 

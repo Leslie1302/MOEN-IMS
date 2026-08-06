@@ -30,7 +30,8 @@ from html import escape
 # Structural + inline formatting the document templates and the editor produce.
 ALLOWED_TAGS = {
     'p', 'div', 'span', 'br', 'hr',
-    'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup', 'small',
+    'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'ins',
+    'sub', 'sup', 'small', 'mark', 'big', 'tt', 'abbr', 'cite', 'q',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
     'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption',
@@ -44,22 +45,39 @@ VOID_CONTENT_TAGS = {'script', 'style', 'iframe', 'object', 'embed', 'template',
 SELF_CLOSING = {'br', 'hr', 'img', 'col'}
 
 ALLOWED_ATTRS = {
-    '*': {'class', 'style', 'colspan', 'rowspan', 'align', 'valign', 'id'},
+    '*': {'class', 'style', 'colspan', 'rowspan', 'align', 'valign', 'id', 'dir'},
     'img': {'src', 'alt', 'width', 'height'},
     'a': {'href', 'title', 'target', 'rel'},
     'col': {'span', 'width'},
     'table': {'border', 'cellpadding', 'cellspacing', 'width'},
+    'ol': {'start', 'type'},
+    'ul': {'type'},
+    'li': {'value'},
 }
 
 # CSS declarations the editor legitimately emits. Anything else is discarded.
+# The toolbar runs with `styleWithCSS` on, so formatting arrives as inline CSS on
+# <span>/<p> rather than as legacy <font>/<strike> tags — which is why this list
+# matters more than the tag list for what survives a round trip.
 ALLOWED_CSS_PROPS = {
-    'text-align', 'font-weight', 'font-style', 'text-decoration', 'font-size',
-    'font-family', 'color', 'background-color', 'margin', 'margin-top',
-    'margin-bottom', 'margin-left', 'margin-right', 'padding', 'padding-top',
-    'padding-bottom', 'padding-left', 'padding-right', 'width', 'height',
-    'border', 'border-bottom', 'border-top', 'border-collapse', 'vertical-align',
-    'line-height', 'letter-spacing', 'text-transform', 'white-space', 'float',
-    'clear', 'display', 'max-width', 'min-height', 'list-style-type',
+    # text
+    'text-align', 'font-weight', 'font-style', 'text-decoration',
+    'text-decoration-line', 'font-size', 'font-family', 'font-variant',
+    'color', 'background-color', 'background', 'vertical-align',
+    'line-height', 'letter-spacing', 'word-spacing', 'text-transform',
+    'text-indent', 'white-space',
+    # box
+    'margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+    'padding', 'padding-top', 'padding-bottom', 'padding-left', 'padding-right',
+    'width', 'height', 'max-width', 'min-width', 'min-height',
+    'float', 'clear', 'display',
+    # tables + rules
+    'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-color', 'border-style', 'border-width', 'border-collapse',
+    'border-spacing', 'list-style-type', 'list-style-position',
+    # pagination — a page break is a legitimate thing to want in a long letter
+    'page-break-before', 'page-break-after', 'page-break-inside',
+    'break-before', 'break-after', 'break-inside',
 }
 
 _SAFE_URL_PREFIXES = ('http://', 'https://', 'mailto:', '/', '#')

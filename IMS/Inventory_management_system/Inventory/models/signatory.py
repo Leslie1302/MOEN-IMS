@@ -51,6 +51,16 @@ class Signatory(auto_prefetch.Model):
         help_text="Optional. Appears under the title as 'FOR: <value>'. Used on the release letter where the Chief Director signs on behalf of the Hon. Minister.",
     )
 
+    # Links the office to a login so the holder can sign in-app. Nullable: a
+    # Signatory may exist purely to print a name on a document (print-only
+    # signatories predate in-app signing and must keep working).
+    user = auto_prefetch.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='signatory_roles',
+        help_text="The login that signs as this signatory. Change it when someone acts "
+                  "in the office — no deploy needed.",
+    )
+
     active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
