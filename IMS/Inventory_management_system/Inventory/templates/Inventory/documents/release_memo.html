@@ -14,6 +14,19 @@
 
 {% if schedule %}{% include 'Inventory/documents/_schedule.html' %}{% endif %}
 
+{% comment %}
+Reconciliation goes AFTER the schedule and BEFORE the signature block: the
+signatory reads what is being released, then whether the contract has room for
+it, then signs. Putting it after the signature would print the justification for
+a decision below the decision itself.
+
+Memo only. The release letter instructs MMU to hand over stock; the contract
+position is the approving officer's question, not the storekeeper's, and putting
+it on the letter would send BoQ balances out to the warehouse where they invite
+argument at the counter.
+{% endcomment %}
+{% if reconciliation %}{% include 'Inventory/documents/_reconciliation.html' %}{% endif %}
+
 {% if signatures %}
   {% include 'Inventory/documents/_signatures.html' %}
 {% else %}

@@ -1,0 +1,116 @@
+{% extends 'Inventory/base.html' %}
+
+{% comment %}
+The point of this page is not any single row. It is that "how often do we do
+this" has an answer someone can read. Urgency is acceptable as an exception and
+corrosive as a habit, and the difference between the two is only visible as a
+rate — which is why the denominator is on the page next to the count.
+{% endcomment %}
+
+{% block title %}Urgent releases - MOEN-IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ur-wrap { padding: 1.25rem; max-width: 1200px; margin: 0 auto; color: #1f2933; }
+    .ur-head h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 .25rem; }
+    .ur-head p { color: #6c757d; font-size: .88rem; max-width: 66ch; }
+    .ur-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem;
+        margin: 1.25rem 0; }
+    .ur-stat { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px;
+        padding: 1rem 1.25rem; }
+    .ur-stat .v { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
+    .ur-stat .l { font-size: .78rem; color: #6c757d; text-transform: uppercase;
+        letter-spacing: .04em; margin-top: .25rem; }
+    .ur-stat.is-warn .v { color: #b71c1c; }
+    .ur-table { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px;
+        overflow: hidden; }
+    .ur-table table { width: 100%; margin: 0; font-size: .86rem; }
+    .ur-table th { background: #f7f8fa; font-size: .74rem; text-transform: uppercase;
+        letter-spacing: .04em; color: #6c757d; font-weight: 600;
+        padding: .6rem .9rem; border-bottom: 1px solid #e3e6ea; text-align: left; }
+    .ur-table td { padding: .7rem .9rem; border-bottom: 1px solid #f1f4f8;
+        vertical-align: top; }
+    .ur-reason { color: #4a5568; max-width: 42ch; }
+    .ur-empty { padding: 2rem; text-align: center; color: #6c757d; font-size: .9rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ur-wrap">
+
+    <div class="ur-head">
+        <h1>Urgent releases</h1>
+        <p>
+            Releases a signatory directed MMU to act on before the wet-signed scan was
+            on file. Each one is a management directive with a recorded reason. The
+            paper copy is still required in every case &mdash; a release cleared
+            urgently and never followed by a scan shows below as outstanding.
+        </p>
+    </div>
+
+    <div class="ur-stats">
+        <div class="ur-stat">
+            <div class="v">{{ total }}</div>
+            <div class="l">Declared urgent</div>
+        </div>
+        <div class="ur-stat">
+            <div class="v">{{ all_signed }}</div>
+            <div class="l">Fully signed releases</div>
+        </div>
+        <div class="ur-stat {% if outstanding %}is-warn{% endif %}">
+            <div class="v">{{ outstanding|length }}</div>
+            <div class="l">Scan still outstanding</div>
+        </div>
+    </div>
+
+    <div class="ur-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Release</th>
+                    <th>Directed by</th>
+                    <th>When</th>
+                    <th>Reason</th>
+                    <th>Paper copy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in releases %}
+                <tr>
+                    <td>
+                        <a href="{% url 'release_letter_detail' r.pk %}">
+                            {{ r.code|default:r.request_code }}
+                        </a>
+                        <div class="text-muted">{{ r.title|truncatechars:48 }}</div>
+                    </td>
+                    <td>
+                        {% if r.urgent_declared_by %}
+                            {{ r.urgent_declared_by.get_full_name|default:r.urgent_declared_by.username }}
+                        {% else %}
+                            <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ r.urgent_declared_at|date:"d M Y, H:i"|default:"—" }}</td>
+                    <td class="ur-reason">{{ r.urgent_reason|default:"—" }}</td>
+                    <td>
+                        {% if r.scan_on_file %}
+                            <span class="badge bg-success">On file</span>
+                        {% else %}
+                            <span class="badge bg-danger">Outstanding</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="ur-empty">
+                        No release has been fast-tracked. Every release so far has waited
+                        for its signed scan.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

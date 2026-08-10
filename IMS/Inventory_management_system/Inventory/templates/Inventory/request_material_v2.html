@@ -109,59 +109,13 @@
                 </div>
                 {% endif %}
 
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">Release letterhead</h5>
-                        <p class="text-muted small mb-3">
-                            Pick the designation that should sign the memo and the release letter.
-                            The system attaches the current officer's name automatically from the
-                            Signatory roster. Leave blank to use the active default.
-                        </p>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Memo TO</label>
-                                <input type="text" name="memo_to_override" class="form-control" placeholder="CHIEF DIRECTOR">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Memo FROM (title)</label>
-                                <input type="text" name="memo_from_override" class="form-control" placeholder="DIRECTOR, POWER">
-                                <div class="form-text small">
-                                    Auto-filled from the memo signatory's title unless overridden here.
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Memo Designation</label>
-                                <select name="memo_signatory_override" class="form-select signatory-picker"
-                                        data-preview="#memo-sig-name">
-                                    <option value="">— use default —</option>
-                                    {% for s in memo_signatories %}
-                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
-                                        {{ s.title }} — {{ s.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text small">
-                                    Signed by: <span id="memo-sig-name" class="fw-semibold">—</span>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Letter Designation</label>
-                                <select name="letter_signatory_override" class="form-select signatory-picker"
-                                        data-preview="#letter-sig-name">
-                                    <option value="">— use default —</option>
-                                    {% for s in letter_signatories %}
-                                    <option value="{{ s.pk }}" data-name="{{ s.name }}">
-                                        {{ s.title }} — {{ s.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text small">
-                                    Signed by: <span id="letter-sig-name" class="fw-semibold">—</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                {% comment %}
+                  The "Release letterhead" signatory block used to sit here. It is now
+                  owned solely by the release letter page, which has a live preview of
+                  the result — asking on this form meant answering a question the
+                  officer could answer better one screen later. Defaults from the
+                  Signatory roster apply when nobody overrides them.
+                {% endcomment %}
 
                 <div class="card mb-3">
                     <div class="card-body">
@@ -240,21 +194,9 @@
     }
 })();
 
-// Designation-led signatory pickers: show the auto-attached officer name
-// under each dropdown so the user can sanity-check before submitting.
-(function () {
-    document.querySelectorAll('.signatory-picker').forEach(function (sel) {
-        var target = document.querySelector(sel.dataset.preview);
-        if (!target) return;
-        function refresh() {
-            var opt = sel.options[sel.selectedIndex];
-            var name = opt ? (opt.dataset.name || '') : '';
-            target.textContent = name || '(active default)';
-        }
-        sel.addEventListener('change', refresh);
-        refresh();
-    });
-})();
+// The signatory-picker script lived here. Removed with the fields it drove —
+// signatory selection now happens on the release letter page, where the live
+// preview shows the result rather than a name hint under a dropdown.
 </script>
 
 <script>

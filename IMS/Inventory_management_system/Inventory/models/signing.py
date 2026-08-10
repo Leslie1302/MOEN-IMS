@@ -44,9 +44,14 @@ class SigningStep(auto_prefetch.Model):
     (order 1). More signatories can be inserted without touching code.
     """
 
-    document_kind = models.CharField(max_length=10, choices=DOCUMENT_KIND_CHOICES, db_index=True)
+    document_kind = models.CharField(
+        max_length=10, choices=DOCUMENT_KIND_CHOICES, db_index=True,
+        help_text="Which document this step signs.")
     order = models.PositiveSmallIntegerField(
-        default=1, help_text="Signing position, lowest first. Steps are enforced in order.")
+        default=1,
+        help_text="Position in the release's signing sequence — ACROSS both documents, "
+                  "not within one. Typically 1 = Ag. Director Power signs the memo, "
+                  "2 = Chief Director signs the letter.")
     signatory = auto_prefetch.ForeignKey(
         'Inventory.Signatory', on_delete=models.CASCADE, related_name='signing_steps',
         help_text="Whose name and title print on the signature line.")
@@ -63,23 +68,38 @@ class SigningStep(auto_prefetch.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta(auto_prefetch.Model.Meta):
-        ordering = ['document_kind', 'order']
+        ordering = ['order', 'document_kind']
         verbose_name = 'signing step'
         verbose_name_plural = 'signing steps'
         constraints = [
+            # One sequence for the whole release, so two steps cannot share a
+            # position. Previously scoped to (document_kind, order), which
+            # allowed a memo step 1 and a letter step 1 — two independent
+            # chains with no defined order between them.
             models.UniqueConstraint(
-                fields=['document_kind', 'order'],
+                fields=['order'],
                 condition=models.Q(active=True),
-                name='unique_active_step_order_per_document'),
+                name='unique_active_step_order'),
         ]
 
     def __str__(self):
-        return f"{self.get_document_kind_display()} #{self.order}: {self.signatory}"
+        return f"#{self.order} {self.get_document_kind_display()}: {self.signatory}"
+
+    @classmethod
+    def chain(cls):
+        """The whole release signing sequence, in order, across both documents.
+
+        The Ag. Director signs the memo, then the Chief Director signs the
+        letter — and the signed memo is the authority for the letter, so the
+        order between documents is meaningful rather than incidental.
+        """
+        return list(cls.objects.filter(active=True)
+                    .select_related('signatory', 'user').order_by('order'))
 
     @classmethod
     def chain_for(cls, document_kind):
-        return list(cls.objects.filter(document_kind=document_kind, active=True)
-                    .select_related('signatory', 'user').order_by('order'))
+        """Steps that sign one document, still in release order."""
+        return [s for s in cls.chain() if s.document_kind == document_kind]
 
 
 class DocumentSignature(auto_prefetch.Model):
@@ -176,3 +196,72 @@ class DocumentSignature(auto_prefetch.Model):
         lines.append(f"MOEN-IMS · {code} · v{self.document_version}")
         lines.append(f"Verify: {self.verification_token}")
         return lines
+
+
+class DiscussionRequest(auto_prefetch.Model):
+    """
+    A signatory asking the preparing officer to talk about a release.
+
+    Deliberately **not** a rejection. A signature chain with a reject state
+    invites officers to use it for "change the third line", and the release then
+    carries a permanent black mark for a typo. What a signatory actually wants at
+    that point is a conversation, so that is what this records: a note, an email
+    from the signatory's own mailbox, an in-app notification, and a row on file.
+
+    The workflow does not move. If the conversation concludes that the document
+    must change, the officer voids and reissues — which is the honest path,
+    because it discards the signatures rather than editing underneath them.
+    """
+
+    release_letter = auto_prefetch.ForeignKey(
+        'Inventory.ReleaseLetter', on_delete=models.CASCADE, related_name='discussion_requests')
+    document_kind = models.CharField(
+        max_length=10, choices=DOCUMENT_KIND_CHOICES, blank=True,
+        help_text="The document prompting the call, if the signatory named one.")
+
+    raised_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='discussion_requests_raised')
+    officer = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='discussion_requests_received',
+        help_text="The officer who prepared the release, and who is being called.")
+
+    # Two tiers, because there are two different things a signatory means.
+    #
+    # 'routine' is the original: a conversation, no state change, no black mark.
+    # 'correction' is for an actual error found in a document already signed.
+    # Before it existed the only route was void-and-reissue, so corrections
+    # happened by phone and the record showed a clean release that had quietly
+    # been rebuilt. An off-record correction is worse than a recorded one.
+    KIND_CHOICES = [
+        ('routine', 'Routine discussion — nothing changes'),
+        ('correction', 'Correction required — returns to the officer'),
+    ]
+    kind = models.CharField(
+        max_length=12, choices=KIND_CHOICES, default='routine', db_index=True,
+        help_text="A routine call moves nothing. A correction supersedes the "
+                  "signatures on the named document and every later step, and "
+                  "returns the release to the preparing officer.")
+    superseded_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="How many signatures this correction superseded. Recorded so the "
+                  "release history shows what a correction actually cost.")
+
+    note = models.TextField(help_text="What the signatory wants to discuss.")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    # Recorded rather than raised: the note and the in-app notification are the
+    # record, and a Graph failure must not lose them. The officer sees on the
+    # release that a call was raised and whether the email actually left.
+    email_sent = models.BooleanField(default=False)
+    email_error = models.CharField(max_length=400, blank=True)
+
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['-created_at']
+        verbose_name = 'discussion request'
+        verbose_name_plural = 'discussion requests'
+
+    def __str__(self):
+        who = self.raised_by.get_full_name() if self.raised_by else 'A signatory'
+        return f"{who} called about {self.release_letter}"

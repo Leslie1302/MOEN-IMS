@@ -529,6 +529,14 @@ class Notification(auto_prefetch.Model):
         ('boq_updated', 'BOQ Updated'),
         ('staff_prompt', 'Staff Prompt'),
         ('security_alert', 'Security Alert'),
+        # Release signing chain. These go to a named user rather than a group:
+        # a signature request addressed to "Management" is addressed to nobody.
+        ('signature_requested', 'Signature Requested'),
+        ('discussion_request', 'Call for Discussion'),
+        ('release_urgent', 'Release Marked Urgent'),
+        # An officer stuck on a Bill of Quantity line he cannot fix himself.
+        # Addressed to a named administrator: "the admins" is nobody.
+        ('boq_assistance', 'BoQ Assistance Requested'),
     ]
     
     RECIPIENT_GROUPS = [

@@ -164,12 +164,29 @@ class BaseProjectRequestForm(forms.ModelForm):
     def save(self, commit=True, user=None):
         instance: MaterialOrder = super().save(commit=False)
 
-        # MaterialOrder.unit is a required FK; copy it from the selected
-        # InventoryItem so the model's NOT NULL constraint is satisfied.
-        # (Bugfix: the original Phase C.1 save() forgot this.)
+        # Carry the selected InventoryItem's identifying fields onto the order.
+        #
+        # `unit` was fixed once already (the original Phase C.1 save() forgot
+        # it and hit a NOT NULL constraint). `code` was missed in the same way
+        # and failed far more quietly, because `MaterialOrder.code` has
+        # `default="Enter code"` — so instead of raising, every order created
+        # through this form carried the literal string "Enter code" as its
+        # material code.
+        #
+        # That is the join key to the Bill of Quantity. A release raised through
+        # the actual request form could therefore never reconcile against any
+        # contract, and before the BoQ gate existed it went out anyway, drawing
+        # stock against nothing. The bulk-upload path (`upload_requests`) always
+        # set this correctly, which is why it only ever showed up on
+        # single requests.
         item = self.cleaned_data.get('name')
-        if item is not None and getattr(item, 'unit', None) is not None:
-            instance.unit = item.unit
+        if item is not None:
+            if getattr(item, 'unit', None) is not None:
+                instance.unit = item.unit
+            if getattr(item, 'code', ''):
+                instance.code = item.code
+            if getattr(item, 'category_id', None) and not instance.category_id:
+                instance.category = item.category
 
         # Project type goes into the legacy CharField via the mapper.
         instance.project_type = project_type_to_charfield(self.project_type_instance)

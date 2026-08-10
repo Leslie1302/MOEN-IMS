@@ -26,7 +26,8 @@ from django.views.generic import DetailView, ListView
 
 from Inventory.models import ArchivedRequisition
 from Inventory.services.archive_import import (
-    ALL_COLUMNS, REQUIRED_COLUMNS, import_archive_rows, parse_document_date,
+    ALL_COLUMNS, MODEL_DATE_COLUMNS, MODEL_TEXT_COLUMNS, REQUIRED_COLUMNS,
+    import_archive_rows, parse_document_date,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,13 +112,11 @@ class ArchiveCreateView(ArchiveAccessMixin, View):
     def get(self, request):
         return render(request, self.template_name, {'record': None})
 
-    TEXT_FIELDS = [f for f in ALL_COLUMNS
-                   if f not in ('scan_filename', 'document_date', 'release_letter_date')]
-
     def post(self, request):
-        data = {k: (request.POST.get(k) or '').strip() for k in self.TEXT_FIELDS}
-        data['document_date'] = (request.POST.get('document_date') or '').strip()
-        data['release_letter_date'] = (request.POST.get('release_letter_date') or '').strip()
+        # Built from the explicit model-field list, not by subtraction — an
+        # import-only column must never reach ArchivedRequisition(**data).
+        data = {k: (request.POST.get(k) or '').strip() for k in MODEL_TEXT_COLUMNS}
+        raw_dates = {k: (request.POST.get(k) or '').strip() for k in MODEL_DATE_COLUMNS}
 
         errors = []
         if not data.get('reference'):
@@ -127,10 +126,10 @@ class ArchiveCreateView(ArchiveAccessMixin, View):
         if not data.get('description'):
             errors.append("Describe what the requisition was for — this is what makes it findable.")
 
-        document_date, date_error = parse_document_date(data.get('document_date'))
+        document_date, date_error = parse_document_date(raw_dates['document_date'])
         if date_error:
             errors.append(date_error)
-        letter_date, letter_date_error = parse_document_date(data.get('release_letter_date'))
+        letter_date, letter_date_error = parse_document_date(raw_dates['release_letter_date'])
         if letter_date_error:
             errors.append(f"Release letter date: {letter_date_error}")
 
@@ -157,8 +156,7 @@ class ArchiveCreateView(ArchiveAccessMixin, View):
             archived_by=request.user,
             document_date=document_date,
             release_letter_date=letter_date,
-            **{k: v for k, v in data.items()
-               if k not in ('document_date', 'release_letter_date')})
+            **data)
         for field, uploaded in files.items():
             setattr(record, field, uploaded)
         record.save()

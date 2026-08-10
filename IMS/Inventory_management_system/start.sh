@@ -10,24 +10,73 @@ set -e
 
 # ── WeasyPrint native libraries ──────────────────────────────────────────────
 # App Service's filesystem is rebuilt on every restart, so these must be
-# installed at boot rather than baked in. WeasyPrint >= 53 needs Pango, its
-# FreeType bridge and harfbuzz; it no longer uses cairo. libglib2.0-0 supplies
-# libgobject-2.0, which is the one that surfaces in the error message when the
-# set is incomplete.
+# installed at boot rather than baked in.
 #
-# ponytail: apt-at-boot is the cheapest reversible path. If cold starts get
-# painful, move to a custom container image with these baked into a layer.
-WEASY_LIBS="libglib2.0-0 libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 libgdk-pixbuf-2.0-0 libffi8"
+# **glib must be named explicitly.** An earlier version of this list left it out,
+# reasoning that glib/gobject/libffi arrive as Pango dependencies. They do — but
+# that is not the same thing as being loadable, and WeasyPrint does not go
+# through Pango to reach gobject. `weasyprint/text/ffi.py` calls
+#
+#     dlopen(ffi, 'gobject-2.0-0', 'gobject-2.0', 'libgobject-2.0-0', ...)
+#
+# directly, by soname. Installed-as-a-dependency was not enough, and the boot
+# ended in:
+#
+#     OSError: cannot load library 'libgobject-2.0-0': cannot open shared
+#     object file: No such file or directory
+#
+# with an app that came up healthy and could not mint a single document.
+#
+# The rename matters here too. Ubuntu 24.04 (noble) moved glib in the 64-bit
+# time_t transition, so the package is `libglib2.0-0t64` and `libglib2.0-0` does
+# not exist. Both names are listed: exactly one will resolve on any given image,
+# and the per-package retry below tolerates the other failing. That is why the
+# retry loop exists — the batch install aborts wholesale on one bad name.
+#
+# ponytail: apt-at-boot is the cheapest reversible path, and it re-runs on every
+# cold start because App Service rebuilds the filesystem. If this gets painful,
+# or if a transient apt failure taking out document generation stops being
+# acceptable, move to a custom container image with these baked into a layer.
+WEASY_LIBS="libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 libgdk-pixbuf-2.0-0"
+# Tried in order; the first that installs wins. Listing both spellings is
+# deliberate — see the note on the noble rename above.
+GLIB_LIBS="libglib2.0-0t64 libglib2.0-0"
 
 if command -v apt-get >/dev/null 2>&1; then
   echo "[start.sh] Installing WeasyPrint native libraries..."
+
+  apt-get update -qq || echo "[start.sh] WARNING: apt-get update failed."
+
+  # glib first, and on its own. It is the one WeasyPrint dlopens by name, so a
+  # boot without it is a boot with no renderer — whereas a missing harfbuzz
+  # merely degrades text shaping. Installing it separately also keeps the noble
+  # rename from taking the whole batch down with it.
+  glib_ok=""
+  for pkg in $GLIB_LIBS; do
+    if apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null; then
+      echo "[start.sh]   ok: $pkg"
+      glib_ok="$pkg"
+      break
+    fi
+  done
+  if [ -z "$glib_ok" ]; then
+    echo "[start.sh]   FAILED: no glib package installed ($GLIB_LIBS)."
+    echo "[start.sh]   WeasyPrint will not load. Check the package name for this image."
+  fi
+
   # Deliberately NOT swallowing stderr: a silent failure here produces an app
   # that looks healthy but cannot mint a single document.
-  if apt-get update -qq && apt-get install -y -qq --no-install-recommends $WEASY_LIBS; then
+  if apt-get install -y -qq --no-install-recommends $WEASY_LIBS; then
     echo "[start.sh] Native libraries installed."
   else
-    echo "[start.sh] WARNING: apt install failed. PDF generation will be unavailable."
-    echo "[start.sh] Packages attempted: $WEASY_LIBS"
+    # One bad package name aborts the whole batch, so retry individually —
+    # three of four libraries is still a working renderer on most images.
+    echo "[start.sh] Batch install failed; retrying package by package..."
+    for pkg in $WEASY_LIBS; do
+      apt-get install -y -qq --no-install-recommends "$pkg" \
+        && echo "[start.sh]   ok: $pkg" \
+        || echo "[start.sh]   FAILED: $pkg"
+    done
   fi
 else
   echo "[start.sh] WARNING: apt-get unavailable; skipping native library install."

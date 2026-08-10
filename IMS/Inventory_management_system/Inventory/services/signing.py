@@ -108,9 +108,21 @@ def can_sign(user, release_letter, document_kind):
             f"This {document_kind} is complete and locked. To change it, void and reissue "
             "the release.")
 
+    if release_letter.signing_complete(document_kind):
+        return False, None, f"The {document_kind} has already been fully signed."
+
     next_step = release_letter.next_signing_step(document_kind)
     if next_step is None:
-        return False, None, f"The {document_kind} has already been fully signed."
+        # The release's next step belongs to the OTHER document. This is the
+        # order that matters: the signed memo is the authority for the letter,
+        # so the letter cannot be signed first.
+        pending = release_letter.next_signing_step()
+        if pending is None:
+            return False, None, f"The {document_kind} has already been fully signed."
+        holder = pending.signatory.title if pending.signatory else 'another officer'
+        return False, None, (
+            f"The {pending.get_document_kind_display().lower()} must be signed first — "
+            f"it is with {holder}.")
 
     if next_step.user_id != user.pk:
         holder = (next_step.signatory.title if next_step.signatory else 'another officer')
@@ -128,7 +140,7 @@ def apply_signature(release_letter, user, document_kind, signature_data_uri,
     Returns the `DocumentSignature`. Raises `SigningError` if the signer is not
     the one due, the document is locked, or the drawing is unusable.
     """
-    from Inventory.models import DocumentSignature
+    from Inventory.models import DocumentSignature, Profile
 
     allowed, step, reason = can_sign(user, release_letter, document_kind)
     if not allowed:
@@ -137,7 +149,20 @@ def apply_signature(release_letter, user, document_kind, signature_data_uri,
     png = decode_signature_png(signature_data_uri)
 
     signatory = step.signatory
-    profile = getattr(user, 'profile', None)
+    # Read the profile from the database rather than through `user.profile`.
+    #
+    # Django caches the reverse one-to-one on the User instance the moment
+    # anything assigns `profile.user = <that instance>` — which the profile
+    # creation signal does at sign-up, before any designation has been set. Any
+    # later edit to the designation updates a different Python object, so the
+    # cached one stays blank and the signature is recorded with no substantive
+    # post at all.
+    #
+    # The designation is part of a permanent audit record and is the field that
+    # tells an acting appointment apart from a substantive one. It has to be
+    # what the database says at the moment of signing, not whatever happened to
+    # be attached to the request's user object.
+    profile = Profile.objects.filter(user=user).first()
 
     signature = DocumentSignature(
         release_letter=release_letter,
@@ -186,6 +211,14 @@ def apply_signature(release_letter, user, document_kind, signature_data_uri,
         release_letter.save(update_fields=[f'{document_kind}_locked'])
         logger.info("ReleaseLetter %s: %s chain complete, document locked.",
                     release_letter.pk, document_kind)
+
+    # The whole release is signed: MMU may now start preparing. This is the
+    # default route on every release and grants nothing beyond picking and
+    # staging — materials still leave only on the verified wet-signed scan,
+    # unless management separately declares the release urgent.
+    if release_letter.signing_complete():
+        from .urgency import mark_advance_notice
+        mark_advance_notice(release_letter)
 
     return signature
 

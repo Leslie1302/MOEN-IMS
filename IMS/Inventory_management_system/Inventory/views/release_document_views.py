@@ -24,6 +24,8 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.views import View
 from django.views.generic import DetailView
 
@@ -34,6 +36,11 @@ from Inventory.services.document_dispatch import send_release_documents, Dispatc
 from Inventory.services.signing import (
     apply_signature, can_sign, rebuild_signed_pdf, signed_pdf_is_stale, SigningError,
 )
+from Inventory.services.approvals import (
+    is_signatory, may_view_queue, notify_next_signatory,
+    send_for_signature, SendForSignatureError,
+)
+from Inventory.services.urgency import can_declare_urgent
 from Inventory.services.pdf_generator import generate_release_memo, generate_release_letter
 from Inventory.services.document_render import (
     render_document_html, context_fingerprint, weasyprint_status, RendererUnavailable,
@@ -105,11 +112,42 @@ class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
             }
         ctx['signing'] = signing
         ctx['can_sign_any'] = any(s['allowed'] for s in signing.values())
+
+        # The release-wide next step, spanning both documents — the same value
+        # that drives the queue and the notification email, so the officer's
+        # "who has it" and the signatory's "what is waiting for me" cannot
+        # disagree. `signing[kind]['next']` above answers the narrower question
+        # and is None whenever the turn belongs to the other document.
+        ctx['next_step'] = rl.next_signing_step()
+        ctx['signing_complete'] = rl.signing_complete()
+        # Generation notifies nobody. Handing the release to the first
+        # signatory is a separate, explicit act — otherwise every draft pesters
+        # the Ag. Director and people learn to ignore the emails.
+        ctx['can_send_for_signature'] = bool(
+            ctx['can_generate_documents'] and ctx['next_step'] is not None
+            and getattr(rl, f"{ctx['next_step'].document_kind}_pdf", None))
+        # Only the letter carries a rendered letterhead, so only the letter has
+        # a meaningfully different print-on-stock render.
+        ctx['letter_plain_print_url'] = (
+            f"{reverse('release_letter_preview', args=[rl.pk])}?plain=1")
         # Any lock at all means Generate must not be offered — regenerating
         # would put an existing signature over new content.
         ctx['any_locked'] = rl.memo_locked or rl.letter_locked
         ctx['locked_kinds'] = [k for k in ('memo', 'letter')
                                if getattr(rl, f'{k}_locked', False)]
+
+        # ── Signatory-side controls (Phases 3-5) ────────────────────────────
+        # For a signatory this page is a read-only archive, not a workspace:
+        # `can_generate_documents` already excludes them from every editing
+        # control, and this flag lets the template say so rather than simply
+        # presenting a page with the buttons missing.
+        ctx['viewer_is_signatory'] = is_signatory(self.request.user)
+        ctx['can_call_officer'] = may_view_queue(self.request.user)
+        allowed, refusal = can_declare_urgent(self.request.user, rl)
+        ctx['can_declare_urgent'] = allowed
+        ctx['urgency_refusal'] = refusal
+        ctx['discussions'] = rl.discussion_requests.select_related(
+            'raised_by', 'officer')[:8]
         return ctx
 
 
@@ -154,6 +192,13 @@ class _DocumentPreviewBase(LoginRequiredMixin, View):
                    Only honoured for users who may generate documents.
       ?original=1  ignore a stored hand-edit and show the data-driven template
                    (used by the "revert" confirm step).
+      ?plain=1     omit the rendered letterhead, for printing onto Ministry
+                   letterhead stock (the wet-signature route).
+
+    `plain` is deliberately a render of the same document rather than a second
+    stored file. The alternative — keeping a no-letterhead PDF alongside the
+    real one — gives the Ministry two documents that can disagree, and the one
+    that gets wet-signed and filed would be the one nobody verified.
     """
     kind = None
 
@@ -166,7 +211,13 @@ class _DocumentPreviewBase(LoginRequiredMixin, View):
                 and _can_generate(request.user)
                 and not locked)
         use_stored = request.GET.get('original') != '1'
-        html = render_document_html(rl, self.kind, edit_mode=edit, use_stored=use_stored)
+        plain = request.GET.get('plain') == '1'
+        # Editing a letterhead-less render would show the officer a page whose
+        # margins are not the ones his edit will print in. One or the other.
+        if plain:
+            edit = False
+        html = render_document_html(rl, self.kind, edit_mode=edit,
+                                    use_stored=use_stored, plain=plain)
         resp = HttpResponse(html)
         # The preview is user-authored HTML in a same-origin frame; keep it out
         # of caches and refuse to let it be framed by anything but this site.
@@ -274,6 +325,14 @@ class SignDocumentView(LoginRequiredMixin, View):
             raise Http404("Unknown document type.")
         rl = get_object_or_404(ReleaseLetter, pk=pk)
 
+        # Return the signer to the page they signed from. A flag, not a URL:
+        # accepting a redirect target from a POST body is an open redirect, and
+        # there are exactly two callers, so there is nothing to generalise.
+        if request.POST.get('from') == 'signing_page':
+            back = reverse('sign_release', args=[pk])
+        else:
+            back = f"{reverse('release_letter_detail', args=[pk])}#sign"
+
         try:
             signature = apply_signature(
                 rl, request.user, kind,
@@ -283,23 +342,34 @@ class SignDocumentView(LoginRequiredMixin, View):
             )
         except SigningError as exc:
             messages.error(request, str(exc))
-            return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+            return redirect(back)
 
         audit(request.user, rl, 'release.document_signed',
               f"{kind} signed by {signature.signatory_name} "
               f"({signature.signatory_title}) token {signature.verification_token}")
 
-        if rl.signing_complete(kind):
+        # Report the release-wide next step, not this document's. After the
+        # memo is signed the next step is usually the LETTER, so asking
+        # next_signing_step(kind) would return None and lose the handoff.
+        nxt = rl.next_signing_step()
+        if nxt is None:
             messages.success(
                 request,
-                f"{kind.title()} signed and complete. It is now locked — "
-                "void and reissue if it must change.")
+                f"{kind.title()} signed. The signing chain is complete and the "
+                "documents are locked — void and reissue if they must change. "
+                "MMU has been given advance notice to prepare the materials; "
+                "they may not release them until the signed scan is on file.")
         else:
-            nxt = rl.next_signing_step(kind)
-            who = nxt.signatory.title if nxt and nxt.signatory else 'the next signatory'
-            messages.success(request, f"{kind.title()} signed. It now goes to {who}.")
+            # Hand off automatically. The step-1-to-step-2 handoff is the one
+            # that otherwise sits in somebody's head and loses a week.
+            notify_next_signatory(rl, sender=request.user)
+            who = nxt.signatory.title if nxt.signatory else 'the next signatory'
+            messages.success(
+                request,
+                f"{kind.title()} signed. It now goes to {who} for the "
+                f"{nxt.get_document_kind_display().lower()}.")
 
-        return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+        return redirect(back)
 
 
 class RebuildSignedDocumentView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -341,12 +411,219 @@ class RebuildSignedDocumentView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
 
 
+def _blocking_message(release_letter, request):
+    """Refuse generation while an unjustified over-issuance stands. → True if blocked.
+
+    Shared by both generation paths — the detail page's Generate button and the
+    request-code page that creates a release — because a control enforced on one
+    of two doors is not a control.
+
+    The message names every offending line and links straight to the
+    justification form for it. A refusal that says only "over-issuance detected"
+    leaves the officer hunting through the BoQ for which line, and the reliable
+    outcome of that is a phone call to someone who will suggest a workaround.
+    """
+    from Inventory.services.reconciliation import generation_blockers, has_blockers
+
+    try:
+        blockers, _result = generation_blockers(release_letter)
+    except Exception as exc:  # noqa: BLE001
+        # A gate that cannot be evaluated must not silently pass. But neither
+        # should a reconciliation bug make every release ungeneratable — so log
+        # loudly and let it through, and the memo's own conditional wording will
+        # not claim the release reconciles.
+        logger.exception("BoQ gate failed for ReleaseLetter %s: %s",
+                         release_letter.pk, exc)
+        return False
+
+    if not has_blockers(blockers):
+        return False
+
+    messages.error(request, blocker_message(release_letter, blockers))
+    return True
+
+
+def blocker_message(release_letter, blockers):
+    """The refusal, with the right remedy attached to each kind of blocker.
+
+    Two remedies, never mixed. An over-issuance is the officer's to clear —
+    raise a justification, get it approved. An unmatched line is not: the BoQ
+    itself is wrong or missing, which is above his desk, so that one routes to a
+    system administrator. Offering "raise a justification" against a material
+    with no BoQ row would send him to a form that cannot be filled in.
+    """
+    from django.urls import reverse as _reverse
+
+    blocks = []
+
+    if blockers['over_issued']:
+        rows = []
+        for line in blockers['over_issued']:
+            detail = (f"{line['material']} ({line['item_code']}) at {line['community']}"
+                      f" — over by {line['exceeds_by']} {line['unit']}".rstrip())
+            if line['boq'] is not None:
+                url = _reverse('boq_overissuance_justification_create', args=[line['boq'].pk])
+                detail += f' — <a href="{url}">raise a justification</a>'
+            rows.append(detail)
+        blocks.append(
+            f"<b>{len(blockers['over_issued'])} line(s) exceed the approved Bill of "
+            "Quantity</b> with no approved over-issuance justification. Raise one for "
+            "each and have it approved by the Director of Power.<br>"
+            + "<br>".join(rows))
+
+    if blockers['unmatched']:
+        rows = [f"{line['material']} ({line['item_code'] or 'no item code'}) "
+                f"at {line['community'] or 'no community'}"
+                for line in blockers['unmatched']]
+        url = _reverse('release_boq_assistance', args=[release_letter.pk])
+        blocks.append(
+            f"<b>{len(blockers['unmatched'])} line(s) have no Bill of Quantity entry</b> "
+            "for their community, so the system cannot establish what authorises this "
+            "release. This is not something you can correct from here.<br>"
+            + "<br>".join(rows)
+            + f'<br><a href="{url}">Contact system admin for assistance</a>')
+
+    return format_html(
+        "Documents were not generated.<br><br>{}",
+        mark_safe("<br><br>".join(blocks)))
+
+
 def _client_ip(request):
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
     if forwarded:
         # App Service sits behind a proxy; the client is the first entry.
         return forwarded.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
+
+
+class BoQAssistanceView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """The door out of an unmatched Bill of Quantity line.
+
+    GET shows a short confirmation with the lines named; POST sends it. A block
+    with no route out produces either a release that stalls until somebody
+    chases it, or an officer who finds a way round the check — and the second
+    one is off the record by definition.
+    """
+    http_method_names = ['get', 'post']
+    template_name = 'Inventory/boq_assistance.html'
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def get(self, request, pk):
+        from Inventory.services.boq_assistance import admin_recipients
+        from Inventory.services.reconciliation import generation_blockers
+
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+        blockers, _result = generation_blockers(rl)
+        users, extra = admin_recipients()
+        return render(request, self.template_name, {
+            'release_letter': rl,
+            'unmatched': blockers['unmatched'],
+            'recipients': users,
+            'extra_emails': extra,
+        })
+
+    def post(self, request, pk):
+        from Inventory.services.boq_assistance import AssistanceError, request_assistance
+
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+        try:
+            recipients, emailed = request_assistance(
+                rl, request.user, note=request.POST.get('note', ''))
+        except AssistanceError as exc:
+            messages.error(request, str(exc))
+            return redirect('release_letter_detail', pk=pk)
+
+        names = ", ".join(
+            (r.get_full_name() or r.username) if hasattr(r, 'username') else str(r)
+            for r in recipients)
+        if emailed:
+            messages.success(
+                request,
+                f"Assistance requested. {names} has been notified in the system and "
+                f"emailed. The release stays exactly where it is.")
+        else:
+            # The in-app notification is the record; the email is the courtesy.
+            messages.warning(
+                request,
+                f"Assistance requested and {names} notified in the system, but no email "
+                "could be sent from your mailbox. Sign in with Microsoft if you want "
+                "emails to leave from you.")
+        return redirect('release_letter_detail', pk=pk)
+
+
+class ReconciliationReportView(LoginRequiredMixin, DetailView):
+    """The standalone BoQ reconciliation, computed live on every view.
+
+    Read-open to any signed-in user, like the release itself: this is the
+    evidence that a release is within contract, and the people most likely to
+    want it — audit, a signatory checking after the fact, the consultant whose
+    package it draws on — are not all in one group.
+
+    Not stored, not versioned, not signed. A reconciliation frozen into a PDF
+    would go stale the moment the BoQ moved and would still carry the authority
+    of a filed document, which is worse than having none.
+    """
+    model = ReleaseLetter
+    template_name = 'Inventory/reconciliation_report.html'
+    context_object_name = 'release_letter'
+
+    def get_context_data(self, **kwargs):
+        from Inventory.services.reconciliation import reconcile, summary_sentence
+
+        ctx = super().get_context_data(**kwargs)
+        result = reconcile(self.object)
+        ctx['reconciliation'] = result
+        ctx['reconciliation_summary'] = summary_sentence(result)
+        ctx['generated_at'] = timezone.now()
+        return ctx
+
+
+class SendForSignatureView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Hand the release to the next signatory. The officer's explicit act.
+
+    Separate from generation on purpose (§2a(ii)). If generating notified the
+    Ag. Director, he would be emailed about every half-finished draft, and the
+    predictable result is that he stops reading the emails — at which point the
+    signature queue has quietly died and nobody can point to when.
+
+    Nothing is attached. The email carries a link into the system, because a PDF
+    that goes out and comes back signed proves a round trip nobody observed,
+    whereas signing here records who signed, when, from what address and against
+    which version.
+    """
+    http_method_names = ['post']
+
+    def test_func(self):
+        return self.request.user.is_authenticated and _can_generate(self.request.user)
+
+    def post(self, request, pk):
+        rl = get_object_or_404(ReleaseLetter, pk=pk)
+        resend = bool(rl.sent_for_signature_at)
+
+        try:
+            step, notification = send_for_signature(rl, request.user)
+        except SendForSignatureError as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
+
+        who = step.signatory.title if step.signatory else (
+            step.user.get_full_name() or step.user.username)
+        kind = step.get_document_kind_display().lower()
+
+        audit(request.user, rl, 'release.sent_for_signature',
+              f"{'Re-sent' if resend else 'Sent'} to {who} for the {kind}")
+
+        # Say plainly that the notification is in-app and the email is a
+        # courtesy. If Graph is unreachable the signatory still has the item in
+        # his queue, and the officer should not conclude the handover failed.
+        messages.success(
+            request,
+            f"{'Reminder sent' if resend else 'Sent'} to {who} for the {kind}. "
+            "It is in their approvals queue, and they have been emailed a link — "
+            "the documents themselves stay in the system.")
+        return redirect(f"{reverse('release_letter_detail', args=[pk])}#sign")
 
 
 class SendReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -535,16 +812,25 @@ class ConfirmSignedScanView(LoginRequiredMixin, UserPassesTestMixin, View):
         release_letter.scan_confirmed_by = request.user
         release_letter.scan_confirmed_at = timezone.now()
         release_letter.workflow_status = 'approved'
+
+        # A confirmed wet signature closes the document exactly as an in-system
+        # signature does. Without this the letter stayed editable after it had
+        # been signed on paper — an officer could alter wording the Chief
+        # Director had already put his name to, and the stored PDF would no
+        # longer match the scan sitting beside it.
+        release_letter.memo_locked = True
+        release_letter.letter_locked = True
         release_letter.save()
 
         audit(request.user, release_letter, 'release.scan_confirmed',
-              f"Two-person confirm: {release_letter.code} -> approved "
+              f"Two-person confirm: {release_letter.code} -> approved, documents locked "
               f"(uploader={release_letter.uploaded_by_id}, confirmer={request.user.id})")
 
         messages.success(
             request,
             f"Release event {release_letter.code} confirmed and marked Approved. "
-            "Materials can now be physically released from MMU.",
+            "The documents are now locked. Materials can be physically released "
+            "from MMU — mark the release once they have gone.",
         )
         return redirect('release_letter_detail', pk=pk)
 
@@ -772,6 +1058,17 @@ class GenerateReleaseDocumentsView(LoginRequiredMixin, UserPassesTestMixin, View
                 f"The {' and '.join(locked)} has been signed and is locked. "
                 "Void and reissue this release if the document must change — "
                 "regenerating would place an existing signature over new content.")
+            return redirect('release_letter_detail', pk=pk)
+
+        # An over-issuance with no approved justification stops generation.
+        #
+        # This does not prevent the release — it routes it through the control
+        # built for exactly this case. The officer raises a justification, the
+        # Director of Power approves it, and generation proceeds. What it does
+        # prevent is a memo going to a signatory asserting that a release sits
+        # within contract when it does not.
+        blocked = _blocking_message(release_letter, request)
+        if blocked:
             return redirect('release_letter_detail', pk=pk)
 
         try:

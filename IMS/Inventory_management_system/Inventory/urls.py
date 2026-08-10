@@ -155,10 +155,15 @@ from .views.release_document_views import (
     UploadSignedScanView, ConfirmSignedScanView, MarkReleasedView,
     AdjustReleaseDocumentsView, MemoPreviewView, LetterPreviewView,
     SaveDocumentHtmlView, RevertDocumentHtmlView, SendReleaseDocumentsView,
-    SignDocumentView, RebuildSignedDocumentView,
+    SignDocumentView, RebuildSignedDocumentView, SendForSignatureView,
+    ReconciliationReportView, BoQAssistanceView,
 )
 from .views.letterhead_views import LetterheadSettingsView
 from .views.verify_views import VerifyDocumentView
+from .views.approval_views import (
+    ApprovalQueueView, CallOfficerView, DeclareUrgentView, SigningPageView,
+    UrgentReleasesReportView,
+)
 from .views.archive_views import (
     ArchiveListView, ArchiveDetailView, ArchiveCreateView,
     ArchiveBulkImportView, ArchiveTemplateView, ArchiveImportErrorsView,
@@ -355,6 +360,19 @@ urlpatterns = [
     path('release-letters/<int:pk>/document/<str:kind>/save/', SaveDocumentHtmlView.as_view(), name='save_document_html'),
     path('release-letters/<int:pk>/document/<str:kind>/revert/', RevertDocumentHtmlView.as_view(), name='revert_document_html'),
 
+    # BoQ reconciliation — computed live, never stored, so it cannot go stale.
+    path('release-letters/<int:pk>/reconciliation/', ReconciliationReportView.as_view(),
+         name='release_reconciliation'),
+    # The way out of an unmatched BoQ line, which the officer cannot fix himself.
+    # A block with no door gets routed around rather than resolved.
+    path('release-letters/<int:pk>/boq-assistance/', BoQAssistanceView.as_view(),
+         name='release_boq_assistance'),
+    # The signatory's signing page: both documents, one panel, no officer
+    # controls. Distinct from the POST route below, which applies one signature.
+    path('release-letters/<int:pk>/sign/', SigningPageView.as_view(), name='sign_release'),
+    # The officer's explicit handover. Generation notifies nobody; this does.
+    path('release-letters/<int:pk>/send-for-signature/', SendForSignatureView.as_view(),
+         name='send_for_signature'),
     # Apply a drawn signature. Permission is the signing chain, not a group.
     path('release-letters/<int:pk>/sign/<str:kind>/', SignDocumentView.as_view(), name='sign_document'),
     # Repair: re-render a signed document whose PDF was minted without its signatures.
@@ -362,6 +380,19 @@ urlpatterns = [
 
     # Email the memo/letter to chosen users or typed addresses (Microsoft Graph).
     path('release-letters/<int:pk>/send/', SendReleaseDocumentsView.as_view(), name='send_release_documents'),
+
+    # Phase 3-5: the signatory's side of the workflow.
+    # The queue is a signatory's landing point — the release-letter dashboard is
+    # a schedule officer's workspace and shows every release in every state.
+    path('approvals/', ApprovalQueueView.as_view(), name='approval_queue'),
+    # A conversation, not a rejection: no workflow state changes here.
+    path('release-letters/<int:pk>/call-officer/', CallOfficerView.as_view(), name='call_officer'),
+    # Management directive clearing MMU to release on the digital signature.
+    # Restricted to signatories inside the view, not by group.
+    path('release-letters/<int:pk>/urgent/', DeclareUrgentView.as_view(), name='declare_urgent'),
+    # So urgency shows up as a trend Internal Audit can watch, rather than as a
+    # finding after the fact.
+    path('reports/urgent-releases/', UrgentReleasesReportView.as_view(), name='urgent_releases_report'),
 
     # Historical paper requisitions — records only, no stock or workflow effect.
     path('archive/', ArchiveListView.as_view(), name='archive_list'),

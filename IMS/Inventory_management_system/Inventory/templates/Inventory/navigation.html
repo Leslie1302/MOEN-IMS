@@ -10,6 +10,22 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav align-items-center me-auto">
                 {% if user.is_authenticated %}
+
+                {% comment %}
+                  Outside the group check on purpose. A signatory may hold no
+                  group at all — their authority comes from being named on the
+                  signing chain — and the rest of this navbar is gated on group
+                  membership, so without this the Chief Director signs in to an
+                  empty menu bar and cannot reach the one page he needs.
+                {% endcomment %}
+                {% if user.signing_steps.exists %}
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold" href="{% url 'approval_queue' %}">
+                        <i class="fas fa-file-signature me-1"></i>Approvals
+                    </a>
+                </li>
+                {% endif %}
+
                 {% if user.groups.exists or user.is_superuser %}
 
                 {% if user.is_superuser %}

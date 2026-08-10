@@ -104,9 +104,19 @@
         <div class="col-xl-3 col-md-6 mb-3">
             <div class="card stats-card bg-success text-white h-100">
                 <div class="card-body">
+                    {% comment %}
+                      This counts DECLARED status (Energised / Commissioned), not
+                      evidenced completion. Community Progress measures the latter
+                      from BoQ targets, so the two legitimately differ — say which
+                      one this is rather than letting them disagree silently.
+                    {% endcomment %}
                     <div class="font-weight-bold text-uppercase mb-1" style="font-size: 0.8rem; letter-spacing: 0.1em;">
-                        Completed Communities</div>
+                        Completed Communities
+                        <i class="fas fa-circle-info ms-1" style="font-size:.72rem;opacity:.75"
+                           title="Communities declared Energised or Commissioned. This is a declared status — see Community Progress for completion evidenced against BoQ targets."></i>
+                    </div>
                     <div class="h3 mb-0 font-weight-bold" id="completed-sites-count">0</div>
+                    <div style="font-size:.72rem;opacity:.8">Declared status</div>
                 </div>
             </div>
         </div>

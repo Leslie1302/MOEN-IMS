@@ -1,0 +1,100 @@
+{% comment %}
+BoQ reconciliation, printed on the approval memo.
+
+It sits on the memo rather than in an attachment because the Ag. Director is
+approving *on the basis of* it. A reconciliation filed separately is one the
+signatory can approve without ever opening, which makes it a record of diligence
+rather than an instrument of it.
+
+Reuses `table.sched` so it prints in the same house style as the Schedule of
+Materials — the Ministry's green header, same borders, same 11pt. A second table
+style on the same page would read as a different document.
+{% endcomment %}
+
+<h2>Bill of Quantity Reconciliation</h2>
+
+<p class="body">{{ reconciliation_summary }}</p>
+
+{% if reconciliation.checked %}
+<table class="sched">
+  <thead>
+    <tr>
+      <th>Material</th>
+      <th>Community</th>
+      <th class="amt">Contract</th>
+      <th class="amt">Drawn</th>
+      <th class="amt">Available</th>
+      <th class="amt">This release</th>
+      <th class="amt">Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in reconciliation.lines %}
+    <tr>
+      <td>{{ line.material }}{% if line.item_code %} <span style="color:#666">({{ line.item_code }})</span>{% endif %}</td>
+      <td>{{ line.community }}</td>
+      {% if line.matched %}
+      <td class="amt">{{ line.contract|floatformat:"-2" }}</td>
+      <td class="amt">{{ line.drawn|floatformat:"-2" }}</td>
+      <td class="amt">{{ line.balance_before|floatformat:"-2" }}</td>
+      <td class="amt">{{ line.requested|floatformat:"-2" }} {{ line.unit }}</td>
+      <td class="amt">
+        {% if line.exceeds_by %}
+        <b>({{ line.exceeds_by|floatformat:"-2" }} over)</b>
+        {% else %}
+        {{ line.balance_after|floatformat:"-2" }}
+        {% endif %}
+      </td>
+      {% else %}
+      {% comment %} No BoQ line at all — the more interesting failure of the two. {% endcomment %}
+      <td class="amt" colspan="4" style="text-align:center">no Bill of Quantity entry found</td>
+      <td class="amt">{{ line.requested|floatformat:"-2" }} {{ line.unit }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% comment %}
+Split by whether each over-issuance is actually cleared.
+
+An earlier version of this asserted, whenever any exception existed, that "an
+over-issuance justification has been submitted and approved for each" — on the
+reasoning that generation is blocked until they are. That reasoning was wrong in
+a way worth remembering: the *preview* is not gated, only generation is. So the
+page rendered a flat claim that a justification existed for a line that had none,
+which is a false statement of fact in the body of a memo a Director signs.
+
+Never assert clearance from the fact that a control exists elsewhere. Assert it
+from the record.
+{% endcomment %}
+{% if reconciliation.justified_exceptions %}
+<p class="body">
+  <b>Over-issuance (justified).</b> {{ reconciliation.justified_exceptions|length }}
+  line(s) marked <i>over</i> above draw more than the approved Bill of Quantity for
+  the community concerned. An over-issuance justification has been submitted and
+  approved for each, and is on record in the Inventory Management System. Approval
+  of this memo authorises the release on that basis.
+</p>
+{% endif %}
+
+{% if reconciliation.unjustified_exceptions %}
+<p class="body">
+  <b>Over-issuance (not yet justified).</b>
+  {{ reconciliation.unjustified_exceptions|length }} line(s) marked <i>over</i> above
+  draw more than the approved Bill of Quantity and have no approved over-issuance
+  justification on record. <b>This memo is not in a state to be issued.</b> A
+  justification must be raised for each line and approved by the Director of Power
+  before the documents can be generated.
+</p>
+{% endif %}
+
+{% if reconciliation.unmatched %}
+<p class="body">
+  <b>Unmatched materials.</b> The line(s) shown above without a Bill of Quantity
+  entry could not be reconciled against any approved contract for this community.
+  They may be replacements or emergency issues outside the original scope, or the
+  Bill of Quantity may be incomplete. This should be established before release.
+</p>
+{% endif %}
+{% endif %}

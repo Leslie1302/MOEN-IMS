@@ -17,7 +17,9 @@ from .signatory import Signatory
 from .letterhead import Letterhead  # Ministry letterhead for generated documents
 from .document_dispatch import DocumentDispatch  # audit of emailed release documents
 from .release_sequence import ReleaseCodeSequence  # registry-grade code allocator
-from .signing import SigningStep, DocumentSignature  # in-app approval chain
+from .signing import (  # in-app approval chain
+    SigningStep, DocumentSignature, DiscussionRequest,
+)
 from .archive import ArchivedRequisition  # historical paper records (no stock/workflow effect)
 from .geography import Region, District, Package  # Geospatial models (Phase 2)
 from .areas import Area, AreaRegion  # Operational areas (region scoping)
@@ -53,6 +55,8 @@ __all__ = [
     'Letterhead',
     'DocumentDispatch',
     'ArchivedRequisition',
+    'ReleaseCodeSequence',
+    'SigningStep', 'DocumentSignature', 'DiscussionRequest',  # in-app signing chain
     'Region', 'District', 'Package',  # Geospatial models
     'MeterInstallation', 'AccessRateConfig', 'RegionPopulation',  # Access rate models
     'RolePerformanceTarget', 'PerformanceConfig', 'PerformanceSnapshot',  # KPI system

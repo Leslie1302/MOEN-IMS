@@ -131,6 +131,17 @@ class UserRoleMiddleware(MiddlewareMixin):
         # branch was dead code — the allowlist short-circuits it — and was
         # removed. See tests/test_middleware_auth.py.)
         if not request.user.groups.exists():
-            return redirect('awaiting_authorization')
+            # Being named on the signing chain IS an authorisation, and a
+            # stronger one than group membership: it says this person signs
+            # release documents for a named office. Without this a newly
+            # onboarded Chief Director is bounced to "awaiting authorization"
+            # until someone remembers to also add him to a group — and the
+            # release he is holding up is the last place that gets diagnosed.
+            #
+            # Only reached for users with no groups at all, so this costs a
+            # query on an account that was about to be refused anyway.
+            from Inventory.models import SigningStep
+            if not SigningStep.objects.filter(active=True, user=request.user).exists():
+                return redirect('awaiting_authorization')
 
         return None

@@ -113,15 +113,11 @@
                 <tr>
                     <th style="width: 50px;"></th>
                     <th>Request #</th>
-                    <th>User</th>
                     <th>Material</th>
-                    <th>Type</th>
-                    <th>Priority</th>
-                    <th>Requested</th>
-                    <th>Processed</th>
-                    <th>Remaining</th>
+                    <th>Type / priority</th>
+                    <th>Quantity</th>
                     <th>Status</th>
-                    <th>Processed By</th>
+                    <th>Processed by</th>
                     <th>Date</th>
                     <th>Release Letter</th>
                     {% if 'Store Officer' in user.groups.all|join:', ' %}
@@ -139,38 +135,49 @@
                             <i class="fas fa-eye" style="color: #ffffff !important;"></i>
                         </button>
                     </td>
-                    <td class="fw-bold">{{ order.request_code|default:"N/A" }}</td>
+                    {% comment %}
+                      Fourteen columns overflowed a normal display, so related
+                      pairs are stacked rather than dropped: nothing is lost, but
+                      the table now fits without horizontal scrolling. The
+                      quantity cell keeps its .processed-qty / .remaining-qty
+                      hooks, which table-utils.js and the status updates target.
+                    {% endcomment %}
                     <td>
-                        {% if order.user %}
-                        {{ order.user.get_full_name|default:order.user.username }}
-                        {% else %}
-                        <span class="text-muted">Unassigned</span>
-                        {% endif %}
+                        <div class="fw-bold">{{ order.request_code|default:"N/A" }}</div>
+                        <div class="small text-muted">
+                            {% if order.user %}
+                            {{ order.user.get_full_name|default:order.user.username }}
+                            {% else %}Unassigned{% endif %}
+                        </div>
                     </td>
                     <td>{{ order.name }}</td>
-                    <td>
+                    <td class="text-nowrap">
                         {% if order.request_type == "Release" %}
                         <span class="badge bg-danger">Release</span>
                         {% else %}
                         <span class="badge bg-success">Receipt</span>
                         {% endif %}
+                        <div class="mt-1">
+                            {% if order.priority == "Urgent" %}
+                            <span class="badge bg-danger">Urgent</span>
+                            {% elif order.priority == "High" %}
+                            <span class="badge bg-warning text-dark">High</span>
+                            {% elif order.priority == "Medium" %}
+                            <span class="badge bg-info">Medium</span>
+                            {% elif order.priority == "Low" %}
+                            <span class="badge bg-secondary">Low</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ order.priority }}</span>
+                            {% endif %}
+                        </div>
                     </td>
-                    <td>
-                        {% if order.priority == "Urgent" %}
-                        <span class="badge bg-danger">Urgent</span>
-                        {% elif order.priority == "High" %}
-                        <span class="badge bg-warning text-dark">High</span>
-                        {% elif order.priority == "Medium" %}
-                        <span class="badge bg-info">Medium</span>
-                        {% elif order.priority == "Low" %}
-                        <span class="badge bg-secondary">Low</span>
-                        {% else %}
-                        <span class="badge bg-secondary">{{ order.priority }}</span>
-                        {% endif %}
+                    <td class="text-nowrap" style="font-variant-numeric:tabular-nums">
+                        <div class="fw-semibold">{{ order.quantity|floatformat:0|intcomma }}</div>
+                        <div class="small text-muted">
+                            <span class="processed-qty">{{ order.processed_quantity|floatformat:0|intcomma }}</span> done ·
+                            <span class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</span> left
+                        </div>
                     </td>
-                    <td>{{ order.quantity|floatformat:0|intcomma }}</td>
-                    <td class="processed-qty">{{ order.processed_quantity|floatformat:0|intcomma }}</td>
-                    <td class="remaining-qty">{{ order.remaining_quantity|floatformat:0|intcomma }}</td>
                     <td class="status-cell">
                         {% if order.status == "Pending" %}
                         <span class="badge bg-warning text-dark">Pending</span>
@@ -213,6 +220,36 @@
                                     <i class="fas fa-layer-group me-1"></i>Bulk batch · {{ order.bulk_size }}
                                 </span>
                                 {% endif %}
+
+                                {% comment %}
+                                  This is the table a Store Officer is sitting in
+                                  front of when they decide whether to move stock,
+                                  so it must answer MMU's two questions separately:
+                                  may I prepare, and may I release. A single
+                                  "signed" badge would collapse them, and the
+                                  collapse is precisely what advance notice must
+                                  not cause.
+                                {% endcomment %}
+                                {% if order.release_letter.on_advance_notice %}
+                                    {% if order.release_letter.mmu_may_release %}
+                                    <span class="badge bg-success mt-1 align-self-start"
+                                          title="{% if order.release_letter.is_urgent %}Management directive: cleared to release on the digital signature. The wet-signed copy is still required.{% else %}Signed scan on file and confirmed.{% endif %}">
+                                        <i class="fas fa-truck-fast me-1"></i>May release
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark mt-1 align-self-start"
+                                          title="Advance notice — pick and stage only. Materials leave on the verified wet-signed scan.">
+                                        <i class="fas fa-boxes-packing me-1"></i>Prepare only
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if order.release_letter.is_urgent %}
+                                <span class="badge bg-danger mt-1 align-self-start"
+                                      title="Urgent directive by {{ order.release_letter.urgent_declared_by.get_full_name|default:'a signatory' }}: {{ order.release_letter.urgent_reason }}">
+                                    <i class="fas fa-bolt me-1"></i>Urgent
+                                </span>
+                                {% endif %}
                                 <div class="mt-1">
                                     {% if order.release_letter.pdf_file %}
                                     <a href="{{ order.release_letter.pdf_file.url }}" target="_blank" class="text-decoration-none small me-2">
@@ -225,10 +262,36 @@
                                 </div>
                             </div>
                             {% elif order.is_bulk and order.batch_release_letter %}
-                            <button class="btn btn-sm btn-outline-secondary" disabled
-                                title="Covered by the bulk batch release letter {{ order.batch_release_letter.code|default:order.batch_release_letter.reference_number }}.">
-                                <i class="fas fa-link me-1"></i>In batch RL {{ order.batch_release_letter.code|default:"" }}
-                            </button>
+                            <div class="d-flex flex-column align-items-start">
+                                <button class="btn btn-sm btn-outline-secondary" disabled
+                                    title="Covered by the bulk batch release letter {{ order.batch_release_letter.code|default:order.batch_release_letter.reference_number }}.">
+                                    <i class="fas fa-link me-1"></i>In batch RL {{ order.batch_release_letter.code|default:"" }}
+                                </button>
+                                {% comment %}
+                                  The batch letter is what governs these materials,
+                                  so the officer needs the same prepare/release
+                                  answer here as on a single release.
+                                {% endcomment %}
+                                {% if order.batch_release_letter.on_advance_notice %}
+                                    {% if order.batch_release_letter.mmu_may_release %}
+                                    <span class="badge bg-success mt-1"
+                                          title="{% if order.batch_release_letter.is_urgent %}Management directive: cleared to release on the digital signature.{% else %}Signed scan on file and confirmed.{% endif %}">
+                                        <i class="fas fa-truck-fast me-1"></i>May release
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark mt-1"
+                                          title="Advance notice — pick and stage only. Materials leave on the verified wet-signed scan.">
+                                        <i class="fas fa-boxes-packing me-1"></i>Prepare only
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+                                {% if order.batch_release_letter.is_urgent %}
+                                <span class="badge bg-danger mt-1"
+                                      title="{{ order.batch_release_letter.urgent_reason }}">
+                                    <i class="fas fa-bolt me-1"></i>Urgent
+                                </span>
+                                {% endif %}
+                            </div>
                             {% else %}
                                 {% if order.status != "Rejected" and order.status != "Cancelled" %}
                                 <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
@@ -464,7 +527,41 @@
                     <div class="row mt-3">
                         <div class="col-12">
                             <h6 class="text-muted mb-2">Release event</h6>
-                            {% if not order.release_letter.pdf_file %}
+                            {% comment %}
+                              Three different situations, and telling them apart
+                              matters because this panel is what a Store Officer
+                              acts on.
+
+                              Saying "cannot be processed" on an urgently cleared
+                              release would have this page contradict a management
+                              directive — the officer would block a release the
+                              Chief Director explicitly released, and the paper
+                              trail would show the system telling him to.
+                              Equally, the urgent case must not read as "all
+                              clear": the scan is still owed and is chased as
+                              outstanding.
+                            {% endcomment %}
+                            {% if order.release_letter.is_urgent and not order.release_letter.scan_on_file %}
+                            <div class="alert alert-danger d-flex align-items-start" role="alert">
+                                <i class="fas fa-bolt me-2 mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <strong>Cleared to release &mdash; management directive.</strong>
+                                    {{ order.release_letter.urgent_declared_by.get_full_name|default:"A signatory" }}
+                                    directed that
+                                    {% if order.release_letter.code %}<code>{{ order.release_letter.code }}</code>{% endif %}
+                                    be released on the digital signature, ahead of the wet-signed scan.
+                                    <div class="mt-1 fst-italic">{{ order.release_letter.urgent_reason }}</div>
+                                    <div class="mt-1">
+                                        The signed copy is <strong>still required</strong> and is recorded
+                                        as outstanding until it is uploaded.
+                                    </div>
+                                </div>
+                                <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
+                                    class="btn btn-sm btn-danger ms-3">
+                                    <i class="fas fa-upload me-1"></i> Upload signed copy
+                                </a>
+                            </div>
+                            {% elif not order.release_letter.pdf_file %}
                             <div class="alert alert-warning d-flex align-items-start" role="alert">
                                 <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
                                 <div class="flex-grow-1">
@@ -472,6 +569,13 @@
                                     Release cannot be processed until the signed scan of release letter
                                     {% if order.release_letter.code %}<code>{{ order.release_letter.code }}</code>{% endif %}
                                     is on file.
+                                    {% if order.release_letter.on_advance_notice %}
+                                    <div class="mt-1">
+                                        The documents are fully signed, so the materials may be
+                                        <strong>picked and staged now</strong> &mdash; they may not leave
+                                        MMU until the scan is on file.
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 <a href="{% url 'release-letter-upload' %}?request_code={{ order.request_code }}"
                                     class="btn btn-sm btn-warning ms-3">

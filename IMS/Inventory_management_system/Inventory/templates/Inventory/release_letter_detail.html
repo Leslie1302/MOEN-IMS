@@ -496,12 +496,58 @@
                         {% endif %}
 
                     {% elif ws == 'memo_generated' or ws == 'awaiting_signature' %}
-                        <div class="rl-next-title">Print, sign, and upload the scanned copy</div>
-                        <div class="rl-next-help">
-                            Download the unsigned letter, print it, obtain the Chief Director's
-                            wet signature, then upload the signed scan below. The system verifies the
-                            scan's verification code matches <code>{{ release_letter.code }}</code>.
+                        {% comment %}
+                        Two routes, stated as a choice.
+
+                        This panel used to describe only the wet-signature route
+                        — "print it, obtain the Chief Director's wet signature" —
+                        which was correct before in-system signing existed and
+                        actively misleading afterwards. It is the most prominent
+                        thing on the page, so an officer following it would never
+                        discover the e-signature route at all, and the controls
+                        added further down would go unread.
+
+                        Both are legitimate. The digital route is faster and
+                        captures who signed against which version; the wet route
+                        is what the Ministry's own file copy still requires. The
+                        officer picks.
+                        {% endcomment %}
+                        <div class="rl-next-title">Choose how this gets signed</div>
+                        <div class="rl-next-help mb-2">
+                            {% if release_letter.sent_for_signature_at %}
+                                Sent to
+                                {% if next_step.signatory %}{{ next_step.signatory.title }}{% else %}the next signatory{% endif %}
+                                on {{ release_letter.sent_for_signature_at|date:"d M Y, H:i" }}.
+                                They sign in the system — nothing was emailed as an attachment.
+                                You can still print for a wet signature instead.
+                            {% else %}
+                                <b>In the system:</b> send it to
+                                {% if next_step.signatory %}{{ next_step.signatory.title }}{% else %}the next signatory{% endif %}
+                                and they sign here — the signature is captured against this
+                                document version.
+                                <b>On paper:</b> print the letter on Ministry letterhead stock,
+                                get it wet-signed, and upload the scan below. The scan's QR is
+                                checked against <code>{{ release_letter.code }}</code>.
+                            {% endif %}
                         </div>
+
+                        {% if can_send_for_signature %}
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <form method="post" action="{% url 'send_for_signature' release_letter.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane me-1"></i>
+                                    {% if release_letter.sent_for_signature_at %}Send a reminder{% else %}Send for signature{% endif %}
+                                </button>
+                            </form>
+                            <a href="{{ letter_plain_print_url }}" target="_blank" rel="noopener"
+                               class="btn btn-outline-secondary">
+                                <i class="fas fa-print me-1"></i> Print on letterhead stock
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <div class="rl-next-help mb-1"><b>Or upload the wet-signed scan:</b></div>
                         {% if can_generate_documents %}
                         <form method="post" action="{% url 'release_letter_upload_scan' release_letter.pk %}" enctype="multipart/form-data">
                             {% csrf_token %}
@@ -567,6 +613,28 @@
                             <i class="fas fa-info-circle me-1" style="color:var(--rl-green);"></i>
                             <strong style="color:#1b5e20;">Physical release</strong> is confirmed automatically when the waybill QR is scanned by the consignee.
                         </div>
+
+                        {% comment %}
+                          Manual fallback. The automatic path depends on the consignee
+                          scanning the waybill QR; when that does not happen the release
+                          sits at Approved for ever, because MarkReleasedView existed but
+                          nothing in any template linked to it. This is the escape hatch,
+                          labelled as one so the QR route stays the norm.
+                        {% endcomment %}
+                        {% if can_generate_documents %}
+                        <form method="post" action="{% url 'release_letter_mark_released' release_letter.pk %}"
+                              class="mt-2"
+                              onsubmit="return confirm('Mark this release as physically released? Use this only when the waybill QR could not be scanned.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-truck me-1"></i> Mark as released manually
+                            </button>
+                            <div class="small text-muted mt-1">
+                                Only if the materials have physically left MMU and the
+                                waybill QR was not scanned.
+                            </div>
+                        </form>
+                        {% endif %}
 
                     {% elif ws == 'released' %}
                         <div class="rl-next-title text-success">
@@ -1222,13 +1290,46 @@
                     <h6><i class="fas fa-folder-open"></i> Generated Files</h6>
                 </div>
                 <div class="rl-card-body">
+                    {% comment %}
+                    These links serve the STORED PDF — the bytes minted the last
+                    time someone pressed Generate. The live preview above renders
+                    from the current templates and data, so the two legitimately
+                    differ whenever anything has moved since.
+
+                    That difference is invisible unless the page says so, and the
+                    reasonable conclusion from opening a stale PDF is that the
+                    system is serving old documents at random. So each link now
+                    carries its version and mint time, and drift raises a banner.
+                    {% endcomment %}
+                    {% if memo_drift or letter_drift %}
+                    <div class="alert alert-warning small py-2 px-3 mb-2">
+                        <i class="fas fa-triangle-exclamation me-1"></i>
+                        The stored PDFs below were produced before the current data or
+                        wording. The previews above are up to date; these files are not.
+                        {% if can_generate_documents and not any_locked %}
+                        Re-generate to refresh them.
+                        {% elif any_locked %}
+                        The {{ locked_kinds|join:" and " }} is signed and locked, so it
+                        cannot be re-generated — a correction from a signatory will
+                        supersede the signature and release it for a new version.
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                     {% if release_letter.memo_pdf %}
                     <a href="{{ release_letter.memo_pdf.url }}" class="rl-file has-file" download>
                         <span class="d-flex align-items-center gap-2">
                             <span class="rl-file-icon"><i class="fas fa-file-pdf" style="color:var(--rl-green);"></i></span>
                             <span>
-                                <div class="rl-file-name">Approval Memo</div>
-                                <div class="rl-file-meta">{{ release_letter.memo_pdf.size|filesizeformat }} · Generated {{ release_letter.documents_generated_at|date:"d M Y" }}</div>
+                                <div class="rl-file-name">
+                                    Approval Memo
+                                    {% if release_letter.memo_version %}<span class="rl-soft">v{{ release_letter.memo_version }}</span>{% endif %}
+                                </div>
+                                <div class="rl-file-meta">
+                                    {{ release_letter.memo_pdf.size|filesizeformat }} ·
+                                    Minted {{ release_letter.documents_generated_at|date:"d M Y, H:i" }}
+                                    {% if memo_drift %}· <span class="text-warning">out of date</span>{% endif %}
+                                </div>
                             </span>
                         </span>
                         <i class="fas fa-download rl-soft"></i>
@@ -1250,12 +1351,37 @@
                         <span class="d-flex align-items-center gap-2">
                             <span class="rl-file-icon"><i class="fas fa-file-pdf" style="color:var(--rl-green);"></i></span>
                             <span>
-                                <div class="rl-file-name">Release Letter</div>
-                                <div class="rl-file-meta">{{ release_letter.letter_pdf.size|filesizeformat }} · Generated {{ release_letter.documents_generated_at|date:"d M Y" }}</div>
+                                <div class="rl-file-name">
+                                    Release Letter
+                                    {% if release_letter.letter_version %}<span class="rl-soft">v{{ release_letter.letter_version }}</span>{% endif %}
+                                </div>
+                                <div class="rl-file-meta">
+                                    {{ release_letter.letter_pdf.size|filesizeformat }} ·
+                                    Minted {{ release_letter.documents_generated_at|date:"d M Y, H:i" }}
+                                    {% if letter_drift %}· <span class="text-warning">out of date</span>{% endif %}
+                                </div>
                             </span>
                         </span>
                         <i class="fas fa-download rl-soft"></i>
                     </a>
+                    {% comment %}
+                    The wet-signature route. The Ministry prints onto letterhead
+                    stock, so the rendered letterhead has to come off — but only
+                    at print time. Keeping a second no-letterhead PDF on file
+                    would give the Ministry two documents that can disagree, and
+                    the one that gets wet-signed and filed would be the copy
+                    nobody verified. Same body, same QR, same signatures; only
+                    the artwork is left off. The calibrated insets stay, because
+                    they are what keeps the text clear of the pre-printed crest.
+                    {% endcomment %}
+                    <a href="{{ letter_plain_print_url }}" target="_blank" rel="noopener"
+                       class="btn btn-outline-secondary btn-sm w-100 mt-2">
+                        <i class="fas fa-print me-1"></i> Print on Ministry letterhead stock
+                    </a>
+                    <div class="form-text small mb-2">
+                        For the wet-signature route. Opens without the rendered letterhead;
+                        the stored PDF is unchanged.
+                    </div>
                     {% else %}
                     <div class="rl-file is-empty">
                         <span class="d-flex align-items-center gap-2">
@@ -1383,8 +1509,174 @@
                         {% endif %}
                     </div>
                     {% endfor %}
+
+                    {% comment %}
+                    ── Send for signature ──
+
+                    Deliberately not automatic on generation. If every generated
+                    draft emailed the Ag. Director he would learn to ignore the
+                    emails, and a signature queue that is ignored has died
+                    without anyone being able to say when. So the handover is
+                    the officer's own act, taken when he judges it ready.
+
+                    Re-sendable on purpose: the commonest reason to come back to
+                    this button is that a week has gone by.
+                    {% endcomment %}
+                    {% if can_send_for_signature %}
+                    <div class="mt-3 pt-3 border-top">
+                        {% if release_letter.sent_for_signature_at %}
+                        <div class="small text-muted mb-2">
+                            <i class="fas fa-paper-plane me-1"></i>
+                            Sent for signature {{ release_letter.sent_for_signature_at|date:"d M Y, H:i" }}
+                            {% if release_letter.sent_for_signature_by %}
+                            by {{ release_letter.sent_for_signature_by.get_full_name|default:release_letter.sent_for_signature_by.username }}
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="small text-muted mb-2">
+                            <i class="fas fa-circle-info me-1"></i>
+                            Not sent yet. Generating the documents notified nobody &mdash;
+                            {% if next_step.signatory %}{{ next_step.signatory.title }}{% else %}the next signatory{% endif %}
+                            is told when you send.
+                        </div>
+                        {% endif %}
+                        <form method="post" action="{% url 'send_for_signature' release_letter.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-paper-plane me-1"></i>
+                                {% if release_letter.sent_for_signature_at %}
+                                Send a reminder to
+                                {% else %}
+                                Send for signature to
+                                {% endif %}
+                                {% if next_step.signatory %}{{ next_step.signatory.title }}{% else %}the next signatory{% endif %}
+                            </button>
+                            <div class="form-text small">
+                                Emails a link. The documents stay in the system &mdash; nothing is attached.
+                            </div>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    {% comment %}
+                    A signatory reading this page belongs on the signing page,
+                    where both documents sit side by side and nothing on screen
+                    is a schedule officer's control.
+                    {% endcomment %}
+                    {% if can_sign_any or viewer_is_signatory %}
+                    <div class="mt-3 pt-3 border-top">
+                        <a class="btn btn-success btn-sm w-100" href="{% url 'sign_release' release_letter.pk %}">
+                            <i class="fas fa-pen-nib me-1"></i> Open the signing page
+                        </a>
+                        <div class="form-text small">Both documents, side by side.</div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+
+            {# ── MMU status: prepare vs release ── #}
+            {% comment %}
+              Two questions kept deliberately apart. Advance notice lets MMU
+              start; only a confirmed scan — or a signatory's urgent directive —
+              lets them move materials. Collapsing the two is the exact mistake
+              this design exists to avoid, so the panel states both plainly.
+            {% endcomment %}
+            {% if release_letter.advance_notice_at %}
+            <div class="rl-card" id="mmu">
+                <div class="rl-card-hdr">
+                    <h6 class="mb-0"><i class="fas fa-boxes-stacked"></i> MMU</h6>
+                </div>
+                <div class="rl-card-body">
+                    <div class="small mb-2">
+                        <i class="fas fa-circle-check text-success me-1"></i>
+                        <b>Advance notice</b> since {{ release_letter.advance_notice_at|date:"d M Y, H:i" }}.
+                        MMU may pick and stage the materials.
+                    </div>
+
+                    {% if release_letter.is_urgent %}
+                    <div class="alert alert-danger small py-2 px-3 mb-2">
+                        <b><i class="fas fa-bolt me-1"></i>Treated as urgent.</b>
+                        MMU may release on the digital signature.
+                        <div class="mt-1">
+                            Directed by
+                            {{ release_letter.urgent_declared_by.get_full_name|default:release_letter.urgent_declared_by.username|default:"a signatory" }}
+                            on {{ release_letter.urgent_declared_at|date:"d M Y, H:i" }}.
+                        </div>
+                        <div class="mt-1 fst-italic">{{ release_letter.urgent_reason }}</div>
+                        {% if release_letter.urgent_scan_outstanding %}
+                        <div class="mt-1">
+                            The wet-signed copy is <b>still outstanding</b>. Urgency changed
+                            when MMU could act, not whether the paper record exists.
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% elif release_letter.scan_on_file %}
+                    <div class="small text-success">
+                        <i class="fas fa-file-circle-check me-1"></i>
+                        Signed scan on file &mdash; MMU may release.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning small py-2 px-3 mb-2">
+                        <b>Prepare only &mdash; do not release.</b>
+                        Materials leave on the verified wet-signed scan.
+                    </div>
+                    {% endif %}
+
+                    {% if can_declare_urgent %}
+                    <button type="button" class="btn btn-outline-danger btn-sm mt-1"
+                            data-bs-toggle="modal" data-bs-target="#rl-urgent-modal">
+                        <i class="fas fa-bolt me-1"></i> Treat as urgent
+                    </button>
+                    <div class="form-text mt-1">
+                        Clears MMU to release before the scan. A reason is required and
+                        appears in the urgent-releases report.
+                    </div>
+                    {% elif urgency_refusal and not release_letter.is_urgent %}
+                    <div class="small text-muted mt-1">
+                        <i class="fas fa-circle-info me-1"></i>{{ urgency_refusal }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# ── Calls for discussion ── #}
+            {% if discussions or can_call_officer %}
+            <div class="rl-card" id="discussion">
+                <div class="rl-card-hdr">
+                    <h6 class="mb-0"><i class="fas fa-comments"></i> Discussion</h6>
+                </div>
+                <div class="rl-card-body">
+                    {% for d in discussions %}
+                    <div class="{% if not forloop.last %}mb-2 pb-2 border-bottom{% endif %}">
+                        <div class="small">
+                            <b>{{ d.raised_by.get_full_name|default:d.raised_by.username|default:"A signatory" }}</b>
+                            &middot; {{ d.created_at|date:"d M Y, H:i" }}
+                            {% if d.document_kind %}&middot; on the {{ d.document_kind }}{% endif %}
+                        </div>
+                        <div class="small text-muted">{{ d.note|linebreaksbr }}</div>
+                        {% if not d.email_sent %}
+                        <div class="small text-warning">
+                            <i class="fas fa-triangle-exclamation me-1"></i>
+                            Notified in-app; the email did not leave.
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="small text-muted">
+                        No one has asked to discuss this release.
+                    </div>
+                    {% endfor %}
+
+                    {% if can_call_officer %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2"
+                            data-bs-toggle="modal" data-bs-target="#rl-call-modal">
+                        <i class="fas fa-phone me-1"></i> Call officer for discussion
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             {# ── Sent history ── #}
             {% if dispatches %}
@@ -1592,6 +1884,90 @@
     });
 })();
 </script>
+{% endif %}
+
+{% if can_call_officer %}
+{# ── Call the preparing officer. A conversation, not a rejection. ── #}
+<div class="modal fade" id="rl-call-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'call_officer' release_letter.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'release_letter_detail' release_letter.pk %}#discussion">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-phone me-2 text-secondary"></i>Call officer for discussion</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">
+            The release stays exactly where it is. Nothing is rejected and no status
+            changes &mdash; the officer is emailed from your mailbox and notified in
+            the system, and your note goes on file against this release.
+          </p>
+          <label class="form-label small fw-semibold mb-1" for="rl-call-note">
+            What would you like to discuss?
+          </label>
+          <textarea name="note" id="rl-call-note" rows="4" class="form-control" required
+                    placeholder="e.g. The quantity for Bawku West looks higher than the BOQ — can we talk before I sign?"></textarea>
+          <div class="mt-3">
+            <label class="form-label small fw-semibold mb-1" for="rl-call-kind">About</label>
+            <select name="document_kind" id="rl-call-kind" class="form-select form-select-sm">
+              <option value="">The release generally</option>
+              <option value="memo">The approval memo</option>
+              <option value="letter">The release letter</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-1"></i> Send</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_declare_urgent %}
+{# ── Management directive: clear MMU to release on the digital signature. ── #}
+<div class="modal fade" id="rl-urgent-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'declare_urgent' release_letter.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'release_letter_detail' release_letter.pk %}#mmu">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-bolt me-2 text-danger"></i>Treat as urgent</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">
+            This clears MMU to release the materials on the digital signature, ahead of
+            the wet-signed scan. It is a directive from you as a signatory, not a
+            request from the preparing officer.
+          </p>
+          <label class="form-label small fw-semibold mb-1" for="rl-urgent-reason">
+            Reason
+          </label>
+          <textarea name="reason" id="rl-urgent-reason" rows="3" class="form-control" required
+                    placeholder="e.g. Contractor mobilising to Nandom on Monday; the signed copy is in transit from the Chief Director's office."></textarea>
+          <div class="alert alert-light border small mt-3 mb-0">
+            <i class="fas fa-circle-info me-1"></i>
+            Recorded against the release with your name and the time, shown wherever
+            this release appears, and listed in the
+            <a href="{% url 'urgent_releases_report' %}">urgent-releases report</a>.
+            <b>The wet-signed copy is still required</b> and will show as outstanding
+            until it is uploaded.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger"><i class="fas fa-bolt me-1"></i> Confirm directive</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% if can_generate_documents %}

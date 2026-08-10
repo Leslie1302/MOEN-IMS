@@ -33,6 +33,28 @@
 
     <title>{% block title %}MOEGT Integrated Energy Project System (IEPS){% endblock %}</title>
 
+    {% comment %}
+    jQuery. Loaded in <head>, synchronously, and deliberately not at the foot of
+    the body next to Bootstrap.
+
+    A dozen templates call `$(...)` — select2 pickers, the AJAX order summary on
+    the release-letter page, the transporter and map screens — and none of them
+    worked, because base.html never loaded jQuery at all. The only symptom was a
+    console `ReferenceError: $ is not defined`, so on the release-letter page the
+    request-code dropdown silently ignored `?request_code=`, the officer pressed
+    Generate on an empty field, and the page told him to pick a code he could see
+    already filled in on the summary below.
+
+    In <head> rather than before `{% templatetag openblock %} block extra_js {% templatetag closeblock %}`
+    because inline scripts inside the content block parse earlier than either;
+    loading jQuery after them would leave exactly the same error on those pages.
+    Synchronous rather than `defer` for the same reason — inline handlers run at
+    parse time and cannot wait.
+    {% endcomment %}
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"
+        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+        crossorigin="anonymous"></script>
+
     {% block extra_head %}{% endblock %}
     {% block extra_css %}{% endblock %}
 </head>

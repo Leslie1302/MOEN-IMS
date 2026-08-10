@@ -210,6 +210,35 @@
                         <i class="fas fa-sync"></i>
                     </a>
                 </form>
+
+                {% comment %}
+                  MMU's shortcuts. "Prepare" is the list they should be working
+                  from every morning: fully signed, materials not yet released.
+                  Picking and staging these needs nothing the paper copy provides.
+                {% endcomment %}
+                <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
+                    <span style="font-size:0.75rem;color:var(--rl-text-muted);text-transform:uppercase;letter-spacing:0.04em;">
+                        MMU
+                    </span>
+                    <a href="?mmu=prepare" class="btn btn-sm {% if mmu_filter == 'prepare' %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                       style="font-size:0.75rem;"
+                       title="Signed and awaiting release. Pick and stage only — materials leave on the verified wet-signed scan.">
+                        <i class="fas fa-boxes-packing me-1"></i>To prepare
+                        <span class="badge bg-light text-dark ms-1">{{ advance_notice_count }}</span>
+                    </a>
+                    <a href="?mmu=urgent" class="btn btn-sm {% if mmu_filter == 'urgent' %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                       style="font-size:0.75rem;"
+                       title="Management directive to release on the digital signature.">
+                        <i class="fas fa-bolt me-1"></i>Urgent
+                        <span class="badge bg-light text-dark ms-1">{{ urgent_count }}</span>
+                    </a>
+                    {% if mmu_filter %}
+                    <a href="{% url 'release_letter_list' %}" class="btn btn-sm btn-link text-decoration-none"
+                       style="font-size:0.75rem;">Clear</a>
+                    {% endif %}
+                    <a href="{% url 'urgent_releases_report' %}" class="btn btn-sm btn-link text-decoration-none ms-auto"
+                       style="font-size:0.75rem;">Urgent-releases report</a>
+                </div>
             </div>
         </div>
     </div>
@@ -260,6 +289,30 @@
                                    style="color:var(--rl-text);">
                                     {{ letter.title|truncatewords:6 }}
                                 </a>
+                                {% comment %}
+                                  MMU's two questions, answered inline: may I prepare,
+                                  and may I release. A single "signed" badge would
+                                  collapse them, which is the one thing this must not do.
+                                {% endcomment %}
+                                {% if letter.on_advance_notice %}
+                                    {% if letter.mmu_may_release %}
+                                    <span class="badge bg-success ms-1" style="font-size:0.68rem;"
+                                          title="{% if letter.is_urgent %}Management directive: release on the digital signature.{% else %}Signed scan on file.{% endif %}">
+                                        <i class="fas fa-truck-fast me-1"></i>May release
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;"
+                                          title="Advance notice — pick and stage only. Materials leave on the verified wet-signed scan.">
+                                        <i class="fas fa-boxes-packing me-1"></i>Prepare only
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+                                {% if letter.is_urgent %}
+                                <span class="badge bg-danger ms-1" style="font-size:0.68rem;"
+                                      title="{{ letter.urgent_reason }}">
+                                    <i class="fas fa-bolt me-1"></i>Urgent
+                                </span>
+                                {% endif %}
                             </td>
                             <td style="color:var(--rl-text-muted);font-size:0.82rem;">{{ letter.upload_time|date:"M d, Y H:i" }}</td>
                             <td style="color:var(--rl-text-muted);font-size:0.82rem;">

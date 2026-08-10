@@ -23,16 +23,40 @@ from .bulk_import import BulkImportResult, normalize_cell
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_COLUMNS = ['reference', 'description']
-OPTIONAL_COLUMNS = [
-    'document_date', 'request_type', 'quantity_summary', 'requested_by_name',
-    'approved_by_name', 'community', 'district', 'region', 'package_number',
-    'project_type', 'notes', 'scan_filename',
+# Columns are grouped by WHAT THEY ARE, not by whether they are required.
+#
+# The single-entry view builds model kwargs from these lists. It used to take
+# "every column except a hardcoded exclusion list", which broke the moment a new
+# import-only column was added (`release_letter_filename` went straight into
+# ArchivedRequisition(**data) and raised TypeError). Naming each group
+# explicitly means a new column cannot leak into the model constructor.
+
+# Map 1:1 onto CharField/TextField on the model.
+MODEL_TEXT_COLUMNS = [
+    'reference', 'description', 'request_type', 'quantity_summary',
+    'requested_by_name', 'approved_by_name', 'community', 'district', 'region',
+    'package_number', 'project_type', 'notes',
     # The release letter issued against the requisition — usually the document
     # an auditor actually asks for, since it carries the authorising signature.
+    'release_letter_reference',
+]
+
+# Parsed into date objects before they reach the model.
+MODEL_DATE_COLUMNS = ['document_date', 'release_letter_date']
+
+# Spreadsheet-only: they name an uploaded file and are NEVER model fields.
+IMPORT_ONLY_COLUMNS = ['scan_filename', 'release_letter_filename']
+
+REQUIRED_COLUMNS = ['reference', 'description']
+
+# Order here is the order of the downloadable template, so keep it readable.
+ALL_COLUMNS = [
+    'reference', 'description', 'document_date', 'request_type',
+    'quantity_summary', 'requested_by_name', 'approved_by_name',
+    'community', 'district', 'region', 'package_number', 'project_type',
+    'notes', 'scan_filename',
     'release_letter_reference', 'release_letter_date', 'release_letter_filename',
 ]
-ALL_COLUMNS = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
 
 _DATE_FORMATS = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%m/%d/%Y', '%d %b %Y', '%d %B %Y')
 

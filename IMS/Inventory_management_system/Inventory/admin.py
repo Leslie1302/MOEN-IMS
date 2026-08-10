@@ -15,7 +15,7 @@ from .models import (
     SHEPCommunity, Community, ProjectSite, Project,
     ProjectType, MemberOfParliament, ProjectConsultant,
     Signatory, ReleaseLetter, Letterhead,
-    SigningStep, DocumentSignature, ReleaseCodeSequence,
+    SigningStep, DocumentSignature, DiscussionRequest, ReleaseCodeSequence,
 )
 from .transporter_models import Transporter, TransportVehicle
 from .forms import ExcelUserImportForm, ExcelProjectSiteImportForm
@@ -663,6 +663,30 @@ class DocumentSignatureAdmin(admin.ModelAdmin):
     list_filter = ('document_kind', 'superseded', 'signed_at')
     search_fields = ('verification_token', 'signatory_name', 'release_letter__code')
     date_hierarchy = 'signed_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+
+@admin.register(DiscussionRequest)
+class DiscussionRequestAdmin(admin.ModelAdmin):
+    """Calls raised by signatories. Read-only: this is a record of what was said.
+
+    Editable notes would make the file a record of what someone later wished
+    they had said, which is worth nothing to anyone reviewing a release.
+    """
+    list_display = ('release_letter', 'raised_by', 'officer', 'document_kind',
+                    'created_at', 'email_sent')
+    list_filter = ('email_sent', 'document_kind', 'created_at')
+    search_fields = ('release_letter__code', 'note',
+                     'raised_by__username', 'officer__username')
+    date_hierarchy = 'created_at'
 
     def has_add_permission(self, request):
         return False

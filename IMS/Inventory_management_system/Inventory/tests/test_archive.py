@@ -219,6 +219,57 @@ class ArchiveViewTests(TestCase):
         self.client.force_login(self.outsider)
         self.assertIn(self.client.get(reverse('archive_list')).status_code, (302, 403))
 
+    def test_model_column_lists_match_the_model(self):
+        """Guards the class of bug that broke the single-entry form.
+
+        The view builds `ArchivedRequisition(**data)` from MODEL_TEXT_COLUMNS.
+        When `release_letter_filename` (a spreadsheet-only column naming an
+        uploaded file) was added to the shared column list, it reached the model
+        constructor and raised TypeError. Asserting the lists against the real
+        model fields means a new import-only column cannot repeat it.
+        """
+        from Inventory.services.archive_import import (
+            IMPORT_ONLY_COLUMNS, MODEL_DATE_COLUMNS, MODEL_TEXT_COLUMNS, ALL_COLUMNS,
+        )
+        field_names = {f.name for f in ArchivedRequisition._meta.get_fields()}
+
+        for column in MODEL_TEXT_COLUMNS + MODEL_DATE_COLUMNS:
+            self.assertIn(column, field_names,
+                          f"'{column}' is listed as a model column but is not a field")
+
+        for column in IMPORT_ONLY_COLUMNS:
+            self.assertNotIn(column, field_names,
+                             f"'{column}' is import-only but matches a model field")
+
+        # Every column belongs to exactly one group, so none can be forgotten.
+        grouped = set(MODEL_TEXT_COLUMNS) | set(MODEL_DATE_COLUMNS) | set(IMPORT_ONLY_COLUMNS)
+        self.assertEqual(grouped, set(ALL_COLUMNS),
+                         "ALL_COLUMNS and the grouped lists have diverged")
+
+    def test_single_entry_creates_a_record_with_every_field(self):
+        """The failing case: a full submission, including the release letter."""
+        self.client.force_login(self.officer)
+        resp = self.client.post(reverse('archive_create'), {
+            'reference': 'MOEN/REQ/2021/0099',
+            'description': 'Release of conductors',
+            'document_date': '2021-05-04',
+            'request_type': 'Release',
+            'quantity_summary': '300 drums',
+            'requested_by_name': 'A. Officer',
+            'approved_by_name': 'B. Director',
+            'community': 'Nkawkaw', 'district': 'Kwahu West', 'region': 'Eastern',
+            'package_number': 'PKG-001', 'project_type': 'SHEP',
+            'release_letter_reference': 'MOEN/RL/2021/0044',
+            'release_letter_date': '2021-05-11',
+            'notes': 'Recovered from the 2021 file',
+        })
+        self.assertEqual(resp.status_code, 302, "the form should redirect on success")
+
+        record = ArchivedRequisition.objects.get(reference='MOEN/REQ/2021/0099')
+        self.assertEqual(record.release_letter_reference, 'MOEN/RL/2021/0044')
+        self.assertEqual(record.release_letter_date, date(2021, 5, 11))
+        self.assertEqual(record.document_date, date(2021, 5, 4))
+
     def test_single_entry_creates_a_record(self):
         self.client.force_login(self.officer)
         self.client.post(reverse('archive_create'), {

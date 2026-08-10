@@ -72,8 +72,35 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                         messages.error(request, f"Error: Invalid category, unit, or warehouse at row {index + 2}")
                         continue
 
+                    # An empty Excel cell arrives as float('nan'), which a
+                    # CharField happily stores as the literal string 'nan'.
+                    code = '' if not pd.notna(row['code']) else str(row['code']).strip()
+
+                    # Reject rather than create a code-less item. Two reasons,
+                    # and the second is the serious one:
+                    #
+                    #   * The material code is the BoQ's join key. The BoQ
+                    #     upload copies it straight off the matched item
+                    #     (`item_code = inventory_item.code`), so one blank here
+                    #     becomes a blank item code on every BoQ line for that
+                    #     material — which is how it shows up as an empty column
+                    #     in the over-issuance summary, a long way from here.
+                    #
+                    #   * `get_or_create(code='')` matches the FIRST blank-coded
+                    #     item, so a second blank row does not create a second
+                    #     item — it adds its quantity to an unrelated material.
+                    #     A silently merged stock balance is worse than a
+                    #     rejected row.
+                    if not code:
+                        messages.error(
+                            request,
+                            f"Row {index + 2}: no material code. The code is what links "
+                            "this item to the Bill of Quantity, so the row was skipped — "
+                            "add a code and re-upload.")
+                        continue
+
                     item, created = InventoryItem.objects.get_or_create(
-                        code=row['code'],
+                        code=code,
                         defaults={
                             'name': row['name'],
                             'quantity': row['quantity'],

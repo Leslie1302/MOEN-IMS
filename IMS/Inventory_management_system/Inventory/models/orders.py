@@ -297,6 +297,39 @@ class ReleaseLetter(auto_prefetch.Model):
         related_name='urgent_releases')
     urgent_declared_at = models.DateTimeField(null=True, blank=True)
 
+    # Set when the signing chain completes. From this moment MMU may pick and
+    # stage stock, but may NOT release it — that still waits on the verified
+    # wet-signed scan, unless management has declared the release urgent.
+    #
+    # Stored rather than derived because MMU's list has to filter on it, and
+    # `signing_complete()` walks the chain per row. Set once and never cleared
+    # except by void-and-reissue, which supersedes the signatures behind it.
+    advance_notice_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="When the digital signing chain completed. Advance notice to MMU: "
+                  "prepare only, do not release.")
+
+    # ── Send for signature ──────────────────────────────────────────────────
+    # Generating a document notifies nobody. Handing it to the first signatory
+    # is a separate, explicit act by the preparing officer, recorded here.
+    #
+    # Two reasons this is a stored field rather than a lookup over Notification
+    # rows. First, the officer needs to see whether he already sent it — without
+    # that the button is a shot in the dark and the honest response is to press
+    # it again. Second, a Notification can be deleted; the record that a release
+    # was formally handed over should outlive the message that carried it.
+    #
+    # Deliberately does NOT gate the approvals queue. A signatory still sees a
+    # generated-but-unsent release, marked as not yet sent. Filtering on this
+    # would turn an officer's button into a permission wall over a senior
+    # officer's own paperwork, which §2a(iii) rules out.
+    sent_for_signature_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="When the preparing officer last sent this release to the next signatory.")
+    sent_for_signature_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='releases_sent_for_signature')
+
     # Unguessable per-document secret carried in the QR link. Release codes are
     # sequential and therefore enumerable, so a code alone proves only that a
     # reference exists — a forger could print a real code on a fake letter and
@@ -325,19 +358,83 @@ class ReleaseLetter(auto_prefetch.Model):
     def signatures_for(self, kind):
         return self.signatures.filter(document_kind=kind, superseded=False).order_by('signed_at')
 
-    def next_signing_step(self, kind):
-        """The next unsigned required step for `kind`, or None when complete."""
+    def _signed_step_ids(self):
+        return set(self.signatures.filter(superseded=False)
+                   .values_list('step_id', flat=True))
+
+    def next_signing_step(self, kind=None):
+        """The next unsigned required step in the release's sequence.
+
+        The sequence spans BOTH documents: the Ag. Director signs the memo, then
+        the Chief Director signs the letter, because the signed memo is the
+        authority for the letter. Passing `kind` asks a narrower question — "is
+        this document's turn?" — and returns None when the next step in the
+        release belongs to the other document. That is what stops the Chief
+        Director signing the letter before the memo has been approved.
+        """
         from Inventory.models import SigningStep
-        signed_step_ids = set(self.signatures_for(kind).values_list('step_id', flat=True))
-        for step in SigningStep.chain_for(kind):
-            if step.required and step.pk not in signed_step_ids:
+
+        signed = self._signed_step_ids()
+        for step in SigningStep.chain():
+            if step.required and step.pk not in signed:
+                if kind is not None and step.document_kind != kind:
+                    return None      # not this document's turn yet
                 return step
         return None
 
-    def signing_complete(self, kind):
+    def signing_complete(self, kind=None):
+        """True when every required step is signed — for one document, or all."""
         from Inventory.models import SigningStep
-        chain = [s for s in SigningStep.chain_for(kind) if s.required]
-        return bool(chain) and self.next_signing_step(kind) is None
+
+        chain = [s for s in SigningStep.chain()
+                 if s.required and (kind is None or s.document_kind == kind)]
+        if not chain:
+            return False
+        signed = self._signed_step_ids()
+        return all(step.pk in signed for step in chain)
+
+    # ── MMU fast-track ──────────────────────────────────────────────────────
+    # Two separate questions, deliberately kept apart: may MMU *prepare*, and
+    # may MMU *release*. Collapsing them is exactly the mistake this design
+    # exists to avoid — the whole point of advance notice is that it grants the
+    # first without granting the second.
+
+    SCAN_SETTLED_STATES = ('approved', 'released')
+
+    @property
+    def on_advance_notice(self):
+        """MMU may pick and stage stock, but not release it.
+
+        True from chain completion until the materials are gone. Most of the
+        delay in a release sits in MMU waiting to *start*, and nothing about
+        starting requires the paper copy to be on file yet.
+        """
+        return bool(self.advance_notice_at) and self.workflow_status not in ('released', 'voided')
+
+    @property
+    def scan_on_file(self):
+        """A wet-signed scan has been uploaded and confirmed by a second person."""
+        return self.workflow_status in self.SCAN_SETTLED_STATES
+
+    @property
+    def mmu_may_release(self):
+        """The only question MMU should ever have to ask before moving stock.
+
+        Normally answered by the confirmed wet-signed scan. `is_urgent` is the
+        one other way to answer it, and only a signatory can set that.
+        """
+        if self.workflow_status in ('voided', 'draft'):
+            return False
+        return self.scan_on_file or (self.is_urgent and self.signing_complete())
+
+    @property
+    def urgent_scan_outstanding(self):
+        """Released on a management directive, with the paper copy still missing.
+
+        Urgency changes *when* MMU may act, never *whether* the record exists —
+        so this is the number Internal Audit should be able to pull at any time.
+        """
+        return bool(self.is_urgent) and not self.scan_on_file
 
     def document_drift(self, kind):
         """'memo'|'letter' → True when the data changed after a hand-edit."""

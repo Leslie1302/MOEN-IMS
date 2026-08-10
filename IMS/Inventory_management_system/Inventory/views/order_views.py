@@ -623,18 +623,44 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
     is_archive = False
 
     def get_queryset(self):
+        """Orders visible to this user.
+
+        The whole-warehouse view is for people accountable for it: superusers,
+        Stores Management and Management. A Store Officer sees only the orders
+        assigned to them — showing every officer the entire national order book
+        is both noise and an unnecessary disclosure.
+
+        Anyone else gets nothing rather than everything: failing closed is the
+        right default for a list that drives stock movements.
+        """
         try:
             qs = MaterialOrder.objects.select_related(
-                'user', 'unit', 'category', 'warehouse'
+                'user', 'unit', 'category', 'warehouse', 'assigned_to'
             ).order_by('-date_requested')
-            if self.is_archive:
-                qs = qs.filter(status__in=ARCHIVED_ORDER_STATUSES)
-            else:
-                qs = qs.filter(status__in=ACTIVE_ORDER_STATUSES)
-            return qs
+
+            qs = qs.filter(
+                status__in=ARCHIVED_ORDER_STATUSES if self.is_archive
+                else ACTIVE_ORDER_STATUSES)
+
+            return self.scope_to_user(qs, self.request.user)
         except Exception as e:
             logger.error(f"Error in MaterialOrdersView: {str(e)}", exc_info=True)
             return MaterialOrder.objects.none()
+
+    @staticmethod
+    def scope_to_user(qs, user):
+        if user.is_superuser:
+            return qs
+
+        groups = set(user.groups.values_list('name', flat=True))
+        if groups & {'Stores Management', 'Management'}:
+            return qs
+        if 'Store Officers' in groups:
+            return qs.filter(assigned_to=user)
+
+        logger.info("User %s has no material-order role; returning an empty list.",
+                    user.username)
+        return qs.none()
 
     def paginate_queryset(self, queryset, page_size):
         """Override to handle invalid page numbers gracefully"""
@@ -657,7 +683,12 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        stats = MaterialOrder.objects.aggregate(
+        # Counts must be scoped the same way as the list, or a Store Officer
+        # sees "3 active" above a table showing one — which reads as a bug and
+        # leaks the size of the national order book.
+        stats = self.scope_to_user(
+            MaterialOrder.objects.all(), self.request.user
+        ).aggregate(
             total_orders=Count('id'),
             pending_orders=Count('id', filter=Q(status='Pending')),
             completed_orders=Count('id', filter=Q(status='Completed')),
@@ -669,6 +700,14 @@ class MaterialOrdersView(LoginRequiredMixin, ListView):
         context['is_archive'] = self.is_archive
         context['active_url_name'] = 'material_orders'
         context['archive_url_name'] = 'material_orders_archive'
+
+        # Explains an empty or short list rather than leaving it looking broken.
+        groups = set(self.request.user.groups.values_list('name', flat=True))
+        context['scoped_to_assignments'] = (
+            not self.request.user.is_superuser
+            and 'Store Officers' in groups
+            and not (groups & {'Stores Management', 'Management'}))
+
         annotate_bulk_batches(context.get('orders') or context.get('object_list') or [])
         return context
 

@@ -1,0 +1,346 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% comment %}
+The signatory's landing point. Three sections in the order a signatory cares
+about them, and every entry shows BOTH documents: the Ag. Director is approving
+that this letter goes out, and the Chief Director signs the letter on the
+authority of that memo. Neither should have to go looking for the other half.
+
+"Awaiting others" matters more than it looks. Without it, a signatory who is
+second in the chain opens an empty page and concludes the system is broken.
+{% endcomment %}
+
+{% block title %}Approvals - MOEN-IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --ap-border: #e3e6ea;
+        --ap-surface: #ffffff;
+        --ap-subtle: #f7f8fa;
+        --ap-text: #1f2933;
+        --ap-muted: #6c757d;
+        --ap-radius: 10px;
+        --ap-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+        --ap-accent: #0d6efd;
+        --ap-success: #198754;
+        --ap-warning: #ad7409;
+    }
+    .ap-wrap { color: var(--ap-text); padding: 1.25rem; max-width: 1200px; margin: 0 auto; }
+    .ap-head { margin-bottom: 1.25rem; }
+    .ap-head h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 .25rem; }
+    .ap-head p { color: var(--ap-muted); font-size: .88rem; margin: 0; max-width: 62ch; }
+
+    .ap-section { margin-bottom: 1.75rem; }
+    .ap-section-hdr {
+        display: flex; align-items: baseline; gap: .5rem;
+        border-bottom: 1px solid var(--ap-border);
+        padding-bottom: .4rem; margin-bottom: .85rem;
+    }
+    .ap-section-hdr h2 { font-size: .82rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: .04em; margin: 0; }
+    .ap-count { font-size: .78rem; color: var(--ap-muted); }
+
+    .ap-card {
+        background: var(--ap-surface); border: 1px solid var(--ap-border);
+        border-radius: var(--ap-radius); box-shadow: var(--ap-shadow);
+        margin-bottom: .75rem; overflow: hidden;
+    }
+    .ap-card.is-mine { border-left: 3px solid var(--ap-success); }
+    .ap-card-body { padding: 1rem 1.15rem; }
+    .ap-title { font-weight: 600; font-size: .95rem; margin: 0 0 .15rem; }
+    .ap-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .82rem; color: var(--ap-muted); }
+    .ap-meta { font-size: .82rem; color: var(--ap-muted); margin-top: .35rem; }
+
+    .ap-docs { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+    .ap-doc {
+        display: inline-flex; align-items: center; gap: .4rem;
+        border: 1px solid var(--ap-border); border-radius: 6px;
+        padding: .35rem .65rem; font-size: .82rem; text-decoration: none;
+        color: var(--ap-text); background: var(--ap-subtle);
+    }
+    .ap-doc:hover { border-color: var(--ap-accent); color: var(--ap-accent); }
+    .ap-doc.is-signing { border-color: var(--ap-success); background: #eaf6ee;
+        color: #12633f; font-weight: 600; }
+
+    .ap-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
+    .ap-empty { color: var(--ap-muted); font-size: .86rem; padding: .9rem 0; }
+    .ap-signed { font-size: .84rem; padding: .45rem 0; border-bottom: 1px solid var(--ap-subtle); }
+    .ap-note { background: #fff8e6; border: 1px solid #f0dfae; border-radius: 6px;
+        padding: .55rem .75rem; font-size: .82rem; margin-top: .6rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ap-wrap">
+
+    <div class="ap-head">
+        <h1>Approvals</h1>
+        <p>
+            {% if oversight_only %}
+                You are not on the signing chain. This page is here so you can see
+                where each release has reached and who it is with.
+            {% else %}
+                Documents are signed here, in the system. Nothing is emailed to you as
+                an attachment and nothing you sign leaves as a file &mdash; the signed
+                copy on this system is the only one.
+            {% endif %}
+        </p>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} py-2 small">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {# ── Awaiting my signature ── #}
+    <div class="ap-section">
+        <div class="ap-section-hdr">
+            <h2>Awaiting my signature</h2>
+            <span class="ap-count">{{ awaiting_me|length }}</span>
+        </div>
+
+        {% for entry in awaiting_me %}
+        <div class="ap-card is-mine">
+            <div class="ap-card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <div class="ap-title">{{ entry.release.title|default:"Release" }}</div>
+                        <div class="ap-code">{{ entry.release.code|default:entry.release.request_code }}</div>
+                    </div>
+                    <span class="badge bg-success">Step {{ entry.step.order }} &mdash; {{ entry.step.get_document_kind_display }}</span>
+                </div>
+
+                <div class="ap-meta">
+                    Signing as <b>{{ entry.signatory.title }}</b>
+                    {% if entry.signatory.signs_for %}for {{ entry.signatory.signs_for }}{% endif %}
+                    {% if entry.release.uploaded_by %}
+                        &middot; prepared by {{ entry.release.uploaded_by.get_full_name|default:entry.release.uploaded_by.username }}
+                    {% endif %}
+                </div>
+
+                {% for sig in entry.signed_so_far %}
+                <div class="ap-meta">
+                    <i class="fas fa-check text-success me-1"></i>
+                    {{ sig.get_document_kind_display }} signed by {{ sig.signatory_name }},
+                    {{ sig.signatory_title }} &middot; {{ sig.signed_at|date:"d M Y" }}
+                </div>
+                {% endfor %}
+
+                {# Always the whole pack: you are approving a release, not a page. #}
+                <div class="ap-docs">
+                    {% if entry.release.memo_pdf %}
+                    <a class="ap-doc {% if entry.kind == 'memo' %}is-signing{% endif %}"
+                       href="{% url 'release_memo_preview' entry.release.pk %}" target="_blank" rel="noopener">
+                        <i class="fas fa-file-lines"></i> Approval memo
+                        {% if entry.kind == 'memo' %}&mdash; yours to sign{% endif %}
+                    </a>
+                    {% endif %}
+                    {% if entry.release.letter_pdf %}
+                    <a class="ap-doc {% if entry.kind == 'letter' %}is-signing{% endif %}"
+                       href="{% url 'release_letter_preview' entry.release.pk %}" target="_blank" rel="noopener">
+                        <i class="fas fa-file-signature"></i> Release letter
+                        {% if entry.kind == 'letter' %}&mdash; yours to sign{% endif %}
+                    </a>
+                    {% endif %}
+                </div>
+
+                {% if not entry.ready %}
+                <div class="ap-note">
+                    The {{ entry.kind }} has not been generated yet, so there is nothing to
+                    sign. The preparing officer still has it.
+                </div>
+                {% endif %}
+
+                {% comment %}
+                Not yet formally handed over. Shown rather than hidden — an
+                unsent release is still this signatory's business — but he
+                cannot otherwise tell a document waiting on him from one still
+                being prepared.
+                {% endcomment %}
+                {% if entry.ready and not entry.sent_at %}
+                <div class="ap-note">
+                    The preparing officer has not sent this for signature yet. You may
+                    still read and sign it; it may simply not be finished.
+                </div>
+                {% endif %}
+
+                <div class="ap-actions">
+                    <a class="btn btn-success btn-sm" href="{% url 'sign_release' entry.release.pk %}">
+                        <i class="fas fa-pen-nib me-1"></i> Review and sign
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            data-bs-toggle="modal" data-bs-target="#ap-call-modal"
+                            data-release="{% url 'call_officer' entry.release.pk %}"
+                            data-code="{{ entry.release.code|default:entry.release.request_code }}"
+                            data-kind="{{ entry.kind }}">
+                        <i class="fas fa-phone me-1"></i> Call officer for discussion
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="ap-empty">
+            {% if oversight_only %}
+                Nothing is waiting on you &mdash; you are not on the signing chain.
+            {% else %}
+                Nothing is waiting for your signature.
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {# ── Awaiting others ── #}
+    <div class="ap-section">
+        <div class="ap-section-hdr">
+            <h2>Awaiting others</h2>
+            <span class="ap-count">{{ awaiting_others|length }}</span>
+        </div>
+
+        {% for entry in awaiting_others %}
+        <div class="ap-card">
+            <div class="ap-card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <div class="ap-title">{{ entry.release.title|default:"Release" }}</div>
+                        <div class="ap-code">{{ entry.release.code|default:entry.release.request_code }}</div>
+                    </div>
+                    <span class="badge bg-secondary">With {{ entry.signatory.title }}</span>
+                </div>
+                <div class="ap-meta">
+                    Step {{ entry.step.order }} &mdash; {{ entry.step.get_document_kind_display }}.
+                    {% if entry.signed_so_far %}
+                        {{ entry.signed_so_far|length }} signature(s) already applied.
+                    {% else %}
+                        No signatures yet.
+                    {% endif %}
+                </div>
+                <div class="ap-actions">
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'sign_release' entry.release.pk %}">
+                        <i class="fas fa-eye me-1"></i> View both documents
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="ap-empty">Nothing is with another signatory.</div>
+        {% endfor %}
+    </div>
+
+    {# ── Recently signed by me ── #}
+    <div class="ap-section">
+        <div class="ap-section-hdr">
+            <h2>Recently signed by me</h2>
+            <span class="ap-count">{{ recently_signed|length }}</span>
+        </div>
+
+        {% for sig in recently_signed %}
+        <div class="ap-signed">
+            <a href="{% url 'release_letter_detail' sig.release_letter.pk %}">
+                {{ sig.release_letter.code|default:sig.release_letter.request_code }}
+            </a>
+            &mdash; {{ sig.get_document_kind_display }},
+            signed as {{ sig.signatory_title }}
+            on {{ sig.signed_at|date:"d M Y, H:i" }}
+            &middot; <span class="font-monospace">{{ sig.verification_token }}</span>
+            {% if sig.superseded %}
+            <span class="badge bg-warning text-dark ms-1">Superseded</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="ap-empty">You have not signed anything yet.</div>
+        {% endfor %}
+    </div>
+
+    {# ── What MMU has been told to prepare ── #}
+    {% if advance_notice %}
+    <div class="ap-section">
+        <div class="ap-section-hdr">
+            <h2>Signed &mdash; MMU preparing</h2>
+            <span class="ap-count">{{ advance_notice|length }}</span>
+        </div>
+        <div class="ap-empty" style="padding-top:0">
+            Fully signed. MMU may pick and stage these, but may not release them
+            until the wet-signed scan is on file &mdash; unless a signatory has
+            marked the release urgent.
+        </div>
+        {% for release in advance_notice %}
+        <div class="ap-signed">
+            <a href="{% url 'release_letter_detail' release.pk %}">
+                {{ release.code|default:release.request_code }}
+            </a>
+            &mdash; {{ release.title|truncatechars:60 }}
+            &middot; on notice since {{ release.advance_notice_at|date:"d M Y" }}
+            {% if release.is_urgent %}
+            <span class="badge bg-danger ms-1">Urgent &mdash; may release</span>
+            {% elif release.scan_on_file %}
+            <span class="badge bg-success ms-1">Scan on file</span>
+            {% else %}
+            <span class="badge bg-warning text-dark ms-1">Prepare only</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+{# ── Call officer for discussion ── #}
+<div class="modal fade" id="ap-call-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="ap-call-form">
+        {% csrf_token %}
+        <input type="hidden" name="document_kind" id="ap-call-kind">
+        <input type="hidden" name="next" value="{% url 'approval_queue' %}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-phone me-2 text-secondary"></i>Call officer for discussion</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">
+            This is a conversation, not a rejection. The release stays exactly where
+            it is &mdash; nothing is sent back and no status changes. The officer who
+            prepared <b id="ap-call-code"></b> is emailed from your own mailbox and
+            notified in the system.
+          </p>
+          <label class="form-label small fw-semibold mb-1" for="ap-call-note">
+            What would you like to discuss?
+          </label>
+          <textarea name="note" id="ap-call-note" rows="4" class="form-control"
+                    placeholder="e.g. The consignee looks wrong for this district — can we talk before I sign?"
+                    required></textarea>
+          <div class="form-text">
+            Kept on file against the release, so the conversation is on the record.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane me-1"></i> Send
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('ap-call-modal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function (event) {
+        var btn = event.relatedTarget;
+        if (!btn) return;
+        document.getElementById('ap-call-form').action = btn.dataset.release;
+        document.getElementById('ap-call-kind').value = btn.dataset.kind || '';
+        document.getElementById('ap-call-code').textContent = btn.dataset.code || 'this release';
+    });
+})();
+</script>
+{% endblock %}

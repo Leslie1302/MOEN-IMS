@@ -117,8 +117,22 @@ def _read_file(field):
         return None
 
 
-def _letterhead_ctx(kind, for_pdf=False):
+def letterhead_applies(kind):
+    """True when a rendered letterhead appears on this document at all.
+
+    Only the release letter carries one; the approval memo is an internal
+    document on a plain sheet. Exported so callers can decide whether to offer
+    the print-on-letterhead-stock option — offering it on the memo would imply a
+    difference between the two renders that does not exist.
+    """
+    return kind == 'letter'
+
+
+def _letterhead_ctx(kind, for_pdf=False, plain=False):
     """Resolve the active Letterhead into a render dict (mode + insets + preview).
+
+    `plain=True` is the wet-signature route: the sheet already carries the
+    Ministry letterhead, so the artwork must not be drawn a second time.
 
     **The letterhead is for the release letter only.** The approval memo is an
     internal document on a plain sheet: mode 'plain', its own `memo_inset_*`
@@ -137,8 +151,37 @@ def _letterhead_ctx(kind, for_pdf=False):
 
     if kind == 'memo':
         insets = lh.memo_insets_pt if lh else dict(_DEFAULT_INSETS_PT)
-        # No letterhead anywhere, so every page is margined identically.
+        # No letterhead anywhere, so every page is margined identically. The
+        # memo already prints on a plain sheet, so `plain` changes nothing here.
         return {'mode': 'plain', 'cont_top': insets['top'], **insets}
+
+    # ── Printing onto Ministry letterhead stock (the wet-signature route) ────
+    #
+    # The artwork is already on the paper, so drawing it again would print it
+    # twice. But the **insets must stay**: they are what keeps the body text
+    # clear of the pre-printed header, and they were calibrated against that
+    # exact stock. Dropping them along with the image is the tempting
+    # simplification, and it puts the first line of the letter underneath the
+    # Ministry crest.
+    #
+    # `pre_printed` is already precisely this mode — letterhead stock, no
+    # rendered header, calibrated insets reserved — so this reuses it rather
+    # than inventing a second way to say the same thing.
+    if plain:
+        if lh:
+            return {'mode': 'pre_printed',
+                    'top': lh.inset_top, 'right': lh.inset_right,
+                    'bottom': lh.inset_bottom, 'left': lh.inset_left,
+                    'cont_top': lh.cont_inset_top,
+                    'org_name': lh.org_name, 'org_address': lh.org_address,
+                    'org_contact': lh.org_contact}
+        # No letterhead configured, so nothing has been calibrated against the
+        # Ministry's stock and these insets are a ~22mm guess. Still the right
+        # answer: a document that prints with the wrong margin is fixable by
+        # calibrating, whereas one that prints its own letterhead on top of the
+        # pre-printed one is not fixable at all.
+        return {'mode': 'pre_printed',
+                'cont_top': _DEFAULT_INSETS_PT['top'], **_DEFAULT_INSETS_PT}
 
     if not lh:
         return {'mode': 'text',
@@ -345,6 +388,26 @@ def context_fingerprint(release_letter, kind):
     except Exception as exc:  # noqa: BLE001 — fingerprinting must never break a page
         logger.warning("Fingerprint build failed for %s: %s", kind, exc)
         return ''
+    # The BoQ position is part of what the memo asserts, so it belongs in the
+    # fingerprint. Without it, an officer's hand-edit freezes a reconciliation
+    # into stored HTML and the memo goes on printing last week's contract
+    # balance with no warning — a stale reconciliation being worse than none,
+    # because it still looks authoritative. Included here, a BoQ movement raises
+    # the same "data changed" banner that a changed quantity already does.
+    boq_position = None
+    if kind == 'memo':
+        try:
+            from .reconciliation import reconcile
+            result = reconcile(release_letter)
+            boq_position = [
+                [line['item_code'], str(line['requested']),
+                 str(line['balance_before']), str(line['matched'])]
+                for line in result['lines']
+            ]
+        except Exception as exc:  # noqa: BLE001 — must never break a page render
+            logger.warning("Reconciliation fingerprint failed for %s: %s",
+                           release_letter.pk, exc)
+
     payload = json.dumps({
         'code': ctx.get('code'),
         'subject': ctx.get('memo_subject') or ctx.get('letter_subject'),
@@ -354,12 +417,13 @@ def context_fingerprint(release_letter, kind):
         'paragraphs': paragraphs,
         'schedule': [[r['material'], str(r['qty']), r['unit'], r['community']] for r in schedule],
         'cc': list(ctx.get('cc_list') or []),
+        'boq': boq_position,
     }, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
 def render_document_html(release_letter, kind, edit_mode=False, use_stored=True,
-                         for_pdf=False):
+                         for_pdf=False, plain=False):
     """Render a release document to standalone HTML.
 
     `use_stored=False` forces the data-driven template even when a hand-edit
@@ -368,11 +432,33 @@ def render_document_html(release_letter, kind, edit_mode=False, use_stored=True,
 
     `for_pdf=True` omits the inline letterhead raster because the PDF pipeline
     stamps the real asset onto every page afterwards.
+
+    `plain=True` omits the letterhead entirely for printing onto Ministry
+    letterhead stock. This is a **render option, not a second document**: the
+    stored PDF is never produced this way, so there is one file and one
+    letterhead, and the wet-signature route cannot drift from the e-signature
+    one. Same body, same signatures, same QR — only the artwork is left off.
     """
     spec, ctx, paragraphs, schedule = _build(release_letter, kind)
     stored = (getattr(release_letter, spec['stored'], '') or '').strip() if use_stored else ''
+
+    # BoQ reconciliation — memo only. The approving officer needs to know
+    # whether the contract has room for this release; MMU does not, and putting
+    # contract balances on the letter would send them to the warehouse counter.
+    #
+    # Computed at render time rather than stored, so a re-render after the BoQ
+    # moves shows the position as it is now. That is the right trade: a stale
+    # reconciliation is worse than none, because it looks authoritative.
+    reconciliation = reconciliation_summary = None
+    if kind == 'memo':
+        from .reconciliation import reconcile, summary_sentence
+        reconciliation = reconcile(release_letter)
+        reconciliation_summary = summary_sentence(reconciliation)
+
     return render_to_string(spec['template'], {
-        'lh': _letterhead_ctx(kind, for_pdf=for_pdf),
+        'lh': _letterhead_ctx(kind, for_pdf=for_pdf, plain=plain),
+        'reconciliation': reconciliation,
+        'reconciliation_summary': reconciliation_summary,
         'qr': _qr_data_uri(qr_payload(ctx['code'], release_letter.ensure_verify_token())),
         'ctx': ctx,
         'paragraphs': paragraphs,

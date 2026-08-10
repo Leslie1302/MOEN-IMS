@@ -62,16 +62,25 @@ class SigningChainTests(TestCase):
             name='Kwame Mensah', title='Ag. Chief Director', signs_for='HON. MINISTER',
             user=self.chief, active=True)
 
+        # One sequence across both documents: memo first, then letter. Both
+        # used to be order=1, which is what allowed the letter to be signed
+        # before the memo — see test_signing_sequence.py.
         self.step_memo = SigningStep.objects.create(
             document_kind='memo', order=1, signatory=self.sig_memo, user=self.director)
         self.step_letter = SigningStep.objects.create(
-            document_kind='letter', order=1, signatory=self.sig_letter, user=self.chief)
+            document_kind='letter', order=2, signatory=self.sig_letter, user=self.chief)
 
         self.letter = ReleaseLetter.objects.create(
             request_code='REQ-SIGN-1', code='RE-2026-9401',
             memo_version=1, letter_version=1)
         self.letter.memo_pdf.save('memo.pdf', ContentFile(b'%PDF-1.4 memo'), save=False)
         self.letter.letter_pdf.save('letter.pdf', ContentFile(b'%PDF-1.4 letter'), save=True)
+
+
+    def _memo_signed(self):
+        """The letter cannot be signed until the memo is — the signed memo is
+        its authority. Letter-focused tests call this first."""
+        apply_signature(self.letter, self.director, 'memo', _signature_data_uri())
 
     # -- permission -------------------------------------------------------
     def test_the_named_signatory_may_sign(self):
@@ -94,7 +103,7 @@ class SigningChainTests(TestCase):
         """A second step cannot be signed while the first is outstanding."""
         second = User.objects.create_user('second', password='pw')
         SigningStep.objects.create(
-            document_kind='memo', order=2,
+            document_kind='memo', order=3,
             signatory=Signatory.objects.create(name='Second', title='Deputy', user=second),
             user=second)
         allowed, _, reason = can_sign(second, self.letter, 'memo')
@@ -103,6 +112,7 @@ class SigningChainTests(TestCase):
 
     # -- applying ---------------------------------------------------------
     def test_signing_records_office_and_substantive_designation(self):
+        self._memo_signed()
         signature = apply_signature(
             self.letter, self.chief, 'letter', _signature_data_uri(),
             ip_address='10.0.0.1', user_agent='pytest')
@@ -117,6 +127,7 @@ class SigningChainTests(TestCase):
         self.assertEqual(signature.ip_address, '10.0.0.1')
 
     def test_stamp_shows_both_offices_when_acting(self):
+        self._memo_signed()
         signature = apply_signature(self.letter, self.chief, 'letter', _signature_data_uri())
         lines = signature.stamp_lines
         self.assertIn('KWAME MENSAH', lines)
@@ -127,13 +138,17 @@ class SigningChainTests(TestCase):
         self.assertTrue(any(signature.verification_token in line for line in lines))
 
     def test_signing_locks_the_document(self):
+        self._memo_signed()
         apply_signature(self.letter, self.chief, 'letter', _signature_data_uri())
         self.letter.refresh_from_db()
         self.assertTrue(self.letter.letter_locked)
         self.assertTrue(self.letter.signing_complete('letter'))
-        self.assertFalse(self.letter.memo_locked)      # independent chains
+        # One chain, but locking is per document: the memo locked when it was
+        # signed, and the letter locks separately when its own step completes.
+        self.assertTrue(self.letter.memo_locked)
 
     def test_cannot_sign_twice(self):
+        self._memo_signed()
         apply_signature(self.letter, self.chief, 'letter', _signature_data_uri())
         with self.assertRaises(SigningError):
             apply_signature(self.letter, self.chief, 'letter', _signature_data_uri())
@@ -165,6 +180,7 @@ class SigningChainTests(TestCase):
 
     # -- supersede --------------------------------------------------------
     def test_supersede_unlocks_and_keeps_the_record(self):
+        self._memo_signed()
         apply_signature(self.letter, self.chief, 'letter', _signature_data_uri())
         supersede_signatures(self.letter, 'letter')
 

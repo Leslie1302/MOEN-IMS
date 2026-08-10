@@ -121,9 +121,17 @@
                     <tr>
                         <th>Community</th>
                         <th>Project</th>
-                        <th>Works status</th>
+                        <th>
+                            Works status
+                            <i class="fas fa-circle-info text-muted ms-1" style="font-size:.72rem"
+                               title="Declared by the consultant. This is what the Ghana map counts as completed."></i>
+                        </th>
                         <th>Materials installed</th>
-                        <th class="text-end" style="width:160px;">% complete</th>
+                        <th class="text-end" style="width:190px;">
+                            Evidenced completion
+                            <i class="fas fa-circle-info text-muted ms-1" style="font-size:.72rem"
+                               title="Measured from what is actually recorded against this community's BoQ targets — not from the declared status. A community can be commissioned with 0% evidenced if no deliveries or meters have been entered."></i>
+                        </th>
                         <th>Last update</th>
                         <th class="text-end">Action</th>
                     </tr>
@@ -179,6 +187,25 @@
                                 </div>
                                 <div class="small fw-semibold" style="width: 36px; text-align:right;">{{ site.progress_percent }}%</div>
                             </div>
+                            {% comment %}
+                              Declared complete but not evidenced. Two numbers that
+                              silently disagree erode trust in both, so say it plainly:
+                              either the deliveries have not been entered, or the status
+                              was set ahead of the work. Both are worth chasing.
+                            {% endcomment %}
+                            {% if site.works_status == 'Energised' or site.works_status == 'Commissioned' %}
+                              {% if site.progress_percent < 90 %}
+                              <div class="small mt-1 d-flex align-items-start gap-1"
+                                   style="color:#b45309;line-height:1.35">
+                                  <i class="fas fa-triangle-exclamation mt-1" style="font-size:.7rem"></i>
+                                  <span>
+                                      Declared <b>{{ site.works_status|lower }}</b> but only
+                                      {{ site.progress_percent }}% evidenced — check the
+                                      deliveries and meter records for this community.
+                                  </span>
+                              </div>
+                              {% endif %}
+                            {% endif %}
                         </td>
                         <td>
                             {% if site.progress_updated_at %}

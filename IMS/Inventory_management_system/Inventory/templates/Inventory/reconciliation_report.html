@@ -1,0 +1,163 @@
+{% extends 'Inventory/base.html' %}
+
+{% comment %}
+The standalone BoQ reconciliation report.
+
+Deliberately NOT a stored document and NOT part of the signing chain. It is
+computed on every view, so it always states the position now rather than the
+position when someone last pressed Generate. That is the whole difference
+between this and the copy printed on the memo: the memo's reconciliation is
+evidence of what the signatory was shown, frozen at signature; this is the
+current truth, for the file and for anyone checking afterwards.
+
+Giving it a document_kind and a stored PDF would have dragged it into the
+locking, versioning and dispatch machinery for no gain — it certifies nothing on
+its own, and a signed-and-locked reconciliation would be the very stale artefact
+this exists to avoid.
+{% endcomment %}
+
+{% block title %}Reconciliation {{ release_letter.code }} - MOEN-IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .rc-wrap { max-width: 1100px; margin: 0 auto; padding: 1.25rem; color: #1f2933; }
+    .rc-head { border-bottom: 2px solid #1b5e20; padding-bottom: .75rem; margin-bottom: 1rem; }
+    .rc-head h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 .2rem; }
+    .rc-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .85rem; color: #6c757d; }
+    .rc-verdict { border-radius: 8px; padding: .8rem 1rem; margin-bottom: 1rem;
+        font-size: .9rem; border: 1px solid; }
+    .rc-ok   { background: #eaf6ee; border-color: #c8e6c9; color: #12633f; }
+    .rc-warn { background: #fff8e6; border-color: #f0dfae; color: #7a5b00; }
+    table.rc { width: 100%; border-collapse: collapse; margin: .5rem 0 1rem; }
+    table.rc th, table.rc td { border: 1px solid #d5dae0; padding: .45rem .6rem;
+        font-size: .85rem; text-align: left; vertical-align: top; }
+    table.rc th { background: #e8f5e9; font-weight: 600; }
+    table.rc td.amt, table.rc th.amt { text-align: right; white-space: nowrap; }
+    tr.is-over td { background: #fff5f5; }
+    tr.is-unmatched td { background: #fafafa; color: #6c757d; }
+    .rc-note { font-size: .84rem; color: #6c757d; margin-top: .3rem; }
+    @media print {
+        .rc-noprint { display: none !important; }
+        .rc-wrap { max-width: none; padding: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+
+    <div class="rc-head">
+        <h1>Bill of Quantity Reconciliation</h1>
+        <div class="rc-code">
+            {{ release_letter.code|default:release_letter.request_code }}
+            &middot; {{ release_letter.title }}
+        </div>
+        <div class="rc-note">
+            Computed {{ generated_at|date:"d M Y, H:i" }}. This report is not stored —
+            it states the position at the moment you opened it.
+        </div>
+    </div>
+
+    <div class="rc-verdict {% if reconciliation.reconciles %}rc-ok{% else %}rc-warn{% endif %}">
+        {{ reconciliation_summary }}
+    </div>
+
+    {% if reconciliation.checked %}
+    <table class="rc">
+        <thead>
+            <tr>
+                <th>Material</th>
+                <th>Item code</th>
+                <th>Community</th>
+                <th>Package</th>
+                <th class="amt">Contract</th>
+                <th class="amt">Drawn</th>
+                <th class="amt">Available</th>
+                <th class="amt">This release</th>
+                <th class="amt">Balance after</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in reconciliation.lines %}
+            <tr class="{% if line.exceeds_by %}is-over{% elif not line.matched %}is-unmatched{% endif %}">
+                <td>{{ line.material }}</td>
+                <td class="font-monospace">{{ line.item_code|default:"—" }}</td>
+                <td>{{ line.community|default:"—" }}</td>
+                <td>{{ line.package_number|default:"—" }}</td>
+                {% if line.matched %}
+                <td class="amt">{{ line.contract|floatformat:"-2" }}</td>
+                <td class="amt">{{ line.drawn|floatformat:"-2" }}</td>
+                <td class="amt">{{ line.balance_before|floatformat:"-2" }}</td>
+                <td class="amt">{{ line.requested|floatformat:"-2" }} {{ line.unit }}</td>
+                <td class="amt">
+                    {% if line.exceeds_by %}
+                    <b>{{ line.exceeds_by|floatformat:"-2" }} over</b>
+                    {% comment %}
+                    Unlike the memo, this view can show an over-issuance that is
+                    still blocking generation — that is the state an officer
+                    comes here to resolve, so it needs to be visible and to link
+                    to the fix.
+                    {% endcomment %}
+                    <div class="rc-note" style="margin:0">
+                        {% if line.justified %}
+                        justification approved
+                        {% else %}
+                        <b>blocks generation</b>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    {{ line.balance_after|floatformat:"-2" }}
+                    {% endif %}
+                </td>
+                {% else %}
+                <td class="amt" colspan="3" style="text-align:center">no Bill of Quantity entry</td>
+                <td class="amt">{{ line.requested|floatformat:"-2" }} {{ line.unit }}</td>
+                <td class="amt">—</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if reconciliation.exceptions %}
+    <p class="rc-note">
+        <b>Over-issuance.</b> {{ reconciliation.exceptions|length }} line(s) draw more than
+        the approved Bill of Quantity. Document generation is blocked until an
+        over-issuance justification has been raised for each and approved by the
+        Director of Power. Use the links below, then generate again.
+    </p>
+    <ul class="rc-note">
+        {% for line in reconciliation.exceptions %}
+        {% if not line.justified and line.boq %}
+        <li>
+            {{ line.material }} at {{ line.community }} &mdash;
+            over by {{ line.exceeds_by|floatformat:"-2" }} {{ line.unit }}
+            &middot;
+            <a href="{% url 'boq_overissuance_justification_create' line.boq.pk %}">
+                raise a justification
+            </a>
+        </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if reconciliation.unmatched %}
+    <p class="rc-note">
+        <b>Unmatched.</b> {{ reconciliation.unmatched|length }} line(s) have no Bill of
+        Quantity entry for this community. Either the material is outside the original
+        contract scope, or the Bill of Quantity is incomplete.
+    </p>
+    {% endif %}
+    {% endif %}
+
+    <div class="rc-noprint mt-3 d-flex gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'release_letter_detail' release_letter.pk %}">
+            <i class="fas fa-arrow-left me-1"></i> Back to the release
+        </a>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+            <i class="fas fa-print me-1"></i> Print
+        </button>
+    </div>
+</div>
+{% endblock %}

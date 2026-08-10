@@ -1,0 +1,512 @@
+{% extends 'Inventory/base.html' %}
+{% load static %}
+
+{% comment %}
+The signatory's signing page — the counterpart to the approvals queue. The queue
+answers "what is waiting for me"; this answers "here it is, sign it".
+
+Both documents are always shown, side by side. The Ag. Director is approving
+that this letter goes out; the Chief Director signs the letter on the authority
+of that memo. Showing a signatory only the page he puts his name on would ask
+him to certify half a decision.
+
+Nothing on this page is a schedule officer's control. There is no generate, no
+edit, no adjust, no dispatch. That is the point: the release-letter detail page
+remains readable by a signatory, but it is not where he is sent, because a page
+where 95% of the controls are not yours is a page you learn to distrust.
+{% endcomment %}
+
+{% block title %}Sign {{ release_letter.code|default:release_letter.request_code }} - MOEN-IMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --sg-border: #e3e6ea;
+        --sg-surface: #ffffff;
+        --sg-subtle: #f7f8fa;
+        --sg-text: #1f2933;
+        --sg-muted: #6c757d;
+        --sg-radius: 10px;
+        --sg-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+        --sg-success: #198754;
+        --sg-accent: #0d6efd;
+    }
+    .sg-wrap { color: var(--sg-text); padding: 1.25rem; max-width: 1400px; margin: 0 auto; }
+
+    .sg-head { display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .sg-head h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 .2rem; }
+    .sg-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .85rem; color: var(--sg-muted); }
+    .sg-sub { font-size: .84rem; color: var(--sg-muted); margin-top: .3rem; max-width: 70ch; }
+
+    /* Chain strip — where this release has reached, and who has it now. */
+    .sg-chain { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+        background: var(--sg-surface); border: 1px solid var(--sg-border);
+        border-radius: var(--sg-radius); box-shadow: var(--sg-shadow);
+        padding: .75rem 1rem; margin-bottom: 1.1rem; }
+    .sg-step { display: inline-flex; align-items: center; gap: .45rem;
+        font-size: .82rem; color: var(--sg-muted); }
+    .sg-step + .sg-step::before { content: '→'; margin-right: .45rem; color: #c3cad2; }
+    .sg-step.is-done { color: var(--sg-success); }
+    .sg-step.is-current { color: var(--sg-text); font-weight: 600; }
+    .sg-dot { display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; border-radius: 50%; font-size: .72rem; font-weight: 600;
+        background: var(--sg-subtle); border: 1px solid var(--sg-border); color: var(--sg-muted); }
+    .sg-step.is-done .sg-dot { background: var(--sg-success); border-color: var(--sg-success); color: #fff; }
+    .sg-step.is-current .sg-dot { background: var(--sg-accent); border-color: var(--sg-accent);
+        color: #fff; box-shadow: 0 0 0 4px #e7f1ff; }
+
+    .sg-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+        gap: 1rem; margin-bottom: 1.25rem; }
+    .sg-doc { background: var(--sg-surface); border: 1px solid var(--sg-border);
+        border-radius: var(--sg-radius); box-shadow: var(--sg-shadow); overflow: hidden;
+        display: flex; flex-direction: column; }
+    .sg-doc.is-mine { border-color: var(--sg-success); border-width: 2px; }
+    .sg-doc-hdr { display: flex; justify-content: space-between; align-items: center;
+        gap: .5rem; padding: .7rem 1rem; border-bottom: 1px solid var(--sg-border);
+        background: var(--sg-subtle); }
+    .sg-doc-hdr h2 { font-size: .9rem; font-weight: 600; margin: 0; }
+    .sg-frame { width: 100%; height: 620px; border: 0; background: #fff; display: block; }
+    .sg-doc-foot { padding: .7rem 1rem; border-top: 1px solid var(--sg-border);
+        font-size: .82rem; }
+    .sg-missing { padding: 2.5rem 1rem; text-align: center; color: var(--sg-muted);
+        font-size: .86rem; }
+
+    .sg-panel { background: var(--sg-surface); border: 1px solid var(--sg-border);
+        border-radius: var(--sg-radius); box-shadow: var(--sg-shadow);
+        padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
+    .sg-panel h2 { font-size: .82rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: .04em; margin: 0 0 .7rem; }
+
+    .sg-canvas-box { border: 1px solid var(--sg-border); border-radius: .5rem;
+        background: #fff; position: relative; max-width: 560px; }
+    .sg-canvas { width: 100%; height: 190px; display: block;
+        touch-action: none; cursor: crosshair; }
+    .sg-hint { position: absolute; inset: 0; display: flex; align-items: center;
+        justify-content: center; color: #aab; pointer-events: none; font-size: .9rem; }
+    .sg-sig { font-size: .82rem; color: var(--sg-muted); padding: .3rem 0;
+        border-bottom: 1px solid var(--sg-subtle); }
+    .sg-refusal { font-size: .84rem; color: var(--sg-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sg-wrap">
+
+    <div class="sg-head">
+        <div>
+            <h1>{{ release_letter.title|default:"Release" }}</h1>
+            <div class="sg-code">{{ release_letter.code|default:release_letter.request_code }}</div>
+            <div class="sg-sub">
+                Both documents are shown below. Signing happens here, in the system &mdash;
+                nothing was emailed to you as an attachment and nothing you sign leaves as a
+                file. The copy on this system is the only one.
+            </div>
+        </div>
+        <div class="text-end">
+            <a href="{% url 'approval_queue' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Back to approvals
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} py-2 small">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {% comment %}
+    The chain, in order, across both documents. A signatory second in the
+    sequence otherwise has no way to see that the memo ahead of him is the
+    reason nothing has reached him.
+    {% endcomment %}
+    <div class="sg-chain">
+        {% for step in chain %}
+        <span class="sg-step {% if step.pk in signed_step_ids %}is-done{% elif step.pk == next_step.pk %}is-current{% endif %}">
+            <span class="sg-dot">
+                {% if step.pk in signed_step_ids %}<i class="fas fa-check"></i>{% else %}{{ step.order }}{% endif %}
+            </span>
+            <span>
+                {{ step.get_document_kind_display }} &middot;
+                {% if step.signatory %}{{ step.signatory.title }}{% else %}unassigned{% endif %}
+            </span>
+        </span>
+        {% empty %}
+        <span class="sg-step">No signing chain is configured. Ask an administrator to set one up.</span>
+        {% endfor %}
+
+        {% if signing_complete %}
+        <span class="ms-auto badge bg-success">Fully signed</span>
+        {% elif release_letter.sent_for_signature_at %}
+        <span class="ms-auto small text-muted">
+            Sent for signature {{ release_letter.sent_for_signature_at|date:"d M Y, H:i" }}
+        </span>
+        {% else %}
+        <span class="ms-auto small text-muted">Not yet formally sent by the preparing officer</span>
+        {% endif %}
+    </div>
+
+    {% comment %} Both documents, always. {% endcomment %}
+    <div class="sg-docs">
+        {% for doc in documents %}
+        <div class="sg-doc {% if doc.is_mine %}is-mine{% endif %}">
+            <div class="sg-doc-hdr">
+                <h2>
+                    {{ doc.label }}
+                    {% if doc.is_mine %}
+                    <span class="badge bg-success ms-1">Yours to sign</span>
+                    {% elif doc.complete %}
+                    <span class="badge bg-secondary ms-1">Signed</span>
+                    {% endif %}
+                </h2>
+                <span class="small text-muted">
+                    {% if doc.version %}v{{ doc.version }}{% endif %}
+                    {% if doc.locked %}<i class="fas fa-lock ms-1" title="Locked"></i>{% endif %}
+                </span>
+            </div>
+
+            {% if doc.pdf %}
+            <iframe class="sg-frame" src="{{ doc.preview_url }}" title="{{ doc.label }}"></iframe>
+            {% else %}
+            <div class="sg-missing">
+                This document has not been generated yet, so there is nothing to read
+                or sign. The preparing officer still has it.
+            </div>
+            {% endif %}
+
+            <div class="sg-doc-foot">
+                {% for sig in doc.signatures %}
+                <div class="sg-sig">
+                    <i class="fas fa-check text-success me-1"></i>
+                    {{ sig.signatory_name }}, {{ sig.signatory_title }}
+                    &middot; {{ sig.signed_at|date:"d M Y, H:i" }}
+                    &middot; <span class="font-monospace">{{ sig.verification_token }}</span>
+                </div>
+                {% empty %}
+                <div class="sg-sig">Not yet signed.</div>
+                {% endfor %}
+
+                {% if doc.pdf %}
+                <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ doc.pdf.url }}" target="_blank" rel="noopener">
+                        <i class="fas fa-file-pdf me-1"></i> Open PDF
+                    </a>
+                    {% comment %}
+                    The wet-signature route. Prints onto Ministry letterhead stock, so
+                    the rendered letterhead is omitted — a print-time render only. The
+                    stored PDF is untouched, which is what keeps one document and one
+                    letterhead rather than two rival files.
+
+                    Only offered where a letterhead is actually rendered. The memo is
+                    an internal document on a plain sheet, so the option would change
+                    nothing on it.
+                    {% endcomment %}
+                    {% if doc.has_letterhead %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ doc.print_url }}"
+                       target="_blank" rel="noopener"
+                       title="Opens without the rendered letterhead, for printing onto Ministry letterhead stock">
+                        <i class="fas fa-print me-1"></i> Print on letterhead stock
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% comment %} ── Sign ── {% endcomment %}
+    <div class="sg-panel">
+        <h2>Signature</h2>
+
+        {% if can_sign_any %}
+            {% for doc in documents %}
+            {% if doc.allowed %}
+            <p class="small text-muted mb-2">
+                You are signing the <b>{{ doc.label|lower }}</b> as
+                <b>{{ doc.step.signatory.title|default:"signatory" }}</b>. Draw your signature
+                below with a mouse, trackpad, stylus or finger. It is captured for this
+                document only &mdash; nothing is stored on your profile and it cannot be
+                reused elsewhere.
+            </p>
+
+            <form method="post" action="{% url 'sign_document' release_letter.pk doc.kind %}" id="sg-form">
+                {% csrf_token %}
+                <input type="hidden" name="signature" id="sg-data">
+                {% comment %}
+                A flag, not a redirect URL. Accepting a target from a POST body
+                would be an open redirect, and there are exactly two callers.
+                {% endcomment %}
+                <input type="hidden" name="from" value="signing_page">
+
+                <div class="sg-canvas-box">
+                    <canvas id="sg-canvas" class="sg-canvas"></canvas>
+                    <div id="sg-hint" class="sg-hint">Sign here</div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 mt-2" style="max-width:560px">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="sg-clear">
+                        <i class="fas fa-eraser me-1"></i> Clear
+                    </button>
+                    <span class="small text-muted ms-auto" id="sg-status"></span>
+                </div>
+
+                <div class="alert alert-light border small mt-3" style="max-width:760px">
+                    <i class="fas fa-circle-info me-1"></i>
+                    Your name, the office you are signing in, your substantive designation,
+                    the document version and a verification code are printed alongside the
+                    signature. <b>Once signed, this document is locked</b> &mdash; changing it
+                    afterwards requires voiding and reissuing the release.
+                </div>
+
+                <button type="submit" class="btn btn-success" id="sg-submit" disabled>
+                    <i class="fas fa-check me-1"></i> Confirm signature
+                </button>
+            </form>
+            {% endif %}
+            {% endfor %}
+        {% else %}
+            {% comment %}
+            The refusal text, not a missing button. "Awaiting the Ag. Director" is
+            information a signatory can act on; a control that simply is not there
+            reads as a fault in the system.
+            {% endcomment %}
+            {% for doc in documents %}
+            {% if doc.reason %}
+            <div class="sg-refusal mb-1">
+                <b>{{ doc.label }}:</b> {{ doc.reason }}
+            </div>
+            {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    {% comment %} ── Call the officer ── {% endcomment %}
+    {% if may_call_officer %}
+    <div class="sg-panel">
+        <h2>Something to discuss?</h2>
+        <p class="small text-muted mb-2">
+            This is a conversation, not a rejection. The release stays exactly where it is
+            &mdash; nothing is sent back and no status changes.
+        </p>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-toggle="modal" data-bs-target="#sg-call-modal">
+            <i class="fas fa-phone me-1"></i>
+            Call {% if preparing_officer %}{{ preparing_officer.get_full_name|default:preparing_officer.username }}{% else %}the preparing officer{% endif %}
+        </button>
+
+        {% for call in discussions %}
+        <div class="sg-sig mt-2">
+            {{ call.raised_by.get_full_name|default:call.raised_by.username }}
+            &middot; {{ call.created_at|date:"d M Y" }} &mdash; {{ call.note|truncatechars:120 }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+{% if may_call_officer %}
+<div class="modal fade" id="sg-call-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'call_officer' release_letter.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'sign_release' release_letter.pk %}">
+        <input type="hidden" name="document_kind" id="sg-call-kind"
+               value="{% if next_step %}{{ next_step.document_kind }}{% endif %}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-phone me-2 text-secondary"></i>Call officer for discussion</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          {% comment %}
+          Two tiers, chosen explicitly. A routine call is a conversation and
+          moves nothing; a correction discards signatures and hands the release
+          back. Making the signatory pick, rather than inferring it from how the
+          note is worded, is what keeps a conversation from silently becoming a
+          rejection — and what stops a genuine correction being arranged by
+          phone and never appearing on the record at all.
+          {% endcomment %}
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="kind" value="routine"
+                   id="sg-kind-routine" checked>
+            <label class="form-check-label" for="sg-kind-routine">
+              <b>Routine discussion</b>
+              <div class="form-text mt-0">
+                Nothing changes. The release stays exactly where it is and keeps any
+                signatures already on it.
+              </div>
+            </label>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="radio" name="kind" value="correction"
+                   id="sg-kind-correction">
+            <label class="form-check-label" for="sg-kind-correction">
+              <b>Correction required</b>
+              <div class="form-text mt-0">
+                Returns the document to the officer. Signatures on it &mdash; and on
+                anything signed after it &mdash; are superseded, and it comes back at a
+                new version. Superseded signatures stay on the record.
+              </div>
+            </label>
+          </div>
+
+          <div id="sg-call-doc" class="mb-3 d-none">
+            <label class="form-label small fw-semibold mb-1" for="sg-call-kind-select">
+              Which document needs correcting?
+            </label>
+            <select class="form-select form-select-sm" id="sg-call-kind-select">
+              <option value="memo">Approval memo &mdash; also supersedes the release letter</option>
+              <option value="letter">Release letter only</option>
+            </select>
+          </div>
+
+          <label class="form-label small fw-semibold mb-1" for="sg-call-note">
+            <span id="sg-call-prompt">What would you like to discuss?</span>
+          </label>
+          <textarea name="note" id="sg-call-note" rows="4" class="form-control"
+                    placeholder="e.g. The consignee looks wrong for this district — can we talk before I sign?"
+                    required></textarea>
+          <div class="form-text">
+            Kept on file against the release, so the conversation is on the record.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="sg-call-submit">
+            <i class="fas fa-paper-plane me-1"></i> Send
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    var routine = document.getElementById('sg-kind-routine');
+    var correction = document.getElementById('sg-kind-correction');
+    if (!routine || !correction) return;
+    var docPicker = document.getElementById('sg-call-doc');
+    var docSelect = document.getElementById('sg-call-kind-select');
+    var hiddenKind = document.getElementById('sg-call-kind');
+    var prompt = document.getElementById('sg-call-prompt');
+    var note = document.getElementById('sg-call-note');
+    var submit = document.getElementById('sg-call-submit');
+
+    /* The document field is only meaningful for a correction. For a routine
+       call it stays whatever the page set, because "which document prompted
+       this" is context, not a target. */
+    function refresh() {
+        var isCorrection = correction.checked;
+        docPicker.classList.toggle('d-none', !isCorrection);
+        if (isCorrection && hiddenKind) { hiddenKind.value = docSelect.value; }
+        prompt.textContent = isCorrection
+            ? 'What needs correcting?'
+            : 'What would you like to discuss?';
+        note.placeholder = isCorrection
+            ? 'e.g. The schedule lists 120 poles but the BoQ balance is 80 — the quantity needs correcting before I can sign.'
+            : 'e.g. The consignee looks wrong for this district — can we talk before I sign?';
+        submit.className = isCorrection ? 'btn btn-warning' : 'btn btn-primary';
+        submit.innerHTML = isCorrection
+            ? '<i class="fas fa-rotate-left me-1"></i> Return for correction'
+            : '<i class="fas fa-paper-plane me-1"></i> Send';
+    }
+
+    routine.addEventListener('change', refresh);
+    correction.addEventListener('change', refresh);
+    docSelect.addEventListener('change', refresh);
+    refresh();
+})();
+</script>
+{% endif %}
+
+{% if can_sign_any %}
+<script>
+(function () {
+    var canvas = document.getElementById('sg-canvas');
+    if (!canvas) return;
+    var hint = document.getElementById('sg-hint');
+    var clearBtn = document.getElementById('sg-clear');
+    var submit = document.getElementById('sg-submit');
+    var form = document.getElementById('sg-form');
+    var field = document.getElementById('sg-data');
+    var status = document.getElementById('sg-status');
+    var ctx, drawn = false, drawing = false, last = null;
+
+    /* Size the backing store to the device pixel ratio, or the signature comes
+       out soft on a HiDPI screen and softer again in the PDF. */
+    function resize() {
+        var ratio = window.devicePixelRatio || 1;
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        ctx = canvas.getContext('2d');
+        ctx.scale(ratio, ratio);
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#111';
+    }
+
+    function pos(e) {
+        var r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    function start(e) { e.preventDefault(); drawing = true; last = pos(e); hint.style.display = 'none'; }
+    function move(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = pos(e);
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        last = p;
+        if (!drawn) { drawn = true; submit.disabled = false; status.textContent = ''; }
+    }
+    function end() { drawing = false; }
+
+    canvas.addEventListener('pointerdown', start);
+    canvas.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+
+    function clear() {
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawn = false;
+        submit.disabled = true;
+        hint.style.display = 'flex';
+        status.textContent = '';
+    }
+    clearBtn.addEventListener('click', clear);
+
+    resize();
+    clear();
+    /* Resizing clears the canvas because the backing store is reallocated. Warn
+       rather than silently discard a signature someone has just drawn. */
+    window.addEventListener('resize', function () {
+        if (drawn) { status.textContent = 'The window changed size — please draw again.'; }
+        resize();
+        clear();
+    });
+
+    form.addEventListener('submit', function (e) {
+        if (!drawn) {
+            e.preventDefault();
+            status.textContent = 'Draw your signature first.';
+            return;
+        }
+        field.value = canvas.toDataURL('image/png');
+        submit.disabled = true;
+        status.textContent = 'Signing…';
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

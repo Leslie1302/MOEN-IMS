@@ -84,7 +84,18 @@ class ReleaseLetterListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(upload_time__date__gte=date_from)
         if date_to:
             queryset = queryset.filter(upload_time__date__lte=date_to)
-        
+
+        # MMU fast-track filters. Advance notice is a flag plus a filter on the
+        # list MMU already opens every morning — not a separate screen they have
+        # to remember exists, which is how a queue quietly stops being used.
+        mmu = self.request.GET.get('mmu', '')
+        if mmu == 'prepare':
+            queryset = queryset.filter(
+                advance_notice_at__isnull=False
+            ).exclude(workflow_status__in=('released', 'voided'))
+        elif mmu == 'urgent':
+            queryset = queryset.filter(is_urgent=True)
+
         return queryset.order_by('-upload_time')
     
     def get_context_data(self, **kwargs):
@@ -100,7 +111,16 @@ class ReleaseLetterListView(LoginRequiredMixin, ListView):
         context['pending_letters'] = ReleaseLetter.objects.filter(
             material_orders__status__in=['Pending', 'Approved', 'In Progress']
         ).distinct().count()
-        
+
+        # MMU fast-track state.
+        context['mmu_filter'] = self.request.GET.get('mmu', '')
+        context['advance_notice_count'] = (
+            ReleaseLetter.objects
+            .filter(advance_notice_at__isnull=False)
+            .exclude(workflow_status__in=('released', 'voided'))
+            .count())
+        context['urgent_count'] = ReleaseLetter.objects.filter(is_urgent=True).count()
+
         return context
 
 

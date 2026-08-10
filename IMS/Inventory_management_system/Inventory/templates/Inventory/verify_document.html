@@ -154,6 +154,22 @@
           <span class="k">Status</span>
           <span class="v">{{ status_label }}</span>
         </div>
+        {% if verified and is_urgent %}
+        {% comment %}
+          Shown here rather than printed on the PDF. Urgency is declared after
+          the signing chain completes, and by then the document is locked —
+          stamping it would mean altering a signed document, which is exactly
+          what the lock prevents. Whoever is holding the paper is also the
+          person who most needs to know the release moved ahead of its scan.
+        {% endcomment %}
+        <div class="v-row">
+          <span class="k">Fast-tracked</span>
+          <span class="v">
+            Released on the digital signature by management directive.
+            {% if scan_outstanding %}The wet-signed copy is still outstanding.{% endif %}
+          </span>
+        </div>
+        {% endif %}
         <div class="v-row">
           <span class="k">Issued</span>
           <span class="v">{{ release_letter.documents_generated_at|date:"d M Y"|default:"—" }}</span>

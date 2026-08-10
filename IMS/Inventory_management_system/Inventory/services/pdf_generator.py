@@ -609,27 +609,100 @@ def _build_memo_body(release_letter, ctx):
     else:
         beneficiary_phrase = f"the project at {location}"
 
+    # Region, appended as "in the X Region" — the memo names where the materials
+    # are going, and community alone is ambiguous across sixteen regions.
+    region = (first_order.region or '').strip()
+    if region:
+        # Stored uppercase; title-case it so it reads as prose rather than as a
+        # database value pasted into a sentence.
+        pretty = region.title()
+        if not pretty.lower().endswith('region'):
+            pretty = f"{pretty} Region"
+        beneficiary_phrase += f" in the {pretty}"
+
     if len(orders) == 1:
         qty = first_order.quantity
         unit = first_order.unit.name if first_order.unit_id else 'no.'
         material = first_order.name or 'materials'
-        opening = (
-            f"We write to seek approval for the release of {qty} {unit} of {material} "
-            f"from the Ministry's Materials Management Unit (MMU) for {beneficiary_phrase}."
-        )
+        subject_phrase = f"{qty} {unit} of {material}"
     else:
-        opening = (
-            f"We write to seek approval for the release of {len(orders)} items "
-            f"of materials, as detailed in the Schedule of Materials below, "
-            f"from the Ministry's Materials Management Unit (MMU) for {beneficiary_phrase}."
-        )
+        subject_phrase = (f"{len(orders)} items of materials, as detailed in the "
+                          f"Schedule of Materials below")
 
     return [
-        opening,
-        "MMU has confirmed the availability of the materials in stock.",
-        f"A release letter to MMU is attached for sign-off, referenced "
-        f"under release event {ctx['code']}.",
+        "Reference is made to the stock of materials in the Ministry's various stores.",
+
+        f"Further reference is made to the request for the release of {subject_phrase}, "
+        f"from the Ministry's Materials Management Unit (MMU) via the Inventory "
+        f"Management System (IMS) for {beneficiary_phrase}.",
+
+        _availability_and_reconciliation(release_letter),
+
+        "Owing to the above, we kindly request for the release of the materials as per "
+        "the Schedule of Materials. Please find attached a release letter to MMU "
+        f"referenced under release event {ctx['code']} for your kind consideration.",
     ]
+
+
+def _availability_and_reconciliation(release_letter):
+    """The stock-and-contract paragraph, phrased to match the actual position.
+
+    This paragraph asserts two things on the Ministry's behalf: that the stock
+    exists, and that the release sits within contract. The second cannot be a
+    fixed sentence. A memo that says "well within the contract's intended scope"
+    over a schedule that over-draws the BoQ is a false statement in a document
+    a Director signs, and the fact that a table below it shows otherwise is no
+    defence — people read the prose and sign.
+
+    Generation is blocked while an unjustified over-issuance exists, so the
+    common case is the clean one. The remaining variants cover a release cleared
+    by an approved justification, and materials with no BoQ entry at all.
+    """
+    from .reconciliation import reconcile
+
+    opening = ("After checks with MMU via the IMS, we confirm the availability of the "
+               "requested materials in stock.")
+
+    try:
+        result = reconcile(release_letter)
+    except Exception:  # noqa: BLE001 — the memo must still render
+        return opening
+
+    if not result['checked']:
+        return opening
+
+    if result['reconciles']:
+        return (f"{opening} Further reconciliation checks on the IMS confirm that this "
+                "release is well within the contract's intended scope, as per the Bill "
+                "of Quantity reconciliation table below.")
+
+    clauses = []
+    if result['justified_exceptions']:
+        clauses.append(
+            f"{len(result['justified_exceptions'])} line(s) exceed the approved Bill "
+            "of Quantity and are covered by an approved over-issuance justification "
+            "on record")
+    # Stated, not omitted. Generation is blocked in this state, so it should
+    # never reach a issued memo — but the preview renders ungated, and a
+    # paragraph that quietly skipped the uncleared lines would show the officer a
+    # memo reading as though everything were in order right up until the moment
+    # Generate refused, with nothing on the page explaining why.
+    if result['unjustified_exceptions']:
+        clauses.append(
+            f"{len(result['unjustified_exceptions'])} line(s) exceed the approved "
+            "Bill of Quantity with no approved justification on record, which must "
+            "be resolved before this release can be issued")
+    if result['unmatched']:
+        clauses.append(
+            f"{len(result['unmatched'])} line(s) could not be matched to any Bill of "
+            "Quantity entry for this community")
+
+    if not clauses:
+        return opening
+
+    return (f"{opening} Further reconciliation checks on the IMS show that "
+            + "; and ".join(clauses)
+            + ", as set out in the Bill of Quantity reconciliation table below.")
 
 
 def _build_letter_body(release_letter, ctx):

@@ -121,6 +121,16 @@ class VerifyDocumentView(View):
                 'signatures': list(release_letter.signatures.filter(superseded=False)
                                    .order_by('document_kind', 'signed_at')),
                 'has_superseded': release_letter.signatures.filter(superseded=True).exists(),
+                # The fast-track shows here rather than on the PDF. Urgency is
+                # declared *after* the chain completes, and by then the document
+                # is locked — stamping it would mean altering a signed document,
+                # which is the one thing the lock exists to prevent. So the
+                # document's public face carries it instead, where it is visible
+                # to exactly the people who would want to know: whoever is
+                # holding the paper and checking whether it is good.
+                'is_urgent': release_letter.is_urgent,
+                'urgent_reason': release_letter.urgent_reason,
+                'scan_outstanding': release_letter.urgent_scan_outstanding,
             })
         return render(request, self.template_name, context)
 

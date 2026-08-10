@@ -1,22 +1,30 @@
 """
-ReleaseLetterUploadView — auto-generation single-page wizard.
+ReleaseLetterUploadView — the entry point to a release.
 
-User flow (restored on 2026-05-17 per user feedback):
+**One step, not three** (revised 2026-08-09, §2a item 7).
 
-  Step 1: Pick a request code from the dropdown.
-          - System auto-creates the ReleaseLetter row, allocates an
-            RE-yyyy-NNNN code, generates the memo + release letter PDFs
-            with embedded QR.
-          - Page reloads in step-2 mode showing download links for both
-            generated documents plus the upload box for the signed scan.
+  Pick a request code → the system allocates RE-yyyy-NNNN, generates the memo
+  and the release letter, and opens the release letter itself.
 
-  Step 2: Print, get signed, scan, then upload here.
-          - System decodes any QR in the uploaded scan and verifies it
-            matches the auto-allocated code.
-          - Mismatch / no-QR rejects the upload (warning, doesn't crash).
+Everything after that happens on the release-letter page: read the documents,
+edit the wording live, then choose the e-signature route (send for signature →
+sign in-system) or the wet-signature route (print on Ministry letterhead stock
+→ upload the signed scan).
 
-This removes the "Create RL" intermediate detour. Everything happens on
-one page.
+Why the old three-step strip went. Steps 2 and 3 were "upload signed scan" and
+"confirm & release", both of which already existed on the release-letter page
+and both of which came *after* work the wizard never showed: reading the
+document, and deciding which signature route to use. So the strip described a
+sequence nobody followed, and its step 1 handed the officer a download link for
+a document he had not read. The remaining step is the only one this page was
+ever the right home for — choosing which request becomes a release.
+
+`ponytail:` `_handle_scan_upload` below is kept, and still routed on
+`action=upload_scan`, even though nothing in the template posts to it any more.
+It carries the QR-matching logic that rejects a scan of the wrong document, and
+`UploadSignedScanView` on the detail page is its replacement. Deleting a
+validated path in the same change that reworks the flow buys nothing and would
+break anything bookmarked. Remove it after one stable production cycle.
 """
 
 import json
@@ -46,6 +54,62 @@ from Inventory.services.pdf_generator import (
 logger = logging.getLogger(__name__)
 
 
+class BoQBlocked(Exception):
+    """The release cannot be reconciled to the Bill of Quantity.
+
+    Carries the blockers dict — over-issued and unmatched kept apart — so the
+    view can attach the right remedy to each. A refusal that says only "BoQ
+    problem" makes the officer hunt for which line, and the reliable outcome of
+    that is a phone call to someone who suggests a workaround.
+    """
+
+    def __init__(self, blockers):
+        self.blockers = blockers
+        total = len(blockers['over_issued']) + len(blockers['unmatched'])
+        super().__init__(f"{total} line(s) cannot be reconciled to the Bill of Quantity")
+
+
+def _unsaved_blocker_message(blockers, request_code):
+    """The refusal when the release was rolled back and has no page to link to.
+
+    The over-issuance route still works — a justification is raised against the
+    BoQ line, which exists independently of the release. The assistance route
+    does not, because it reports against a saved release. So this names the
+    lines precisely enough that an administrator can act on the description
+    alone, rather than offering a link that would 404.
+    """
+    from django.utils.html import format_html
+    from django.utils.safestring import mark_safe
+
+    blocks = []
+    if blockers['over_issued']:
+        rows = []
+        for line in blockers['over_issued']:
+            detail = (f"{line['material']} ({line['item_code']}) at {line['community']}"
+                      f" — over by {line['exceeds_by']} {line['unit']}".rstrip())
+            if line['boq'] is not None:
+                url = reverse('boq_overissuance_justification_create', args=[line['boq'].pk])
+                detail += f' — <a href="{url}">raise a justification</a>'
+            rows.append(detail)
+        blocks.append("<b>Exceeds the Bill of Quantity, with no approved "
+                      "justification:</b><br>" + "<br>".join(rows))
+
+    if blockers['unmatched']:
+        rows = [f"{line['material']} ({line['item_code'] or 'no item code'}) "
+                f"at {line['community'] or 'no community'}"
+                for line in blockers['unmatched']]
+        blocks.append(
+            "<b>No Bill of Quantity entry for their community:</b><br>"
+            + "<br>".join(rows)
+            + "<br>The Bill of Quantity for this community may not have been "
+              "imported, may be under a different package number, or the item "
+              "codes may not match. Ask a system administrator to check, quoting "
+              f"request {request_code}.")
+
+    return format_html("Nothing was created.<br><br>{}",
+                       mark_safe("<br><br>".join(blocks)))
+
+
 def _decode_qr_payloads(file_bytes, filename):
     """Return all candidate payloads (QR + printed text). Thin wrapper."""
     payloads, _source = extract_payloads(file_bytes, filename)
@@ -53,7 +117,12 @@ def _decode_qr_payloads(file_bytes, filename):
 
 
 class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """Wizard for generating release documents and uploading the signed scan."""
+    """Start a release: pick a request code, generate both documents, open it.
+
+    The route name (`release-letter-upload`) is unchanged on purpose — six
+    templates link to it, and renaming it in the same change that reworks the
+    flow would turn one reviewable diff into a hunt for NoReverseMatch.
+    """
     template_name = 'Inventory/upload_release_letter.html'
     login_url = 'login'
     permission_denied_message = "You don't have permission to upload release letters."
@@ -94,13 +163,40 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         ).select_related('unit', 'user')
 
     def _generate_docs_for(self, release_letter):
-        """Allocate code (idempotent) + generate memo + letter PDFs."""
+        """Allocate code (idempotent) + generate memo + letter PDFs.
+
+        Raises `BoQBlocked` when any line either exceeds the approved Bill of
+        Quantity without an approved justification, or has no Bill of Quantity
+        entry at all. The same gate guards `GenerateReleaseDocumentsView`;
+        enforced on only one of the two doors it would not be a control at all,
+        and this is the door most releases come through.
+        """
+        from Inventory.services.reconciliation import generation_blockers, has_blockers
+
+        blockers, _result = generation_blockers(release_letter)
+        if has_blockers(blockers):
+            raise BoQBlocked(blockers)
+
         if not release_letter.code:
             release_letter.code = next_release_code()
         memo_file = generate_release_memo(release_letter)
         letter_file = generate_release_letter(release_letter)
         release_letter.memo_pdf.save(memo_file.name, memo_file, save=False)
         release_letter.letter_pdf.save(letter_file.name, letter_file, save=False)
+
+        # Version every generation, exactly as GenerateReleaseDocumentsView does.
+        #
+        # This path did not, and once it became the primary way documents get
+        # made, every release started life at version 0. That is not cosmetic:
+        # a DocumentSignature records the version it signed and a
+        # DocumentDispatch records the version it emailed, so the version is how
+        # the system answers "which bytes did this person actually see". At 0 the
+        # answer is a lie in a specific direction — `apply_signature` coerces a
+        # falsy version to 1, so the signature would claim v1 on a document the
+        # record calls v0, and a later regenerate would produce a second v1.
+        release_letter.memo_version = (release_letter.memo_version or 0) + 1
+        release_letter.letter_version = (release_letter.letter_version or 0) + 1
+
         release_letter.documents_generated_at = timezone.now()
         release_letter.documents_generated_by = self.request.user
         if release_letter.workflow_status in ('draft', None, ''):
@@ -237,6 +333,13 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
             request_code=request_code,
         ).order_by('-upload_time').first()
 
+        # Named before the branches rather than derived after them. The two
+        # paths below set different subsets of these, and working out where to
+        # land by subtracting one case from another is how a landing page ends
+        # up being chosen by whichever branch happened to run last.
+        release_letter = None
+        created_letters = []
+
         try:
             with transaction.atomic():
                 if existing:
@@ -251,8 +354,9 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                     else:
                         messages.info(
                             request,
-                            f"Release event {release_letter.code} already exists. "
-                            "Use the upload box below to attach the signed scan.",
+                            f"Release event {release_letter.code} already exists — opening it. "
+                            "Use 'Generate memo & letter' there if the documents need "
+                            "refreshing.",
                         )
                 else:
                     matching_orders = self._matching_orders(request_code)
@@ -286,7 +390,6 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                         (o.project_type or '') for o in matching_orders
                     })
 
-                    created_letters = []
                     for ptype in project_types:
                         if ptype:
                             group = matching_orders.filter(project_type=ptype)
@@ -347,17 +450,48 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                             request,
                             f"This batch spanned {len(created_letters)} project types — "
                             f"created {len(created_letters)} release events ({codes}). "
-                            "Each has its own memo and letter. Switch between them using "
-                            "the sibling links below.",
+                            "Each has its own memo and letter; open them from the list.",
                         )
                     elif release_letter:
                         messages.success(
                             request,
-                            f"Release event {release_letter.code} created and documents "
-                            "generated. Download the memo and letter below, get them "
-                            "signed, then upload the scan.",
+                            f"Release event {release_letter.code} created and both documents "
+                            "generated. Read them below and edit the wording if you need to, "
+                            "then send for signature or print for a wet signature.",
                         )
 
+            # ── Land on the release letter, not back here ────────────────────
+            #
+            # The wizard used to return the officer to a step-2 upload box,
+            # which asked him to print, sign, scan and upload before he had ever
+            # read the document he was about to put the Ministry's name on. The
+            # detail page is where he reads it, edits the wording live, and then
+            # chooses e-signature or wet signature — which is the actual order
+            # of the work, and the reason the middle steps of the strip were
+            # always skipped in practice.
+            if len(created_letters) > 1:
+                # Two landing pages is no landing page. The list names them all.
+                return redirect('release_letter_list')
+            if release_letter is not None:
+                return redirect('release_letter_detail', pk=release_letter.pk)
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+
+        except BoQBlocked as blocked:
+            # Raised inside the atomic block, so the ReleaseLetter this would
+            # have created is rolled back with it. That is deliberate: a release
+            # event that cannot produce documents is a half-thing that shows up
+            # in lists and confuses everyone who finds it.
+            #
+            # But the rollback takes the "contact system admin" route with it —
+            # that view needs a saved release to report against. So the unmatched
+            # case is described here in full, with the request code, and the
+            # officer can raise it from the release once one exists. Naming the
+            # lines matters more than the link.
+            from Inventory.views.release_document_views import blocker_message
+
+            messages.error(request, blocker_message(release_letter, blocked.blockers)
+                           if release_letter and release_letter.pk
+                           else _unsaved_blocker_message(blocked.blockers, request_code))
             return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
 
         except Exception as e:
