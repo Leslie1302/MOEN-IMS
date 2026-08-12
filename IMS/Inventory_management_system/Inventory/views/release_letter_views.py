@@ -567,8 +567,19 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                 f"Superuser force-accepted scan despite QR outcome={qr_outcome} (filename={uploaded.name})",
             )
 
-        # Validation passed (or force-accepted). Persist.
-        release_letter.pdf_file.save(uploaded.name, uploaded, save=False)
+        # Validation passed (or force-accepted). Persist under a storage-safe
+        # name — the raw scanner filename can be rejected by the Azure Blob
+        # backend (production), surfacing as a bare "Bad Request (400)".
+        from Inventory.services.scan_validation import safe_scan_filename
+        try:
+            release_letter.pdf_file.save(
+                safe_scan_filename(uploaded.name, release_letter.code), uploaded, save=False)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Scan save failed for ReleaseLetter %s (file=%s): %s",
+                         release_letter.pk, uploaded.name, exc, exc_info=True)
+            messages.error(request, "The scan could not be saved. Please try again or "
+                                    "upload a smaller PDF/image.")
+            return redirect('release_letter_detail', pk=release_letter.pk)
         release_letter.scan_uploaded_at = timezone.now()
         release_letter.uploaded_by = request.user
         if release_letter.workflow_status in ('draft', 'memo_generated', 'awaiting_signature'):

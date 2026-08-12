@@ -62,6 +62,25 @@ except Exception:  # noqa: BLE001
     _PDF2IMAGE_OK = False
 
 
+def safe_scan_filename(original_name: str, code: str) -> str:
+    """A storage-safe filename for an uploaded scan.
+
+    Scanners and phones produce arbitrary names (spaces, unicode, colons, very
+    long strings). Saved verbatim, those are fine on the local filesystem but the
+    Azure Blob backend used in production rejects some of them, and Django raises
+    SuspiciousFileOperation for others — either way the user gets a bare
+    "Bad Request (400)". The stored name carries no meaning (the document is
+    matched by its QR/code, not its filename), so we derive a deterministic safe
+    name from the release code and keep only the original extension.
+    """
+    import os
+    ext = os.path.splitext(original_name or '')[1].lower()
+    if ext not in ('.pdf', '.png', '.jpg', '.jpeg'):
+        ext = '.pdf'  # the upload form restricts to these; default safely
+    base = re.sub(r'[^A-Za-z0-9._-]', '-', (code or 'scan').strip()) or 'scan'
+    return f"{base[:60]}{ext}"
+
+
 def decoder_status() -> dict:
     """Surface which optional decoders are available."""
     return {
