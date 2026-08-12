@@ -22,6 +22,11 @@ from django.core.validators import validate_email
 from django.db import transaction
 from django.utils import timezone
 
+# Imported at module scope (accounts.notifications does not import Inventory, so
+# there is no circular-import risk) so it is patchable here as
+# document_dispatch.send_email_notification — which is where the send is invoked.
+from accounts.notifications import send_email_notification
+
 logger = logging.getLogger(__name__)
 
 # Graph rejects messages over ~4 MB when attachments are inlined as base64.
@@ -131,7 +136,6 @@ def send_release_documents(release_letter, sender, users=None, extra_emails=None
     in that case, because no attempt reached Graph.
     """
     from Inventory.models import DocumentDispatch
-    from accounts.notifications import send_email_notification
 
     if not (include_memo or include_letter):
         raise DispatchError("Select at least one document to attach.")

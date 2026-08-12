@@ -143,6 +143,8 @@ def handle_material_order_notifications(sender, instance, created, **kwargs):
     Create notifications when material orders are created or updated.
     Different notifications go to different groups based on the action.
     """
+    if order_bulk_active():
+        return  # bulk request: one summary is sent by the creator, not one per line
     try:
         if created:
             # New material request - notify Store Officers
@@ -550,6 +552,16 @@ _boq_bulk = _threading.local()
 
 def boq_bulk_active():
     return getattr(_boq_bulk, 'on', False)
+
+
+# Same idea for bulk material requests: a multi-line release request would
+# otherwise fire a notification (and email) per line. The bulk creator sets this
+# for the loop and sends ONE summary instead.
+_order_bulk = _threading.local()
+
+
+def order_bulk_active():
+    return getattr(_order_bulk, 'on', False)
 
 
 # ===== BOQ SIGNALS =====

@@ -379,7 +379,11 @@ class RequestMaterialView(LoginRequiredMixin, View):
             
             # Process each row in the Excel file
             logger.info(f"Starting to process {len(df)} rows from Excel")
-            
+
+            # Bulk mode: suppress the per-line request signal for the whole loop,
+            # then send ONE summary in `finally` (mirrors the BoQ bulk-import summary).
+            from Inventory.signals import _order_bulk
+            _order_bulk.on = True
             for idx, row in df.iterrows():
                 row_dict = row.to_dict()
                 
@@ -512,7 +516,32 @@ class RequestMaterialView(LoginRequiredMixin, View):
             messages.error(request, error_msg)
             logger.error(error_msg, exc_info=True)
             return self._render_request_form(request, bulk_form=bulk_form)
-            
+
+        finally:
+            # Always clear the bulk flag (worker threads are reused) and, if any
+            # lines were created for a release request, send ONE summary
+            # notification instead of one per line.
+            from Inventory.signals import _order_bulk, create_notification
+            _order_bulk.on = False
+            try:
+                if success_count and request_type == 'Release':
+                    regions = ''
+                    if 'region' in df.columns:
+                        regions = ', '.join(sorted({str(r) for r in df['region'].dropna().unique() if str(r).strip()}))
+                    where = f' for {regions}' if regions else ''
+                    who = request.user.username if request.user else 'Someone'
+                    for grp in ('Store Officers', 'Management'):
+                        create_notification(
+                            notification_type='material_request',
+                            title=f'New release request: {success_count} line(s) [{base_request_code}]',
+                            message=(f'{who} submitted a release request of {success_count} '
+                                     f'line item(s){where}. Base request code: {base_request_code}.'),
+                            recipient_group=grp,
+                            sender=request.user,
+                        )
+            except Exception as note_err:
+                logger.error(f"Release request summary notification failed: {note_err}", exc_info=True)
+
         return self._render_request_form(request, bulk_form=bulk_form)
         
     def _find_inventory_item(self, item_name, user):
@@ -1074,6 +1103,10 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             base_request_code = generate_request_code()
             df['request_code'] = [f"{base_request_code}-{i+1}" for i in range(len(df))]
             
+            # Bulk mode: suppress the per-line request signal for the whole loop,
+            # then send ONE summary below (mirrors the BoQ bulk-import summary).
+            from Inventory.signals import _order_bulk
+            _order_bulk.on = True
             for idx, row in df.iterrows():
                 try:
                     if not row.get('name'):
@@ -1118,10 +1151,29 @@ class MaterialReceiptView(LoginRequiredMixin, View):
             if success_count > 0:
                 messages.success(request, f"Successfully created {success_count} material receipt(s)")
                 return redirect('material_receipt')
-                    
+
         except Exception as e:
             messages.error(request, f"Error processing bulk receipt: {str(e)}")
-            
+
+        finally:
+            # Always clear the bulk flag (worker threads are reused) and, if any
+            # lines were created, send ONE summary instead of one per line.
+            from Inventory.signals import _order_bulk, create_notification
+            _order_bulk.on = False
+            try:
+                if success_count:
+                    who = request.user.username if request.user else 'Someone'
+                    create_notification(
+                        notification_type='material_request',
+                        title=f'Material receipts logged: {success_count} line(s) [{base_request_code}]',
+                        message=(f'{who} logged {success_count} material receipt line(s). '
+                                 f'Base request code: {base_request_code}.'),
+                        recipient_group='Management',
+                        sender=request.user,
+                    )
+            except Exception as note_err:
+                logger.error(f"Receipt summary notification failed: {note_err}", exc_info=True)
+
         return self._render_receipt_form(request, bulk_form=bulk_form)
 
     def _render_receipt_form(self, request, bulk_form=None):

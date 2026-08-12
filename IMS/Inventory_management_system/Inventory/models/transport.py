@@ -175,7 +175,7 @@ class MaterialTransport(auto_prefetch.Model):
         # Ensure quantity doesn't exceed remaining order quantity for new records
         if is_new and self.material_order:
             remaining = self.material_order.remaining_transport_quantity
-            if self.quantity > remaining:
+            if self.quantity is not None and remaining is not None and self.quantity > remaining:
                 # We'll allow it but log a warning/error or just cap it? 
                 # For now, just let it pass but maybe validate in form
                 pass
