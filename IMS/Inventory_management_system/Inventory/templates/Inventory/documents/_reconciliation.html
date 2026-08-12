@@ -46,8 +46,13 @@ style on the same page would read as a different document.
         {% endif %}
       </td>
       {% else %}
-      {% comment %} No BoQ line at all — the more interesting failure of the two. {% endcomment %}
+      {% comment %} No BoQ line. For non-conventional programmes this is the release
+      authorising itself, not a fault; for conventional ones it is the fault that blocks. {% endcomment %}
+      {% if line.authorised_by_release %}
+      <td class="amt" colspan="4" style="text-align:center">authorised by this release (no pre-loaded BoQ)</td>
+      {% else %}
       <td class="amt" colspan="4" style="text-align:center">no Bill of Quantity entry found</td>
+      {% endif %}
       <td class="amt">{{ line.requested|floatformat:"-2" }} {{ line.unit }}</td>
       {% endif %}
     </tr>

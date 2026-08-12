@@ -425,6 +425,10 @@ def _blocking_message(release_letter, request):
     """
     from Inventory.services.reconciliation import generation_blockers, has_blockers
 
+    # Non-conventional programmes (Streetlights / Cost-sharing) are handled in
+    # reconciliation.generation_blockers itself — their unmatched lines are
+    # authorised by the release, not blockers — so both generation doors get the
+    # policy with no per-view logic here.
     try:
         blockers, _result = generation_blockers(release_letter)
     except Exception as exc:  # noqa: BLE001

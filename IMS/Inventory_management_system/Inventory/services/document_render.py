@@ -452,8 +452,13 @@ def render_document_html(release_letter, kind, edit_mode=False, use_stored=True,
     reconciliation = reconciliation_summary = None
     if kind == 'memo':
         from .reconciliation import reconcile, summary_sentence
-        reconciliation = reconcile(release_letter)
-        reconciliation_summary = summary_sentence(reconciliation)
+        result = reconcile(release_letter)
+        # Non-conventional releases (Streetlights / Cost-sharing) have no BoQ to
+        # reconcile against, so the section is omitted entirely — there is no
+        # position to state. Mixed releases keep it for their conventional lines.
+        if not result['all_nonconventional']:
+            reconciliation = result
+            reconciliation_summary = summary_sentence(result)
 
     return render_to_string(spec['template'], {
         'lh': _letterhead_ctx(kind, for_pdf=for_pdf, plain=plain),

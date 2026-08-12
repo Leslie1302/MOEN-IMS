@@ -94,3 +94,37 @@ def project_type_to_charfield(project_type):
     """
     code = project_type.code if hasattr(project_type, 'code') else project_type
     return PROJECT_TYPE_TO_CHARFIELD.get(code, 'SHEP')
+
+
+# ── One canonical project-type comparison ────────────────────────────────────
+# project_type is stored in two value-spaces across the schema:
+#   MaterialOrder/ReleaseLetter → short codes  ('SHEP', 'STREET', 'COST', 'SPEC')
+#   BillOfQuantity              → display names ('SHEP', 'Streetlights', 'Cost Sharing')
+# plus the ProjectType.code slugs ('shep', 'streetlights', 'cost_sharing').
+# normalize_project_type() collapses ALL of them to the short code so any
+# project-aware check compares like with like. Alphanumeric-only key so spacing
+# and punctuation ('Cost Sharing' vs 'cost_sharing') never matter.
+_PROJECT_TYPE_ALIASES = {
+    'shep': 'SHEP',
+    'street': 'STREET', 'streetlight': 'STREET', 'streetlights': 'STREET', 'poles': 'STREET',
+    'cost': 'COST', 'costsharing': 'COST', 'costshare': 'COST',
+    'spec': 'SPEC', 'special': 'SPEC', 'specialother': 'SPEC',
+    'turnkey': 'SPEC', 'chinawater': 'SPEC', 'otherelectrification': 'SPEC',
+}
+
+# Programmes that are NOT scoped by a pre-loaded Bill of Quantity — the release
+# order itself is the authorisation. SHEP (and anything unknown) is conventional.
+NONCONVENTIONAL_PROJECT_TYPES = {'STREET', 'COST'}
+
+
+def normalize_project_type(value):
+    """Any spelling of a project type → its short code ('STREET'), or '' if unknown."""
+    if not value:
+        return ''
+    key = ''.join(ch for ch in str(value).lower() if ch.isalnum())
+    return _PROJECT_TYPE_ALIASES.get(key, '')
+
+
+def is_nonconventional(value):
+    """True for Streetlights / Cost-sharing (no pre-established BoQ scope)."""
+    return normalize_project_type(value) in NONCONVENTIONAL_PROJECT_TYPES

@@ -142,7 +142,11 @@ def generation_blockers(release_letter):
     result = reconcile(release_letter)
     return {
         'over_issued': [line for line in result['exceptions'] if not line['justified']],
-        'unmatched': list(result['unmatched']),
+        # Only conventional unmatched lines block. Non-conventional programmes
+        # (Streetlights / Cost-sharing) are authorised by the release itself, so
+        # their unmatched lines are excluded here — both generation doors read
+        # this, so the policy applies everywhere at once.
+        'unmatched': list(result['unmatched_blocking']),
     }, result
 
 
@@ -204,9 +208,17 @@ def reconcile(release_letter):
             'balance_after': None,
             'exceeds_by': None,
             'justified': False,
+            'authorised_by_release': False,
         }
 
         if boq is None:
+            # A non-conventional programme (Streetlights / Cost-sharing) has no
+            # pre-loaded BoQ, so a missing line is the release authorising itself,
+            # not a data fault. Tag it here — the ONE place every door reads — so
+            # the gate lets it through and the memo can state the basis honestly.
+            from Inventory.constants import is_nonconventional
+            line['authorised_by_release'] = is_nonconventional(
+                order.project_type or getattr(release_letter, 'project_type', '') or '')
             unmatched.append(line)
             lines.append(line)
             continue
@@ -237,16 +249,27 @@ def reconcile(release_letter):
     justified_exceptions = [line for line in exceptions if line['justified']]
     unjustified_exceptions = [line for line in exceptions if not line['justified']]
 
+    # An unmatched line splits two ways: a conventional line with no BoQ is a
+    # real fault that blocks; a non-conventional one is authorised by the release.
+    unmatched_blocking = [l for l in unmatched if not l['authorised_by_release']]
+    authorised_unmatched = [l for l in unmatched if l['authorised_by_release']]
+
     return {
         'lines': lines,
         'exceptions': exceptions,
         'justified_exceptions': justified_exceptions,
         'unjustified_exceptions': unjustified_exceptions,
         'unmatched': unmatched,
-        # Both conditions matter. A release whose materials have no BoQ line is
-        # not "reconciled" just because nothing came back negative — there was
-        # nothing to compare it against.
-        'reconciles': not exceptions and not unmatched and bool(lines),
+        'unmatched_blocking': unmatched_blocking,
+        'authorised_unmatched': authorised_unmatched,
+        # Every line is authorised-by-release (non-conventional, no BoQ at all):
+        # there is nothing to reconcile, so the memo omits the section entirely
+        # rather than printing a non-position. Mixed releases are not flagged.
+        'all_nonconventional': bool(lines) and len(authorised_unmatched) == len(lines),
+        # Reconciled = nothing over-drawn and nothing BLOCKING-unmatched. A
+        # non-conventional line with no BoQ is authorised by the release, so it
+        # does not stand in the way of reconciliation.
+        'reconciles': not exceptions and not unmatched_blocking and bool(lines),
         'checked': bool(lines),
     }
 
@@ -263,7 +286,21 @@ def summary_sentence(result):
                 "established from the records available.")
 
     total = len(result['lines'])
+    auth = len(result.get('authorised_unmatched') or [])
+
     if result['reconciles']:
+        # reconciles is True when nothing over-draws and nothing conventional is
+        # unmatched. If some lines are authorised-by-release, say so plainly
+        # rather than claiming they fall within a BoQ they were never in.
+        if auth:
+            matched = total - auth
+            if matched <= 0:
+                return (f"All {total} material line(s) in this release are authorised by "
+                        f"the release order itself, as this programme is not scoped by a "
+                        f"pre-loaded Bill of Quantity.")
+            return (f"{matched} material line(s) fall within the approved Bill of Quantity; "
+                    f"the remaining {auth} are authorised by the release order, as this "
+                    f"programme is not scoped by a pre-loaded Bill of Quantity.")
         return (f"All {total} material line(s) in this release fall within the "
                 f"approved Bill of Quantity for the community concerned.")
 
@@ -280,8 +317,11 @@ def summary_sentence(result):
         parts.append(f"{len(result['unjustified_exceptions'])} line(s) exceed the "
                      f"approved Bill of Quantity with no approved justification on "
                      f"record")
-    if result['unmatched']:
-        parts.append(f"{len(result['unmatched'])} line(s) could not be matched to "
+    if result['unmatched_blocking']:
+        parts.append(f"{len(result['unmatched_blocking'])} line(s) could not be matched to "
                      f"any Bill of Quantity entry")
+    if auth:
+        parts.append(f"{auth} line(s) are authorised by the release order (programme not "
+                     f"scoped by a pre-loaded Bill of Quantity)")
     return ("Reconciliation against the Bill of Quantity shows "
             + "; ".join(parts) + ". Details are set out below.")

@@ -671,7 +671,20 @@ def _availability_and_reconciliation(release_letter):
     if not result['checked']:
         return opening
 
+    # Wholly non-conventional release: nothing to reconcile, so say nothing about
+    # the BoQ at all — just the availability confirmation.
+    if result.get('all_nonconventional'):
+        return opening
+
+    authorised = result.get('authorised_unmatched') or []
+
     if result['reconciles']:
+        # A wholly non-conventional release returned above; here `authorised` can
+        # only be the non-conventional remainder of a MIXED release.
+        if authorised:
+            return (f"{opening} The remaining lines are authorised by this release order, "
+                    "as their programme is not scoped by a pre-loaded Bill of Quantity, "
+                    "as per the Bill of Quantity reconciliation table below.")
         return (f"{opening} Further reconciliation checks on the IMS confirm that this "
                 "release is well within the contract's intended scope, as per the Bill "
                 "of Quantity reconciliation table below.")
@@ -692,10 +705,14 @@ def _availability_and_reconciliation(release_letter):
             f"{len(result['unjustified_exceptions'])} line(s) exceed the approved "
             "Bill of Quantity with no approved justification on record, which must "
             "be resolved before this release can be issued")
-    if result['unmatched']:
+    if result['unmatched_blocking']:
         clauses.append(
-            f"{len(result['unmatched'])} line(s) could not be matched to any Bill of "
+            f"{len(result['unmatched_blocking'])} line(s) could not be matched to any Bill of "
             "Quantity entry for this community")
+    if authorised:
+        clauses.append(
+            f"{len(authorised)} line(s) are authorised by this release order, as their "
+            "programme is not scoped by a pre-loaded Bill of Quantity")
 
     if not clauses:
         return opening
