@@ -724,18 +724,19 @@ class EnhancedTable {
     }
 
     exportToExcel() {
-        // For Excel export, we'll use the CSV method with an .xls extension
-        // Note: For full Excel support, you might want to use a library like SheetJS
-        this.exportToCSV();
-        return;
-        
-        // The following is a placeholder for actual Excel export implementation
-        /*
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.table_to_sheet(this.table);
-        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-        XLSX.writeFile(wb, `${this.config.exportFileName}.xlsx`);
-        */
+        // Real .xlsx via SheetJS (lazy-loaded). Exports ALL filtered rows — not
+        // just the visible page — because EnhancedTable keeps them in
+        // `filteredData`. Falls back to CSV if the library can't load.
+        const headRow = this.table.querySelector('thead tr:not(.filter-row)')
+            || (this.table.tHead && this.table.tHead.rows[0]);
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const visible = headerCells.map(h =>
+            h.style.display !== 'none' && !h.hasAttribute('data-no-export'));
+        const headers = headerCells.filter((_, i) => visible[i]).map(h => TableExport.cellText(h));
+        const rows = this.filteredData.map(rowData =>
+            rowData.cells.filter((_, i) => visible[i]).map(c => c.text));
+        TableExport.toXlsx(headers, rows, this.config.exportFileName)
+            .catch(() => this.exportToCSV());
     }
 
     exportToPDF() {
@@ -816,6 +817,106 @@ class EnhancedTable {
     }
 }
 
+// ── Systemwide table → Excel export ─────────────────────────────────────────
+// Real .xlsx via SheetJS, lazy-loaded from the CDN the app already uses (allowed
+// by CSP script-src), so it costs nothing until someone actually exports. Every
+// enhanced table gets an Excel option in its Export menu; every other table with
+// a header + data rows gets a small "Export to Excel" button.
+//
+// Opt out a whole table with `data-no-export` on the <table> (or `enhanced-table`
+// tables get the menu instead). Opt out a column with `data-no-export` on its <th>.
+const TableExport = {
+    _lib: null,
+    CDN: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+
+    ensureLib() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (this._lib) return this._lib;
+        this._lib = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = this.CDN;
+            s.onload = () => resolve(window.XLSX);
+            s.onerror = () => { this._lib = null; reject(new Error('xlsx failed to load')); };
+            document.head.appendChild(s);
+        });
+        return this._lib;
+    },
+
+    // Text only — strip buttons/inputs/icons so an "Actions" cell doesn't dump
+    // "EditDelete" into the spreadsheet. A cell can override with data-export-value.
+    cellText(cell) {
+        if (cell.hasAttribute && cell.hasAttribute('data-export-value')) {
+            return cell.getAttribute('data-export-value');
+        }
+        const clone = cell.cloneNode(true);
+        clone.querySelectorAll('button, input, select, textarea, svg, i, .btn, .dropdown-menu, .sort-indicator')
+            .forEach(el => el.remove());
+        return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    },
+
+    fileName(base) {
+        const name = (base || document.title || 'export').trim()
+            .replace(/[^\w.-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        return (name || 'export').slice(0, 80) + '.xlsx';
+    },
+
+    toXlsx(headers, rows, base) {
+        return this.ensureLib().then((XLSX) => {
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, this.fileName(base));
+        });
+    },
+
+    // Export a plain (non-enhanced) table straight from its DOM rows. For a
+    // server-paginated table this is the current page; enhanced tables use their
+    // full `filteredData` instead (see EnhancedTable.exportToExcel).
+    fromTable(table, base) {
+        const headRow = table.tHead ? table.tHead.rows[0] : null;
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const keep = headerCells.map(h =>
+            !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
+        const headers = headerCells.filter((_, i) => keep[i]).map(h => this.cellText(h));
+        const rows = [];
+        const body = table.tBodies[0];
+        if (body) {
+            Array.from(body.rows).forEach((tr) => {
+                const cells = Array.from(tr.cells);
+                rows.push(cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c)));
+            });
+        }
+        return this.toXlsx(headers, rows, base)
+            .catch(() => alert('The Excel export could not load. Check your connection and try again.'));
+    },
+};
+
+// Attach an "Export to Excel" button to every plain table (those not handled by
+// EnhancedTable or DataTables). Idempotent; skips headerless/empty/opted-out tables.
+const attachPlainTableExports = () => {
+    document.querySelectorAll('table').forEach((table) => {
+        if (table.classList.contains('enhanced-table')) return;      // gets the Export menu
+        if (table.classList.contains('dataTable') || table.closest('.dataTables_wrapper')) return;
+        if (table.hasAttribute('data-no-export')) return;
+        if (table.dataset.exportAttached) return;
+        if (!table.tHead || !table.tBodies.length || table.tBodies[0].rows.length === 0) return;
+        table.dataset.exportAttached = '1';
+
+        const bar = document.createElement('div');
+        bar.className = 'table-export-bar d-flex justify-content-end mb-2';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-success';
+        btn.innerHTML = '<i class="bi bi-file-earmark-excel me-1"></i>Export to Excel';
+        btn.addEventListener('click', () =>
+            TableExport.fromTable(table, table.dataset.exportName || document.title));
+        bar.appendChild(btn);
+        table.parentNode.insertBefore(bar, table);
+    });
+};
+
+window.TableExport = TableExport;
+
 // Auto-initialize tables with the 'enhanced-table' class.
 //
 // IMPORTANT: skip tables that are also being enhanced by jQuery DataTables.
@@ -835,13 +936,18 @@ const initEnhancedTables = () => {
 
         new EnhancedTable({
             table,
-            pagination: !hasDjangoPagination
+            pagination: !hasDjangoPagination,
+            exportable: table.hasAttribute('data-no-export') ? false : true,
+            exportFileName: table.dataset.exportName || document.title || 'table_export',
         });
     });
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(initEnhancedTables, 0);
+    setTimeout(() => {
+        initEnhancedTables();
+        attachPlainTableExports();
+    }, 0);
 });
 
 // Make EnhancedTable available globally
