@@ -880,19 +880,30 @@ const TableExport = {
     // server-paginated table this is the current page; enhanced tables use their
     // full `filteredData` instead (see EnhancedTable.exportToExcel).
     fromTable(table, base) {
-        const headRow = table.tHead ? table.tHead.rows[0] : null;
+        const headRow = (table.tHead && table.tHead.rows[0]) || table.querySelector('tr');
         const headerCells = headRow ? Array.from(headRow.cells) : [];
         const keep = headerCells.map(h =>
             !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
         const headers = headerCells.filter((_, i) => keep[i]).map(h => this.cellText(h));
-        const rows = [];
-        const body = table.tBodies[0];
-        if (body) {
-            Array.from(body.rows).forEach((tr) => {
-                const cells = Array.from(tr.cells);
-                rows.push(cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c)));
-            });
+
+        // DataTables keeps only the current page in the DOM — pull ALL rows from
+        // its API so the export isn't truncated to one page.
+        let bodyRows = null;
+        try {
+            const $ = window.jQuery || window.$;
+            if ($ && $.fn && $.fn.dataTable && $.fn.dataTable.isDataTable(table)) {
+                bodyRows = $(table).DataTable().rows().nodes().toArray();
+            }
+        } catch (e) { /* fall back to DOM rows */ }
+        if (!bodyRows) {
+            const body = table.tBodies[0];
+            bodyRows = body ? Array.from(body.rows) : [];
         }
+
+        const rows = bodyRows.map((tr) => {
+            const cells = Array.from(tr.cells);
+            return cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c));
+        });
         return this.toXlsx(headers, rows, base)
             .catch(() => alert('The Excel export could not load. Check your connection and try again.'));
     },
@@ -966,23 +977,35 @@ const TableExport = {
 // EnhancedTable or DataTables). Idempotent; skips headerless/empty/opted-out tables.
 const attachPlainTableExports = () => {
     document.querySelectorAll('table').forEach((table) => {
-        if (table.classList.contains('enhanced-table')) return;      // gets the Export menu
-        if (table.classList.contains('dataTable') || table.closest('.dataTables_wrapper')) return;
-        if (table.hasAttribute('data-no-export')) return;
-        if (table.dataset.exportAttached) return;
-        if (!table.tHead || !table.tBodies.length || table.tBodies[0].rows.length === 0) return;
-        table.dataset.exportAttached = '1';
+        try {
+            if (table.classList.contains('enhanced-table')) return;  // gets the Export menu instead
+            if (table.hasAttribute('data-no-export')) return;
+            if (table.dataset.exportAttached) return;
+            // Need a header row and at least one body row to be worth exporting.
+            const head = table.tHead || table;
+            const hasHeader = (table.tHead && table.tHead.rows.length) ||
+                              table.querySelector('thead th, tr th');
+            const bodyRows = (table.tBodies[0] && table.tBodies[0].rows.length) ||
+                             table.querySelectorAll('tr td').length;
+            if (!hasHeader || !bodyRows) return;
+            table.dataset.exportAttached = '1';
 
-        const bar = document.createElement('div');
-        bar.className = 'table-export-bar d-flex justify-content-end mb-2';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-sm btn-outline-success';
-        btn.innerHTML = '<i class="bi bi-file-earmark-excel me-1"></i>Export to Excel';
-        btn.addEventListener('click', () =>
-            TableExport.export(table, table.dataset.exportName || document.title, btn));
-        bar.appendChild(btn);
-        table.parentNode.insertBefore(bar, table);
+            const bar = document.createElement('div');
+            bar.className = 'table-export-bar d-flex justify-content-end mb-2';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-success';
+            btn.innerHTML = '<i class="bi bi-file-earmark-excel me-1"></i>Export to Excel';
+            btn.addEventListener('click', () =>
+                TableExport.export(table, table.dataset.exportName || document.title, btn));
+            bar.appendChild(btn);
+            // DataTables wraps the table; put the button above the wrapper so it
+            // sits with the table's own controls rather than between them.
+            const anchor = table.closest('.dataTables_wrapper') || table;
+            anchor.parentNode.insertBefore(bar, anchor);
+        } catch (e) {
+            console.error('Export button attach failed for a table:', e);
+        }
     });
 };
 
@@ -1005,19 +1028,28 @@ const initEnhancedTables = () => {
 
         const hasDjangoPagination = document.querySelector('.pagination');
 
-        new EnhancedTable({
-            table,
-            pagination: !hasDjangoPagination,
-            exportable: table.hasAttribute('data-no-export') ? false : true,
-            exportFileName: table.dataset.exportName || document.title || 'table_export',
-        });
+        // One misbehaving table must not abort the loop (and, previously, prevent
+        // every plain-table export button after it from ever attaching).
+        try {
+            new EnhancedTable({
+                table,
+                pagination: !hasDjangoPagination,
+                exportable: table.hasAttribute('data-no-export') ? false : true,
+                exportFileName: table.dataset.exportName || document.title || 'table_export',
+            });
+        } catch (e) {
+            console.error('EnhancedTable init failed for', table.id || '(no id)', e);
+        }
     });
 };
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        initEnhancedTables();
-        attachPlainTableExports();
+        // Independent + plain-first, so a failure in one path never blocks the
+        // other. This is why "no export button anywhere" happened: one enhanced
+        // table threw and took the whole handler down before buttons attached.
+        try { attachPlainTableExports(); } catch (e) { console.error('Plain table export init failed:', e); }
+        try { initEnhancedTables(); } catch (e) { console.error('Enhanced table init failed:', e); }
     }, 0);
 });
 
