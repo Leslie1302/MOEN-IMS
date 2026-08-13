@@ -93,6 +93,17 @@ except Exception as exc:
     print("[start.sh] Release memos/letters will NOT be generated until this is fixed.")
 PY
 
+# ── Static files ─────────────────────────────────────────────────────────────
+# WhiteNoise serves from STATIC_ROOT (staticfiles/), which is gitignored and NOT
+# in the deploy artifact — so it must be built here. Without this, prod serves a
+# stale (or missing) bundle: e.g. the table-export button was in the source but
+# never reached users because collectstatic never ran. Guarded so a static build
+# hiccup can't take the whole app down (set -e is on).
+echo "[start.sh] Collecting static files..."
+python manage.py collectstatic --noinput \
+  && echo "[start.sh] Static files collected." \
+  || echo "[start.sh] WARNING: collectstatic failed; static assets may be stale."
+
 # ── Database ─────────────────────────────────────────────────────────────────
 # Apply migrations on every start — idempotent, no-op when up to date.
 python manage.py migrate --noinput
