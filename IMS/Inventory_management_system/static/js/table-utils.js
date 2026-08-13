@@ -724,9 +724,16 @@ class EnhancedTable {
     }
 
     exportToExcel() {
-        // Real .xlsx via SheetJS (lazy-loaded). Exports ALL filtered rows — not
-        // just the visible page — because EnhancedTable keeps them in
-        // `filteredData`. Falls back to CSV if the library can't load.
+        // Server-paginated? Walk every ?page=N so the file holds the whole
+        // dataset, not just this page. (Client-side filters/sort are transient
+        // there anyway — the server holds the real filtering.)
+        if (TableExport.serverLastPage()) {
+            TableExport.export(this.table, this.config.exportFileName).catch(() => this.exportToCSV());
+            return;
+        }
+        // Otherwise all rows are in `filteredData` — export those (respects the
+        // active client-side search/column filters). Falls back to CSV if the
+        // Excel library can't load.
         const headRow = this.table.querySelector('thead tr:not(.filter-row)')
             || (this.table.tHead && this.table.tHead.rows[0]);
         const headerCells = headRow ? Array.from(headRow.cells) : [];
@@ -889,6 +896,70 @@ const TableExport = {
         return this.toXlsx(headers, rows, base)
             .catch(() => alert('The Excel export could not load. Check your connection and try again.'));
     },
+
+    // Largest ?page=N in the page's Django pagination, or null when the table
+    // isn't server-paginated (all rows already in the DOM).
+    serverLastPage() {
+        let max = 1;
+        document.querySelectorAll('.pagination a[href*="page="]').forEach((a) => {
+            const m = (a.getAttribute('href') || '').match(/[?&]page=(\d+)/);
+            if (m) max = Math.max(max, parseInt(m[1], 10));
+        });
+        return max > 1 ? max : null;
+    },
+
+    // Export EVERY row of a server-paginated table by walking ?page=1..N and
+    // harvesting each page's rows — so the file holds the whole dataset, not just
+    // the current page. Reuses the existing views (cookies sent), so no new
+    // server endpoint is needed. Preserves the active filters already in the URL.
+    async fromServerPages(table, base, lastPage, onProgress) {
+        const headRow = table.tHead ? table.tHead.rows[0] : null;
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const keep = headerCells.map(h =>
+            !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
+        const headers = headerCells.filter((_, i) => keep[i]).map(h => this.cellText(h));
+
+        const rows = [];
+        const params = new URLSearchParams(window.location.search);
+        const cap = Math.min(lastPage, 500); // guard against runaway page counts
+        for (let p = 1; p <= cap; p++) {
+            if (onProgress) onProgress(p, cap);
+            params.set('page', String(p));
+            let text;
+            try {
+                const resp = await fetch(window.location.pathname + '?' + params.toString(),
+                    { credentials: 'same-origin' });  // normal full page, so the table is present
+                if (!resp.ok) break;
+                text = await resp.text();
+            } catch (e) { break; }
+            const doc = new DOMParser().parseFromString(text, 'text/html');
+            const t = (table.id && doc.getElementById(table.id)) || doc.querySelector('table');
+            const body = t && t.tBodies[0];
+            if (!body || body.rows.length === 0) break;
+            Array.from(body.rows).forEach((tr) => {
+                const cells = Array.from(tr.cells);
+                rows.push(cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c)));
+            });
+        }
+        return this.toXlsx(headers, rows, base);
+    },
+
+    // One entry point: full dataset for server-paginated tables, DOM rows
+    // otherwise. `btn` (optional) shows a "Preparing…" state during the walk.
+    export(table, base, btn) {
+        const lastPage = this.serverLastPage();
+        if (!lastPage) return this.fromTable(table, base);
+        const label = btn ? btn.innerHTML : null;
+        const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = label; } };
+        if (btn) { btn.disabled = true; }
+        return this.fromServerPages(table, base, lastPage, (p, n) => {
+            if (btn) btn.innerHTML = `Preparing… ${p}/${n}`;
+        }).then(restore).catch((e) => {
+            restore();
+            alert('The full export could not be built. Try again, or export the current page.');
+            throw e;
+        });
+    },
 };
 
 // Attach an "Export to Excel" button to every plain table (those not handled by
@@ -909,7 +980,7 @@ const attachPlainTableExports = () => {
         btn.className = 'btn btn-sm btn-outline-success';
         btn.innerHTML = '<i class="bi bi-file-earmark-excel me-1"></i>Export to Excel';
         btn.addEventListener('click', () =>
-            TableExport.fromTable(table, table.dataset.exportName || document.title));
+            TableExport.export(table, table.dataset.exportName || document.title, btn));
         bar.appendChild(btn);
         table.parentNode.insertBefore(bar, table);
     });

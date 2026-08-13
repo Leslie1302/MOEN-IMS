@@ -3,7 +3,10 @@
 <html lang="en">
 
 <head>
-    <base href="/" />
+    {# NOTE: no <base href="/"> — it makes relative URLs (e.g. pagination
+       'href="?page=2"' and in-page '#anchor' links) resolve against the site
+       root, so paging a table jumped to the homepage ('/?page=2'). Links use
+       {% url %} (absolute) so nothing needs a base tag. #}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
