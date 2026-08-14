@@ -41,7 +41,7 @@ from .models import (
     # Note: Notification, Project, ProjectSite, ProjectPhase will be available after migration
 )
 from .forms import TransporterForm, TransportVehicleForm, TransportAssignmentForm, TransporterImportForm
-from Inventory.utils import is_store_officer, is_superuser, is_schedule_officer
+from Inventory.utils import is_store_officer, is_superuser, is_schedule_officer, can_access_stores
 
 from django.views.decorators.http import require_POST
 
@@ -134,7 +134,7 @@ class TransporterAssignmentView(LoginRequiredMixin, SuperuserOnlyMixin, ListView
     paginate_by = 20
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_queryset(self):
         # Release orders with processed quantities awaiting transport.
@@ -626,7 +626,7 @@ class TransporterListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     paginate_by = 20
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_queryset(self):
         queryset = Transporter.objects.all().annotate(
@@ -661,7 +661,7 @@ class TransporterCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateView):
     success_url = reverse_lazy('transporter_list')
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def form_valid(self, form):
         form.instance.added_by = self.request.user
@@ -677,7 +677,7 @@ class TransporterUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateView):
     success_url = reverse_lazy('transporter_list')
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def form_valid(self, form):
         messages.success(self.request, 'Transporter updated successfully.')
@@ -811,7 +811,7 @@ class TransportVehicleListView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_queryset(self):
         queryset = TransportVehicle.objects.select_related('transporter').all()
@@ -847,7 +847,7 @@ class TransportVehicleCreateView(LoginRequiredMixin, SuperuserOnlyMixin, CreateV
     template_name = 'Inventory/transport_vehicle_form.html'
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_initial(self):
         """Pre-select transporter if coming from transporter detail page."""
@@ -876,7 +876,7 @@ class TransportVehicleUpdateView(LoginRequiredMixin, SuperuserOnlyMixin, UpdateV
     template_name = 'Inventory/transport_vehicle_form.html'
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_success_url(self):
         return reverse_lazy('vehicle_list')
@@ -909,7 +909,7 @@ class TransporterDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailView):
     context_object_name = 'transporter'
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -938,7 +938,7 @@ class TransportVehicleDetailView(LoginRequiredMixin, SuperuserOnlyMixin, DetailV
     context_object_name = 'vehicle'
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
 
 
 class TransporterLegendView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
@@ -948,7 +948,7 @@ class TransporterLegendView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     context_object_name = 'transporters'
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user)
     
     def get_queryset(self):
         return Transporter.objects.prefetch_related('vehicles').all()
@@ -971,7 +971,7 @@ class TransportationStatusView(LoginRequiredMixin, SuperuserOnlyMixin, ListView)
     paginate_by = 20
     
     def test_func(self):
-        return is_store_officer(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user) or is_schedule_officer(self.request.user)
     
     def get_queryset(self):
         # Keep only active transports here; delivered consignments move to the archive view.
@@ -1061,7 +1061,7 @@ class TransportArchiveView(LoginRequiredMixin, SuperuserOnlyMixin, ListView):
     paginate_by = 20
 
     def test_func(self):
-        return is_store_officer(self.request.user) or is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+        return can_access_stores(self.request.user) or is_schedule_officer(self.request.user)
 
     def get_queryset(self):
         queryset = MaterialTransport.objects.filter(

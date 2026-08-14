@@ -129,9 +129,10 @@ class SiteReceiptListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_by = 20
     
     def test_func(self):
-        # Using absolute import for utils to be safe
-        from Inventory.utils import is_schedule_officer, is_superuser
-        return is_schedule_officer(self.request.user) or is_superuser(self.request.user)
+        # Schedule officers monitor deliveries; stores staff/management (and the
+        # Stores Management supervisory group) reach this from the Stores navbar.
+        from Inventory.utils import is_schedule_officer, can_access_stores
+        return is_schedule_officer(self.request.user) or can_access_stores(self.request.user)
     
     def get_queryset(self):
         # Schedule officers and superusers see all receipts

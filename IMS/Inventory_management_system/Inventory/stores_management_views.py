@@ -26,29 +26,32 @@ logger = logging.getLogger(__name__)
 
 
 class StoresManagementMixin(UserPassesTestMixin):
-    """Mixin to restrict access to Management group members who oversee stores"""
-    
+    """Access to stores-management pages: the Stores Management supervisory group
+    and Management (plus superusers)."""
+
     def test_func(self):
         if not self.request.user.is_authenticated:
             return False
         if self.request.user.is_superuser:
             return True
-        # Management group can assign orders to Store Officers
-        return self.request.user.groups.filter(name='Management').exists()
+        # Both the 'Stores Management' supervisory group AND 'Management' oversee
+        # stores. 'Stores Management' was previously omitted here, so those users
+        # were 403'd on their own navbar's pages.
+        return self.request.user.groups.filter(
+            name__in=['Management', 'Stores Management']).exists()
 
 
 class StoresStaffMixin(UserPassesTestMixin):
-    """Mixin to restrict access to Store Officers who process orders house"""
-    
+    """Access to stores-operations pages: store officers plus the Stores
+    Management supervisory group (and superusers)."""
+
     def test_func(self):
         if not self.request.user.is_authenticated:
             return False
         if self.request.user.is_superuser:
             return True
-        # Store Officers process assigned orders (any alias accepted)
-        from Inventory.utils import Roles
-        return self.request.user.groups.filter(
-            name__in=Roles.STORE_OPERATION_ALIASES).exists()
+        from Inventory.utils import can_access_stores
+        return can_access_stores(self.request.user)
 
 
 class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
@@ -488,12 +491,13 @@ class StoreOfficerPerformanceDashboard(LoginRequiredMixin, UserPassesTestMixin, 
     context_object_name = 'store_officers'
     
     def test_func(self):
-        """Allow access to Store Officers and Management"""
+        """Allow access to Store Officers, Stores Management, and Management."""
         if not self.request.user.is_authenticated:
             return False
         if self.request.user.is_superuser:
             return True
-        return self.request.user.groups.filter(name__in=['Store Officers', 'Management']).exists()
+        return self.request.user.groups.filter(
+            name__in=['Store Officers', 'Stores Management', 'Management']).exists()
     
     def get_queryset(self):
         """Get all store officers"""
@@ -681,9 +685,10 @@ class StoreOperationsHubView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             return False
         if self.request.user.is_superuser:
             return True
-        allowed_groups = ['Store Officers', 'Management', 'Schedule Officers', 'Consultants']
+        allowed_groups = ['Store Officers', 'Stores Management', 'Management',
+                          'Schedule Officers', 'Consultants']
         return self.request.user.groups.filter(name__in=allowed_groups).exists()
-    
+
     def get_user_role(self):
         """Determine the user's primary role for permissions"""
         user = self.request.user
@@ -691,7 +696,8 @@ class StoreOperationsHubView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             return 'admin'
         if user.groups.filter(name='Store Officers').exists():
             return 'store_officer'
-        if user.groups.filter(name='Management').exists():
+        # Stores Management oversees stores — treat like management (sees all).
+        if user.groups.filter(name__in=['Management', 'Stores Management']).exists():
             return 'management'
         if user.groups.filter(name='Schedule Officers').exists():
             return 'schedule_officer'

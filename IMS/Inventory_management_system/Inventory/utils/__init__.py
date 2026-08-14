@@ -36,6 +36,11 @@ class Roles:
         'Stores Officer',
         'Stores Officers',
     )
+    # Every group allowed to reach the Stores navbar sections (Stores Operations
+    # AND Stores Management). The 'Stores Management' group is a supervisory role
+    # over stores and must be able to open all of those pages — several views
+    # historically checked only 'Store Officers'/'Management' and 403'd it.
+    STORES_ACCESS_GROUPS = STORE_OPERATION_ALIASES + ('Stores Management', 'Management')
 
 
 def is_store_officer(user):
@@ -53,6 +58,16 @@ def is_store_operations_user(user):
     Alias helper for navbar and read-only reconciliation views.
     """
     return is_store_officer(user)
+
+
+def can_access_stores(user):
+    """True for anyone allowed to open the Stores navbar sections (operations +
+    management): store officers, the Stores Management supervisory group,
+    Management, and superusers. Use this on every Stores page's access check so
+    the Stores Management group is never 403'd again."""
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    return user.is_superuser or user.groups.filter(name__in=Roles.STORES_ACCESS_GROUPS).exists()
 
 
 def is_superuser(user):
@@ -140,6 +155,7 @@ __all__ = [
     'Roles',
     'is_store_officer',
     'is_store_operations_user',
+    'can_access_stores',
     'is_superuser',
     'is_schedule_officer',
     'is_management',
