@@ -14,7 +14,7 @@ from .models import (
     SupplierInvoice, SupplierInvoiceItem, StoreOrderAssignment, ObsoleteMaterial,
     SHEPCommunity, Community, ProjectSite, Project,
     ProjectType, MemberOfParliament, ProjectConsultant,
-    Signatory, ReleaseLetter, Letterhead,
+    Signatory, ReleaseLetter, Letterhead, NotificationSetting,
     SigningStep, DocumentSignature, DiscussionRequest, ReleaseCodeSequence,
 )
 from .transporter_models import Transporter, TransportVehicle
@@ -713,6 +713,51 @@ class ReleaseCodeSequenceAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(NotificationSetting)
+class NotificationSettingAdmin(admin.ModelAdmin):
+    """One-click on/off switch for automatic notification emails.
+
+    The changelist is replaced by a single status card with a toggle button
+    (see templates/admin/Inventory/notificationsetting/change_list.html).
+    """
+    list_display = ('__str__', 'updated_at', 'updated_by')
+
+    def has_add_permission(self, request):
+        return not NotificationSetting.objects.exists()  # singleton
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_urls(self):
+        info = self.model._meta.app_label, self.model._meta.model_name
+        return [
+            path('toggle/', self.admin_site.admin_view(self.toggle_view),
+                 name='%s_%s_toggle' % info),
+        ] + super().get_urls()
+
+    def changelist_view(self, request, extra_context=None):
+        obj = NotificationSetting.load()  # ensure the singleton exists
+        info = self.model._meta.app_label, self.model._meta.model_name
+        extra_context = extra_context or {}
+        extra_context['emails_enabled'] = obj.emails_enabled
+        extra_context['toggle_url'] = reverse('admin:%s_%s_toggle' % info)
+        return super().changelist_view(request, extra_context)
+
+    def toggle_view(self, request):
+        if request.method != 'POST':
+            return redirect('admin:%s_%s_changelist' % (
+                self.model._meta.app_label, self.model._meta.model_name))
+        obj = NotificationSetting.load()
+        obj.emails_enabled = not obj.emails_enabled
+        obj.updated_by = request.user if request.user.is_authenticated else None
+        obj.save()
+        messages.success(
+            request,
+            "Email notifications are now %s." % ('ENABLED' if obj.emails_enabled else 'DISABLED'))
+        return redirect('admin:%s_%s_changelist' % (
+            self.model._meta.app_label, self.model._meta.model_name))
 
 
 @admin.register(Letterhead)

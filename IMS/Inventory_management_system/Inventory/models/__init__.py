@@ -15,6 +15,7 @@ from .project_type import ProjectType
 from .people import MemberOfParliament, ProjectConsultant
 from .signatory import Signatory
 from .letterhead import Letterhead  # Ministry letterhead for generated documents
+from .notification_setting import NotificationSetting  # Global email on/off switch
 from .document_dispatch import DocumentDispatch  # audit of emailed release documents
 from .release_sequence import ReleaseCodeSequence  # registry-grade code allocator
 from .signing import (  # in-app approval chain
@@ -53,6 +54,7 @@ __all__ = [
     'MemberOfParliament', 'ProjectConsultant',
     'Signatory',
     'Letterhead',
+    'NotificationSetting',
     'DocumentDispatch',
     'ArchivedRequisition',
     'ReleaseCodeSequence',

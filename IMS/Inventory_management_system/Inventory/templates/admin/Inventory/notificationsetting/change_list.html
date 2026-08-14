@@ -1,0 +1,48 @@
+{% extends "admin/change_list.html" %}
+{% comment %}
+Replaces the (pointless, single-row) changelist with a status card and a
+one-click toggle button. `emails_enabled` and `toggle_url` are injected by
+NotificationSettingAdmin.changelist_view.
+{% endcomment %}
+
+{% block content %}
+<div style="max-width:640px;margin:32px auto;padding:28px;border:1px solid #e0e0e0;
+            border-radius:12px;text-align:center;background:#fff;">
+  <h1 style="margin-top:0;font-size:22px;">Email Notifications</h1>
+
+  {% if emails_enabled %}
+    <p style="font-size:18px;margin:18px 0;">
+      Status: <strong style="color:#1b5e20;">ON</strong><br>
+      <span style="color:#555;font-size:14px;">Automatic notification emails are being sent.</span>
+    </p>
+    <form method="post" action="{{ toggle_url }}">
+      {% csrf_token %}
+      <button type="submit"
+              style="background:#c62828;color:#fff;border:0;border-radius:8px;
+                     padding:12px 26px;font-size:16px;cursor:pointer;">
+        Turn OFF email notifications
+      </button>
+    </form>
+  {% else %}
+    <p style="font-size:18px;margin:18px 0;">
+      Status: <strong style="color:#c62828;">OFF</strong><br>
+      <span style="color:#555;font-size:14px;">No automatic notification emails are being sent.</span>
+    </p>
+    <form method="post" action="{{ toggle_url }}">
+      {% csrf_token %}
+      <button type="submit"
+              style="background:#1b5e20;color:#fff;border:0;border-radius:8px;
+                     padding:12px 26px;font-size:16px;cursor:pointer;">
+        Turn ON email notifications
+      </button>
+    </form>
+  {% endif %}
+
+  <p style="color:#777;margin-top:22px;font-size:13px;line-height:1.5;">
+    In-app notifications always work — this only controls outgoing emails for
+    <em>automatic</em> notifications (new requests, BoQ updates, receipts, bulk
+    summaries). Deliberate one-off sends (emailing a release document, a
+    BoQ-assistance request) are unaffected.
+  </p>
+</div>
+{% endblock %}
