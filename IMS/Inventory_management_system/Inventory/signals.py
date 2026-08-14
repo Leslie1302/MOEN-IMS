@@ -73,6 +73,14 @@ def _trigger_email_notification(notification):
     """
     Internal helper to send email alerts for a notification.
     """
+    # Global kill-switch (toggled from the admin portal). When off, no automatic
+    # notification email leaves the system; the in-app Notification still exists.
+    from Inventory.models import NotificationSetting
+    if not NotificationSetting.emails_are_enabled():
+        logger.info("Email notifications globally disabled; skipping email for notification %s.",
+                    getattr(notification, 'id', '?'))
+        return
+
     # 1. Resolve Recipient Emails
     recipients = []
     if notification.recipient_user and notification.recipient_user.email:
