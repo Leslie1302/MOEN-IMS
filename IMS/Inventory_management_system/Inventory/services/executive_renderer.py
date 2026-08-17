@@ -259,20 +259,28 @@ def render_executive_report(
     process_html = ''.join('<li>' + item + '</li>' for item in process_improvements)
     health_html = ''.join('<li>' + item + '</li>' for item in health_lines)
 
+    # Styled to match the Ministry Feature & Improvement Report: centred title
+    # block, a navy rule, and numbered ruled section headings.
+    h2 = ('color:#003366; border-bottom:2px solid #003366; padding-bottom:6px; '
+          'margin-top:26px; font-size:1.15em;')
     html = (
         '<div style="font-family: Calibri, Arial, sans-serif; color: #1f2933; max-width: 760px; line-height: 1.55;">'
-        f'<h1 style="color: #003366;">Weekly Progress Report</h1>'
-        f'<p style="color: #6c757d; margin-top: -8px;">Period: {period}</p>'
-        '<h2 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 6px;">Executive Impact</h2>'
+        '<div style="text-align:center;">'
+        '<div style="color:#003366; font-size:1.45em; font-weight:700;">Ministry of Energy &amp; Green Transition</div>'
+        '<div style="color:#003366; font-size:1.15em; font-weight:700; margin-top:2px;">Weekly Progress Report</div>'
+        f'<div style="color:#6c757d; margin-top:8px;">Period: {period} &nbsp;&bull;&nbsp; Audience: Management</div>'
+        '</div>'
+        '<hr style="border:none; border-top:2px solid #003366; margin:14px 0 4px;">'
+        f'<h2 style="{h2}">1. Executive Impact</h2>'
         f'<p>{executive_impact}</p>'
-        '<h2 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 6px;">Process Improvements</h2>'
+        f'<h2 style="{h2}">2. Process Improvements</h2>'
         f'<ul>{process_html}</ul>'
-        '<h2 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 6px;">Operational Health</h2>'
+        f'<h2 style="{h2}">3. Operational Health</h2>'
         f'<ul>{health_html}</ul>'
-        '<h2 style="color: #003366; border-bottom: 2px solid #003366; padding-bottom: 6px;">Strategic Outlook</h2>'
+        f'<h2 style="{h2}">4. Strategic Outlook</h2>'
         f'<p>{strategic_outlook}</p>'
-        '<hr style="margin: 28px 0; border: none; border-top: 1px solid #d9dbdd;">'
-        f'<p style="color: #6c757d; font-size: 0.85em;">'
+        '<hr style="margin: 28px 0 6px; border: none; border-top: 1px solid #d9dbdd;">'
+        f'<p style="color: #6c757d; font-size: 0.85em; font-style: italic;">'
         f'Prepared by the Ministry of Energy and Green Transition Inventory Management System. '
         f'Report reference: {report.report_id}.</p>'
         '</div>'
@@ -282,16 +290,18 @@ def render_executive_report(
     bullets = "\n".join(["  • " + item for item in process_improvements])
     health_bullets = "\n".join(["  • " + item for item in health_lines])
     plain = (
+        "MINISTRY OF ENERGY & GREEN TRANSITION\n"
         "WEEKLY PROGRESS REPORT\n"
-        "Period: " + period + "\n\n"
-        "EXECUTIVE IMPACT\n"
-        "----------------\n" + executive_impact + "\n\n"
-        "PROCESS IMPROVEMENTS\n"
-        "--------------------\n" + bullets + "\n\n"
-        "OPERATIONAL HEALTH\n"
-        "------------------\n" + health_bullets + "\n\n"
-        "STRATEGIC OUTLOOK\n"
-        "-----------------\n" + strategic_outlook + "\n\n"
+        "Period: " + period + "  |  Audience: Management\n"
+        "======================================================================\n\n"
+        "1. EXECUTIVE IMPACT\n"
+        "----------------------------------------------------------------------\n" + executive_impact + "\n\n"
+        "2. PROCESS IMPROVEMENTS\n"
+        "----------------------------------------------------------------------\n" + bullets + "\n\n"
+        "3. OPERATIONAL HEALTH\n"
+        "----------------------------------------------------------------------\n" + health_bullets + "\n\n"
+        "4. STRATEGIC OUTLOOK\n"
+        "----------------------------------------------------------------------\n" + strategic_outlook + "\n\n"
         "Report reference: " + str(report.report_id) + "\n"
     )
 
