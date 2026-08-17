@@ -122,8 +122,8 @@ from .signature_lookup_view import signature_lookup, signature_verify, signature
 from .stores_management_views import (
     PendingOrdersView, AssignedOrdersView, AssignOrderView,
     MyAssignedOrdersView, update_assignment_status, bulk_assign_orders,
-    StoreOfficerPerformanceDashboard, StoreOperationsHubView,
-    process_order_partial, store_hub_stats_api
+    StoreOfficerPerformanceDashboard,
+    process_order_partial
 )
 
 # Import SHEP community management views
@@ -455,9 +455,7 @@ urlpatterns = [
     path('stores/assignment/<int:assignment_id>/update-status/', update_assignment_status, name='stores_update_assignment_status'),
     path('stores/bulk-assign/', bulk_assign_orders, name='stores_bulk_assign'),
     path('stores/performance/', StoreOfficerPerformanceDashboard.as_view(), name='stores_performance_dashboard'),
-    path('stores/hub/', StoreOperationsHubView.as_view(), name='store_operations_hub'),
     path('stores/order/<int:order_id>/process-partial/', process_order_partial, name='process_order_partial'),
-    path('stores/hub/api/stats/', store_hub_stats_api, name='store_hub_stats_api'),
 
     # Weekly Report URLs
     path('weekly-reports/', weeklyreport_changelist, name='weekly_reports_list'),

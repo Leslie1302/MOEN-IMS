@@ -12,7 +12,7 @@ from django.test import RequestFactory, TestCase
 
 from Inventory.utils import can_access_stores
 from Inventory.stores_management_views import (
-    StoresManagementMixin, StoresStaffMixin, StoreOperationsHubView,
+    StoresManagementMixin, StoresStaffMixin,
     StoreOfficerPerformanceDashboard,
 )
 from Inventory.transporter_views import TransporterListView, TransportationStatusView
@@ -49,13 +49,13 @@ class StoresManagementAccessTests(TestCase):
 
     def test_stores_management_group_passes_every_gate(self):
         for view_cls in (StoresManagementMixin, StoresStaffMixin,
-                         StoreOperationsHubView, StoreOfficerPerformanceDashboard,
+                         StoreOfficerPerformanceDashboard,
                          TransporterListView, TransportationStatusView, SiteReceiptListView):
             self.assertTrue(self._passes(view_cls, self.sm),
                             f"Stores Management denied by {view_cls.__name__}")
 
     def test_outsiders_still_denied(self):
         for view_cls in (StoresManagementMixin, StoresStaffMixin,
-                         StoreOperationsHubView, TransporterListView):
+                         TransporterListView):
             self.assertFalse(self._passes(view_cls, self.outsider),
                              f"{view_cls.__name__} let a non-stores user in")
