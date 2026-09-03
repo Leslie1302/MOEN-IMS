@@ -924,7 +924,7 @@ const TableExport = {
     // the current page. Reuses the existing views (cookies sent), so no new
     // server endpoint is needed. Preserves the active filters already in the URL.
     async fromServerPages(table, base, lastPage, onProgress) {
-        const headRow = table.tHead ? table.tHead.rows[0] : null;
+        const headRow = (table.tHead && table.tHead.rows[0]) || table.querySelector('tr');
         const headerCells = headRow ? Array.from(headRow.cells) : [];
         const keep = headerCells.map(h =>
             !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
@@ -981,13 +981,16 @@ const attachPlainTableExports = () => {
             if (table.classList.contains('enhanced-table')) return;  // gets the Export menu instead
             if (table.hasAttribute('data-no-export')) return;
             if (table.dataset.exportAttached) return;
-            // Need a header row and at least one body row to be worth exporting.
-            const head = table.tHead || table;
-            const hasHeader = (table.tHead && table.tHead.rows.length) ||
-                              table.querySelector('thead th, tr th');
-            const bodyRows = (table.tBodies[0] && table.tBodies[0].rows.length) ||
-                             table.querySelectorAll('tr td').length;
-            if (!hasHeader || !bodyRows) return;
+            // Worth exporting if it has a header row plus at least one data row.
+            // We count *rows*, not `th` cells: many tables build their header
+            // with `<td>` (or a styled first row), and those were being skipped
+            // even though the exporter reads the first row as the header anyway.
+            // A DataTables-wrapped table may keep only the current page in the
+            // DOM, so treat any DataTable as exportable regardless of row count.
+            const isDataTable = table.classList.contains('dataTable') ||
+                                !!table.closest('.dataTables_wrapper');
+            const rowCount = table.rows ? table.rows.length : 0;
+            if (!isDataTable && rowCount < 2) return;
             table.dataset.exportAttached = '1';
 
             const bar = document.createElement('div');
@@ -1043,14 +1046,33 @@ const initEnhancedTables = () => {
     });
 };
 
+const runTableInit = () => {
+    // Independent + plain-first, so a failure in one path never blocks the
+    // other. This is why "no export button anywhere" happened: one enhanced
+    // table threw and took the whole handler down before buttons attached.
+    try { attachPlainTableExports(); } catch (e) { console.error('Plain table export init failed:', e); }
+    try { initEnhancedTables(); } catch (e) { console.error('Enhanced table init failed:', e); }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        // Independent + plain-first, so a failure in one path never blocks the
-        // other. This is why "no export button anywhere" happened: one enhanced
-        // table threw and took the whole handler down before buttons attached.
-        try { attachPlainTableExports(); } catch (e) { console.error('Plain table export init failed:', e); }
-        try { initEnhancedTables(); } catch (e) { console.error('Enhanced table init failed:', e); }
-    }, 0);
+    setTimeout(runTableInit, 0);
+
+    // Tables that arrive AFTER load — AJAX results, DataTables redraws, tab
+    // panes rendered on demand — never got an Export button, because the attach
+    // ran once. Watch for added tables and re-attach; `exportAttached` guards
+    // against double buttons, so re-running is cheap and idempotent. Debounced
+    // so a burst of DOM changes triggers one pass.
+    let pending = null;
+    const observer = new MutationObserver((mutations) => {
+        const sawTable = mutations.some((m) =>
+            Array.from(m.addedNodes).some((n) =>
+                n.nodeType === 1 &&
+                (n.tagName === 'TABLE' || (n.querySelector && n.querySelector('table')))));
+        if (!sawTable) return;
+        clearTimeout(pending);
+        pending = setTimeout(() => { try { attachPlainTableExports(); } catch (e) { /* logged inside */ } }, 150);
+    });
+    try { observer.observe(document.body, { childList: true, subtree: true }); } catch (e) { /* no body yet */ }
 });
 
 // Make EnhancedTable available globally

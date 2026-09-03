@@ -37,9 +37,13 @@ class MaterialTransport(auto_prefetch.Model):
     
     # Quantity tracking
     quantity = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
-        help_text="Quantity being transported in this shipment"
+        null=True,
+        blank=True,
+        help_text="Quantity being transported in this shipment. Nullable: an "
+                  "'Awaiting Transporter' placeholder row is created before a "
+                  "quantity is known, and save() already guards for None."
     )
     
     # Status tracking
