@@ -9,6 +9,9 @@ from .views import (
     Index, RequestMaterialView, MaterialOrdersView, UpdateMaterialStatusView,
     ProfileView, UploadInventoryView, UploadCategoriesAndUnitsView, list_categories,
     list_units, get_boq_data, MaterialHeatmapView, MaterialLegendView, LowInventorySummaryView,
+    TallyCardListView, TallyCardDetailView, TallyCardPDFView,
+    TallyCardExcelView, tally_card_adjust,
+    StockIntegrityView, TallyCardConsolidatedView,
     BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard,
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView,
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView,
@@ -471,6 +474,15 @@ urlpatterns = [
          name='download_user_import_template'),
     
     # Obsolete Materials Register
+    # Tally (bin) cards — stock ledger per material/warehouse
+    path('stock-cards/', TallyCardListView.as_view(), name='tally_card_list'),
+    path('stock-cards/<int:pk>/', TallyCardDetailView.as_view(), name='tally_card_detail'),
+    path('stock-cards/<int:pk>/pdf/', TallyCardPDFView.as_view(), name='tally_card_pdf'),
+    path('stock-cards/<int:pk>/export/', TallyCardExcelView.as_view(), name='tally_card_excel'),
+    path('stock-cards/<int:pk>/adjust/', tally_card_adjust, name='tally_card_adjust'),
+    path('stock-cards-consolidated/', TallyCardConsolidatedView.as_view(), name='tally_card_consolidated'),
+    path('stock-ledger-integrity/', StockIntegrityView.as_view(), name='stock_ledger_integrity'),
+
     path('obsolete-materials/', ObsoleteMaterialListView.as_view(), name='obsolete_material_list'),
     path('obsolete-materials/register/', ObsoleteMaterialRegisterView.as_view(), name='obsolete_material_register'),
     path('obsolete-materials/<int:pk>/', ObsoleteMaterialDetailView.as_view(), name='obsolete_material_detail'),

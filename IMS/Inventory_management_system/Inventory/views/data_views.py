@@ -110,10 +110,20 @@ class UploadInventoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                             'user': request.user
                         }
                     )
+                    from Inventory.services.stock_ledger import record_movement
                     if not created:
                         item.quantity += row['quantity']
                         item.warehouse_id = warehouse_id
                         item.save()
+                        record_movement(item, 'receipt', qty_in=row['quantity'],
+                                        reference='Bulk stock upload', user=request.user,
+                                        note='Bulk stock upload (top-up)')
+                    else:
+                        # A brand-new stock record: its starting quantity is its
+                        # opening balance on the tally card.
+                        record_movement(item, 'opening', qty_in=row['quantity'],
+                                        reference='Bulk stock upload', user=request.user,
+                                        note='Opening balance from bulk stock upload')
 
                 messages.success(request, "Inventory updated successfully!")
             except Exception as e:

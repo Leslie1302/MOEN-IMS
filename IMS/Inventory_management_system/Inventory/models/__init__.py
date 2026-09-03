@@ -1,4 +1,4 @@
-from .inventory import Category, Unit, Warehouse, InventoryItem, ObsoleteMaterial
+from .inventory import Category, Unit, Warehouse, InventoryItem, ObsoleteMaterial, StockMovement
 from .suppliers import (
     Supplier, SupplierPriceCatalog, SupplyContract,
     SupplyContractItem, SupplierInvoice, SupplierInvoiceItem
@@ -40,7 +40,7 @@ from ..transporter_models import Transporter, TransportVehicle
 # Export everything to make them available via 'from Inventory.models import ...'
 __all__ = [
     'Area', 'AreaRegion',  # Operational areas
-    'Category', 'Unit', 'Warehouse', 'InventoryItem', 'ObsoleteMaterial',
+    'Category', 'Unit', 'Warehouse', 'InventoryItem', 'ObsoleteMaterial', 'StockMovement',
     'Supplier', 'SupplierPriceCatalog', 'SupplyContract',
     'SupplyContractItem', 'SupplierInvoice', 'SupplierInvoiceItem',
     'ReleaseLetter', 'MaterialOrder', 'MaterialOrderAudit',

@@ -1,0 +1,47 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+{% block title %}Stock Ledger Integrity{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-shield-check text-primary"></i> Stock Ledger Integrity</h2>
+    <a href="{% url 'tally_card_list' %}" class="btn btn-outline-secondary btn-sm">Back to cards</a>
+  </div>
+
+  {% if drift_rows %}
+  <div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    {{ drift_rows|length }} card{{ drift_rows|length|pluralize }} where the ledger balance no longer
+    matches live stock. Each means stock changed outside the ledger — review and correct with a stock-count adjustment.
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr><th>Code</th><th>Material</th><th>Warehouse</th>
+          <th class="text-end">Live stock</th><th class="text-end">Ledger balance</th>
+          <th class="text-end">Gap</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in drift_rows %}
+        <tr>
+          <td class="font-monospace">{{ r.item.code|default:'—' }}</td>
+          <td>{{ r.item.name }}</td>
+          <td>{{ r.item.warehouse.name|default:'—' }}</td>
+          <td class="text-end">{{ r.live|intcomma }}</td>
+          <td class="text-end">{% if r.ledger is None %}<span class="text-muted">no ledger</span>{% else %}{{ r.ledger|floatformat:'-2'|intcomma }}{% endif %}</td>
+          <td class="text-end fw-semibold text-danger">{% if r.gap is not None %}{{ r.gap|floatformat:'-2' }}{% endif %}</td>
+          <td class="text-end"><a href="{% url 'tally_card_detail' r.item.pk %}" class="btn btn-sm btn-outline-primary">Open card</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-success">
+    <i class="bi bi-check-circle-fill"></i>
+    Consistent — every card's running balance equals live stock.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

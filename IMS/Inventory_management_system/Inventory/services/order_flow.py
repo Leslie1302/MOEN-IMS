@@ -85,6 +85,17 @@ def process_quantity(order, quantity, user):
         elif order.request_type == 'Receipt':
             inventory_item.quantity += quantity
         inventory_item.save()
+        # Tally card: log the stock change with the balance as it now stands.
+        from Inventory.services.stock_ledger import record_movement
+        _ref = order.code or order.request_code or ''
+        if order.request_type == 'Release':
+            record_movement(inventory_item, 'issue', qty_out=quantity,
+                            reference=_ref, user=user,
+                            note=f"Release order {order.request_code or order.pk}")
+        elif order.request_type == 'Receipt':
+            record_movement(inventory_item, 'receipt', qty_in=quantity,
+                            reference=_ref, user=user,
+                            note=f"Receipt order {order.request_code or order.pk}")
         order.stock_deducted_quantity = (
             (order.stock_deducted_quantity or 0) + quantity)
         if not order.warehouse_id and inventory_item.warehouse_id:

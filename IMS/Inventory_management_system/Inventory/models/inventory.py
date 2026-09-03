@@ -67,6 +67,10 @@ def get_default_unit():
 class InventoryItem(auto_prefetch.Model):
     name = models.CharField(max_length=200)
     quantity = models.IntegerField()
+    reorder_level = models.PositiveIntegerField(
+        default=0,
+        help_text="Low-stock threshold. When quantity drops to or below this, "
+                  "the tally card flags a reorder. 0 disables the flag.")
     category = auto_prefetch.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, help_text="Material code")
     unit = auto_prefetch.ForeignKey('Unit', on_delete=models.CASCADE)
@@ -303,3 +307,65 @@ class ObsoleteMaterial(auto_prefetch.Model):
             else:
                 self.notes = notes
         self.save()
+
+
+class StockMovement(auto_prefetch.Model):
+    """Append-only stock ledger — one row per stock change on an InventoryItem.
+
+    This is the source of truth the tally (bin) card is built from. The system
+    historically mutated ``InventoryItem.quantity`` in place, so the balance was
+    always "now" and the past was unrecoverable. Every real stock change now
+    also writes one immutable row here, carrying the running balance at that
+    moment (``balance_after``) so a card can be rendered without recomputing,
+    and so drift between the ledger and live stock is detectable.
+
+    Rows are never edited or deleted. A correction is a new row (an
+    ``adjustment``), not a rewrite of history — that is the whole point of a
+    ledger.
+    """
+
+    MOVEMENT_TYPES = [
+        ('opening', 'Opening balance'),
+        ('receipt', 'Receipt (stock in)'),
+        ('issue', 'Issue / release (stock out)'),
+        ('transfer_in', 'Transfer in'),
+        ('transfer_out', 'Transfer out'),
+        ('adjustment', 'Adjustment (stock count)'),
+        ('write_off', 'Write-off / obsolete'),
+        ('reversal', 'Reversal'),
+    ]
+
+    item = auto_prefetch.ForeignKey(
+        'InventoryItem', on_delete=models.CASCADE, related_name='movements',
+        help_text="The stock record (material + warehouse) this movement acts on.")
+    movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES, db_index=True)
+
+    # Separate in/out columns mirror a physical bin card. Exactly one is
+    # non-zero for a normal movement.
+    qty_in = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    qty_out = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    # Snapshot of item.quantity immediately AFTER this movement was applied.
+    balance_after = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    # Where the movement came from: waybill / release code / requisition /
+    # upload batch. Free text so any source can point at itself.
+    reference = models.CharField(max_length=120, blank=True, db_index=True)
+    note = models.TextField(blank=True)
+
+    performed_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements')
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['created_at', 'id']
+        verbose_name = 'Stock Movement'
+        verbose_name_plural = 'Stock Movements'
+        indexes = [
+            models.Index(fields=['item', 'created_at']),
+        ]
+
+    def __str__(self):
+        direction = f"+{self.qty_in}" if self.qty_in else f"-{self.qty_out}"
+        return f"{self.item.code} {self.get_movement_type_display()} {direction} → {self.balance_after}"

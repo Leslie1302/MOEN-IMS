@@ -1,0 +1,66 @@
+{% load humanize %}<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4 landscape; margin: 14mm; }
+  * { font-family: "DejaVu Sans", Arial, sans-serif; }
+  body { color: #111; font-size: 11px; }
+  h1 { font-size: 16px; margin: 0 0 2px; }
+  .sub { color: #555; font-size: 10px; margin-bottom: 10px; }
+  .hdr { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  .hdr td { border: 1px solid #999; padding: 5px 8px; }
+  .hdr .lbl { background: #f0f0f0; font-weight: bold; width: 15%; }
+  table.ledger { width: 100%; border-collapse: collapse; }
+  table.ledger th, table.ledger td { border: 1px solid #999; padding: 4px 6px; }
+  table.ledger th { background: #222; color: #fff; font-size: 10px; text-align: left; }
+  .num { text-align: right; }
+  .bal { text-align: right; font-weight: bold; }
+  .foot { margin-top: 10px; color: #777; font-size: 9px; }
+</style>
+</head>
+<body>
+  <h1>Stores Tally Card</h1>
+  <div class="sub">Ministry of Energy &amp; Green Transition — Integrated Energy Project System</div>
+
+  <table class="hdr">
+    <tr>
+      <td class="lbl">Material</td><td>{{ item.name }}</td>
+      <td class="lbl">Code</td><td>{{ item.code|default:'—' }}</td>
+      <td class="lbl">Unit</td><td>{{ item.unit.name|default:'—' }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Warehouse</td><td>{{ item.warehouse.name|default:'—' }}</td>
+      <td class="lbl">Balance</td><td>{{ item.quantity|intcomma }}{% if reorder_flagged %} (REORDER){% endif %}</td>
+      <td class="lbl">Reorder level</td><td>{{ item.reorder_level|default:'—'|intcomma }}</td>
+    </tr>
+  </table>
+
+  <table class="ledger">
+    <thead>
+      <tr>
+        <th>Date</th><th>Type</th><th>Reference</th>
+        <th class="num">Received</th><th class="num">Issued</th>
+        <th class="num">Balance</th><th>By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movements %}
+      <tr>
+        <td>{{ m.created_at|date:'d M Y H:i' }}</td>
+        <td>{{ m.get_movement_type_display }}</td>
+        <td>{{ m.reference|default:'' }}</td>
+        <td class="num">{% if m.qty_in %}{{ m.qty_in|floatformat:'-2'|intcomma }}{% endif %}</td>
+        <td class="num">{% if m.qty_out %}{{ m.qty_out|floatformat:'-2'|intcomma }}{% endif %}</td>
+        <td class="bal">{{ m.balance_after|floatformat:'-2'|intcomma }}</td>
+        <td>{% if m.performed_by %}{{ m.performed_by.get_full_name|default:m.performed_by.username }}{% else %}system{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center; color:#777;">No movements recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="foot">Generated {% now 'd M Y H:i' %} — this card is a print of the system stock ledger.</div>
+</body>
+</html>

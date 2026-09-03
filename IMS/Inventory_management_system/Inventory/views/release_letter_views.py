@@ -316,6 +316,10 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
 
         if action == 'upload_scan':
             return self._handle_scan_upload(request)
+        if action == 'upload_manual':
+            # Officer already has a signed letter prepared off-system — record
+            # the release and attach it, without forcing a generate step.
+            return self._handle_manual_upload(request, request_code)
         # Default action is generate.
         return self._handle_generate(request, request_code)
 
@@ -497,6 +501,134 @@ class ReleaseLetterUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         except Exception as e:
             logger.exception("Failed to generate release documents")
             messages.error(request, f"Document generation failed: {e}")
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+
+    def _handle_manual_upload(self, request, request_code):
+        """Record a release from a signed letter prepared off-system.
+
+        Mirrors `_handle_generate`'s order grouping (one release event per
+        project type, bulk batches collapsed to one), but instead of minting
+        the memo + letter PDFs it stores the officer's uploaded, already-signed
+        copy as the release document. No QR match is required — a manual letter
+        has no system-minted QR to match against.
+
+        The Bill of Quantity gate still applies: a signature on paper does not
+        authorise issuing beyond the approved BoQ, so the same check that guards
+        generation guards this path too.
+        """
+        from django.core.files.base import ContentFile
+        from Inventory.services.scan_validation import safe_scan_filename
+        from Inventory.services.reconciliation import generation_blockers, has_blockers
+
+        if not request_code:
+            messages.error(request, "Pick a request code first.")
+            return redirect('release-letter-upload')
+
+        uploaded = request.FILES.get('manual_pdf')
+        if not uploaded:
+            messages.error(request, "Choose the signed PDF to upload.")
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+        if not uploaded.name.lower().endswith('.pdf'):
+            messages.error(request, "The signed copy must be a PDF file.")
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+
+        request_code = self._base_code(request_code)
+        data = uploaded.read()  # read once; reused for each split letter
+
+        def _attach(rl):
+            if not rl.code:
+                rl.code = next_release_code()
+            rl.pdf_file.save(
+                safe_scan_filename(uploaded.name, rl.code), ContentFile(data), save=False)
+            rl.scan_uploaded_at = timezone.now()
+            rl.workflow_status = 'awaiting_scan_upload'
+            rl.save()
+            audit(request.user, rl, 'release.scan_uploaded',
+                  f"Signed copy uploaded manually (no system-generated documents), "
+                  f"filename={uploaded.name}")
+
+        release_letter = None
+        created = []
+        try:
+            with transaction.atomic():
+                existing = ReleaseLetter.objects.filter(
+                    request_code=request_code).order_by('-upload_time').first()
+                if existing:
+                    _attach(existing)
+                    release_letter = existing
+                    messages.success(
+                        request, f"Signed copy attached to release event {existing.code}.")
+                else:
+                    matching_orders = self._matching_orders(request_code)
+                    if not matching_orders.exists():
+                        messages.error(
+                            request,
+                            f"No pending orders found for request code '{request_code}'. "
+                            "The orders may already have a release letter attached.")
+                        return redirect(
+                            f"{reverse('release-letter-upload')}?request_code={request_code}")
+
+                    project_types = sorted({(o.project_type or '') for o in matching_orders})
+                    for ptype in project_types:
+                        group = (matching_orders.filter(project_type=ptype) if ptype
+                                 else matching_orders.filter(project_type=''))
+                        if not group.exists():
+                            continue
+                        first = group.first()
+                        title = (f"Release of {first.name}" if first.name
+                                 else f"Release for {request_code}")
+                        if first.community:
+                            title += f" — {first.community}"
+                        if len(project_types) > 1 and ptype:
+                            title += f" [{ptype}]"
+                        rl = ReleaseLetter.objects.create(
+                            request_code=request_code, title=title[:200],
+                            total_quantity=sum((o.quantity or 0) for o in group),
+                            material_type='Other', project_type=(ptype or None),
+                            workflow_status='draft', uploaded_by=request.user,
+                        )
+                        group.update(release_letter=rl)
+                        blockers, _result = generation_blockers(rl)
+                        if has_blockers(blockers):
+                            raise BoQBlocked(blockers)
+                        audit(request.user, rl, 'release.letter_created',
+                              f"Release letter created for request_code={request_code} "
+                              f"project_type={ptype or '(none)'} ({group.count()} orders) "
+                              "— signed copy uploaded manually"
+                              + (" — split from mixed-project batch" if len(project_types) > 1 else ""))
+                        _attach(rl)
+                        created.append(rl)
+
+                    release_letter = created[-1] if created else None
+                    if len(created) > 1:
+                        codes = ', '.join(r.code for r in created)
+                        messages.success(
+                            request,
+                            f"This batch spanned {len(created)} project types — the signed copy "
+                            f"was attached to each ({codes}). Open them from the list.")
+                    elif release_letter:
+                        messages.success(
+                            request,
+                            f"Release event {release_letter.code} recorded with your signed copy "
+                            "attached. No system documents were generated.")
+
+            if len(created) > 1:
+                return redirect('release_letter_list')
+            if release_letter is not None:
+                return redirect('release_letter_detail', pk=release_letter.pk)
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+
+        except BoQBlocked as blocked:
+            from Inventory.views.release_document_views import blocker_message
+            messages.error(
+                request,
+                blocker_message(release_letter, blocked.blockers)
+                if release_letter and release_letter.pk
+                else _unsaved_blocker_message(blocked.blockers, request_code))
+            return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
+        except Exception as e:
+            logger.exception("Manual signed-copy upload failed")
+            messages.error(request, f"Upload failed: {e}")
             return redirect(f"{reverse('release-letter-upload')}?request_code={request_code}")
 
     def _handle_scan_upload(self, request):

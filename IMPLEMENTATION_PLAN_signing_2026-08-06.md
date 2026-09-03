@@ -9,6 +9,9 @@ the existing wet-signature route preserved.
 ("Signatures — deferred until the Chief Director is onboarded"). That deferral
 ends here.
 
+**Status (9 Aug 2026):** Phases 0–7 built. See §9 for what was decided during
+implementation and the one item deliberately left open.
+
 ---
 
 ## 1. Decisions taken (do not relitigate)
@@ -211,17 +214,17 @@ signature appears over wording he never saw.
 
 ## 6. Phases
 
-### Phase 0 — Harden the code allocator (~0.5 day) — **do first**
+### Phase 0 — Harden the code allocator (~0.5 day) — **done**
 `ReleaseCodeSequence` (one locked row per year) replacing `Max()+1`; configurable
 rendered format; retry on `IntegrityError`; tests for concurrent allocation and
 for Postgres. Blocks the Registry adopting the number (§4c).
 
-### Phase 1 — Models + admin (~1 day)
+### Phase 1 — Models + admin (~1 day) — **done**
 `SigningStep`, `DocumentSignature`, version/lock fields, one migration. Admin
 for the chain with inline ordering. Seed: memo → Ag. Director Power; letter →
 Chief Director.
 
-### Phase 2 — Signature capture + rendering (~1.5 days)
+### Phase 2 — Signature capture + rendering (~1.5 days) — **done**
 - Canvas signing modal: draw, clear, confirm. Pointer events (mouse/touch/pen),
   exports trimmed PNG.
 - `_doc_base.html` `.sign-block` renders signature image + name + title +
@@ -229,20 +232,95 @@ Chief Director.
 - Re-render + re-mint the PDF on signing. Version increments; document locks
   when the chain completes.
 
-### Phase 3 — Management approval queue (~1.5 days)
+---
+
+## 2a. REVISED signing flow (decided 8 Aug 2026, supersedes parts of §6)
+
+Testing surfaced three things the original phases got wrong. Recorded here
+because they change Phases 3–5, not just their order.
+
+### (i) Documents never leave the system — the email carries a link
+
+Originally the signatory was emailed the PDFs. Instead they are emailed a
+**link to sign in-system**. Better on three counts:
+
+* **One document, one letterhead.** The stored PDF is the only copy, so the
+  "letterhead for e-sign / no letterhead for wet-sign" conflict disappears —
+  the wet-signature route becomes a print-time render, not a rival file.
+* **Evidence, not a claim.** An emailed PDF that comes back signed proves a
+  round trip nobody observed. Signing in-system captures who, when, from what
+  IP, against which document version, with a verification token.
+* **Signature images never travel.** Nothing is ever attached.
+
+Deliberately **not** a tokenised no-login link: a signature carrying release
+authority must not rest on possession of an email. Signatories have accounts —
+`SigningStep.user` already requires it.
+
+### (ii) The chain spans BOTH documents, in one sequence
+
+The original model gave each document its own chain, so nothing stopped the
+Chief Director signing the letter before the memo was approved. That is
+backwards: **the signed memo is the authority for the letter.**
+
+`order` now sequences across the release, not within a document:
+
+| Step | Signs | Sees | Notified |
+|---|---|---|---|
+| 1 | Memo | Memo + letter | When the officer sends for signature |
+| 2 | Letter | Memo (signed) + letter | Automatically, on step 1 completing |
+
+`next_step(release)` = lowest-order unsigned required step, whatever the
+document. That one value drives the signing panel, the email and the queue, so
+they cannot disagree. A third approver is a row, not a code change.
+
+**Always show the pack.** Whoever signs sees both documents — the Ag. Director
+is approving that this letter goes out; the Chief Director signs on the
+authority of that memo.
+
+**Sending is an explicit action.** Generation does not notify anyone. Otherwise
+every draft pesters the Ag. Director and people learn to ignore the emails,
+which is how a signature queue dies.
+
+### (iii) Signatories get a queue, not the officer's workspace
+
+Today `ReleaseLetterDetailView` and the tracking dashboard have **no per-user
+filtering at all** — a signatory sees every release in every state, exactly as
+a schedule officer does. Only the Sign button is correctly scoped.
+
+* **The approvals page is the signatory's landing point** (Phase 3), in three
+  sections: awaiting my signature · awaiting others · recently signed by me.
+* **The release-letter dashboard becomes a read-only archive for them** —
+  information, not a workspace. No generate, edit or adjust controls.
+* Read access stays open. A senior officer hitting a permission wall on his own
+  Ministry's paperwork is worse than him seeing a release early.
+
+### (iv) Wet signature prints without the letterhead
+
+Printing happens onto Ministry letterhead stock, so the rendered letterhead must
+be omitted — a print-time render, leaving the stored PDF untouched.
+
+### (v) A verified scan closes the workflow
+
+Uploading a verified signed scan locks the document exactly as a signature does,
+and advances the pipeline. It currently stalls at `approved` and never locks,
+so a signed release remains editable.
+
+---
+
+### Phase 3 — Management approval queue (~1.5 days) — **done**
 New page `/approvals/`:
 - Documents awaiting **this user's** signature (their step is next and unsigned).
 - Inline preview of the exact document, Sign / Call officer actions.
 - Sections: awaiting me · awaiting others · recently signed by me.
 - Gated to users named on an active `SigningStep`, plus Management.
 
-### Phase 4 — Call officer for discussion (~0.5 day)
+### Phase 4 — Call officer for discussion (~0.5 day) — **done**
 Button + note → Graph email from the manager's mailbox *and* an in-app
 notification to the officer who prepared the release. Recorded against the
 release so the conversation is on file. No workflow state change — a call for
 discussion is not a rejection.
 
-### Phase 5 — MMU fast-track: advance notice + management urgency (~1 day)
+### Phase 5 — MMU fast-track: advance notice + management urgency (~1 day) — **done**
 
 **Default route (every release).** On chain completion the release appears in
 MMU's list immediately, marked **"Advance notice — prepare only, do not
@@ -272,14 +350,14 @@ Guardrails — this is a directive, not a self-serve bypass:
 `ponytail:` advance notice is a flag plus a filter on MMU's existing list — not
 a new MMU screen.
 
-### Phase 6 — Public verification page (~0.5 day)
+### Phase 6 — Public verification page (~0.5 day) — **done**
 `/verify/<token>/`, no login: release code, document, version, signer name,
 office signed in, substantive designation, timestamp, and whether the document
 was subsequently superseded. Rate-limited (`django-ratelimit` is already in the
 stack); reveals nothing beyond what is printed on the document itself, and
 **never the signature image**.
 
-### Phase 7 — Verify (~0.5 day)
+### Phase 7 — Verify (~0.5 day) — **done**
 Signature and stamp render into the PDF; locking refuses regeneration; the chain
 enforces order; advance notice never permits physical release; registry number
 required before `approved`; version recorded on dispatch; the verify page
@@ -331,3 +409,187 @@ sign.
 3. **MMU accepts the advance notice** as authority to pick and stage (not to
    release). If not, Phase 5's default route reduces to visibility only; the
    urgent route and everything else stand.
+
+---
+
+## 9. Implementation record (9 Aug 2026)
+
+Five things were decided while building Phases 3–5 that the plan did not settle.
+Recorded here because each is a place where the obvious implementation would
+have been wrong.
+
+### (i) Advance notice is a stored timestamp, not a derived property
+
+`ReleaseLetter.advance_notice_at`, set when the chain completes. Deriving it
+from `signing_complete()` would have been tidier but MMU's list has to *filter*
+on it, and `signing_complete()` walks the chain per row — so the filter would
+have become a table scan in Python. Migration `0087` backfills it for releases
+already signed, at the timestamp of their last signature rather than at
+migration time. Without the backfill MMU's first sight of the new filter would
+have been an empty list.
+
+### (ii) Urgency is shown on the verify page, not printed on the document
+
+The plan said urgency must be visible "on the document itself". It cannot be,
+and the reason is the locking rule in §5: urgency is declared *after* the chain
+completes, and by then the document is locked. Stamping it would mean altering a
+signed document — the exact thing the lock exists to prevent.
+
+So it appears everywhere else the release appears — the list, the detail page,
+MMU's filter, the urgent-releases report — and on the **public verify page**,
+which is the document's own public face. That reaches the right reader: whoever
+is holding the paper and checking whether it is good is precisely the person who
+should know the materials moved ahead of the scan.
+
+### (iii) Being on the signing chain is an authorisation
+
+`UserRoleMiddleware` sent any user with no group to *awaiting authorization*.
+A signatory's authority comes from being named on a `SigningStep`, not from a
+group, so a newly onboarded Chief Director signed in and was refused — and the
+release he was holding up is the last place anyone would have looked for the
+cause. The middleware now accepts an active `SigningStep` as authorisation in
+its own right, and the navbar carries an **Approvals** link outside the
+group-gated block for the same reason.
+
+### (iv) The handoff between steps is automatic
+
+Signing a step notifies the next signatory (in-app, plus an email carrying a
+**link**, never the documents). The step-1-to-step-2 handoff is the one that
+otherwise lives in somebody's memory, and that is where a week goes.
+
+### (v) Left open — dispatch still attaches PDFs
+
+§2a(i) says documents never leave the system. That now holds for everything the
+*chain* sends: notifications and discussion emails carry links only. The older
+`SendReleaseDocumentsView` — the officer's manual "email these to someone" panel
+— still attaches the PDFs.
+
+Not an oversight. That panel is also how documents reach people who are *not* on
+the chain and have no account: a consultant, a district office, the Registry.
+Removing the attachments would break that without replacing it. The right fix is
+to split the two uses — link-only for signatories, attachments for external
+recipients — which is a change to the dispatch panel rather than to the signing
+chain, and is better done alongside whatever the Registry decides it wants under
+§8.1.
+
+### Where the code lives
+
+| Concern | File |
+|---|---|
+| Queue construction, handoff notification | `Inventory/services/approvals.py` |
+| Call for discussion | `Inventory/services/discussion.py` |
+| Advance notice + urgency | `Inventory/services/urgency.py` |
+| Views | `Inventory/views/approval_views.py` |
+| Queue / report templates | `templates/Inventory/approvals.html`, `urgent_releases_report.html` |
+| Tests | `Inventory/tests/test_approvals.py` |
+| Migration | `Inventory/migrations/0087_approval_queue_and_mmu_fast_track.py` |
+
+---
+
+## 10. The linear workflow, completed (9 Aug 2026) — §2a items 1, 4–7
+
+Items 2 and 3 were already built (see §9). This round closed the rest. Four
+things were decided while building that the plan did not settle.
+
+### (i) The signatory gets a page, not a page with its buttons hidden
+
+§2a(iii) says the release dashboard becomes "a read-only archive" for
+signatories. The literal reading is to gate `release_letter_detail.html`'s
+controls on a `viewer_is_signatory` flag — 1,900 lines, and `can_generate_
+documents` already hides most of them.
+
+Rejected, because it answers the wrong complaint. The problem is not that a
+signatory can press the wrong button; it is that the page is a schedule
+officer's workspace with the one thing he came for anchored somewhere down the
+middle. So there is a new page, `/release-letters/<pk>/sign/`
+(`SigningPageView` + `signing_page.html`): both documents side by side, the
+signature canvas, call-officer, and nothing else. The queue links there, the
+notification email links there, and the detail page carries a link to it.
+
+The detail page is unchanged and still readable by anyone. Read access stays
+open — a senior officer hitting a permission wall on his own Ministry's
+paperwork is worse than his seeing a release early.
+
+### (ii) "Sent for signature" is stored, and does NOT filter the queue
+
+`ReleaseLetter.sent_for_signature_at` / `_by` (migration 0088). Stored rather
+than derived from `Notification` rows because the officer needs to see whether
+he already sent it — without that the button is a shot in the dark and the
+honest response is to press it again.
+
+The queue deliberately does **not** filter on it. A generated-but-unsent
+release still appears to the signatory, marked *"the preparing officer has not
+sent this yet"*. Filtering would let a schedule officer's button decide when a
+senior officer may see his own paperwork, which §2a(iii) rules out. It changes
+sort order only: sent first, then unsent, then not-yet-generated.
+
+No backfill. Null means "never formally sent", which is exactly true of every
+release predating the button; inferring a date from the first signature would
+invent a handover that never happened.
+
+### (iii) Print-without-letterhead keeps the insets
+
+`?plain=1` on the preview routes → `_letterhead_ctx(plain=True)`, which reuses
+the existing `pre_printed` mode: no artwork drawn, **calibrated insets
+retained**. The insets are what hold the body clear of the pre-printed crest,
+and they were measured against that exact stock. Dropping them along with the
+image is the tempting simplification and it prints the first line under the
+Ministry seal.
+
+Only the letter is affected — `letterhead_applies(kind)` — because the memo is
+an internal document on a plain sheet. Offering the option on the memo would
+advertise a difference that does not exist.
+
+`render_document_pdf` never passes `plain`, so the stored PDF is untouched.
+That is the point: one file, one letterhead. A second no-letterhead PDF on file
+would give the Ministry two documents that can disagree, and the one that gets
+wet-signed and filed would be the copy nobody verified.
+
+### (iv) The wizard's middle steps were describing work nobody did
+
+`ReleaseLetterUploadView` now generates both documents and redirects to the
+release letter. Its steps 2 and 3 — upload signed scan, confirm & release —
+already existed on the detail page (`UploadSignedScanView`,
+`ConfirmSignedScanView`, `MarkReleasedView`), and both came *after* work the
+wizard never showed: reading the document, and choosing between the e-signature
+and wet-signature routes. Step 1 handed the officer a download link for a
+document he had not read.
+
+Multi-project batches redirect to the release-letter list instead — two landing
+pages is no landing page.
+
+`ponytail:` `_handle_scan_upload` is kept and still routed on
+`action=upload_scan` although no template posts to it. It carries the QR-match
+logic that rejects a scan of the wrong document. Deleting a validated path in
+the same change that reworks the flow buys nothing. Remove after one stable
+production cycle. The route *name* `release-letter-upload` is also unchanged —
+six templates link to it.
+
+### (v) Blank over-issuance item code — found at source, as suspected
+
+Not a template bug. The chain is
+`BoQ upload → item_code = inventory_item.code → BillOfQuantity.item_code →
+summary`. `UploadInventoryView` accepted a blank or NaN `code` column and
+created an `InventoryItem` with an empty code, which every BoQ line matched to
+that material then copied.
+
+The second-order failure is worse than the blank column:
+`get_or_create(code='')` matches the *first* blank-coded item, so a second
+blank row does not create a second item — it adds its quantity to an unrelated
+material. Silently merged stock balances.
+
+Fixed in the upload path: NaN-coerce, then reject the row with a message.
+**Not verified against data** — no DB access this session. Confirm by checking
+whether the affected `InventoryItem` rows have an empty `code` in admin.
+
+### Where the new code lives
+
+| Concern | File |
+|---|---|
+| Send for signature | `services/approvals.py::send_for_signature`, `views/release_document_views.py::SendForSignatureView` |
+| Signing page | `views/approval_views.py::SigningPageView`, `templates/Inventory/signing_page.html` |
+| Plain print | `services/document_render.py::letterhead_applies`, `_letterhead_ctx(plain=)` |
+| Wizard replacement | `views/release_letter_views.py`, `templates/Inventory/upload_release_letter.html` |
+| Item code guard | `views/data_views.py::UploadInventoryView` |
+| Tests | `Inventory/tests/test_release_flow.py` |
+| Migration | `Inventory/migrations/0088_sent_for_signature.py` |

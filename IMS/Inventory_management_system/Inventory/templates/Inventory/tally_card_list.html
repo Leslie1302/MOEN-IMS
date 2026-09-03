@@ -1,0 +1,87 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+{% block title %}Stock Tally Cards{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-card-list text-primary"></i> Stock Tally Cards</h2>
+    <span class="text-muted small">One card per material, per warehouse — the running stock ledger.</span>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-sm-5 col-md-4">
+      <label class="form-label small fw-semibold mb-1">Search</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Code, name or warehouse…">
+    </div>
+    <div class="col-sm-4 col-md-3">
+      <label class="form-label small fw-semibold mb-1">Warehouse</label>
+      <select name="warehouse" class="form-select">
+        <option value="">All warehouses</option>
+        {% for w in warehouses %}
+        <option value="{{ w.id }}" {% if selected_warehouse == w.id|stringformat:'s' %}selected{% endif %}>{{ w.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="low" value="1" id="lowOnly" {% if low_only %}checked{% endif %}>
+        <label class="form-check-label small" for="lowOnly">Low stock only</label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary"><i class="bi bi-search"></i> Filter</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Code</th><th>Material</th><th>Warehouse</th>
+          <th class="text-end">Balance</th><th>Unit</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="font-monospace">{{ item.code|default:'—' }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.warehouse.name|default:'—' }}</td>
+          <td class="text-end fw-semibold">
+            {{ item.quantity|intcomma }}
+            {% if item.reorder_level and item.quantity <= item.reorder_level %}
+            <span class="badge bg-danger ms-1">Low</span>
+            {% endif %}
+          </td>
+          <td>{{ item.unit.name|default:'' }}</td>
+          <td class="text-end">
+            <a href="{% url 'tally_card_detail' item.pk %}" class="btn btn-sm btn-outline-primary">
+              Open card <i class="bi bi-arrow-right"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">
+          <i class="bi bi-inbox"></i> No stock records match. Adjust the search, or upload stock to create cards.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm">
+      {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_warehouse %}&warehouse={{ selected_warehouse }}{% endif %}{% if low_only %}&low=1{% endif %}">Previous</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_warehouse %}&warehouse={{ selected_warehouse }}{% endif %}{% if low_only %}&low=1{% endif %}">Next</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

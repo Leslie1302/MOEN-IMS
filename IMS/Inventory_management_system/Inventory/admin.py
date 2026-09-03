@@ -36,6 +36,30 @@ from .admin_weekly_report import WeeklyReportAdmin
 # Register your models here.
 
 admin.site.register(InventoryItem)
+
+
+from Inventory.models import StockMovement
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    """Read-only view of the stock ledger. Movements are append-only — the
+    ledger is history, so it is never edited or hand-created here."""
+    list_display = ('created_at', 'item', 'movement_type', 'qty_in', 'qty_out',
+                    'balance_after', 'reference', 'performed_by')
+    list_filter = ('movement_type', 'created_at', 'item__warehouse')
+    search_fields = ('item__code', 'item__name', 'reference')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 admin.site.register(Category)
 admin.site.register(Unit)
 

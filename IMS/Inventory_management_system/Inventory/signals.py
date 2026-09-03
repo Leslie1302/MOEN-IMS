@@ -932,6 +932,16 @@ def handle_stock_deduction_on_completion(sender, instance, created, **kwargs):
             inv_item.quantity -= deduct_qty
             inv_item.save()
 
+            # Tally card: this deduction path runs when stock was NOT already
+            # taken inline by order_flow (deduct_qty > 0), so it is a real,
+            # distinct issue and gets its own ledger row.
+            from Inventory.services.stock_ledger import record_movement
+            record_movement(
+                inv_item, 'issue', qty_out=deduct_qty,
+                reference=(instance.code or instance.request_code or ''),
+                user=getattr(instance, 'processed_by', None),
+                note=f"Release order {instance.request_code or instance.pk} (on completion)")
+
             # Update MaterialOrder tracking (incremental)
             new_deducted_total = already_deducted + deduct_qty
             MaterialOrder.objects.filter(pk=instance.pk).update(
@@ -949,8 +959,17 @@ def handle_stock_deduction_on_completion(sender, instance, created, **kwargs):
         elif old_status == 'Completed' and new_status != 'Completed':
             # Reverse the deduction
             if instance.stock_deducted_quantity > 0:
-                inv_item.quantity += instance.stock_deducted_quantity
+                restored = instance.stock_deducted_quantity
+                inv_item.quantity += restored
                 inv_item.save()
+
+                # Tally card: stock came back, so log a reversal (stock in).
+                from Inventory.services.stock_ledger import record_movement
+                record_movement(
+                    inv_item, 'reversal', qty_in=restored,
+                    reference=(instance.code or instance.request_code or ''),
+                    user=getattr(instance, 'processed_by', None),
+                    note=f"Reversed release order {instance.request_code or instance.pk}")
 
                 MaterialOrder.objects.filter(pk=instance.pk).update(
                     stock_deducted_quantity=0

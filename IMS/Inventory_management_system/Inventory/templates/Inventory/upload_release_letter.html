@@ -90,7 +90,8 @@
                             the release letter with their QR codes, and opens the release letter so
                             you can read it. From there you edit the wording live, then either send
                             it for signature in the system or print it on Ministry letterhead stock
-                            for a wet signature.
+                            for a wet signature. Already have a signed letter prepared manually?
+                            Upload it directly using the option below.
                         </div>
                     </div>
 
@@ -199,6 +200,51 @@
                             </button>
                         </div>
                     </form>
+
+                    {% comment %}
+                    Alternative path: the letter was prepared and signed off-system
+                    (e.g. typed and wet-signed on Ministry letterhead). Record the
+                    release and attach the signed copy directly, without being forced
+                    through the generate step first.
+                    {% endcomment %}
+                    <details class="mt-4 pt-3 border-top">
+                        <summary class="fw-semibold">
+                            <i class="fas fa-file-signature me-1 text-secondary"></i>
+                            Already have a signed letter? Upload it instead
+                        </summary>
+                        <div class="small text-muted mt-1 mb-3">
+                            Use this when the release letter was prepared manually and
+                            signed off-system. The release event is still recorded and
+                            checked against the Bill of Quantity — only the document is
+                            your uploaded copy rather than a generated one.
+                        </div>
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="upload_manual">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Request Code <span class="text-danger">*</span></label>
+                                    <select name="request_code" class="form-select" required>
+                                        <option value="">-- Select a request code --</option>
+                                        {% for val, label in form.request_code.field.choices %}
+                                        {% if val and val != '__new__' %}
+                                        <option value="{{ val }}" {% if selected_request_code == val %}selected{% endif %}>{{ label }}</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Signed letter (PDF) <span class="text-danger">*</span></label>
+                                    <input type="file" name="manual_pdf" accept="application/pdf" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="submit" class="btn btn-outline-primary px-4">
+                                    <i class="fas fa-upload me-1"></i> Upload signed copy
+                                </button>
+                            </div>
+                        </form>
+                    </details>
 
 
                 </div>

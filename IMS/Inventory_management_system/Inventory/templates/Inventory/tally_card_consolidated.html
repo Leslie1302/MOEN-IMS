@@ -1,0 +1,55 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+{% block title %}Consolidated Stock (national){% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-diagram-3 text-primary"></i> Consolidated Stock</h2>
+    <a href="{% url 'tally_card_list' %}" class="btn btn-outline-secondary btn-sm">Per-warehouse cards</a>
+  </div>
+  <p class="text-muted small">Each material totalled across every warehouse. Click a warehouse to open its card.</p>
+
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-sm-5 col-md-4">
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search code or name…">
+    </div>
+    <div class="col-auto"><button class="btn btn-primary"><i class="bi bi-search"></i> Search</button></div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr><th>Code</th><th>Material</th><th class="text-end">Total balance</th><th>Unit</th><th>By warehouse</th></tr>
+      </thead>
+      <tbody>
+        {% for m in materials %}
+        <tr>
+          <td class="font-monospace">{{ m.code|default:'—' }}</td>
+          <td>{{ m.name }}</td>
+          <td class="text-end fw-semibold">{{ m.total|intcomma }}</td>
+          <td>{{ m.unit }}</td>
+          <td>
+            {% for loc in m.locations %}
+            <a href="{% url 'tally_card_detail' loc.pk %}" class="badge bg-light text-dark border text-decoration-none me-1 mb-1">
+              {{ loc.warehouse }}: {{ loc.qty|intcomma }}
+            </a>
+            {% endfor %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No materials match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <nav><ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a></li>{% endif %}
+  </ul></nav>
+  {% endif %}
+</div>
+{% endblock %}

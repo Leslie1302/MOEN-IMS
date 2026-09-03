@@ -1,4 +1,9 @@
 from .main_views import Index, AboutView, SuperuserOnlyMixin
+from .tally_card_views import (
+    TallyCardListView, TallyCardDetailView, TallyCardPDFView,
+    TallyCardExcelView, tally_card_adjust,
+    StockIntegrityView, TallyCardConsolidatedView,
+)
 from .user_views import (
     ProfileView, bulk_user_upload, download_user_template, StaffProfileView
 )
