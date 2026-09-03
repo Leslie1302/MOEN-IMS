@@ -724,18 +724,26 @@ class EnhancedTable {
     }
 
     exportToExcel() {
-        // For Excel export, we'll use the CSV method with an .xls extension
-        // Note: For full Excel support, you might want to use a library like SheetJS
-        this.exportToCSV();
-        return;
-        
-        // The following is a placeholder for actual Excel export implementation
-        /*
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.table_to_sheet(this.table);
-        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-        XLSX.writeFile(wb, `${this.config.exportFileName}.xlsx`);
-        */
+        // Server-paginated? Walk every ?page=N so the file holds the whole
+        // dataset, not just this page. (Client-side filters/sort are transient
+        // there anyway — the server holds the real filtering.)
+        if (TableExport.serverLastPage()) {
+            TableExport.export(this.table, this.config.exportFileName).catch(() => this.exportToCSV());
+            return;
+        }
+        // Otherwise all rows are in `filteredData` — export those (respects the
+        // active client-side search/column filters). Falls back to CSV if the
+        // Excel library can't load.
+        const headRow = this.table.querySelector('thead tr:not(.filter-row)')
+            || (this.table.tHead && this.table.tHead.rows[0]);
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const visible = headerCells.map(h =>
+            h.style.display !== 'none' && !h.hasAttribute('data-no-export'));
+        const headers = headerCells.filter((_, i) => visible[i]).map(h => TableExport.cellText(h));
+        const rows = this.filteredData.map(rowData =>
+            rowData.cells.filter((_, i) => visible[i]).map(c => c.text));
+        TableExport.toXlsx(headers, rows, this.config.exportFileName)
+            .catch(() => this.exportToCSV());
     }
 
     exportToPDF() {
@@ -816,18 +824,255 @@ class EnhancedTable {
     }
 }
 
-// Auto-initialize tables with the 'enhanced-table' class
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('table.enhanced-table').forEach(table => {
-        // Check if Django pagination exists (look for pagination controls in the page)
-        const hasDjangoPagination = document.querySelector('.pagination');
-        
-        // If Django pagination exists, disable JavaScript pagination
-        new EnhancedTable({ 
-            table,
-            pagination: !hasDjangoPagination  // Disable JS pagination if Django handles it
+// ── Systemwide table → Excel export ─────────────────────────────────────────
+// Real .xlsx via SheetJS, lazy-loaded from the CDN the app already uses (allowed
+// by CSP script-src), so it costs nothing until someone actually exports. Every
+// enhanced table gets an Excel option in its Export menu; every other table with
+// a header + data rows gets a small "Export to Excel" button.
+//
+// Opt out a whole table with `data-no-export` on the <table> (or `enhanced-table`
+// tables get the menu instead). Opt out a column with `data-no-export` on its <th>.
+const TableExport = {
+    _lib: null,
+    CDN: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+
+    ensureLib() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (this._lib) return this._lib;
+        this._lib = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = this.CDN;
+            s.onload = () => resolve(window.XLSX);
+            s.onerror = () => { this._lib = null; reject(new Error('xlsx failed to load')); };
+            document.head.appendChild(s);
         });
+        return this._lib;
+    },
+
+    // Text only — strip buttons/inputs/icons so an "Actions" cell doesn't dump
+    // "EditDelete" into the spreadsheet. A cell can override with data-export-value.
+    cellText(cell) {
+        if (cell.hasAttribute && cell.hasAttribute('data-export-value')) {
+            return cell.getAttribute('data-export-value');
+        }
+        const clone = cell.cloneNode(true);
+        clone.querySelectorAll('button, input, select, textarea, svg, i, .btn, .dropdown-menu, .sort-indicator')
+            .forEach(el => el.remove());
+        return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    },
+
+    fileName(base) {
+        const name = (base || document.title || 'export').trim()
+            .replace(/[^\w.-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        return (name || 'export').slice(0, 80) + '.xlsx';
+    },
+
+    toXlsx(headers, rows, base) {
+        return this.ensureLib().then((XLSX) => {
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, this.fileName(base));
+        });
+    },
+
+    // Export a plain (non-enhanced) table straight from its DOM rows. For a
+    // server-paginated table this is the current page; enhanced tables use their
+    // full `filteredData` instead (see EnhancedTable.exportToExcel).
+    fromTable(table, base) {
+        const headRow = (table.tHead && table.tHead.rows[0]) || table.querySelector('tr');
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const keep = headerCells.map(h =>
+            !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
+        const headers = headerCells.filter((_, i) => keep[i]).map(h => this.cellText(h));
+
+        // DataTables keeps only the current page in the DOM — pull ALL rows from
+        // its API so the export isn't truncated to one page.
+        let bodyRows = null;
+        try {
+            const $ = window.jQuery || window.$;
+            if ($ && $.fn && $.fn.dataTable && $.fn.dataTable.isDataTable(table)) {
+                bodyRows = $(table).DataTable().rows().nodes().toArray();
+            }
+        } catch (e) { /* fall back to DOM rows */ }
+        if (!bodyRows) {
+            const body = table.tBodies[0];
+            bodyRows = body ? Array.from(body.rows) : [];
+        }
+
+        const rows = bodyRows.map((tr) => {
+            const cells = Array.from(tr.cells);
+            return cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c));
+        });
+        return this.toXlsx(headers, rows, base)
+            .catch(() => alert('The Excel export could not load. Check your connection and try again.'));
+    },
+
+    // Largest ?page=N in the page's Django pagination, or null when the table
+    // isn't server-paginated (all rows already in the DOM).
+    serverLastPage() {
+        let max = 1;
+        document.querySelectorAll('.pagination a[href*="page="]').forEach((a) => {
+            const m = (a.getAttribute('href') || '').match(/[?&]page=(\d+)/);
+            if (m) max = Math.max(max, parseInt(m[1], 10));
+        });
+        return max > 1 ? max : null;
+    },
+
+    // Export EVERY row of a server-paginated table by walking ?page=1..N and
+    // harvesting each page's rows — so the file holds the whole dataset, not just
+    // the current page. Reuses the existing views (cookies sent), so no new
+    // server endpoint is needed. Preserves the active filters already in the URL.
+    async fromServerPages(table, base, lastPage, onProgress) {
+        const headRow = (table.tHead && table.tHead.rows[0]) || table.querySelector('tr');
+        const headerCells = headRow ? Array.from(headRow.cells) : [];
+        const keep = headerCells.map(h =>
+            !h.hasAttribute('data-no-export') && !/^actions?$/i.test(this.cellText(h)));
+        const headers = headerCells.filter((_, i) => keep[i]).map(h => this.cellText(h));
+
+        const rows = [];
+        const params = new URLSearchParams(window.location.search);
+        const cap = Math.min(lastPage, 500); // guard against runaway page counts
+        for (let p = 1; p <= cap; p++) {
+            if (onProgress) onProgress(p, cap);
+            params.set('page', String(p));
+            let text;
+            try {
+                const resp = await fetch(window.location.pathname + '?' + params.toString(),
+                    { credentials: 'same-origin' });  // normal full page, so the table is present
+                if (!resp.ok) break;
+                text = await resp.text();
+            } catch (e) { break; }
+            const doc = new DOMParser().parseFromString(text, 'text/html');
+            const t = (table.id && doc.getElementById(table.id)) || doc.querySelector('table');
+            const body = t && t.tBodies[0];
+            if (!body || body.rows.length === 0) break;
+            Array.from(body.rows).forEach((tr) => {
+                const cells = Array.from(tr.cells);
+                rows.push(cells.filter((_, i) => keep[i] !== false).map(c => this.cellText(c)));
+            });
+        }
+        return this.toXlsx(headers, rows, base);
+    },
+
+    // One entry point: full dataset for server-paginated tables, DOM rows
+    // otherwise. `btn` (optional) shows a "Preparing…" state during the walk.
+    export(table, base, btn) {
+        const lastPage = this.serverLastPage();
+        if (!lastPage) return this.fromTable(table, base);
+        const label = btn ? btn.innerHTML : null;
+        const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = label; } };
+        if (btn) { btn.disabled = true; }
+        return this.fromServerPages(table, base, lastPage, (p, n) => {
+            if (btn) btn.innerHTML = `Preparing… ${p}/${n}`;
+        }).then(restore).catch((e) => {
+            restore();
+            alert('The full export could not be built. Try again, or export the current page.');
+            throw e;
+        });
+    },
+};
+
+// Attach an "Export to Excel" button to every plain table (those not handled by
+// EnhancedTable or DataTables). Idempotent; skips headerless/empty/opted-out tables.
+const attachPlainTableExports = () => {
+    document.querySelectorAll('table').forEach((table) => {
+        try {
+            if (table.classList.contains('enhanced-table')) return;  // gets the Export menu instead
+            if (table.hasAttribute('data-no-export')) return;
+            if (table.dataset.exportAttached) return;
+            // Worth exporting if it has a header row plus at least one data row.
+            // We count *rows*, not `th` cells: many tables build their header
+            // with `<td>` (or a styled first row), and those were being skipped
+            // even though the exporter reads the first row as the header anyway.
+            // A DataTables-wrapped table may keep only the current page in the
+            // DOM, so treat any DataTable as exportable regardless of row count.
+            const isDataTable = table.classList.contains('dataTable') ||
+                                !!table.closest('.dataTables_wrapper');
+            const rowCount = table.rows ? table.rows.length : 0;
+            if (!isDataTable && rowCount < 2) return;
+            table.dataset.exportAttached = '1';
+
+            const bar = document.createElement('div');
+            bar.className = 'table-export-bar d-flex justify-content-end mb-2';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-success';
+            btn.innerHTML = '<i class="bi bi-file-earmark-excel me-1"></i>Export to Excel';
+            btn.addEventListener('click', () =>
+                TableExport.export(table, table.dataset.exportName || document.title, btn));
+            bar.appendChild(btn);
+            // DataTables wraps the table; put the button above the wrapper so it
+            // sits with the table's own controls rather than between them.
+            const anchor = table.closest('.dataTables_wrapper') || table;
+            anchor.parentNode.insertBefore(bar, anchor);
+        } catch (e) {
+            console.error('Export button attach failed for a table:', e);
+        }
     });
+};
+
+window.TableExport = TableExport;
+
+// Auto-initialize tables with the 'enhanced-table' class.
+//
+// IMPORTANT: skip tables that are also being enhanced by jQuery DataTables.
+// Several pages historically had both: `class="... enhanced-table"` and
+// `$('#table').DataTable(...)`. That produced two search bars and two
+// paginators stacked on top of each other. We defer to a microtask after
+// DOMContentLoaded so DataTables has a chance to wrap the table first,
+// then skip any table that's now under a `.dataTables_wrapper`, has the
+// `dataTable` class, or carries an explicit `data-no-enhanced` opt-out.
+const initEnhancedTables = () => {
+    document.querySelectorAll('table.enhanced-table').forEach(table => {
+        if (table.classList.contains('dataTable')) return;
+        if (table.closest('.dataTables_wrapper')) return;
+        if (table.hasAttribute('data-no-enhanced')) return;
+
+        const hasDjangoPagination = document.querySelector('.pagination');
+
+        // One misbehaving table must not abort the loop (and, previously, prevent
+        // every plain-table export button after it from ever attaching).
+        try {
+            new EnhancedTable({
+                table,
+                pagination: !hasDjangoPagination,
+                exportable: table.hasAttribute('data-no-export') ? false : true,
+                exportFileName: table.dataset.exportName || document.title || 'table_export',
+            });
+        } catch (e) {
+            console.error('EnhancedTable init failed for', table.id || '(no id)', e);
+        }
+    });
+};
+
+const runTableInit = () => {
+    // Independent + plain-first, so a failure in one path never blocks the
+    // other. This is why "no export button anywhere" happened: one enhanced
+    // table threw and took the whole handler down before buttons attached.
+    try { attachPlainTableExports(); } catch (e) { console.error('Plain table export init failed:', e); }
+    try { initEnhancedTables(); } catch (e) { console.error('Enhanced table init failed:', e); }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(runTableInit, 0);
+
+    // Tables that arrive AFTER load — AJAX results, DataTables redraws, tab
+    // panes rendered on demand — never got an Export button, because the attach
+    // ran once. Watch for added tables and re-attach; `exportAttached` guards
+    // against double buttons, so re-running is cheap and idempotent. Debounced
+    // so a burst of DOM changes triggers one pass.
+    let pending = null;
+    const observer = new MutationObserver((mutations) => {
+        const sawTable = mutations.some((m) =>
+            Array.from(m.addedNodes).some((n) =>
+                n.nodeType === 1 &&
+                (n.tagName === 'TABLE' || (n.querySelector && n.querySelector('table')))));
+        if (!sawTable) return;
+        clearTimeout(pending);
+        pending = setTimeout(() => { try { attachPlainTableExports(); } catch (e) { /* logged inside */ } }, 150);
+    });
+    try { observer.observe(document.body, { childList: true, subtree: true }); } catch (e) { /* no body yet */ }
 });
 
 // Make EnhancedTable available globally

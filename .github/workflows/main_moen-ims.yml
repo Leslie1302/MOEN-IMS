@@ -22,13 +22,34 @@ jobs:
       - name: Set up Python version
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14'
-                
-      # By default, when you enable GitHub CI/CD integration through the Azure portal, the platform automatically sets the SCM_DO_BUILD_DURING_DEPLOYMENT application setting to true. This triggers the use of Oryx, a build engine that handles application compilation and dependency installation (e.g., pip install) directly on the platform during deployment. Hence, we exclude the antenv virtual environment directory from the deployment artifact to reduce the payload size. 
+          python-version: '3.12'
+
+      # Collect static assets HERE and ship them inside the artifact, so
+      # WhiteNoise on the App Service serves exactly what this build produced.
+      # Previously staticfiles/ was gitignored and never in the artifact, so
+      # prod only refreshed CSS/JS if collectstatic happened to run on the
+      # server (Oryx build or start.sh at startup). When it didn't, prod served
+      # stale assets — the recurring "works on localhost, not on prod" bug.
+      # DJANGO_DEBUG=true gives collectstatic a dev key + SQLite; it touches no
+      # database and needs no production secrets.
+      - name: Install dependencies
+        working-directory: IMS/Inventory_management_system
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Collect static files into the artifact
+        working-directory: IMS/Inventory_management_system
+        env:
+          DJANGO_DEBUG: 'true'
+        run: python manage.py collectstatic --noinput
+
+      # By default, when you enable GitHub CI/CD integration through the Azure portal, the platform automatically sets the SCM_DO_BUILD_DURING_DEPLOYMENT application setting to true. This triggers the use of Oryx, a build engine that handles application compilation and dependency installation (e.g., pip install) directly on the platform during deployment. Hence, we exclude the antenv virtual environment directory from the deployment artifact to reduce the payload size.
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
+          include-hidden-files: true
           path: IMS/Inventory_management_system/
 
       # 🚫 Opting Out of Oryx Build
