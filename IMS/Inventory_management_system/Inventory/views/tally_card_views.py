@@ -253,6 +253,127 @@ class TallyCardConsolidatedView(LoginRequiredMixin, StoresAccessMixin, ListView)
         return ctx
 
 
+class StockValuationView(LoginRequiredMixin, StoresAccessMixin, ListView):
+    """Total cost of materials in stock, valued at quantity x unit_cost,
+    grouped by warehouse (store) with subtotals and a grand total. Items with
+    no unit_cost are listed at 0 value and flagged as unpriced until set."""
+    template_name = 'Inventory/stock_valuation.html'
+    context_object_name = 'stores'
+
+    def _items(self):
+        qs = (InventoryItem.objects
+              .select_related('warehouse', 'unit', 'category')
+              .order_by('warehouse__name', 'code', 'name'))
+        wh = (self.request.GET.get('warehouse') or '').strip()
+        if wh:
+            qs = qs.filter(warehouse_id=wh)
+        q = (self.request.GET.get('q') or '').strip()
+        if q:
+            from django.db.models import Q
+            qs = qs.filter(Q(code__icontains=q) | Q(name__icontains=q))
+        return qs
+
+    def get_queryset(self):
+        from decimal import Decimal
+        stores = {}
+        for it in self._items():
+            key = it.warehouse_id
+            g = stores.setdefault(key, {
+                'warehouse': it.warehouse.name if it.warehouse else 'Unassigned',
+                'lines': [], 'subtotal': Decimal('0'), 'unpriced': 0})
+            qty = Decimal(str(it.quantity or 0))
+            cost = it.unit_cost or Decimal('0')
+            value = qty * cost
+            priced = cost > 0
+            if not priced:
+                g['unpriced'] += 1
+            g['lines'].append({
+                'pk': it.pk, 'code': it.code, 'name': it.name,
+                'unit': it.unit.name if it.unit else '',
+                'qty': it.quantity or 0, 'unit_cost': cost,
+                'value': value, 'priced': priced})
+            g['subtotal'] += value
+        return sorted(stores.values(), key=lambda s: s['warehouse'])
+
+    def get_context_data(self, **kwargs):
+        from decimal import Decimal
+        ctx = super().get_context_data(**kwargs)
+        stores = ctx['stores']
+        ctx['grand_total'] = sum((s['subtotal'] for s in stores), Decimal('0'))
+        ctx['total_unpriced'] = sum(s['unpriced'] for s in stores)
+        ctx['warehouses'] = Warehouse.objects.order_by('name')
+        ctx['q'] = self.request.GET.get('q', '')
+        ctx['selected_warehouse'] = self.request.GET.get('warehouse', '')
+        ctx['can_edit_price'] = (
+            self.request.user.is_superuser or
+            self.request.user.groups.filter(
+                name__in=['Management', 'Stores Management']).exists())
+        return ctx
+
+
+class StockValuationExcelView(StockValuationView):
+    """Excel export of the valuation report (respects the store/search filter)."""
+
+    def get(self, request, *args, **kwargs):
+        stores = self.get_queryset()
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill
+        except ImportError:
+            return HttpResponse("openpyxl not installed.", status=500)
+        from decimal import Decimal
+        wb = Workbook(); ws = wb.active; ws.title = 'Stock valuation'
+        ws.append(['Store', 'Code', 'Material', 'Qty', 'Unit', 'Unit cost', 'Value', 'Priced?'])
+        hfill = PatternFill('solid', fgColor='1F4E78')
+        for c in range(1, 9):
+            ws.cell(1, c).font = Font(bold=True, color='FFFFFF')
+            ws.cell(1, c).fill = hfill
+        grand = Decimal('0')
+        for s in stores:
+            for ln in s['lines']:
+                ws.append([s['warehouse'], ln['code'], ln['name'], ln['qty'],
+                           ln['unit'], float(ln['unit_cost']), float(ln['value']),
+                           'Yes' if ln['priced'] else 'NO PRICE'])
+            ws.append([f"{s['warehouse']} subtotal", '', '', '', '', '', float(s['subtotal']), ''])
+            grand += s['subtotal']
+        ws.append(['GRAND TOTAL', '', '', '', '', '', float(grand), ''])
+        for i, w in enumerate([26, 14, 40, 10, 8, 14, 16, 10], 1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        from io import BytesIO
+        buf = BytesIO(); wb.save(buf)
+        resp = HttpResponse(
+            buf.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = 'attachment; filename="stock-valuation.xlsx"'
+        return resp
+
+
+@require_POST
+def stock_valuation_update_price(request, pk):
+    """Supervisor updates an item's unit_cost from the valuation report."""
+    from decimal import Decimal, InvalidOperation
+    u = request.user
+    if not (u.is_superuser or u.groups.filter(name__in=['Management', 'Stores Management']).exists()):
+        messages.error(request, "You don't have permission to update prices.")
+        return redirect('stock_valuation')
+    item = get_object_or_404(InventoryItem, pk=pk)
+    from django.utils.http import url_has_allowed_host_and_scheme
+    back = request.POST.get('next') or ''
+    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()}):
+        back = 'stock_valuation'  # ignore off-site next values
+    try:
+        cost = Decimal((request.POST.get('unit_cost') or '').strip())
+        if cost < 0:
+            raise InvalidOperation
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Enter a valid unit cost.")
+        return redirect(back)
+    item.unit_cost = cost
+    item.save(update_fields=['unit_cost'])
+    messages.success(request, f"Unit cost for {item.code or item.name} set to {cost}.")
+    return redirect(back)
+
+
 @require_POST
 def tally_card_adjust(request, pk):
     """Post a physical stock count as an audited adjustment.

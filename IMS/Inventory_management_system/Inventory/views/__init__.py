@@ -3,6 +3,7 @@ from .tally_card_views import (
     TallyCardListView, TallyCardDetailView, TallyCardPDFView,
     TallyCardExcelView, tally_card_adjust,
     StockIntegrityView, TallyCardConsolidatedView,
+    StockValuationView, StockValuationExcelView, stock_valuation_update_price,
 )
 from .user_views import (
     ProfileView, bulk_user_upload, download_user_template, StaffProfileView

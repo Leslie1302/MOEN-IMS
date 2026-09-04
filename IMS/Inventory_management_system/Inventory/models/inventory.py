@@ -71,6 +71,11 @@ class InventoryItem(auto_prefetch.Model):
         default=0,
         help_text="Low-stock threshold. When quantity drops to or below this, "
                   "the tally card flags a reorder. 0 disables the flag.")
+    unit_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0,
+        help_text="Cost per unit used to value stock on the valuation report "
+                  "(quantity x unit_cost). Seeded from the latest supplier "
+                  "catalogue price and editable thereafter. 0 = unpriced.")
     category = auto_prefetch.ForeignKey('Category', on_delete=models.SET_NULL, blank=True, null=True)
     code = models.CharField(max_length=200, help_text="Material code")
     unit = auto_prefetch.ForeignKey('Unit', on_delete=models.CASCADE)

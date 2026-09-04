@@ -12,6 +12,7 @@ from .views import (
     TallyCardListView, TallyCardDetailView, TallyCardPDFView,
     TallyCardExcelView, tally_card_adjust,
     StockIntegrityView, TallyCardConsolidatedView,
+    StockValuationView, StockValuationExcelView, stock_valuation_update_price,
     BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard,
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView,
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView,
@@ -482,6 +483,9 @@ urlpatterns = [
     path('stock-cards/<int:pk>/adjust/', tally_card_adjust, name='tally_card_adjust'),
     path('stock-cards-consolidated/', TallyCardConsolidatedView.as_view(), name='tally_card_consolidated'),
     path('stock-ledger-integrity/', StockIntegrityView.as_view(), name='stock_ledger_integrity'),
+    path('stock-valuation/', StockValuationView.as_view(), name='stock_valuation'),
+    path('stock-valuation/export/', StockValuationExcelView.as_view(), name='stock_valuation_excel'),
+    path('stock-valuation/<int:pk>/price/', stock_valuation_update_price, name='stock_valuation_update_price'),
 
     path('obsolete-materials/', ObsoleteMaterialListView.as_view(), name='obsolete_material_list'),
     path('obsolete-materials/register/', ObsoleteMaterialRegisterView.as_view(), name='obsolete_material_register'),
