@@ -75,6 +75,24 @@ def _boq_for(order):
 
     qs = BillOfQuantity.objects.filter(item_code__iexact=code,
                                        community__iexact=community)
+
+    # Scope to the order's region/district. A community name is not unique
+    # across the country — e.g. a Cost-Sharing community in the Western region
+    # can share a name with a SHEP community in Ashanti. Matching on name alone
+    # pulls in the wrong region's BoQ line and its contract quantity, which then
+    # reads as an over-issuance and demands a justification for a release that is
+    # perfectly in order. Region + district disambiguate them.
+    #
+    # Applied only when the order carries these (the bulk release upload does),
+    # so legacy orders with no region/district still match on code + community
+    # as before rather than suddenly matching nothing.
+    region = (getattr(order, 'region', '') or '').strip()
+    if region:
+        qs = qs.filter(region__iexact=region)
+    district = (getattr(order, 'district', '') or '').strip()
+    if district:
+        qs = qs.filter(district__iexact=district)
+
     package = (order.package_number or '').strip()
     if package:
         narrowed = qs.filter(package_number__iexact=package)

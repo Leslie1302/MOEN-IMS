@@ -104,3 +104,58 @@ class ReleaseGateTests(TestCase):
         self.assertFalse(result['all_nonconventional'])
         # The section still states the non-conventional line's basis honestly.
         self.assertIn('authorised by the release order', summary_sentence(result))
+
+
+class BoqMatchRegionScopeTests(TestCase):
+    """A community name shared across regions must not cross-match: a SHEP
+    community in Ashanti must not satisfy a same-named Cost-Sharing release in
+    Western (which was demanding a bogus over-issuance justification)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from Inventory.models import BillOfQuantity
+        cls.unit = Unit.objects.create(name='No.')
+        # The look-alike: a SHEP BoQ line for 'ADUM' in Ashanti with a small
+        # contract quantity, which is what was wrongly matched.
+        BillOfQuantity.objects.create(
+            region='ASHANTI', district='KUMASI', community='ADUM',
+            consultant='C', contractor='K', package_number='',
+            project_type='SHEP', material_description='M20 X 280',
+            item_code='BNW005', contract_quantity=5)
+
+    def _boq_for(self, order):
+        from Inventory.services.reconciliation import _boq_for
+        return _boq_for(order)
+
+    def test_other_region_same_name_does_not_match(self):
+        from Inventory.models import ReleaseLetter
+        rl = ReleaseLetter.objects.create(
+            request_code='REQ-ELL', title='Ellembelle', project_type='COST',
+            total_quantity=Decimal('1000'))
+        order = MaterialOrder.objects.create(
+            name='M20 X 280', quantity=Decimal('100'), unit=self.unit,
+            release_letter=rl, code='BNW005', community='ADUM',
+            region='WESTERN', district='ELLEMBELLE', project_type='COST',
+            package_number='')
+        # No Western/Ellembelle BoQ exists → must be unmatched, NOT matched to
+        # the Ashanti SHEP line (which would trigger a false over-issuance).
+        self.assertIsNone(self._boq_for(order))
+
+    def test_same_region_still_matches(self):
+        from Inventory.models import BillOfQuantity, ReleaseLetter
+        BillOfQuantity.objects.create(
+            region='WESTERN', district='ELLEMBELLE', community='ADUM',
+            consultant='C', contractor='K', package_number='',
+            project_type='COST', material_description='M20 X 280',
+            item_code='BNW005', contract_quantity=200)
+        rl = ReleaseLetter.objects.create(
+            request_code='REQ-ELL2', title='Ellembelle', project_type='COST',
+            total_quantity=Decimal('1000'))
+        order = MaterialOrder.objects.create(
+            name='M20 X 280', quantity=Decimal('100'), unit=self.unit,
+            release_letter=rl, code='BNW005', community='ADUM',
+            region='WESTERN', district='ELLEMBELLE', project_type='COST',
+            package_number='')
+        boq = self._boq_for(order)
+        self.assertIsNotNone(boq)
+        self.assertEqual(boq.region, 'WESTERN')
