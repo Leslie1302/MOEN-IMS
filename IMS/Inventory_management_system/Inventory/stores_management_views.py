@@ -74,7 +74,7 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
         ).exclude(
             status='Completed'  # Don't show completed orders
         ).select_related(
-            'user', 'unit', 'category', 'warehouse', 'created_by'
+            'user', 'unit', 'category', 'warehouse', 'created_by', 'release_letter'
         ).prefetch_related(
             'store_assignments'
         ).annotate(
@@ -113,7 +113,24 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
         ).exclude(
             status='Completed'
         ).count()
-        
+
+        # Bridge to the stock workflow: show the live stock and the authorising
+        # release letter for each pending order, so whoever assigns it can see
+        # at a glance whether the stock is there and the release is backed.
+        from decimal import Decimal
+        from Inventory.models import InventoryItem
+        for order in context.get('orders', []):
+            item = None
+            if order.code:
+                iq = InventoryItem.objects.filter(code__iexact=order.code)
+                if order.warehouse_id:
+                    iq = iq.filter(warehouse_id=order.warehouse_id)
+                item = iq.select_related('warehouse').first()
+            order.stock_item = item
+            order.current_stock = item.quantity if item else None
+            order.short_stock = (item is not None
+                                 and (order.quantity or Decimal('0')) > (item.quantity or 0))
+
         return context
 
 
@@ -310,6 +327,7 @@ class MyAssignedOrdersView(LoginRequiredMixin, StoresStaffMixin, ListView):
             assigned_to=self.request.user
         ).select_related(
             'material_order', 'material_order__user', 'material_order__unit',
+            'material_order__warehouse', 'material_order__release_letter',
             'assigned_by'
         ).order_by('-assigned_at')
         
@@ -334,7 +352,7 @@ class MyAssignedOrdersView(LoginRequiredMixin, StoresStaffMixin, ListView):
         context['status_choices'] = StoreOrderAssignment.STATUS_CHOICES
         context['selected_status'] = self.request.GET.get('status', '')
         context['search_query'] = self.request.GET.get('search', '')
-        
+
         # Statistics for current user
         stats = StoreOrderAssignment.objects.filter(
             assigned_to=self.request.user
@@ -346,7 +364,31 @@ class MyAssignedOrdersView(LoginRequiredMixin, StoresStaffMixin, ListView):
             completed=Count('id', filter=Q(status='Completed'))
         )
         context.update(stats)
-        
+
+        # Bridge each card to the stock workflow: attach the live stock record,
+        # the order's released/remaining balance, and the tally card link, so an
+        # officer sees "what I can release, from what stock, against what letter"
+        # without leaving the page.
+        from decimal import Decimal
+        from Inventory.models import InventoryItem
+        for a in context.get('assignments', []):
+            order = a.material_order
+            if not order:
+                continue
+            processed = order.processed_quantity or Decimal('0')
+            total = order.quantity or Decimal('0')
+            a.released_qty = processed
+            a.remaining_qty = max(Decimal('0'), total - processed)
+            item = None
+            if order.code:
+                iq = InventoryItem.objects.filter(code__iexact=order.code)
+                if order.warehouse_id:
+                    iq = iq.filter(warehouse_id=order.warehouse_id)
+                item = iq.select_related('warehouse', 'unit').first()
+            a.stock_item = item
+            a.current_stock = item.quantity if item else None
+            a.short_stock = (item is not None and a.remaining_qty > (item.quantity or 0))
+
         return context
 
 
@@ -375,6 +417,43 @@ def update_assignment_status(request, assignment_id):
         if new_status == 'In Progress':
             assignment.mark_in_progress(user=request.user)
             messages.success(request, 'Assignment marked as in progress')
+        elif new_status == 'Partial':
+            # Release part of the order now; the rest stays open. Runs through
+            # the same processing core as a full release, so stock is deducted,
+            # the order moves to 'Partially Fulfilled', and — because the order
+            # is linked to its release letter — the drawdown/threshold updates.
+            from decimal import Decimal, InvalidOperation
+            from Inventory.services.order_flow import ProcessingError, process_quantity
+            order = assignment.material_order
+            remaining = ((order.quantity or Decimal('0'))
+                         - (order.processed_quantity or Decimal('0')))
+            try:
+                qty = Decimal(str(request.POST.get('quantity', '')).strip())
+            except (InvalidOperation, ValueError):
+                return JsonResponse({'success': False, 'message': 'Enter a valid quantity.'}, status=400)
+            if qty <= 0 or qty > remaining:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Quantity must be between 0 and the remaining {remaining}.'}, status=400)
+            try:
+                with transaction.atomic():
+                    process_quantity(order, qty, request.user)
+                    if assignment.status not in ('In Progress', 'Completed'):
+                        assignment.mark_in_progress(user=request.user)
+            except ProcessingError as e:
+                return JsonResponse({'success': False, 'message': str(e)}, status=400)
+            order.refresh_from_db()
+            # A partial that clears the balance closes the assignment.
+            if (order.remaining_quantity or Decimal('0')) <= 0:
+                assignment.mark_completed(
+                    notes='Fully released via partial releases', user=request.user)
+            messages.success(
+                request,
+                f'Released {qty}. Remaining on this order: {order.remaining_quantity}.')
+            return JsonResponse({
+                'success': True, 'message': 'Partial release recorded',
+                'new_status': assignment.status,
+                'remaining': str(order.remaining_quantity)})
         elif new_status == 'Completed':
             # Completing an assignment IS the release. Run the order through
             # the shared processing core (Inventory.services.order_flow) so

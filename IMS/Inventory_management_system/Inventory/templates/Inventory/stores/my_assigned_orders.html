@@ -178,6 +178,40 @@
                                     </div>
                                 </div>
 
+                                <!-- Stock workflow context: what to release, from what stock, against what letter -->
+                                <div class="mt-2 p-2 rounded" style="background:#f8f9fa; border:1px solid #e9ecef;">
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Released / Remaining</small>
+                                            <strong class="text-success">{{ assignment.released_qty|floatformat:0|intcomma }}</strong>
+                                            /
+                                            <strong class="{% if assignment.remaining_qty <= 0 %}text-success{% else %}text-warning{% endif %}">{{ assignment.remaining_qty|floatformat:0|intcomma }}</strong>
+                                            <small class="text-muted">of {{ assignment.material_order.quantity|floatformat:0|intcomma }}</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Current stock</small>
+                                            {% if assignment.stock_item %}
+                                                <strong class="{% if assignment.short_stock %}text-danger{% endif %}">{{ assignment.current_stock|floatformat:0|intcomma }}</strong>
+                                                <a href="{% url 'tally_card_detail' assignment.stock_item.pk %}" class="small ms-1" title="Open tally card"><i class="fas fa-id-card"></i></a>
+                                                {% if assignment.short_stock %}<span class="badge bg-danger ms-1">short</span>{% endif %}
+                                            {% else %}
+                                                <span class="text-muted small">no stock record</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Release letter</small>
+                                            {% if assignment.material_order.release_letter %}
+                                                {% with rl=assignment.material_order.release_letter %}
+                                                <a href="{% url 'release_letter_detail' rl.pk %}"><i class="fas fa-file-signature"></i> {{ rl.code|default:"View" }}</a>
+                                                {% if rl.total_quantity %}<div class="small text-muted">Auth {{ rl.total_quantity|floatformat:0|intcomma }} · Bal {{ rl.balance_to_request|floatformat:0|intcomma }}</div>{% endif %}
+                                                {% endwith %}
+                                            {% else %}
+                                                <span class="text-muted small">none attached</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="row">
                                     <div class="col-md-6">
                                         <small class="text-muted">
@@ -223,17 +257,23 @@
                             <div class="col-md-4">
                                 <div class="d-grid gap-2">
                                     {% if assignment.status == 'Assigned' %}
-                                        <button type="button" class="btn btn-primary btn-lg" 
-                                                onclick="updateStatus({{ assignment.id }}, 'In Progress')">
+                                        <button type="button" class="btn btn-primary btn-lg"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#beginModal{{ assignment.id }}">
                                             <i class="fas fa-play"></i> Start Working
                                         </button>
                                     {% elif assignment.status == 'In Progress' %}
-                                        <button type="button" class="btn btn-success btn-lg" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#completeModal{{ assignment.id }}">
-                                            <i class="fas fa-check-double"></i> Mark as Completed
+                                        <button type="button" class="btn btn-warning"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#partialModal{{ assignment.id }}">
+                                            <i class="fas fa-layer-group"></i> Release Part
                                         </button>
-                                        <a href="{% url 'transport_assignment' %}?order_id={{ assignment.material_order.id }}" 
+                                        <button type="button" class="btn btn-success btn-lg"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#completeModal{{ assignment.id }}">
+                                            <i class="fas fa-check-double"></i> Release Remaining &amp; Complete
+                                        </button>
+                                        <a href="{% url 'transport_assignment' %}?order_id={{ assignment.material_order.id }}"
                                            class="btn btn-outline-primary">
                                             <i class="fas fa-truck"></i> Assign to Transporter
                                         </a>
@@ -252,6 +292,61 @@
                                         <i class="fas fa-info-circle"></i> View Full Details
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Begin Work Modal: confirm + choose full or partial -->
+                <div class="modal fade" id="beginModal{{ assignment.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">Start working — {{ assignment.material_order.name }}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-2">You are about to begin work on this release. Is this a <strong>full</strong> or a <strong>partial</strong> release?</p>
+                                <div class="mb-2 small text-muted">Remaining on this order: <strong>{{ assignment.remaining_qty|floatformat:0|intcomma }}</strong> {{ assignment.material_order.unit }}{% if assignment.stock_item %} · In stock: <strong>{{ assignment.current_stock|floatformat:0|intcomma }}</strong>{% endif %}</div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="mode{{ assignment.id }}" id="modeFull{{ assignment.id }}" value="full" checked onclick="document.getElementById('partialQtyWrap{{ assignment.id }}').style.display='none'">
+                                    <label class="form-check-label" for="modeFull{{ assignment.id }}">Full — begin now, release the whole quantity when you complete.</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="mode{{ assignment.id }}" id="modePartial{{ assignment.id }}" value="partial" onclick="document.getElementById('partialQtyWrap{{ assignment.id }}').style.display='block'">
+                                    <label class="form-check-label" for="modePartial{{ assignment.id }}">Partial — release part now; the rest stays open.</label>
+                                </div>
+                                <div id="partialQtyWrap{{ assignment.id }}" style="display:none" class="mt-2">
+                                    <label class="form-label small fw-semibold">Quantity to release now</label>
+                                    <input type="number" step="1" min="1" max="{{ assignment.remaining_qty|floatformat:0 }}" class="form-control" id="beginQty{{ assignment.id }}" placeholder="e.g. {{ assignment.remaining_qty|floatformat:0 }}">
+                                    <div class="form-text">Max {{ assignment.remaining_qty|floatformat:0|intcomma }}.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" onclick="beginWork({{ assignment.id }})"><i class="fas fa-play"></i> Begin</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Partial Release Modal (while In Progress) -->
+                <div class="modal fade" id="partialModal{{ assignment.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning">
+                                <h5 class="modal-title">Release part — {{ assignment.material_order.name }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-2 small text-muted">Remaining: <strong>{{ assignment.remaining_qty|floatformat:0|intcomma }}</strong>{% if assignment.stock_item %} · In stock: <strong>{{ assignment.current_stock|floatformat:0|intcomma }}</strong>{% endif %}</div>
+                                <label class="form-label small fw-semibold">Quantity to release now</label>
+                                <input type="number" step="1" min="1" max="{{ assignment.remaining_qty|floatformat:0 }}" class="form-control" id="partialQty{{ assignment.id }}" placeholder="e.g. {{ assignment.remaining_qty|floatformat:0 }}">
+                                <div class="form-text">The order stays open until fully released. Max {{ assignment.remaining_qty|floatformat:0|intcomma }}.</div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-warning" onclick="releasePartial({{ assignment.id }}, 'partialQty{{ assignment.id }}')"><i class="fas fa-layer-group"></i> Release</button>
                             </div>
                         </div>
                     </div>
@@ -426,6 +521,38 @@ function updateStatus(assignmentId, newStatus) {
     .catch(error => {
         alert('Error updating status: ' + error);
     });
+}
+
+// Begin work: full = just mark In Progress; partial = release the entered qty now.
+function beginWork(assignmentId) {
+    const mode = document.querySelector(`input[name="mode${assignmentId}"]:checked`).value;
+    if (mode === 'full') {
+        postAssignment(assignmentId, {status: 'In Progress'});
+        return;
+    }
+    const qty = document.getElementById(`beginQty${assignmentId}`).value;
+    if (!qty || Number(qty) <= 0) { alert('Enter a quantity to release.'); return; }
+    postAssignment(assignmentId, {status: 'Partial', quantity: qty});
+}
+
+function releasePartial(assignmentId, inputId) {
+    const qty = document.getElementById(inputId).value;
+    if (!qty || Number(qty) <= 0) { alert('Enter a quantity to release.'); return; }
+    postAssignment(assignmentId, {status: 'Partial', quantity: qty});
+}
+
+// Shared POST to the assignment status endpoint; reloads on success.
+function postAssignment(assignmentId, fields) {
+    const formData = new FormData();
+    Object.keys(fields).forEach(k => formData.append(k, fields[k]));
+    fetch(`/stores/assignment/${assignmentId}/update-status/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => { data.success ? window.location.reload() : alert('Error: ' + data.message); })
+    .catch(err => alert('Error: ' + err));
 }
 
 function completeAssignment(event, assignmentId) {

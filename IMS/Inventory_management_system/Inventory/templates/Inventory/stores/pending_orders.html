@@ -180,12 +180,36 @@
                                                 {% if order.region or order.district %}
                                                     <div class="mt-2">
                                                         <small class="text-muted">
-                                                            <i class="fas fa-map-marker-alt"></i> 
+                                                            <i class="fas fa-map-marker-alt"></i>
                                                             {% if order.region %}{{ order.region }}{% endif %}
                                                             {% if order.district %}, {{ order.district }}{% endif %}
                                                         </small>
                                                     </div>
                                                 {% endif %}
+
+                                                <!-- Stock & release context -->
+                                                <div class="mt-2 p-2 rounded" style="background:#f8f9fa; border:1px solid #e9ecef;">
+                                                    <div class="row g-2">
+                                                        <div class="col-md-6">
+                                                            <small class="text-muted d-block">Stock available</small>
+                                                            {% if order.stock_item %}
+                                                                <strong class="{% if order.short_stock %}text-danger{% endif %}">{{ order.current_stock|floatformat:0|intcomma }}</strong> {{ order.unit }}
+                                                                <a href="{% url 'tally_card_detail' order.stock_item.pk %}" class="small ms-1" title="Open tally card"><i class="fas fa-id-card"></i></a>
+                                                                {% if order.short_stock %}<span class="badge bg-danger ms-1">short for this request</span>{% endif %}
+                                                            {% else %}
+                                                                <span class="text-muted small">no stock record for {{ order.code }}</span>
+                                                            {% endif %}
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <small class="text-muted d-block">Release letter</small>
+                                                            {% if order.release_letter %}
+                                                                <a href="{% url 'release_letter_detail' order.release_letter.pk %}"><i class="fas fa-file-signature"></i> {{ order.release_letter.code|default:"View" }}</a>
+                                                            {% else %}
+                                                                <span class="text-muted small">none attached</span>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
