@@ -200,6 +200,96 @@ class TallyCardExcelView(LoginRequiredMixin, StoresAccessMixin, DetailView):
         return resp
 
 
+def _filter_ledger(qs, params):
+    """Filters for the master store ledger (all items)."""
+    q = (params.get('q') or '').strip()
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(Q(item__code__icontains=q) | Q(item__name__icontains=q)
+                       | Q(reference__icontains=q))
+    wh = (params.get('warehouse') or '').strip()
+    if wh:
+        qs = qs.filter(item__warehouse_id=wh)
+    mtype = (params.get('type') or '').strip()
+    if mtype:
+        qs = qs.filter(movement_type=mtype)
+    dfrom = (params.get('from') or '').strip()
+    if dfrom:
+        qs = qs.filter(created_at__date__gte=dfrom)
+    dto = (params.get('to') or '').strip()
+    if dto:
+        qs = qs.filter(created_at__date__lte=dto)
+    return qs
+
+
+class StockLedgerView(LoginRequiredMixin, StoresAccessMixin, ListView):
+    """The master store ledger: every stock movement across all materials and
+    warehouses, newest first. The tally card is one material's slice of this."""
+    template_name = 'Inventory/stock_ledger.html'
+    context_object_name = 'movements'
+    paginate_by = 100
+
+    def get_queryset(self):
+        qs = (StockMovement.objects
+              .select_related('item', 'item__warehouse', 'item__unit', 'performed_by')
+              .order_by('-created_at', '-id'))
+        return _filter_ledger(qs, self.request.GET)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['warehouses'] = Warehouse.objects.order_by('name')
+        ctx['movement_types'] = StockMovement.MOVEMENT_TYPES
+        ctx['q'] = self.request.GET.get('q', '')
+        ctx['selected_warehouse'] = self.request.GET.get('warehouse', '')
+        ctx['f_type'] = self.request.GET.get('type', '')
+        ctx['f_from'] = self.request.GET.get('from', '')
+        ctx['f_to'] = self.request.GET.get('to', '')
+        return ctx
+
+
+class StockLedgerExcelView(LoginRequiredMixin, StoresAccessMixin, ListView):
+    """Excel export of the store ledger (respects filters)."""
+
+    def get(self, request, *args, **kwargs):
+        qs = (StockMovement.objects
+              .select_related('item', 'item__warehouse', 'performed_by')
+              .order_by('-created_at', '-id'))
+        qs = _filter_ledger(qs, request.GET)
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill
+        except ImportError:
+            return HttpResponse("openpyxl not installed.", status=500)
+        wb = Workbook(); ws = wb.active; ws.title = 'Store ledger'
+        ws.append(['Date', 'Material', 'Code', 'Warehouse', 'Type',
+                   'In', 'Out', 'Balance', 'Reference', 'By', 'Note'])
+        hf = PatternFill('solid', fgColor='1F4E78')
+        for c in range(1, 12):
+            ws.cell(1, c).font = Font(bold=True, color='FFFFFF')
+            ws.cell(1, c).fill = hf
+        for m in qs.iterator():
+            who = ''
+            if m.performed_by:
+                who = m.performed_by.get_full_name() or m.performed_by.username
+            ws.append([
+                m.created_at.strftime('%Y-%m-%d %H:%M'),
+                m.item.name if m.item else '', m.item.code if m.item else '',
+                (m.item.warehouse.name if m.item and m.item.warehouse else ''),
+                m.get_movement_type_display(),
+                float(m.qty_in) if m.qty_in else None,
+                float(m.qty_out) if m.qty_out else None,
+                float(m.balance_after), m.reference or '', who or 'system', m.note or ''])
+        for i, w in enumerate([18, 34, 14, 24, 20, 10, 10, 12, 22, 20, 40], 1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        from io import BytesIO
+        buf = BytesIO(); wb.save(buf)
+        resp = HttpResponse(
+            buf.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = 'attachment; filename="store-ledger.xlsx"'
+        return resp
+
+
 class StockIntegrityView(LoginRequiredMixin, StoresSupervisorMixin, ListView):
     """Cards whose ledger balance has drifted from live stock — the safety net.
 

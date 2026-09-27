@@ -200,9 +200,10 @@
                                         </div>
                                         <div class="col-md-4">
                                             <small class="text-muted d-block">Release letter</small>
-                                            {% if assignment.material_order.release_letter %}
-                                                {% with rl=assignment.material_order.release_letter %}
-                                                <a href="{% url 'release_letter_detail' rl.pk %}"><i class="fas fa-file-signature"></i> {{ rl.code|default:"View" }}</a>
+                                            {% if assignment.release_letter_obj %}
+                                                {% with rl=assignment.release_letter_obj %}
+                                                <a href="{% url 'release_letter_detail' rl.pk %}"><i class="fas fa-file-signature"></i> {{ rl.code|default:rl.request_code|default:"View" }}</a>
+                                                {% if rl.pdf_file %}<a href="{{ rl.pdf_file.url }}" target="_blank" class="small ms-1" title="Open signed PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}
                                                 {% if rl.total_quantity %}<div class="small text-muted">Auth {{ rl.total_quantity|floatformat:0|intcomma }} · Bal {{ rl.balance_to_request|floatformat:0|intcomma }}</div>{% endif %}
                                                 {% endwith %}
                                             {% else %}
@@ -442,11 +443,34 @@
                                                 <th>Package:</th>
                                                 <td>{{ assignment.material_order.package_number|default:"N/A" }}</td>
                                             </tr>
+                                            <tr>
+                                                <th>Release letter:</th>
+                                                <td>
+                                                    {% if assignment.release_letter_obj %}
+                                                        {% with rl=assignment.release_letter_obj %}
+                                                        <a href="{% url 'release_letter_detail' rl.pk %}"><i class="fas fa-file-signature"></i> {{ rl.code|default:rl.request_code|default:"View" }}</a>
+                                                        {% if rl.pdf_file %}<a href="{{ rl.pdf_file.url }}" target="_blank" class="ms-2"><i class="fas fa-file-pdf"></i> Signed PDF</a>{% endif %}
+                                                        {% if rl.total_quantity %}<div class="small text-muted">Authorised {{ rl.total_quantity|floatformat:0|intcomma }} · Balance {{ rl.balance_to_request|floatformat:0|intcomma }}</div>{% endif %}
+                                                        {% endwith %}
+                                                    {% else %}
+                                                        <span class="text-muted">None attached</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Released / Remaining:</th>
+                                                <td>{{ assignment.released_qty|floatformat:0|intcomma }} / {{ assignment.remaining_qty|floatformat:0|intcomma }} of {{ assignment.material_order.quantity|floatformat:0|intcomma }}</td>
+                                            </tr>
                                         </table>
                                     </div>
                                 </div>
                             </div>
                             <div class="modal-footer">
+                                {% if assignment.release_letter_obj %}
+                                <a href="{% url 'release_letter_detail' assignment.release_letter_obj.pk %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-file-signature"></i> Open Release Letter
+                                </a>
+                                {% endif %}
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             </div>
                         </div>

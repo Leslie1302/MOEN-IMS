@@ -118,7 +118,7 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
         # release letter for each pending order, so whoever assigns it can see
         # at a glance whether the stock is there and the release is backed.
         from decimal import Decimal
-        from Inventory.models import InventoryItem
+        from Inventory.models import InventoryItem, ReleaseLetter
         for order in context.get('orders', []):
             item = None
             if order.code:
@@ -130,6 +130,12 @@ class PendingOrdersView(LoginRequiredMixin, StoresManagementMixin, ListView):
             order.current_stock = item.quantity if item else None
             order.short_stock = (item is not None
                                  and (order.quantity or Decimal('0')) > (item.quantity or 0))
+            rl = order.release_letter
+            if rl is None and order.request_code:
+                rl = (ReleaseLetter.objects
+                      .filter(request_code=order.request_code)
+                      .order_by('-upload_time').first())
+            order.release_letter_obj = rl
 
         return context
 
@@ -370,7 +376,7 @@ class MyAssignedOrdersView(LoginRequiredMixin, StoresStaffMixin, ListView):
         # officer sees "what I can release, from what stock, against what letter"
         # without leaving the page.
         from decimal import Decimal
-        from Inventory.models import InventoryItem
+        from Inventory.models import InventoryItem, ReleaseLetter
         for a in context.get('assignments', []):
             order = a.material_order
             if not order:
@@ -388,6 +394,15 @@ class MyAssignedOrdersView(LoginRequiredMixin, StoresStaffMixin, ListView):
             a.stock_item = item
             a.current_stock = item.quantity if item else None
             a.short_stock = (item is not None and a.remaining_qty > (item.quantity or 0))
+            # Release letter: the FK is set inconsistently across flows, so fall
+            # back to the letter that shares this order's request code (which is
+            # how the two are reliably linked).
+            rl = order.release_letter
+            if rl is None and order.request_code:
+                rl = (ReleaseLetter.objects
+                      .filter(request_code=order.request_code)
+                      .order_by('-upload_time').first())
+            a.release_letter_obj = rl
 
         return context
 

@@ -202,8 +202,9 @@
                                                         </div>
                                                         <div class="col-md-6">
                                                             <small class="text-muted d-block">Release letter</small>
-                                                            {% if order.release_letter %}
-                                                                <a href="{% url 'release_letter_detail' order.release_letter.pk %}"><i class="fas fa-file-signature"></i> {{ order.release_letter.code|default:"View" }}</a>
+                                                            {% if order.release_letter_obj %}
+                                                                <a href="{% url 'release_letter_detail' order.release_letter_obj.pk %}"><i class="fas fa-file-signature"></i> {{ order.release_letter_obj.code|default:order.release_letter_obj.request_code|default:"View" }}</a>
+                                                                {% if order.release_letter_obj.pdf_file %}<a href="{{ order.release_letter_obj.pdf_file.url }}" target="_blank" class="small ms-1" title="Open signed PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}
                                                             {% else %}
                                                                 <span class="text-muted small">none attached</span>
                                                             {% endif %}

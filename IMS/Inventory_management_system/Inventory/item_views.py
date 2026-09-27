@@ -22,8 +22,15 @@ class AddItem(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             first_group = self.request.user.groups.first()
             if first_group:
                 form.instance.group = first_group
+        response = super().form_valid(form)
+        # A new stock record's starting quantity is its opening balance on the
+        # tally card, so the card never opens blank.
+        from Inventory.services.stock_ledger import record_movement
+        record_movement(self.object, 'opening', qty_in=self.object.quantity or 0,
+                        reference='Item created', user=self.request.user,
+                        note='Opening balance at item creation')
         messages.success(self.request, 'Item added successfully!')
-        return super().form_valid(form)
+        return response
 
 
 class EditItem(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -53,8 +60,27 @@ class EditItem(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return qs.filter(group__in=user.groups.all())
 
     def form_valid(self, form):
+        from decimal import Decimal
+        # Read the stored quantity BEFORE the form saves the new one.
+        old_qty = (type(self.object).objects
+                   .filter(pk=self.object.pk)
+                   .values_list('quantity', flat=True).first())
+        response = super().form_valid(form)
+        new_qty = self.object.quantity or 0
+        if old_qty is not None and new_qty != old_qty:
+            # A manual quantity edit is a stock change; log it as an adjustment
+            # so the tally card and the live stock stay in step (otherwise the
+            # integrity check would rightly flag the divergence).
+            from Inventory.services.stock_ledger import record_movement
+            delta = Decimal(str(new_qty)) - Decimal(str(old_qty))
+            record_movement(
+                self.object, 'adjustment',
+                qty_in=(delta if delta > 0 else 0),
+                qty_out=(-delta if delta < 0 else 0),
+                reference='Item edited', user=self.request.user,
+                note=f'Quantity changed from {old_qty} to {new_qty} via item edit')
         messages.success(self.request, 'Item updated successfully!')
-        return super().form_valid(form)
+        return response
 
 
 class DeleteItem(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
