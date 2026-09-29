@@ -48,7 +48,8 @@
   <p class="small text-muted mb-2">{{ total|intcomma }} row{{ total|pluralize }}</p>
 
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle">
+    {# data-no-export: the Excel button above exports the whole period, not just this page. #}
+    <table class="table table-sm table-hover align-middle" data-no-export>
       <thead class="table-dark">
         <tr>
           <th>Date</th><th>Region</th><th>District</th><th>Waybill no.</th><th>Material</th>
@@ -62,7 +63,7 @@
           <td class="text-nowrap small">{{ t.date_dispatched|date:'d M Y' }}</td>
           <td class="small">{{ t.material_order.region|default:'—' }}</td>
           <td class="small">{{ t.material_order.district|default:'—' }}</td>
-          <td class="small font-monospace">{{ t.waybill_number|default:'—' }}</td>
+          <td class="small font-monospace text-nowrap">{{ t.waybill_number|default:'—' }}</td>
           <td>{{ t.material_order.name }}</td>
           <td class="text-end">{{ t.quantity|floatformat:'-2'|intcomma|default:'—' }}</td>
           <td class="small">{{ t.material_order.unit.name|default:'' }}</td>
@@ -72,7 +73,9 @@
           <td>
             {% if t.docs %}
             <div class="dropdown">
-              <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" type="button">
+              {# fixed strategy: lets the menu escape the table's scroll box instead of being clipped by it #}
+              <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" type="button"
+                      data-bs-popper-config='{"strategy":"fixed"}'>
                 <i class="bi bi-folder2-open"></i> {{ t.docs|length }}
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
