@@ -1,0 +1,100 @@
+{% extends 'Inventory/base.html' %}
+{% load humanize %}
+{% block title %}Release Archive{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0"><i class="bi bi-box-arrow-right text-primary"></i> Release Archive</h2>
+      <span class="text-muted small">Every load released from the stores, one row per material on each waybill.</span>
+    </div>
+    <a href="?{{ querystring }}&export=xlsx" class="btn btn-outline-success">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-6 col-sm-2"><label class="form-label small fw-semibold mb-1">Year</label>
+      <select name="year" class="form-select form-select-sm">
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select></div>
+    <div class="col-6 col-sm-2"><label class="form-label small fw-semibold mb-1">Month / Quarter</label>
+      <select name="period" class="form-select form-select-sm">
+        {% for val, label in periods %}<option value="{{ val }}" {% if val == period %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div class="col-6 col-sm-2"><label class="form-label small fw-semibold mb-1">Region</label>
+      <select name="region" class="form-select form-select-sm">
+        <option value="">All regions</option>
+        {% for r in regions %}<option {% if r == f_region %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></div>
+    <div class="col-6 col-sm-2"><label class="form-label small fw-semibold mb-1">District</label>
+      <select name="district" class="form-select form-select-sm">
+        <option value="">All districts</option>
+        {% for d in districts %}<option {% if d == f_district %}selected{% endif %}>{{ d }}</option>{% endfor %}
+      </select></div>
+    <div class="col-sm-2"><label class="form-label small fw-semibold mb-1">Search</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Material, waybill, driver…"></div>
+    <div class="col-auto"><label class="form-label small fw-semibold mb-1">Rows</label>
+      <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for n in page_sizes %}<option {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select></div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Filter</button>
+      <a href="{% url 'release_archive' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+
+  <p class="small text-muted mb-2">{{ total|intcomma }} row{{ total|pluralize }}</p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>Date</th><th>Region</th><th>District</th><th>Waybill no.</th><th>Material</th>
+          <th class="text-end">Quantity</th><th>Unit</th><th>Contract package</th>
+          <th>Driver</th><th>Transporter</th><th>Documents</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in rows %}
+        <tr>
+          <td class="text-nowrap small">{{ t.date_dispatched|date:'d M Y' }}</td>
+          <td class="small">{{ t.material_order.region|default:'—' }}</td>
+          <td class="small">{{ t.material_order.district|default:'—' }}</td>
+          <td class="small font-monospace">{{ t.waybill_number|default:'—' }}</td>
+          <td>{{ t.material_order.name }}</td>
+          <td class="text-end">{{ t.quantity|floatformat:'-2'|intcomma|default:'—' }}</td>
+          <td class="small">{{ t.material_order.unit.name|default:'' }}</td>
+          <td class="small">{{ t.material_order.package_number|default:'—' }}</td>
+          <td class="small">{{ t.driver_name|default:'—' }}</td>
+          <td class="small">{{ t.transporter.name|default:'—' }}</td>
+          <td>
+            {% if t.docs %}
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" type="button">
+                <i class="bi bi-folder2-open"></i> {{ t.docs|length }}
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                {% for label, url in t.docs %}<li><a class="dropdown-item small" href="{{ url }}" target="_blank" rel="noopener">{{ label }}</a></li>{% endfor %}
+              </ul>
+            </div>
+            {% else %}<span class="small text-muted">None on file</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No releases in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <nav><ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+  </ul></nav>
+  {% endif %}
+</div>
+{% endblock %}

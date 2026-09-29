@@ -30,6 +30,7 @@ from .views import (
     # ghana_map_stats_api, ghana_map_districts_api, ghana_map_communities_api,
 )
 from .views.map_views import ghana_map_view, ghana_map_data_api
+from .views.release_archive_views import ReleaseArchiveView
 from .views.meter_views import (
     meter_install_create, meter_install_list,
     verify_meter_installation, meter_install_bulk_upload,
@@ -485,6 +486,7 @@ urlpatterns = [
     path('stock-cards-consolidated/', TallyCardConsolidatedView.as_view(), name='tally_card_consolidated'),
     path('stock-ledger-integrity/', StockIntegrityView.as_view(), name='stock_ledger_integrity'),
     path('stock-ledger/', StockLedgerView.as_view(), name='stock_ledger'),
+    path('release-archive/', ReleaseArchiveView.as_view(), name='release_archive'),
     path('stock-ledger/export/', StockLedgerExcelView.as_view(), name='stock_ledger_excel'),
     path('stock-valuation/', StockValuationView.as_view(), name='stock_valuation'),
     path('stock-valuation/export/', StockValuationExcelView.as_view(), name='stock_valuation_excel'),
