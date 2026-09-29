@@ -1,4 +1,4 @@
-Django==5.2.16
+Django==5.2.17
 django-auto-prefetch==1.14.0
 dj-database-url==1.3.0
 python-dotenv==1.2.2
@@ -9,7 +9,7 @@ django-crispy-forms==2.5
 crispy-bootstrap5==2025.6
 
 # REST API and Geospatial Support (Phase 2 - Ghana Map)
-djangorestframework==3.15.2
+djangorestframework==3.17.2
 matplotlib==3.10.8
 pandas==2.2.3
 reportlab==4.4.9
@@ -20,7 +20,7 @@ reportlab==4.4.9
 #   libgdk-pixbuf-2.0-0 libffi8
 # WeasyPrint >= 53 does NOT need cairo; libglib2.0-0 provides libgobject-2.0,
 # the library named in the error when the set is incomplete.
-weasyprint==69.0
+weasyprint==70.0
 seaborn==0.13.2
 xlsxwriter
 gunicorn==25.0.3
