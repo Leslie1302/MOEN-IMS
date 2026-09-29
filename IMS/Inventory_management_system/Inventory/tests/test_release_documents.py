@@ -66,8 +66,9 @@ class PreviewHtmlTests(TestCase):
         self.assertIn('Delivery is time-critical.', html)
 
     def test_text_letterhead_header_when_no_image(self):
-        # No Letterhead row → falls back to the built-in Ministry text header.
-        html = render_memo_html(self.letter)
+        # No Letterhead row → the letter falls back to the built-in Ministry
+        # text header. (The memo is a plain sheet and never carries one.)
+        html = render_letter_html(self.letter)
         self.assertIn('Ministry of Energy and Green Transition', html)
 
     def test_notes_are_html_escaped(self):
@@ -139,14 +140,14 @@ class LetterheadRenderModeTests(TestCase):
         html = render_document_html(self.letter, 'letter', for_pdf=True)
         self.assertNotIn('background-image', html)   # letterhead not inlined
         self.assertNotIn('class="page"', html)       # no screen page simulation
-        self.assertIn('margin: 184pt', html)         # @page still does the insetting
+        self.assertIn('margin-top: 184pt', html)     # @page :first still does the insetting
         self.assertIn('class="qr"', html)            # the QR stays inline, as it must
 
     def test_letter_pre_printed_draws_no_header(self):
         Letterhead.objects.create(name='Pre-printed', active=True, pre_printed=True,
                                   inset_top=200)
         html = render_letter_html(self.letter)
-        self.assertIn('margin: 200pt', html)
+        self.assertIn('margin-top: 200pt', html)
         self.assertNotIn('class="letterhead', html)
 
     def test_letter_missing_file_degrades_to_text_header(self):

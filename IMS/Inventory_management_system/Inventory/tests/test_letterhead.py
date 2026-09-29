@@ -97,7 +97,7 @@ class LetterheadSettingsViewTests(TestCase):
         self.client.force_login(self.manager)
         resp = self.client.get(reverse('letterhead_settings'))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Printable area')
+        self.assertContains(resp, 'printable area')
 
     def test_page_denied_to_others(self):
         self.client.force_login(self.other)

@@ -123,8 +123,12 @@ def validate_release_letter_boq_allocation(sender, instance, **kwargs):
 def notify_release_letter_created(sender, instance, created, **kwargs):
     """
     Create notification when a new release letter is created.
+
+    Only for letters that arrive with a signed PDF (the legacy upload routes).
+    A generated draft notifies nobody: sending for signature is the separate,
+    deliberate act that pings the first signatory (services.approvals).
     """
-    if not created:
+    if not created or not instance.pdf_file:
         return
     
     try:

@@ -14,10 +14,12 @@ Two things are being locked in here:
     not advance past dispatch. Regression guard below.
 """
 
+import tempfile
 from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from Inventory.models import (
@@ -25,7 +27,15 @@ from Inventory.models import (
 )
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class DeliveryConfirmationTests(TestCase):
+    def _confirm(self):
+        # A site photo is mandatory evidence of receipt (SiteReceipt.site_photos).
+        photo = SimpleUploadedFile('site.png', b'\x89PNG\r\n', content_type='image/png')
+        return self.client.post(
+            reverse('site_receipt_create', args=[self.transport.id]),
+            {'received_quantity': '2000', 'condition': 'Good', 'site_photos': photo})
+
     def setUp(self):
         self.consultant = User.objects.create_user(
             'consultant', email='c@energymin.gov.gh', password='pw')
@@ -60,9 +70,7 @@ class DeliveryConfirmationTests(TestCase):
     # -- the transition ----------------------------------------------------
     def test_confirming_receipt_marks_the_transport_delivered(self):
         self.client.force_login(self.consultant)
-        self.client.post(
-            reverse('site_receipt_create', args=[self.transport.id]),
-            {'received_quantity': '2000', 'condition': 'Good'})
+        self._confirm()
 
         self.transport.refresh_from_db()
         self.assertEqual(self.transport.status, 'Delivered')
@@ -71,18 +79,14 @@ class DeliveryConfirmationTests(TestCase):
 
     def test_the_receipt_records_who_confirmed_it(self):
         self.client.force_login(self.consultant)
-        self.client.post(
-            reverse('site_receipt_create', args=[self.transport.id]),
-            {'received_quantity': '2000', 'condition': 'Good'})
+        self._confirm()
 
         receipt = SiteReceipt.objects.get(material_transport=self.transport)
         self.assertEqual(receipt.received_by, self.consultant)
 
     def test_a_confirmed_delivery_leaves_the_pending_list(self):
         self.client.force_login(self.consultant)
-        self.client.post(
-            reverse('site_receipt_create', args=[self.transport.id]),
-            {'received_quantity': '2000', 'condition': 'Good'})
+        self._confirm()
 
         resp = self.client.get(reverse('consultant_deliveries'))
         self.assertNotIn(self.transport, resp.context['transports'])
@@ -95,9 +99,7 @@ class DeliveryConfirmationTests(TestCase):
             status='Delivered', date_delivered=earlier)
 
         self.client.force_login(self.consultant)
-        self.client.post(
-            reverse('site_receipt_create', args=[self.transport.id]),
-            {'received_quantity': '2000', 'condition': 'Good'})
+        self._confirm()
 
         self.transport.refresh_from_db()
         self.assertEqual(self.transport.date_delivered.date(), earlier.date())

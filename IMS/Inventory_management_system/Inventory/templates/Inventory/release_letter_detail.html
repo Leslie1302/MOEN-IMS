@@ -330,6 +330,14 @@
 {% with ws=release_letter.workflow_status|default:"draft" %}
 <div class="rl-wrap container-fluid py-3" data-pt="{{ release_letter.project_type|default:'' }}">
 
+    {# Flash messages — base.html does not render them. #}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
     {# ── Breadcrumb ── #}
     <nav class="rl-breadcrumb" aria-label="breadcrumb">
         <a href="{% url 'release_letter_list' %}">Release letters</a>
@@ -621,7 +629,7 @@
                           nothing in any template linked to it. This is the escape hatch,
                           labelled as one so the QR route stays the norm.
                         {% endcomment %}
-                        {% if can_generate_documents %}
+                        {% if can_mark_released %}
                         <form method="post" action="{% url 'release_letter_mark_released' release_letter.pk %}"
                               class="mt-2"
                               onsubmit="return confirm('Mark this release as physically released? Use this only when the waybill QR could not be scanned.');">

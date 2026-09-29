@@ -57,6 +57,15 @@ from Inventory.services.scan_validation import (
 logger = logging.getLogger(__name__)
 
 
+
+def can_mark_released(user):
+    """Physical release is a stores act: the MarkReleasedView gate and the
+    button on the detail page must agree, or the button 403s."""
+    return user.is_authenticated and (
+        user.is_superuser
+        or user.groups.filter(
+            name__in=['Store Officers', 'Stores Management', 'Management']).exists())
+
 class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
     """
     Detail page for a single ReleaseLetter. Reuses the existing
@@ -77,6 +86,7 @@ class ReleaseLetterDetailView(LoginRequiredMixin, DetailView):
             self.request.user.is_superuser
             or self.request.user.groups.filter(name__in=['Schedule Officers', 'Management']).exists()
         )
+        ctx['can_mark_released'] = can_mark_released(self.request.user)
         ctx['pipeline_step'] = rl.get_pipeline_step()
         ctx['signatories'] = Signatory.objects.filter(active=True).order_by('name')
         # WYSIWYG state: is each document hand-edited, and has the underlying
@@ -857,13 +867,7 @@ class MarkReleasedView(LoginRequiredMixin, UserPassesTestMixin, View):
     http_method_names = ['post']
 
     def test_func(self):
-        if not self.request.user.is_authenticated:
-            return False
-        if self.request.user.is_superuser:
-            return True
-        return self.request.user.groups.filter(
-            name__in=['Store Officers', 'Stores Management', 'Management']
-        ).exists()
+        return can_mark_released(self.request.user)
 
     def post(self, request, pk):
         release_letter = get_object_or_404(ReleaseLetter, pk=pk)

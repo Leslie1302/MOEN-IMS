@@ -410,7 +410,7 @@ urlpatterns = [
     # Public document verification — reached by scanning the QR on a printed
     # document. No login: the reader may have no account at all. Must also be
     # allowlisted in UserRoleMiddleware, or anonymous scans redirect to signin.
-    path('verify/<str:reference>/', VerifyDocumentView.as_view(), name='verify_document'),
+    path('verify/<path:reference>/', VerifyDocumentView.as_view(), name='verify_document'),
 
     # Letterhead upload + drag-to-calibrate printable area.
     path('settings/letterhead/', LetterheadSettingsView.as_view(), name='letterhead_settings'),

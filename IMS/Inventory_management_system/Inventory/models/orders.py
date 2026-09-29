@@ -1206,7 +1206,9 @@ class SiteReceipt(auto_prefetch.Model):
         if is_new and self.material_transport:
             # Mark the related transport delivered.
             self.material_transport.status = 'Delivered'
-            self.material_transport.date_delivered = self.received_date
+            # Keep the original delivery time if one was already recorded.
+            if not self.material_transport.date_delivered:
+                self.material_transport.date_delivered = self.received_date
             self.material_transport.save()
 
     def _post_to_boq(self):

@@ -29,6 +29,9 @@ class ScanClosesWorkflowTests(TestCase):
         self.uploader.groups.add(group)
         self.confirmer = User.objects.create_user('confirmer', password='pw')
         self.confirmer.groups.add(group)
+        # Physical release is a stores act (MarkReleasedView).
+        self.store_officer = User.objects.create_user('storeofficer', password='pw')
+        self.store_officer.groups.add(Group.objects.get_or_create(name='Store Officers')[0])
 
         self.letter = ReleaseLetter.objects.create(
             request_code='REQ-SCAN-1', code='RE-2026-9501',
@@ -77,13 +80,13 @@ class ScanClosesWorkflowTests(TestCase):
     def test_approved_offers_a_way_forward(self):
         """It previously stalled here: the view existed, the link did not."""
         self._confirm()
-        self.client.force_login(self.confirmer)
+        self.client.force_login(self.store_officer)
         resp = self.client.get(reverse('release_letter_detail', args=[self.letter.pk]))
         self.assertContains(resp, 'Mark as released manually')
 
     def test_marking_released_advances_the_pipeline(self):
         self._confirm()
-        self.client.force_login(self.confirmer)
+        self.client.force_login(self.store_officer)
         self.client.post(reverse('release_letter_mark_released', args=[self.letter.pk]))
         self.letter.refresh_from_db()
         self.assertEqual(self.letter.workflow_status, 'released')

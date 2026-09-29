@@ -125,7 +125,8 @@ def build_body(release_letter, sender, message=''):
     )
 
 
-@transaction.atomic
+# Not @transaction.atomic: a failed send must leave its 'failed' row behind,
+# and raising DispatchError inside an atomic block would roll it back.
 def send_release_documents(release_letter, sender, users=None, extra_emails=None,
                            include_memo=True, include_letter=True,
                            subject=None, message='', advance_workflow=True):
@@ -202,16 +203,17 @@ def send_release_documents(release_letter, sender, users=None, extra_emails=None
             ) from exc
         raise DispatchError(f"The email could not be sent: {exc}") from exc
 
-    dispatch.status = 'sent'
-    dispatch.save()
-    dispatch.recipient_users.set(matched_users)
+    with transaction.atomic():
+        dispatch.status = 'sent'
+        dispatch.save()
+        dispatch.recipient_users.set(matched_users)
 
-    # Sending to the signatory means the release is now with them for signature.
-    if advance_workflow and include_letter and release_letter.workflow_status in (
-            'draft', 'memo_generated'):
-        release_letter.workflow_status = 'awaiting_signature'
-        release_letter.save(update_fields=['workflow_status'])
-        logger.info("ReleaseLetter %s advanced to awaiting_signature on dispatch",
-                    release_letter.pk)
+        # Sending to the signatory means the release is now with them for signature.
+        if advance_workflow and include_letter and release_letter.workflow_status in (
+                'draft', 'memo_generated'):
+            release_letter.workflow_status = 'awaiting_signature'
+            release_letter.save(update_fields=['workflow_status'])
+            logger.info("ReleaseLetter %s advanced to awaiting_signature on dispatch",
+                        release_letter.pk)
 
     return dispatch
