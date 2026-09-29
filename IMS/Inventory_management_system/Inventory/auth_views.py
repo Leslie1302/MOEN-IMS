@@ -47,6 +47,9 @@ class CustomLogoutView(LogoutView):
             return HttpResponseNotAllowed(['POST'])
         messages.info(request, 'You have been signed out successfully.')
         logout(request)
+        from accounts.views import is_local_dev
+        if is_local_dev(request):
+            return redirect(settings.LOGIN_URL)
         ms_logout_url = (
             f"{settings.MICROSOFT['AUTHORITY']}/oauth2/v2.0/logout"
             f"?post_logout_redirect_uri={settings.MICROSOFT['REDIRECT_URI']}"

@@ -48,6 +48,12 @@ def _callback_redirect_uri(request):
         return request.build_absolute_uri(reverse("ms_callback"))
     return configured or request.build_absolute_uri(reverse("ms_callback"))
 
+def is_local_dev(request):
+    """True only for DEBUG on localhost. Both are required: Host is client-
+    controlled, DEBUG is not, and DEBUG is forced off on Azure."""
+    host = request.get_host().split(":")[0].lower()
+    return settings.DEBUG and host in {"localhost", "127.0.0.1"}
+
 def _msal_app():
     ms = settings.MICROSOFT
     return msal.ConfidentialClientApplication(
@@ -63,7 +69,16 @@ def ms_login(request):
     Route: GET /auth/login/
 
     Rate-limited per IP to blunt automated OAuth-initiation abuse.
+
+    Local dev only: a username/password form instead, so several local
+    accounts can be tested without Microsoft sign-in.
     """
+    if is_local_dev(request):
+        from django.contrib.auth.views import LoginView
+        return LoginView.as_view(
+            template_name="admin/login.html",
+            extra_context={"site_header": "MOEN-IMS local login (DEBUG only)"},
+        )(request)
     ms = settings.MICROSOFT
     state = str(uuid.uuid4())
     request.session["oauth_state"] = state
@@ -161,6 +176,8 @@ def ms_logout(request):
     Route: POST /auth/logout/
     """
     logout(request)
+    if is_local_dev(request):
+        return redirect(settings.LOGIN_URL)
     ms_logout_url = (
         f"{settings.MICROSOFT['AUTHORITY']}/oauth2/v2.0/logout"
         f"?post_logout_redirect_uri={settings.MICROSOFT['REDIRECT_URI']}"
