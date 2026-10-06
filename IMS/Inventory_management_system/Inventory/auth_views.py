@@ -70,10 +70,12 @@ class Dashboard(LoginRequiredMixin, TemplateView):
         low_inventory_items = items.filter(quantity__lte=10)
         low_inventory_names = list(low_inventory_items.values_list('name', flat=True))
 
+        u = self.request.user
         context.update({
             'items': items,
             'low_inventory_items': low_inventory_names,
-            'low_inventory_ids': list(low_inventory_items.values_list('id', flat=True))
+            'low_inventory_ids': list(low_inventory_items.values_list('id', flat=True)),
+            'can_bulk_delete': u.is_superuser or u.groups.filter(name='Management').exists(),
         })
 
         return context

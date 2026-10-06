@@ -39,11 +39,26 @@
 
     <div class="container-fluid px-3">
         <div class="mt-4">
+            {% if can_bulk_delete %}
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" id="deleteSelectedBtn" disabled
+                        data-bs-toggle="modal" data-bs-target="#invDeleteModal">
+                    <i class="bi bi-trash"></i> Delete selected (<span id="selCount">0</span>)
+                </button>
+                <span class="text-muted small">Tick rows to delete. Selections are kept as you page through.</span>
+            </div>
+            {% endif %}
+            <form method="post" action="{% url 'tally_card_bulk_delete' %}" id="invBulkForm">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'dashboard' %}">
+            <input type="hidden" name="confirm" value="DELETE">
+            <div id="bulkIdInputs"></div>
             <div class="table-responsive">
                 <table class="table table-hover enhanced-table" id="inventory-table"
                     data-export-filename="inventory_list">
                     <thead>
                         <tr>
+                            {% if can_bulk_delete %}<th scope="col" data-no-sort data-no-filter data-no-export><input type="checkbox" id="selectAllInv" class="form-check-input"></th>{% endif %}
                             <th scope="col" data-sort>ID</th>
                             <th scope="col" data-sort>Name</th>
                             <th scope="col" data-sort data-type="number">Qty</th>
@@ -65,6 +80,7 @@
                         {% else %}
                         {% for item in items %}
                         <tr>
+                            {% if can_bulk_delete %}<td><input type="checkbox" class="form-check-input inv-check" data-id="{{ item.id }}"></td>{% endif %}
                             <th scope="row" class="text-muted small">#{{ item.id }}</th>
                             <td class="fw-medium">{{ item.name }}</td>
                             <td>
@@ -104,8 +120,33 @@
                     </tbody>
                 </table>
             </div>
+            </form>
         </div>
     </div>
+
+    {% if can_bulk_delete %}
+    <div class="modal fade" id="invDeleteModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle"></i> Confirm deletion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>This permanently deletes <strong><span id="modalCount">0</span></strong> stock record(s).</p>
+            <p class="text-danger small mb-0">
+              It also removes each material's tally-card / ledger history. Records still
+              linked to a supply contract or invoice are skipped. This cannot be undone.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" form="invBulkForm" class="btn btn-danger">Delete permanently</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     {% if user.is_superuser %}
     <!-- Floating Action Button for Uploads -->
@@ -148,6 +189,41 @@
                 scrollBtn.classList.add('d-none');
             }
         });
+
+        // Bulk delete — track selections in a Set so they survive the table's
+        // client-side pagination (off-page rows are detached from the DOM).
+        const form = document.getElementById('invBulkForm');
+        if (form) {
+            const selected = new Set();
+            const selBtn = document.getElementById('deleteSelectedBtn');
+            const counters = () => {
+                document.getElementById('selCount').textContent = selected.size;
+                document.getElementById('modalCount').textContent = selected.size;
+                selBtn.disabled = selected.size === 0;
+            };
+            document.addEventListener('change', (e) => {
+                if (e.target.classList.contains('inv-check')) {
+                    const id = e.target.dataset.id;
+                    e.target.checked ? selected.add(id) : selected.delete(id);
+                    counters();
+                } else if (e.target.id === 'selectAllInv') {
+                    document.querySelectorAll('.inv-check').forEach(c => {
+                        c.checked = e.target.checked;
+                        e.target.checked ? selected.add(c.dataset.id) : selected.delete(c.dataset.id);
+                    });
+                    counters();
+                }
+            });
+            form.addEventListener('submit', () => {
+                const box = document.getElementById('bulkIdInputs');
+                box.innerHTML = '';
+                selected.forEach(id => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;
+                    box.appendChild(inp);
+                });
+            });
+        }
     });
 </script>
 {% endblock extra_js %}

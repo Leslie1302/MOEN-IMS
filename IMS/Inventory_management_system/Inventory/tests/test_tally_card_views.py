@@ -75,6 +75,50 @@ class TallyCardViewTests(TestCase):
         r = self.client.get(reverse('tally_card_list') + '?low=1')
         self.assertContains(r, 'SMA015')
 
+    def test_bulk_delete_removes_selected_and_history(self):
+        from Inventory.models import StockMovement
+        mgr = User.objects.create_user('mgr', password='x')
+        mgr.groups.add(Group.objects.get_or_create(name='Management')[0])
+        self.client.force_login(mgr)
+        r = self.client.post(reverse('tally_card_bulk_delete'),
+                             {'ids': [self.item.pk], 'confirm': 'DELETE'})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(InventoryItem.objects.filter(pk=self.item.pk).exists())
+        self.assertFalse(StockMovement.objects.filter(item_id=self.item.pk).exists())
+
+    def test_bulk_delete_returns_to_dashboard_when_next_set(self):
+        mgr = User.objects.create_user('mgrn', password='x')
+        mgr.groups.add(Group.objects.get_or_create(name='Management')[0])
+        self.client.force_login(mgr)
+        r = self.client.post(reverse('tally_card_bulk_delete'),
+                             {'ids': [self.item.pk], 'confirm': 'DELETE',
+                              'next': reverse('dashboard')})
+        self.assertRedirects(r, reverse('dashboard'), fetch_redirect_response=False)
+        self.assertFalse(InventoryItem.objects.filter(pk=self.item.pk).exists())
+
+    def test_bulk_delete_rejects_offsite_next(self):
+        mgr = User.objects.create_user('mgro', password='x')
+        mgr.groups.add(Group.objects.get_or_create(name='Management')[0])
+        self.client.force_login(mgr)
+        r = self.client.post(reverse('tally_card_bulk_delete'),
+                             {'ids': [self.item.pk], 'confirm': 'DELETE',
+                              'next': 'https://evil.example.com/'})
+        self.assertRedirects(r, reverse('tally_card_list'), fetch_redirect_response=False)
+
+    def test_bulk_delete_requires_confirm(self):
+        mgr = User.objects.create_user('mgr2', password='x')
+        mgr.groups.add(Group.objects.get_or_create(name='Management')[0])
+        self.client.force_login(mgr)
+        self.client.post(reverse('tally_card_bulk_delete'),
+                        {'ids': [self.item.pk]})  # no confirm
+        self.assertTrue(InventoryItem.objects.filter(pk=self.item.pk).exists())
+
+    def test_bulk_delete_denied_for_store_officer(self):
+        self.client.force_login(self.officer)
+        self.client.post(reverse('tally_card_bulk_delete'),
+                        {'ids': [self.item.pk], 'confirm': 'DELETE'})
+        self.assertTrue(InventoryItem.objects.filter(pk=self.item.pk).exists())
+
     def test_find_drift_detects_out_of_band_change(self):
         from Inventory.services.stock_ledger import find_drift
         # Consistent to start (opening balance == quantity).

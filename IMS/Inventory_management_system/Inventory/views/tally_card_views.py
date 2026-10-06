@@ -12,9 +12,11 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
@@ -512,3 +514,66 @@ def tally_card_adjust(request, pk):
         request,
         f"Balance adjusted to {counted} ({'+' if delta > 0 else ''}{delta}). Logged on the card.")
     return redirect('tally_card_detail', pk=pk)
+
+
+def _can_bulk_delete(user):
+    # Destructive (also removes ledger history) — management / superusers only.
+    return user.is_superuser or user.groups.filter(name='Management').exists()
+
+
+def _bulk_delete_return(request):
+    """Redirect back to the page that triggered the delete (dashboard or the
+    tally-card list), falling back to the tally-card list."""
+    nxt = request.POST.get('next') or ''
+    if url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
+                                       require_https=request.is_secure()):
+        return redirect(nxt)
+    return redirect('tally_card_list')
+
+
+@require_POST
+def tally_card_bulk_delete(request):
+    """Delete stock records in bulk from the tally-card list or the inventory
+    dashboard.
+
+    Hard delete: it also removes each item's StockMovement ledger history
+    (FK is CASCADE), so it is gated to Management/superusers and needs an
+    explicit confirm. Items still referenced by a supply contract or supplier
+    invoice are PROTECTed — those are skipped and reported, not force-deleted.
+    """
+    if not _can_bulk_delete(request.user):
+        messages.error(request, "You don't have permission to delete stock records.")
+        return _bulk_delete_return(request)
+
+    if (request.POST.get('confirm') or '') != 'DELETE':
+        messages.error(request, "Deletion not confirmed.")
+        return _bulk_delete_return(request)
+
+    ids = request.POST.getlist('ids')
+    if not ids:
+        messages.error(request, "No stock records selected.")
+        return _bulk_delete_return(request)
+    qs = InventoryItem.objects.filter(pk__in=ids)
+
+    deleted, skipped = 0, []
+    for item in qs:
+        try:
+            label = item.code or item.name
+            item.delete()
+            deleted += 1
+        except ProtectedError:
+            skipped.append(label)
+
+    if deleted:
+        logger.info("Bulk delete: %s stock records removed by %s",
+                    deleted, request.user)
+        messages.success(request, f"Deleted {deleted} stock record(s) and their card history.")
+    if skipped:
+        messages.warning(
+            request,
+            f"Skipped {len(skipped)} record(s) still linked to a supply contract "
+            f"or invoice: {', '.join(skipped[:10])}"
+            + (" …" if len(skipped) > 10 else ""))
+    if not deleted and not skipped:
+        messages.info(request, "Nothing matched — no records deleted.")
+    return _bulk_delete_return(request)

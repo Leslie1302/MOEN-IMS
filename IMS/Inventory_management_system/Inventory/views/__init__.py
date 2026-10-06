@@ -1,7 +1,7 @@
 from .main_views import Index, AboutView, SuperuserOnlyMixin
 from .tally_card_views import (
     TallyCardListView, TallyCardDetailView, TallyCardPDFView,
-    TallyCardExcelView, tally_card_adjust,
+    TallyCardExcelView, tally_card_adjust, tally_card_bulk_delete,
     StockIntegrityView, TallyCardConsolidatedView,
     StockValuationView, StockValuationExcelView, stock_valuation_update_price,
     StockLedgerView, StockLedgerExcelView,

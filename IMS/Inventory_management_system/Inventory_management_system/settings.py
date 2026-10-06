@@ -99,7 +99,8 @@ ALLOWED_HOSTS = [
     'www.moen-ims.org',
     'moen-ims-fegfgqf3c5frejfv.uksouth-01.azurewebsites.net',
     '169.254.129.3',  # Azure internal IP
-    '*.azurewebsites.net',  # Azure app service domains
+    '*.azurewebsites.net',
+    'uncloak-contrite-trivial.ngrok-free.dev',  # Azure app service domains
 ]
 
 if not DEBUG:
