@@ -287,10 +287,15 @@
                                         </div>
                                     {% endif %}
 
-                                    <button type="button" class="btn btn-outline-info" 
-                                            data-bs-toggle="modal" 
+                                    <button type="button" class="btn btn-outline-info"
+                                            data-bs-toggle="modal"
                                             data-bs-target="#detailModal{{ assignment.id }}">
                                         <i class="fas fa-info-circle"></i> View Full Details
+                                    </button>
+                                    <button type="button" class="btn btn-outline-warning"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#flagOrderModal{{ assignment.id }}">
+                                        <i class="fas fa-flag"></i> Report a mistake
                                     </button>
                                 </div>
                             </div>
@@ -475,6 +480,35 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Report a mistake / request reversal -->
+                <div class="modal fade" id="flagOrderModal{{ assignment.id }}" tabindex="-1">
+                    <div class="modal-dialog"><div class="modal-content">
+                        <form method="post" action="{% url 'raise_correction' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="target_model" value="order">
+                            <input type="hidden" name="kind" value="{% if assignment.released_qty %}release{% else %}order_approval{% endif %}">
+                            <input type="hidden" name="target_id" value="{{ assignment.material_order.pk }}">
+                            <input type="hidden" name="next" value="{% url 'stores_my_assigned_orders' %}">
+                            <div class="modal-header bg-warning-subtle">
+                                <h5 class="modal-title text-warning-emphasis"><i class="fas fa-flag"></i> Report a mistake — {{ assignment.material_order.request_code }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="small text-muted mb-2">
+                                    {% if assignment.released_qty %}This requests a reversal of the release — an administrator will restock the issued quantity and re-open the order.{% else %}This requests sending the order back to Draft because it was approved/assigned in error.{% endif %}
+                                    You don't change stock yourself.
+                                </p>
+                                <label class="form-label small">What was the mistake?</label>
+                                <textarea name="reason" class="form-control" rows="3" required></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-warning">Request reversal</button>
+                            </div>
+                        </form>
+                    </div></div>
                 </div>
             {% endfor %}
         </div>

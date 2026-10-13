@@ -229,7 +229,7 @@
                             <h6 class="text-primary">{{ transport.material_order.request_code }}</h6>
                             <p class="mb-1"><strong>{{ transport.material_name }}</strong></p>
                             <p class="mb-1"><small class="text-muted">{{ transport.material_code }}</small></p>
-                            <p class="mb-1">Quantity: <strong>{{ transport.quantity|floatformat:0 }} {{ transport.unit|default:"N/A" }} transport.unit|default:"N/A" }}</strong></p>
+                            <p class="mb-1">Quantity: <strong>{{ transport.quantity|floatformat:0 }} {{ transport.unit|default:"N/A" }}</strong></p>
                             <p class="mb-2">
                                 <span class="badge 
                                     {% if transport.status == 'Assigned' %}bg-secondary

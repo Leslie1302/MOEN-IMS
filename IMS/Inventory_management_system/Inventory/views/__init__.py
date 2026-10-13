@@ -9,6 +9,9 @@ from .tally_card_views import (
 from .user_views import (
     ProfileView, bulk_user_upload, download_user_template, StaffProfileView
 )
+from .correction_views import (
+    raise_correction, CorrectionReviewListView, review_correction,
+)
 from .order_views import (
     RequestMaterialView, MaterialOrdersView, MaterialOrdersArchiveView, UpdateMaterialStatusView,
     MaterialReceiptView, MaterialReceiptListView, generate_request_code,

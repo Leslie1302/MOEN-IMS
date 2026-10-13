@@ -477,6 +477,10 @@ def blocker_message(release_letter, blockers):
                       f" — over by {line['exceeds_by']} {line['unit']}".rstrip())
             if line['boq'] is not None:
                 url = _reverse('boq_overissuance_justification_create', args=[line['boq'].pk])
+                # The over-issuance is prospective (this release is not yet
+                # recorded against the BoQ), so carry the amount so the form
+                # opens instead of bouncing on the BoQ's persisted balance.
+                url += f"?over={line['exceeds_by']}"
                 detail += f' — <a href="{url}">raise a justification</a>'
             rows.append(detail)
         blocks.append(

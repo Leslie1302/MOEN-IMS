@@ -1,6 +1,7 @@
 from django.db import models
 import auto_prefetch
 from django.contrib.auth.models import User, Group
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 import uuid
@@ -1426,3 +1427,54 @@ class StoreOrderAssignment(auto_prefetch.Model):
             self.assignment_notes = reassignment_note
         
         self.save()
+
+
+class CorrectionRequest(auto_prefetch.Model):
+    """A user-raised request to reverse a workflow action done in error.
+
+    A user flags a mistake on a specific record (a release, a stock
+    upload/edit, or an order approval); a superuser reviews it and, on
+    approval, the reversal is executed automatically (restock + ledger
+    reversal row, or status roll-back). Append-only history — the request
+    row is the audit trail of who flagged what, who approved, and what the
+    reversal did.
+    """
+    KIND_CHOICES = [
+        ('release', 'Stock release / issue'),
+        ('stock_entry', 'Stock upload / edit'),
+        ('order_approval', 'Order approval'),
+    ]
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+
+    # Generic link to the record being corrected: a MaterialOrder (release /
+    # order_approval) or a StockMovement (stock_entry).
+    content_type = auto_prefetch.ForeignKey(
+        'contenttypes.ContentType', on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    target = GenericForeignKey('content_type', 'object_id')
+
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    reason = models.TextField(help_text="What was the mistake?")
+    raised_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name='correction_requests_raised')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='Pending', db_index=True)
+    reviewed_by = auto_prefetch.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='correction_requests_reviewed')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
+    result = models.TextField(blank=True, help_text="What the reversal did.")
+
+    class Meta(auto_prefetch.Model.Meta):
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Correction #{self.pk} ({self.get_kind_display()}) — {self.status}"

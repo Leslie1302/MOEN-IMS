@@ -182,13 +182,25 @@ class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, BoQOverissuance
     template_name = 'Inventory/boq_overissuance_justification_form.html'
     success_url = reverse_lazy('boq_overissuance_summary')
     def dispatch(self, request, *args, **kwargs):
-        """Ensure the BoQ item exists and has overissuance"""
+        """Ensure the BoQ item exists and has an over-issuance to justify.
+
+        Over-issuances are usually *prospective*: raised while generating a
+        release that would exceed the BoQ, before that release is recorded —
+        so the BoQ's persisted balance isn't negative yet. The release gate
+        passes the overage as ``?over=`` so the form opens in that case too.
+        """
         self.boq_item = get_object_or_404(BillOfQuantity, id=self.kwargs['boq_id'])
-        
-        if not self.boq_item.has_overissuance:
+
+        raw_over = request.GET.get('over') or request.POST.get('over')
+        try:
+            self.prospective_over = float(raw_over) if raw_over else 0.0
+        except (TypeError, ValueError):
+            self.prospective_over = 0.0
+
+        if not self.boq_item.has_overissuance and self.prospective_over <= 0:
             messages.error(request, "This BoQ item does not have an overissuance.")
             return redirect('boq_overissuance_summary')
-        
+
         return super().dispatch(request, *args, **kwargs)
     
     def get_form_kwargs(self):
@@ -203,7 +215,8 @@ class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, BoQOverissuance
         justification.boq_item = self.boq_item
         justification.package_number = self.boq_item.package_number
         justification.project_name = f"{self.boq_item.contractor} - {self.boq_item.package_number}"
-        justification.overissuance_quantity = self.boq_item.overissuance_amount
+        justification.overissuance_quantity = (
+            self.boq_item.overissuance_amount or self.prospective_over)
         justification.submitted_by = self.request.user
         justification.save()
         
@@ -216,7 +229,9 @@ class BoQOverissuanceJustificationCreateView(LoginRequiredMixin, BoQOverissuance
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['boq_item'] = self.boq_item
-        context['overissuance_amount'] = self.boq_item.overissuance_amount
+        context['overissuance_amount'] = (
+            self.boq_item.overissuance_amount or self.prospective_over)
+        context['prospective_over'] = self.prospective_over
         return context
 
 

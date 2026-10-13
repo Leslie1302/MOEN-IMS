@@ -61,6 +61,9 @@
                         <li><a class="dropdown-item" href="{% url 'stock_valuation' %}">Stock Valuation</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'release_archive' %}">Release Archive</a></li>
+                        {% if user.is_superuser %}
+                        <li><a class="dropdown-item" href="{% url 'correction_list' %}">Reversal Requests</a></li>
+                        {% endif %}
                     </ul>
                 </li>
                 <li class="nav-item">

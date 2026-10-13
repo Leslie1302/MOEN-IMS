@@ -381,8 +381,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         // Monthly Activity Chart
         const ctx = document.getElementById('monthlyChart').getContext('2d');
-        const monthlyData = {{ monthly_data| safe
-    }};
+        const monthlyData = {{ monthly_data|safe }};
 
     new Chart(ctx, {
         type: 'line',

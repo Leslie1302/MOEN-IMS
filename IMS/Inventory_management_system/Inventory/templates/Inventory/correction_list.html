@@ -1,0 +1,112 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Reversal Requests{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-arrow-counterclockwise text-primary"></i> Reversal Requests</h2>
+    <span class="text-muted small">Users flag mistakes here; approving a request reverses the workflow automatically.</span>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} py-2">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link {% if selected_status == 'Pending' %}active{% endif %}" href="?status=Pending">Pending {% if pending_count %}<span class="badge bg-light text-dark">{{ pending_count }}</span>{% endif %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if selected_status == 'Approved' %}active{% endif %}" href="?status=Approved">Approved</a></li>
+    <li class="nav-item"><a class="nav-link {% if selected_status == 'Rejected' %}active{% endif %}" href="?status=Rejected">Rejected</a></li>
+  </ul>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>#</th><th>Type</th><th>Record</th><th>Reason</th>
+          <th>Raised by</th><th>When</th><th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requests %}
+        <tr>
+          <td class="text-muted">#{{ r.pk }}</td>
+          <td><span class="badge bg-secondary-subtle text-dark">{{ r.get_kind_display }}</span></td>
+          <td class="small">{{ r.target|default:'(record deleted)' }}</td>
+          <td class="small" style="max-width:280px">{{ r.reason }}</td>
+          <td class="small">{{ r.raised_by.get_full_name|default:r.raised_by.username|default:'—' }}</td>
+          <td class="small text-muted">{{ r.created_at|date:"d M Y, H:i" }}</td>
+          <td class="text-end">
+            {% if r.status == 'Pending' %}
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approve{{ r.pk }}">Approve</button>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reject{{ r.pk }}">Reject</button>
+            {% elif r.status == 'Approved' %}
+            <span class="badge bg-success">Reversed</span>
+            <div class="small text-muted">{{ r.result }}</div>
+            {% else %}
+            <span class="badge bg-danger">Rejected</span>
+            {% if r.review_note %}<div class="small text-muted">{{ r.review_note }}</div>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+
+        {% if r.status == 'Pending' %}
+        <!-- Approve modal -->
+        <div class="modal fade" id="approve{{ r.pk }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog"><div class="modal-content">
+            <form method="post" action="{% url 'review_correction' r.pk %}">
+              {% csrf_token %}<input type="hidden" name="action" value="approve">
+              <div class="modal-header"><h5 class="modal-title text-success">Approve & reverse #{{ r.pk }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+              <div class="modal-body">
+                <p class="mb-2"><b>{{ r.get_kind_display }}</b> — {{ r.target }}</p>
+                <p class="small text-muted mb-2">Reason given: {{ r.reason }}</p>
+                <p class="text-danger small">This reverses the workflow immediately (restock / status roll-back) and is logged. It cannot be undone.</p>
+                <label class="form-label small">Note (optional)</label>
+                <textarea name="review_note" class="form-control" rows="2"></textarea>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success">Approve & reverse</button>
+              </div>
+            </form>
+          </div></div>
+        </div>
+        <!-- Reject modal -->
+        <div class="modal fade" id="reject{{ r.pk }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog"><div class="modal-content">
+            <form method="post" action="{% url 'review_correction' r.pk %}">
+              {% csrf_token %}<input type="hidden" name="action" value="reject">
+              <div class="modal-header"><h5 class="modal-title text-danger">Reject #{{ r.pk }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+              <div class="modal-body">
+                <label class="form-label small">Reason for rejecting</label>
+                <textarea name="review_note" class="form-control" rows="2" required></textarea>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger">Reject</button>
+              </div>
+            </form>
+          </div></div>
+        </div>
+        {% endif %}
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">
+          <i class="bi bi-inbox"></i> No {{ selected_status|lower }} reversal requests.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <nav class="mt-3"><ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?status={{ selected_status }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?status={{ selected_status }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+  </ul></nav>
+  {% endif %}
+</div>
+{% endblock %}

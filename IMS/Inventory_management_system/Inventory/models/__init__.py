@@ -5,7 +5,8 @@ from .suppliers import (
 )
 from .orders import (
     ReleaseLetter, MaterialOrder, MaterialOrderAudit,
-    BoQOverissuanceJustification, SiteReceipt, StoreOrderAssignment
+    BoQOverissuanceJustification, SiteReceipt, StoreOrderAssignment,
+    CorrectionRequest,
 )
 from .projects import Project, ProjectSite, ProjectPhase, BillOfQuantity
 from .users import Profile, WeeklyReport, ReportSubmission, Notification

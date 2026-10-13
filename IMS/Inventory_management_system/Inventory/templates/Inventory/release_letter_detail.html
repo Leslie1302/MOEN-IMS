@@ -630,18 +630,16 @@
                           labelled as one so the QR route stays the norm.
                         {% endcomment %}
                         {% if can_mark_released %}
-                        <form method="post" action="{% url 'release_letter_mark_released' release_letter.pk %}"
-                              class="mt-2"
-                              onsubmit="return confirm('Mark this release as physically released? Use this only when the waybill QR could not be scanned.');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-success btn-sm">
-                                <i class="fas fa-truck me-1"></i> Mark as released manually
-                            </button>
-                            <div class="small text-muted mt-1">
-                                Only if the materials have physically left MMU and the
-                                waybill QR was not scanned.
-                            </div>
-                        </form>
+                        <a href="{% url 'stores_my_assigned_orders' %}?search={{ release_letter.request_code|urlencode }}"
+                           class="btn btn-outline-success btn-sm mt-2">
+                            <i class="fas fa-truck me-1"></i> Mark as released manually
+                        </a>
+                        <div class="small text-muted mt-1">
+                            Opens the officer portal to complete the release (full or
+                            partial), so stock is deducted and the tally card updated.
+                            Use when the materials have left MMU and the waybill QR was
+                            not scanned.
+                        </div>
                         {% endif %}
 
                     {% elif ws == 'released' %}

@@ -96,7 +96,7 @@
         <tr>
           <th>Date</th><th>Type</th><th>Reference</th>
           <th class="text-end">Received</th><th class="text-end">Issued</th>
-          <th class="text-end">Balance</th><th>By</th><th>Note</th>
+          <th class="text-end">Balance</th><th>By</th><th>Note</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -110,9 +110,18 @@
           <td class="text-end fw-semibold">{{ m.balance_after|floatformat:'-2'|intcomma }}</td>
           <td class="small">{% if m.performed_by %}{{ m.performed_by.get_full_name|default:m.performed_by.username }}{% else %}system{% endif %}</td>
           <td class="small text-muted">{{ m.note }}</td>
+          <td class="text-end">
+            {% if m.movement_type != 'reversal' %}
+            <button type="button" class="btn btn-sm btn-link text-warning p-0 flag-btn"
+                    title="Report this entry as a mistake"
+                    data-id="{{ m.pk }}" data-desc="{{ m.get_movement_type_display }} on {{ item.code }} ({{ m.created_at|date:'d M Y' }})">
+              <i class="bi bi-flag"></i>
+            </button>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">
+        <tr><td colspan="9" class="text-center text-muted py-4">
           <i class="bi bi-info-circle"></i> No movements yet on this card.
         </td></tr>
         {% endfor %}
@@ -120,4 +129,40 @@
     </table>
   </div>
 </div>
+
+<!-- Request reversal (stock entry) -->
+<div class="modal fade" id="flagModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" action="{% url 'raise_correction' %}">
+      {% csrf_token %}
+      <input type="hidden" name="target_model" value="movement">
+      <input type="hidden" name="kind" value="stock_entry">
+      <input type="hidden" name="target_id" id="flagTargetId">
+      <input type="hidden" name="next" value="{% url 'tally_card_detail' item.pk %}">
+      <div class="modal-header">
+        <h5 class="modal-title text-warning"><i class="bi bi-flag"></i> Report a wrong entry</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small mb-2">Entry: <b id="flagDesc"></b></p>
+        <p class="small text-muted">This sends a reversal request to an administrator. If approved, the entry is reversed and the balance corrected — you don't change stock yourself.</p>
+        <label class="form-label small">What was the mistake?</label>
+        <textarea name="reason" class="form-control" rows="3" required></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-warning">Request reversal</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+<script>
+  document.querySelectorAll('.flag-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.getElementById('flagTargetId').value = b.dataset.id;
+      document.getElementById('flagDesc').textContent = b.dataset.desc;
+      new bootstrap.Modal(document.getElementById('flagModal')).show();
+    });
+  });
+</script>
 {% endblock %}

@@ -14,6 +14,7 @@ from .views import (
     StockIntegrityView, TallyCardConsolidatedView,
     StockValuationView, StockValuationExcelView, stock_valuation_update_price,
     StockLedgerView, StockLedgerExcelView,
+    raise_correction, CorrectionReviewListView, review_correction,
     BillOfQuantityView, UploadBillOfQuantityView, consultant_dash, management_dashboard,
     MaterialReceiptView, update_material_receipt, ReportSubmissionListView,
     ReportSubmissionCreateView, ReportSubmissionDetailView, ReportSubmissionUpdateView,
@@ -484,6 +485,10 @@ urlpatterns = [
     path('stock-cards/<int:pk>/export/', TallyCardExcelView.as_view(), name='tally_card_excel'),
     path('stock-cards/<int:pk>/adjust/', tally_card_adjust, name='tally_card_adjust'),
     path('stock-cards/bulk-delete/', tally_card_bulk_delete, name='tally_card_bulk_delete'),
+    # Correction / reversal process
+    path('corrections/', CorrectionReviewListView.as_view(), name='correction_list'),
+    path('corrections/raise/', raise_correction, name='raise_correction'),
+    path('corrections/<int:pk>/review/', review_correction, name='review_correction'),
     path('stock-cards-consolidated/', TallyCardConsolidatedView.as_view(), name='tally_card_consolidated'),
     path('stock-ledger-integrity/', StockIntegrityView.as_view(), name='stock_ledger_integrity'),
     path('stock-ledger/', StockLedgerView.as_view(), name='stock_ledger'),
