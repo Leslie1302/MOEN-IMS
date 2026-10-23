@@ -1,6 +1,7 @@
 {% extends 'Inventory/reports/_base_pdf.html' %}
 {% load humanize %}
 
+{% block page_size %}A4 landscape{% endblock %}
 {% block report_title %}Materials Movement Report{% endblock %}
 {% block report_subtitle %}<div class="sub">Stock Receipts, Issues and Movements from the Inventory Ledger</div>{% endblock %}
 {% block footer_text %}Materials Movement Report — Ministry of Energy and Green Transition{% endblock %}
@@ -33,6 +34,11 @@
 
   <h2 class="section">2. Summary by Material</h2>
   <table class="data">
+    <colgroup>
+      <col style="width:8%"><col style="width:22%"><col style="width:15%">
+      <col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%">
+      <col style="width:7%"><col style="width:8%"><col style="width:8%">
+    </colgroup>
     <thead>
       <tr>
         <th>Code</th><th>Material</th><th>Store</th>
@@ -61,6 +67,11 @@
 
   <h2 class="section">3. Movement Detail</h2>
   <table class="data">
+    <colgroup>
+      <col style="width:8%"><col style="width:16%"><col style="width:11%"><col style="width:10%">
+      <col style="width:6%"><col style="width:6%"><col style="width:7%">
+      <col style="width:18%"><col style="width:10%"><col style="width:8%">
+    </colgroup>
     <thead>
       <tr>
         <th>Date</th><th>Material</th><th>Store</th><th>Type</th>

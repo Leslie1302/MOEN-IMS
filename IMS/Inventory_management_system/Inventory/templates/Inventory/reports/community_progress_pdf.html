@@ -1,6 +1,7 @@
 {% extends 'Inventory/reports/_base_pdf.html' %}
 {% load humanize %}
 
+{% block page_size %}A4 landscape{% endblock %}
 {% block report_title %}Community Progress Report{% endblock %}
 {% block report_subtitle %}<div class="sub">Works and Material Delivery Progress by Community</div>{% endblock %}
 {% block footer_text %}Community Progress Report — Ministry of Energy and Green Transition{% endblock %}
@@ -24,6 +25,11 @@
 
   <h2 class="section">Progress by Community</h2>
   <table class="data">
+    <colgroup>
+      <col style="width:12%"><col style="width:12%"><col style="width:17%">
+      <col style="width:6%"><col style="width:12%"><col style="width:12%">
+      <col style="width:10%"><col style="width:9%"><col style="width:10%">
+    </colgroup>
     <thead>
       <tr>
         <th>Region</th><th>District</th><th>Community</th>
