@@ -1,0 +1,94 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 16mm 18mm 16mm;
+    @bottom-center { content: "{% block footer_text %}Ministry of Energy and Green Transition{% endblock %}";
+      font-family: Georgia, serif; font-size: 7.5pt; color: #777; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages);
+      font-family: Georgia, serif; font-size: 7.5pt; color: #777; }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; font-size: 9.5pt; line-height: 1.4; margin: 0; }
+
+  .masthead { text-align: center; border-bottom: 3px solid #0C4B33; padding-bottom: 10px; }
+  .masthead .country { font-size: 11pt; letter-spacing: 2px; font-weight: bold; }
+  .masthead .ministry { font-size: 13pt; font-weight: bold; color: #0C4B33; margin-top: 2px; }
+  .tricolor { height: 4px; display: flex; margin-top: 6px; }
+  .tricolor span { flex: 1; }
+  .tricolor .r { background: #CE1126; } .tricolor .y { background: #FCD116; } .tricolor .g { background: #006B3F; }
+
+  .doc-title { text-align: center; margin: 18px 0 4px; }
+  .doc-title h1 { font-size: 16pt; color: #0C4B33; margin: 0; }
+  .doc-title .sub { font-size: 10pt; color: #444; font-style: italic; }
+
+  .meta { margin: 14px auto 6px; width: 86%; font-size: 9pt; }
+  .meta tr td { padding: 2px 6px; }
+  .meta td.k { color: #555; width: 32%; }
+  .meta td.v { font-weight: bold; }
+
+  h2.section { font-size: 11pt; color: #0C4B33; border-bottom: 1px solid #cdd8d2;
+               padding-bottom: 3px; margin: 20px 0 8px; }
+  p.execsum { font-size: 9.3pt; text-align: justify; margin: 4px 0 2px; }
+
+  .kpis { width: 100%; border-collapse: collapse; margin: 6px 0 4px; }
+  .kpis td { text-align: center; border: 1px solid #d7e0db; padding: 8px; }
+  .kpis .n { font-size: 15pt; font-weight: bold; color: #0C4B33; }
+  .kpis .l { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .5px; color: #666; }
+
+  table.data { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 8.3pt; }
+  table.data th { background: #0C4B33; color: #fff; text-align: left; padding: 5px 6px; font-weight: bold; }
+  table.data td { padding: 4px 6px; border-bottom: 0.5px solid #e2e8e4; vertical-align: top; }
+  table.data tr:nth-child(even) td { background: #f6f9f7; }
+  table.data tr.subtotal td { background: #eef4f0; font-weight: bold; }
+  table.data tr.grand td { background: #0C4B33; color: #fff; font-weight: bold; }
+  .num { text-align: right; }
+  .muted { color: #666; }
+  .in { color: #0C4B33; } .out { color: #9c2a1c; }
+  thead { display: table-header-group; }
+
+  .signoff { margin-top: 26px; font-size: 9pt; }
+  .signoff .line { border-top: 1px solid #333; width: 46%; margin-top: 30px; padding-top: 3px; display: inline-block; vertical-align: top; }
+  .signoff .line.right { float: right; }
+</style>
+</head>
+<body>
+
+  <div class="masthead">
+    <div class="country">REPUBLIC OF GHANA</div>
+    <div class="ministry">MINISTRY OF ENERGY AND GREEN TRANSITION</div>
+    <div class="tricolor"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+  </div>
+
+  <div class="doc-title">
+    <h1>{% block report_title %}Report{% endblock %}</h1>
+    {% block report_subtitle %}{% endblock %}
+  </div>
+
+  <table class="meta">
+    <tr><td class="k">Report to:</td><td class="v">{% block report_to %}Management, Ministry of Energy &amp; Green Transition{% endblock %}</td></tr>
+    <tr><td class="k">Prepared by:</td><td class="v">{{ prepared_by_name }}{% if prepared_by_title %}, {{ prepared_by_title }}{% endif %}{% if prepared_by_office %} — {{ prepared_by_office }}{% endif %}</td></tr>
+    {% block meta_extra %}{% endblock %}
+    <tr><td class="k">Date issued:</td><td class="v">{{ generated_on|date:"d F Y" }}</td></tr>
+    <tr><td class="k">Reference:</td><td class="v">{% block reference %}MOEN/IMS/{{ generated_on|date:"Y/m/d" }}{% endblock %}</td></tr>
+  </table>
+
+  {% block body %}{% endblock %}
+
+  {% block signoff %}
+  <div class="signoff">
+    <div class="line">
+      {% if prepared_by_name %}<strong>{{ prepared_by_name }}</strong><br>{% endif %}
+      {% if prepared_by_title %}{{ prepared_by_title }}<br>{% endif %}
+      Prepared / Verified by
+    </div>
+    <div class="line right">Approved by (Management)</div>
+  </div>
+  {% endblock %}
+
+</body>
+</html>

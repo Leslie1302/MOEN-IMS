@@ -1,0 +1,33 @@
+{% extends 'Inventory/reports/_base_pdf.html' %}
+{% load humanize %}
+
+{% block report_title %}Weekly Development Report{% endblock %}
+{% block report_subtitle %}<div class="sub">MOEN Integrated Energy Project System</div>{% endblock %}
+{% block footer_text %}Weekly Development Report — Ministry of Energy and Green Transition{% endblock %}
+{% block reference %}{{ obj.report_id }}{% endblock %}
+
+{% block meta_extra %}
+  <tr><td class="k">Reporting period:</td><td class="v">{{ obj.start_date|date:"d M Y" }} – {{ obj.end_date|date:"d M Y" }}</td></tr>
+  <tr><td class="k">Subject:</td><td class="v">{{ obj.subject }}</td></tr>
+{% endblock %}
+
+{% block body %}
+  <h2 class="section">Executive Summary</h2>
+  <p class="execsum">{{ obj.executive_summary|linebreaksbr }}</p>
+
+  <table class="kpis" style="margin-top:8px;">
+    <tr>
+      <td style="width:33%"><div class="n">{{ obj.commits_analyzed|intcomma }}</div><div class="l">Commits Analysed</div></td>
+      <td style="width:33%"><div class="n">{{ obj.files_scanned|intcomma }}</div><div class="l">Files Scanned</div></td>
+      <td style="width:34%"><div class="n">{{ obj.migrations_found|intcomma }}</div><div class="l">Migrations</div></td>
+    </tr>
+  </table>
+
+  {% if obj.new_features %}<h2 class="section">New Features</h2><p class="execsum">{{ obj.new_features|linebreaksbr }}</p>{% endif %}
+  {% if obj.bug_fixes %}<h2 class="section">Bug Fixes</h2><p class="execsum">{{ obj.bug_fixes|linebreaksbr }}</p>{% endif %}
+  {% if obj.database_changes %}<h2 class="section">Database Changes</h2><p class="execsum">{{ obj.database_changes|linebreaksbr }}</p>{% endif %}
+  {% if obj.code_improvements %}<h2 class="section">Code Improvements</h2><p class="execsum">{{ obj.code_improvements|linebreaksbr }}</p>{% endif %}
+  {% if obj.pending_tasks %}<h2 class="section">Pending Tasks</h2><p class="execsum">{{ obj.pending_tasks|linebreaksbr }}</p>{% endif %}
+  {% if obj.next_priorities %}<h2 class="section">Next Week's Priorities</h2><p class="execsum">{{ obj.next_priorities|linebreaksbr }}</p>{% endif %}
+  {% if obj.custom_notes %}<h2 class="section">Notes</h2><p class="execsum">{{ obj.custom_notes|linebreaksbr }}</p>{% endif %}
+{% endblock %}

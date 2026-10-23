@@ -1,0 +1,143 @@
+{% extends 'Inventory/base.html' %}
+{% block title %}Reports Hub{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="mb-4">
+    <h2 class="mb-1"><i class="bi bi-journals text-primary"></i> Reports Hub</h2>
+    <p class="text-muted mb-0">All system-generated reports in one place. Each opens its own page; most offer Excel and professional PDF exports.</p>
+  </div>
+
+  <style>
+    .rep-card{display:block;height:100%;border:1px solid #e3e9e5;border-radius:14px;padding:18px 18px 16px;
+      text-decoration:none;color:inherit;transition:.15s;background:#fff;}
+    .rep-card:hover{border-color:#0C4B33;box-shadow:0 8px 20px -10px rgba(12,75,51,.25);transform:translateY(-2px);color:inherit;}
+    .rep-card .ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+      background:#eef6f1;color:#0C4B33;font-size:1.2rem;margin-bottom:10px;}
+    .rep-card h6{margin:0 0 4px;font-weight:700;}
+    .rep-card p{margin:0;font-size:.82rem;color:#5d6b64;}
+    .rep-card .tags{margin-top:8px;}
+    .rep-card .badge{font-size:.62rem;font-weight:600;}
+    .rep-sec{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:#5d6b64;font-weight:700;
+      margin:26px 0 12px;display:flex;align-items:center;gap:10px;}
+    .rep-sec:before{content:"";width:22px;height:3px;background:#C9A227;border-radius:3px;}
+    .pdf{background:#fde9e7;color:#9c2a1c;} .xls{background:#e5f3ec;color:#0C4B33;} .live{background:#e4f0fa;color:#155a8a;}
+  </style>
+
+  {# ---- Stores & Inventory ---- #}
+  <div class="rep-sec">Stores &amp; Inventory</div>
+  <div class="row g-3">
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'materials_movement_report' %}">
+        <div class="ic"><i class="bi bi-arrow-left-right"></i></div>
+        <h6>Materials Movement</h6>
+        <p>What moved in a period — receipts, issues, transfers — with destination and status.</p>
+        <div class="tags"><span class="badge pdf">PDF</span> <span class="badge xls">Excel</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'stock_valuation' %}">
+        <div class="ic"><i class="bi bi-cash-stack"></i></div>
+        <h6>Stock Valuation</h6>
+        <p>Total value of materials in stock (qty × unit cost), grouped by store.</p>
+        <div class="tags"><span class="badge pdf">PDF</span> <span class="badge xls">Excel</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'stock_ledger' %}">
+        <div class="ic"><i class="bi bi-journal-text"></i></div>
+        <h6>Store Ledger</h6>
+        <p>Chronological record of every stock movement across all stores.</p>
+        <div class="tags"><span class="badge xls">Excel</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'tally_card_list' %}">
+        <div class="ic"><i class="bi bi-card-list"></i></div>
+        <h6>Tally Cards</h6>
+        <p>Per-material bin cards with running balances and printable PDFs.</p>
+        <div class="tags"><span class="badge pdf">PDF</span> <span class="badge xls">Excel</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'tally_card_consolidated' %}">
+        <div class="ic"><i class="bi bi-columns-gap"></i></div>
+        <h6>Consolidated Stock</h6>
+        <p>Each material's holdings across all warehouses, side by side.</p>
+      </a>
+    </div>
+    {% if can_super_stores %}
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'stock_ledger_integrity' %}">
+        <div class="ic"><i class="bi bi-shield-check"></i></div>
+        <h6>Ledger Integrity</h6>
+        <p>Drift check — flags any item whose live stock doesn't match the ledger.</p>
+        <div class="tags"><span class="badge">Supervisor</span></div>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---- Projects & Progress ---- #}
+  <div class="rep-sec">Projects &amp; Progress</div>
+  <div class="row g-3">
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'report-submission-list' %}">
+        <div class="ic"><i class="bi bi-file-earmark-text"></i></div>
+        <h6>Material Progress Reports</h6>
+        <p>Package/community progress reports submitted by officers.</p>
+        <div class="tags"><span class="badge pdf">PDF</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'community_progress_list' %}">
+        <div class="ic"><i class="bi bi-geo-alt"></i></div>
+        <h6>Community Progress</h6>
+        <p>Works progress by community across the electrification programmes.</p>
+        <div class="tags"><span class="badge pdf">PDF</span> <span class="badge xls">Excel</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'release_letter_tracking_dashboard' %}">
+        <div class="ic"><i class="bi bi-truck"></i></div>
+        <h6>Release Letter Tracking</h6>
+        <p>Status of release letters through the signing and dispatch chain.</p>
+        <div class="tags"><span class="badge live">Live</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'urgent_releases_report' %}">
+        <div class="ic"><i class="bi bi-exclamation-triangle"></i></div>
+        <h6>Urgent Releases</h6>
+        <p>Releases flagged urgent and awaiting action.</p>
+      </a>
+    </div>
+  </div>
+
+  {# ---- Governance & System ---- #}
+  {% if can_super_stores or can_super %}
+  <div class="rep-sec">Governance &amp; System</div>
+  <div class="row g-3">
+    {% if can_super %}
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'correction_list' %}">
+        <div class="ic"><i class="bi bi-arrow-counterclockwise"></i></div>
+        <h6>Reversal Requests</h6>
+        <p>Mistake-correction queue — approve to reverse a workflow.</p>
+        <div class="tags"><span class="badge">Admin</span></div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a class="rep-card" href="{% url 'weekly_reports_list' %}">
+        <div class="ic"><i class="bi bi-code-square"></i></div>
+        <h6>Weekly Development Report</h6>
+        <p>Engineering activity summary for the system itself.</p>
+        <div class="tags"><span class="badge pdf">PDF</span> <span class="badge">Admin</span></div>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

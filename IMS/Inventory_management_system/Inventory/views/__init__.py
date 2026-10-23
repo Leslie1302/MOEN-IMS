@@ -3,7 +3,8 @@ from .tally_card_views import (
     TallyCardListView, TallyCardDetailView, TallyCardPDFView,
     TallyCardExcelView, tally_card_adjust, tally_card_bulk_delete,
     StockIntegrityView, TallyCardConsolidatedView,
-    StockValuationView, StockValuationExcelView, stock_valuation_update_price,
+    StockValuationView, StockValuationExcelView, StockValuationPDFView,
+    stock_valuation_update_price,
     StockLedgerView, StockLedgerExcelView,
 )
 from .user_views import (
@@ -11,6 +12,10 @@ from .user_views import (
 )
 from .correction_views import (
     raise_correction, CorrectionReviewListView, review_correction,
+)
+from .movement_report_views import (
+    MaterialsMovementReportView, MaterialsMovementReportExcelView,
+    MaterialsMovementReportPDFView,
 )
 from .order_views import (
     RequestMaterialView, MaterialOrdersView, MaterialOrdersArchiveView, UpdateMaterialStatusView,
@@ -23,9 +28,9 @@ from .dashboard_views import (
     requisition_status, get_stores_phase_label
 )
 from .report_views import (
-    generate_weekly_report, weeklyreport_changelist,
+    generate_weekly_report, weeklyreport_changelist, weeklyreport_pdf, reports_hub,
     ReportSubmissionListView, ReportSubmissionCreateView,
-    ReportSubmissionUpdateView, ReportSubmissionDetailView,
+    ReportSubmissionUpdateView, ReportSubmissionDetailView, ReportSubmissionPDFView,
     submit_report, approve_report, reject_report
 )
 from .data_views import (
@@ -59,9 +64,9 @@ __all__ = [
     'download_bulk_request_template', 'get_inventory_item_details',
     'consultant_dash', 'management_dashboard', 'release_letter_tracking_dashboard',
     'requisition_status', 'get_stores_phase_label',
-    'generate_weekly_report', 'weeklyreport_changelist',
+    'generate_weekly_report', 'weeklyreport_changelist', 'weeklyreport_pdf', 'reports_hub',
     'ReportSubmissionListView', 'ReportSubmissionCreateView',
-    'ReportSubmissionUpdateView', 'ReportSubmissionDetailView',
+    'ReportSubmissionUpdateView', 'ReportSubmissionDetailView', 'ReportSubmissionPDFView',
     'submit_report', 'approve_report', 'reject_report',
     'UploadInventoryView', 'UploadCategoriesAndUnitsView', 'list_categories', 'list_units',
     'get_boq_data', 'MaterialLegendView', 'MaterialHeatmapView', 'LowInventorySummaryView',

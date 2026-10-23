@@ -1,0 +1,90 @@
+{% extends 'Inventory/reports/_base_pdf.html' %}
+{% load humanize %}
+
+{% block report_title %}Materials Movement Report{% endblock %}
+{% block report_subtitle %}<div class="sub">Stock Receipts, Issues and Movements from the Inventory Ledger</div>{% endblock %}
+{% block footer_text %}Materials Movement Report — Ministry of Energy and Green Transition{% endblock %}
+{% block reference %}MOEN/IMS/MMR/{{ generated_on|date:"Y/m/d" }}{% endblock %}
+
+{% block meta_extra %}
+  <tr><td class="k">Reporting period:</td><td class="v">{{ period_label }}</td></tr>
+  {% if store_name %}<tr><td class="k">Store:</td><td class="v">{{ store_name }}</td></tr>{% endif %}
+{% endblock %}
+
+{% block body %}
+  <h2 class="section">1. Executive Summary</h2>
+  <p class="execsum">
+    During the period <strong>{{ period_label }}</strong>, the inventory ledger recorded
+    <strong>{{ report.totals.movements|intcomma }}</strong> stock movement(s) across
+    <strong>{{ report.totals.materials|intcomma }}</strong> material line(s){% if store_name %} at {{ store_name }}{% else %} across all stores{% endif %}.
+    A total of <strong>{{ report.totals.received|floatformat:'-2'|intcomma }}</strong> unit(s) were received
+    and <strong>{{ report.totals.issued|floatformat:'-2'|intcomma }}</strong> unit(s) were issued to project sites.
+    The figures below are drawn directly from the material tally-card (bin-card) ledger and reconcile to live stock balances.
+  </p>
+
+  <table class="kpis">
+    <tr>
+      <td style="width:25%"><div class="n">{{ report.totals.received|floatformat:'-2'|intcomma }}</div><div class="l">Total Received</div></td>
+      <td style="width:25%"><div class="n">{{ report.totals.issued|floatformat:'-2'|intcomma }}</div><div class="l">Total Issued</div></td>
+      <td style="width:25%"><div class="n">{{ report.totals.materials|intcomma }}</div><div class="l">Materials Moved</div></td>
+      <td style="width:25%"><div class="n">{{ report.totals.movements|intcomma }}</div><div class="l">Movements Logged</div></td>
+    </tr>
+  </table>
+
+  <h2 class="section">2. Summary by Material</h2>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Code</th><th>Material</th><th>Store</th>
+        <th class="num">Received</th><th class="num">Issued</th>
+        <th class="num">Transf.&nbsp;In</th><th class="num">Transf.&nbsp;Out</th>
+        <th class="num">Adjust.</th><th class="num">Net</th><th class="num">Closing</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in report.summary %}
+      <tr>
+        <td>{{ r.code|default:'—' }}</td><td>{{ r.material }}</td><td class="muted">{{ r.warehouse }}</td>
+        <td class="num in">{{ r.received|floatformat:'-2'|intcomma }}</td>
+        <td class="num out">{{ r.issued|floatformat:'-2'|intcomma }}</td>
+        <td class="num">{{ r.transfer_in|floatformat:'-2'|intcomma }}</td>
+        <td class="num">{{ r.transfer_out|floatformat:'-2'|intcomma }}</td>
+        <td class="num">{{ r.adjustment|floatformat:'-2'|intcomma }}</td>
+        <td class="num">{{ r.net|floatformat:'-2'|intcomma }}</td>
+        <td class="num"><strong>{{ r.closing_balance|floatformat:'-2'|intcomma }}</strong></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="muted" style="text-align:center;padding:10px;">No stock moved during this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 class="section">3. Movement Detail</h2>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Date</th><th>Material</th><th>Store</th><th>Type</th>
+        <th class="num">In</th><th class="num">Out</th><th class="num">Balance</th>
+        <th>Destination</th><th>Status</th><th>By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in report.detail %}
+      <tr>
+        <td>{{ d.date|date:'d M H:i' }}</td>
+        <td>{{ d.material }}<br><span class="muted">{{ d.code }}</span></td>
+        <td class="muted">{{ d.warehouse }}</td>
+        <td>{{ d.type }}</td>
+        <td class="num in">{% if d.qty_in %}{{ d.qty_in|floatformat:'-2'|intcomma }}{% endif %}</td>
+        <td class="num out">{% if d.qty_out %}{{ d.qty_out|floatformat:'-2'|intcomma }}{% endif %}</td>
+        <td class="num">{{ d.balance_after|floatformat:'-2'|intcomma }}</td>
+        <td>{{ d.destination }}</td>
+        <td>{{ d.status }}</td>
+        <td class="muted">{{ d.by }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="muted" style="text-align:center;padding:10px;">No movements during this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

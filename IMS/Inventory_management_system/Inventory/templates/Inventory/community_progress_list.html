@@ -26,6 +26,12 @@
                     <i class="bi bi-download"></i> Pull all targets from BoQ
                 </button>
             </form>
+            <a href="{% url 'community_progress_pdf' %}?q={{ filters.q }}&region={{ filters.region }}" target="_blank" class="btn btn-outline-danger">
+                <i class="bi bi-file-earmark-pdf"></i> PDF
+            </a>
+            <a href="{% url 'community_progress_excel' %}?q={{ filters.q }}&region={{ filters.region }}" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
             <a href="{% url 'project_management_dashboard' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Dashboard
             </a>

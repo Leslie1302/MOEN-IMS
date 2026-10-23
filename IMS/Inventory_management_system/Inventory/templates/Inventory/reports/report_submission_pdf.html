@@ -1,0 +1,42 @@
+{% extends 'Inventory/reports/_base_pdf.html' %}
+{% load humanize %}
+
+{% block report_title %}Material Progress Report{% endblock %}
+{% block report_subtitle %}<div class="sub">{{ obj.package_number }}{% if obj.community %} — {{ obj.community }}{% endif %}</div>{% endblock %}
+{% block footer_text %}Material Progress Report — Ministry of Energy and Green Transition{% endblock %}
+{% block reference %}MOEN/IMS/MPR/{{ obj.pk }}/{{ generated_on|date:"Y/m/d" }}{% endblock %}
+
+{% block meta_extra %}
+  <tr><td class="k">Region / District:</td><td class="v">{{ obj.region }}{% if obj.district %}, {{ obj.district }}{% endif %}</td></tr>
+  {% if obj.community %}<tr><td class="k">Community:</td><td class="v">{{ obj.community }}</td></tr>{% endif %}
+  <tr><td class="k">Package / Phase:</td><td class="v">{{ obj.package_number }}{% if obj.phase %} · {{ obj.phase }}{% endif %}</td></tr>
+  <tr><td class="k">Contractor:</td><td class="v">{{ obj.contractor }}</td></tr>
+  <tr><td class="k">Consultant:</td><td class="v">{{ obj.consultant }}</td></tr>
+  <tr><td class="k">Status:</td><td class="v">{{ obj.status }}</td></tr>
+  <tr><td class="k">Submitted:</td><td class="v">{{ obj.submission_date|date:"d F Y" }}</td></tr>
+{% endblock %}
+
+{% block body %}
+  <h2 class="section">1. Executive Summary</h2>
+  <p class="execsum">{{ obj.executive_summary|linebreaksbr }}</p>
+
+  <h2 class="section">2. Material Position</h2>
+  <table class="data">
+    <thead>
+      <tr><th>Item Code</th><th>Material</th>
+        <th class="num">Contract Qty</th><th class="num">Received</th>
+        <th class="num">Balance</th><th class="num">% Received</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ obj.item_code }}</td>
+        <td>{{ obj.material_description }}</td>
+        <td class="num">{{ obj.contract_quantity|floatformat:'-2'|intcomma }}</td>
+        <td class="num in">{{ obj.quantity_received|floatformat:'-2'|intcomma }}</td>
+        <td class="num {% if balance < 0 %}out{% endif %}">{{ balance|floatformat:'-2'|intcomma }}</td>
+        <td class="num"><strong>{{ pct_received }}%</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  {% if obj.warehouse %}<p class="muted" style="font-size:8.5pt;margin-top:4px;">Receiving store: {{ obj.warehouse.name }}</p>{% endif %}
+{% endblock %}

@@ -781,6 +781,57 @@ class CommunityProgressListView(LoginRequiredMixin, UserPassesTestMixin, Templat
         return context
 
 
+class CommunityProgressExcelView(CommunityProgressListView):
+    """Excel export of the community progress list (respects filters)."""
+
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+
+        ctx = self.get_context_data()
+        rows = ctx.get('community_list', [])
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Community Progress'
+        hdr = ['Region', 'District', 'Community', 'Packages', 'Contractors',
+               'Items', 'Contract Qty', 'Received', 'Material %', 'Works %', 'Status']
+        ws.append(hdr)
+        fill = PatternFill('solid', fgColor='0C4B33')
+        for c in ws[1]:
+            c.fill = fill
+            c.font = Font(color='FFFFFF', bold=True)
+        for r in rows:
+            ws.append([r['region'], r['district'], r['community'], r['package_count'],
+                       r['contractor_count'], r['item_count'], r['total_contract'],
+                       r['total_received'], r['material_completion'], r['completion'],
+                       r['status']])
+        resp = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = 'attachment; filename="community_progress.xlsx"'
+        wb.save(resp)
+        return resp
+
+
+class CommunityProgressPDFView(CommunityProgressListView):
+    """Professional PDF of the community progress report (Ministry house style)."""
+
+    def get(self, request, *args, **kwargs):
+        from Inventory.utils.report_pdf import preparer_context, render_pdf
+        ctx = self.get_context_data()
+        pctx = preparer_context(request.user)
+        pctx.update({
+            'rows': ctx.get('community_list', []),
+            'total_communities': ctx.get('total_communities', 0),
+            'complete_count': ctx.get('complete_count', 0),
+            'in_progress_count': ctx.get('in_progress_count', 0),
+            'not_started_count': ctx.get('not_started_count', 0),
+            'filters': ctx.get('filters', {}),
+        })
+        return render_pdf('Inventory/reports/community_progress_pdf.html', pctx,
+                          'community_progress_report.pdf')
+
+
 class CommunityProgressBreakdownView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """Per-community works breakdown opened from the Expand button.
 

@@ -1,0 +1,68 @@
+{% extends 'Inventory/reports/_base_pdf.html' %}
+{% load humanize %}
+
+{% block report_title %}Stock Valuation Report{% endblock %}
+{% block report_subtitle %}<div class="sub">Value of Materials in Stock, by Store</div>{% endblock %}
+{% block footer_text %}Stock Valuation Report — Ministry of Energy and Green Transition{% endblock %}
+{% block reference %}MOEN/IMS/SVR/{{ generated_on|date:"Y/m/d" }}{% endblock %}
+
+{% block meta_extra %}
+  {% if store_name %}<tr><td class="k">Store:</td><td class="v">{{ store_name }}</td></tr>{% endif %}
+  <tr><td class="k">Valuation basis:</td><td class="v">Quantity on hand × unit cost (as recorded)</td></tr>
+{% endblock %}
+
+{% block body %}
+  <h2 class="section">1. Summary</h2>
+  <p class="execsum">
+    As at <strong>{{ generated_on|date:"d F Y" }}</strong>, the total value of materials held in stock
+    {% if store_name %}at {{ store_name }}{% else %}across all stores{% endif %} is
+    <strong>GHS {{ grand_total|floatformat:2|intcomma }}</strong>.
+    {% if total_unpriced %}<strong>{{ total_unpriced }}</strong> item line(s) have no unit cost on record and are
+    valued at zero — these should be priced for a complete valuation.{% endif %}
+    Figures are drawn from live stock balances on the inventory ledger.
+  </p>
+
+  <table class="kpis">
+    <tr>
+      <td style="width:50%"><div class="n">GHS {{ grand_total|floatformat:2|intcomma }}</div><div class="l">Total Stock Value</div></td>
+      <td style="width:50%"><div class="n">{{ total_unpriced|intcomma }}</div><div class="l">Unpriced Item Lines</div></td>
+    </tr>
+  </table>
+
+  {% for s in stores %}
+  <h2 class="section">{{ forloop.counter|add:1 }}. {{ s.warehouse }}</h2>
+  <table class="data">
+    <thead>
+      <tr><th>Code</th><th>Material</th><th>Unit</th>
+        <th class="num">Qty</th><th class="num">Unit Cost (GHS)</th><th class="num">Value (GHS)</th></tr>
+    </thead>
+    <tbody>
+      {% for ln in s.lines %}
+      <tr>
+        <td>{{ ln.code|default:'—' }}</td>
+        <td>{{ ln.name }}{% if not ln.priced %} <span class="muted">(unpriced)</span>{% endif %}</td>
+        <td class="muted">{{ ln.unit }}</td>
+        <td class="num">{{ ln.qty|intcomma }}</td>
+        <td class="num">{{ ln.unit_cost|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ln.value|floatformat:2|intcomma }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="subtotal">
+        <td colspan="5" class="num">Subtotal — {{ s.warehouse }}</td>
+        <td class="num">GHS {{ s.subtotal|floatformat:2|intcomma }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% empty %}
+  <p class="muted">No stock records to value.</p>
+  {% endfor %}
+
+  {% if stores %}
+  <table class="data" style="margin-top:10px;">
+    <tbody><tr class="grand">
+      <td colspan="5" class="num">GRAND TOTAL — ALL STORES</td>
+      <td class="num">GHS {{ grand_total|floatformat:2|intcomma }}</td>
+    </tr></tbody>
+  </table>
+  {% endif %}
+{% endblock %}

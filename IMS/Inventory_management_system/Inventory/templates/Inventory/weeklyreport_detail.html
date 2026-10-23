@@ -307,6 +307,9 @@
         <a href="{% url 'weekly_reports_list' %}" class="btn btn-secondary">
             ← Back to Reports List
         </a>
+        <a href="{% url 'weeklyreport_pdf' report.pk %}" class="btn btn-success" target="_blank">
+            Professional PDF
+        </a>
         {% if report.pdf_file %}
         <a href="{{ report.pdf_file.url }}" class="btn btn-success" download>
             Download PDF

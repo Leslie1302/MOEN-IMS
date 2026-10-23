@@ -8,6 +8,7 @@
                 <h3>Report Details</h3>
                 <div>
                     <a href="{% url 'report-submission-list' %}" class="btn btn-secondary">Back to List</a>
+                    <a href="{% url 'report-submission-pdf' report.pk %}" target="_blank" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
                     {% if report.status == 'Draft' and report.user == request.user %}
                     <a href="{% url 'report-submission-update' report.pk %}" class="btn btn-warning">Edit</a>
                     {% endif %}

@@ -403,6 +403,27 @@ class StockValuationView(LoginRequiredMixin, StoresAccessMixin, ListView):
         return ctx
 
 
+class StockValuationPDFView(StockValuationView):
+    """Professional PDF of the valuation report (Ministry house style)."""
+
+    def get(self, request, *args, **kwargs):
+        from decimal import Decimal
+
+        from Inventory.utils.report_pdf import preparer_context, render_pdf
+        stores = self.get_queryset()
+        ctx = preparer_context(request.user)
+        ctx.update({
+            'stores': stores,
+            'grand_total': sum((s['subtotal'] for s in stores), Decimal('0')),
+            'total_unpriced': sum(s['unpriced'] for s in stores),
+            'store_name': getattr(
+                Warehouse.objects.filter(pk=self.request.GET.get('warehouse')).first(),
+                'name', '') if self.request.GET.get('warehouse') else '',
+        })
+        return render_pdf('Inventory/reports/stock_valuation_pdf.html', ctx,
+                          'stock_valuation_report.pdf')
+
+
 class StockValuationExcelView(StockValuationView):
     """Excel export of the valuation report (respects the store/search filter)."""
 

@@ -1,0 +1,50 @@
+{% extends 'Inventory/reports/_base_pdf.html' %}
+{% load humanize %}
+
+{% block report_title %}Community Progress Report{% endblock %}
+{% block report_subtitle %}<div class="sub">Works and Material Delivery Progress by Community</div>{% endblock %}
+{% block footer_text %}Community Progress Report — Ministry of Energy and Green Transition{% endblock %}
+{% block reference %}MOEN/IMS/CPR/{{ generated_on|date:"Y/m/d" }}{% endblock %}
+
+{% block meta_extra %}
+  {% if filters.region %}<tr><td class="k">Region filter:</td><td class="v">{{ filters.region }}</td></tr>{% endif %}
+  {% if filters.q %}<tr><td class="k">Search:</td><td class="v">{{ filters.q }}</td></tr>{% endif %}
+{% endblock %}
+
+{% block body %}
+  <h2 class="section">Summary</h2>
+  <table class="kpis">
+    <tr>
+      <td style="width:25%"><div class="n">{{ total_communities|intcomma }}</div><div class="l">Communities</div></td>
+      <td style="width:25%"><div class="n">{{ complete_count|intcomma }}</div><div class="l">Complete</div></td>
+      <td style="width:25%"><div class="n">{{ in_progress_count|intcomma }}</div><div class="l">In Progress</div></td>
+      <td style="width:25%"><div class="n">{{ not_started_count|intcomma }}</div><div class="l">Not Started</div></td>
+    </tr>
+  </table>
+
+  <h2 class="section">Progress by Community</h2>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Region</th><th>District</th><th>Community</th>
+        <th class="num">Pkgs</th><th class="num">Contract</th><th class="num">Received</th>
+        <th class="num">Material&nbsp;%</th><th class="num">Works&nbsp;%</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.region }}</td><td>{{ r.district }}</td><td>{{ r.community }}</td>
+        <td class="num">{{ r.package_count }}</td>
+        <td class="num">{{ r.total_contract|floatformat:'-2'|intcomma }}</td>
+        <td class="num in">{{ r.total_received|floatformat:'-2'|intcomma }}</td>
+        <td class="num">{{ r.material_completion }}%</td>
+        <td class="num"><strong>{{ r.completion }}%</strong></td>
+        <td>{{ r.status }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="muted" style="text-align:center;padding:10px;">No communities match the current filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

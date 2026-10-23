@@ -130,6 +130,36 @@ def weeklyreport_changelist(request, report_id=None):
         return render(request, 'Inventory/weekly_reports_list.html', context)
 
 
+@login_required
+def reports_hub(request):
+    """A landing hub linking to every system-generated report.
+
+    Each target page enforces its own access, so the hub only needs a login;
+    cards flagged restricted are hidden from users who can't open them.
+    """
+    u = request.user
+    is_super = u.is_superuser
+    is_mgmt = is_super or u.groups.filter(name='Management').exists()
+    is_super_stores = is_mgmt or u.groups.filter(name='Stores Management').exists()
+    return render(request, 'Inventory/reports_hub.html', {
+        'can_super': is_super,
+        'can_mgmt': is_mgmt,
+        'can_super_stores': is_super_stores,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def weeklyreport_pdf(request, report_id):
+    """Professional PDF of a weekly development report (Ministry house style)."""
+    from Inventory.utils.report_pdf import preparer_context, render_pdf
+    report = get_object_or_404(WeeklyReport, pk=report_id)
+    ctx = preparer_context(request.user)
+    ctx['obj'] = report
+    return render_pdf('Inventory/reports/weekly_report_pdf.html', ctx,
+                      f'weekly_report_{report.report_id}.pdf')
+
+
 class ReportSubmissionListView(LoginRequiredMixin, ListView):
     model = ReportSubmission
     template_name = 'inventory/report_submission_list.html'
@@ -201,6 +231,24 @@ class ReportSubmissionDetailView(LoginRequiredMixin, DetailView):
         if self.request.user.is_superuser or self.request.user.groups.filter(name='Management').exists():
             return ReportSubmission.objects.all()
         return ReportSubmission.objects.filter(user=self.request.user)
+
+
+class ReportSubmissionPDFView(ReportSubmissionDetailView):
+    """Professional PDF of a report submission (Ministry house style)."""
+
+    def get(self, request, *args, **kwargs):
+        from Inventory.utils.report_pdf import preparer_context, render_pdf
+        obj = self.get_object()
+        # "Prepared by" is the report's author, not whoever is viewing it.
+        ctx = preparer_context(obj.user or request.user)
+        ctx['obj'] = obj
+        ctx['balance'] = (obj.contract_quantity or 0) - (obj.quantity_received or 0)
+        pct = 0
+        if obj.contract_quantity:
+            pct = round((obj.quantity_received or 0) / obj.contract_quantity * 100, 1)
+        ctx['pct_received'] = pct
+        return render_pdf('Inventory/reports/report_submission_pdf.html', ctx,
+                          f'progress_report_{obj.pk}.pdf')
 
 @login_required
 @require_POST
